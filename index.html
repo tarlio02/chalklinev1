@@ -764,23 +764,33 @@ ctx.lineJoin = 'round';
 let viewW = 0, viewH = 0;
 const camera = { x: 500, y: 300, scale: 1 };
 
+// Kick off loading the handwriting webfonts immediately at page load
+// (rather than waiting for the first canvas draw to implicitly trigger
+// it), so by the time the first AI response comes back over the network
+// the fonts are already cached and text-measurement metrics are accurate
+// from turn one. See the matching `await document.fonts.ready` in
+// runTeachingTurn for why this matters.
+['700 40px Kalam','400 40px Kalam','700 40px Caveat','400 40px Caveat'].forEach(f=>{
+  document.fonts.load(f).catch(()=>{});
+});
+
 const PAGE_W = 1000;
 const PAGE_H = Math.round(PAGE_W * Math.SQRT2);
-const RULE_LINE_SPACING = 36;
+const RULE_LINE_SPACING = 40;
 
 // The multiplier that converts an author-specified "size" into the actual
-// world-unit font size used for handwriting. Kept slightly smaller than
-// before (was 1.25) so notes read as normal handwriting rather than
-// oversized marker text.
-const HAND_SIZE_MULT = 1.08;
+// world-unit font size used for handwriting. Readable but still compact.
+const HAND_SIZE_MULT = 1.18;
 // Line height for a block of text at a given (already-multiplied) world
 // font size, snapped to a whole number of ruled-paper lines so every line
 // of handwriting sits on (or a fixed offset from) an actual rule line —
 // exactly like writing on real notebook paper — while still guaranteeing
 // enough vertical room that taller/bigger text never overlaps the line
-// below it.
+// below it. The 1.25 safety factor (rather than a razor-thin 1.0) absorbs
+// normal font-metric variance (ascenders/descenders, cursive flourishes)
+// so text never visually touches the rule line above or below it.
 function lineHeightFor(sizeWorld){
-  const needed = sizeWorld * 1.15;
+  const needed = sizeWorld * 1.25;
   const mult = Math.max(1, Math.ceil(needed / RULE_LINE_SPACING));
   return mult * RULE_LINE_SPACING;
 }
@@ -974,7 +984,7 @@ function commandScreenBBox(cmd){
     case 'text': {
       const fam = "'Kalam', 'Caveat', cursive";
       const weight = cmd.weight || 700;
-      const size = (cmd.size||24)*HAND_SIZE_MULT;
+      const size = (cmd.size||26)*HAND_SIZE_MULT;
       ctx.font = `${weight} ${sw(size)}px ${fam}`;
       const [sx,sy] = worldToScreen(cmd.x, cmd.y);
       if(cmd.maxWidth){
@@ -1025,7 +1035,7 @@ function renderCommand(cmd){
     case 'text': {
       const fam = "'Kalam', 'Caveat', cursive";
       const weight = cmd.weight || 700;
-      const size = (cmd.size||24)*HAND_SIZE_MULT;
+      const size = (cmd.size||26)*HAND_SIZE_MULT;
       ctx.font = `${weight} ${sw(size)}px ${fam}`;
       ctx.textBaseline = 'alphabetic';
       const [sx,sy] = worldToScreen(cmd.x, cmd.y);
@@ -1506,7 +1516,7 @@ function enqueueCommandsAtCursor(commands){
         if (c.type === 'text') {
             c.x = 90; // Strictly adhere to left margin
             c.maxWidth = 820; // Force wrapping before edge — use the width fully before breaking
-            const size = (c.size || 24) * HAND_SIZE_MULT;
+            const size = (c.size || 26) * HAND_SIZE_MULT;
             const fam = "'Kalam', 'Caveat', cursive";
             tCtx.font = `${c.weight || 700} ${size}px ${fam}`;
             
@@ -1629,7 +1639,7 @@ function renderPartialCommand(cmd, t){
       const full = cmd.text || '';
       const fam = "'Kalam', 'Caveat', cursive";
       const weight = cmd.weight || 700;
-      const size = (cmd.size||24)*HAND_SIZE_MULT;
+      const size = (cmd.size||26)*HAND_SIZE_MULT;
       ctx.font = `${weight} ${sw(size)}px ${fam}`;
       const [sx,sy] = worldToScreen(cmd.x, cmd.y);
       if(cmd.maxWidth){
@@ -2063,7 +2073,7 @@ CRITICAL LAYOUT RULES - THE APP WILL OVERRIDE YOUR COORDINATES:
 TEXT ON THE BOARD MUST USE REAL SYMBOLS, NOT SPELLED-OUT WORDS: π, θ, β, α, γ, Δ, Σ, ∫, √, ∞, ≤, ≥, ≈, ×, ÷, →, ², ³, ₁, ₂, etc. directly inside "text" strings. Use "mono":true for alignment if drawing equations.
 
 Available command types:
-- {"type":"text","x":..,"y":..,"text":"...","size":22,"color":"ink|ochre|sage|brick|teal|violet|sky|coral","mono":false,"weight":700,"maxWidth":800}
+- {"type":"text","x":..,"y":..,"text":"...","size":26,"color":"ink|ochre|sage|brick|teal|violet|sky|coral","mono":false,"weight":700,"maxWidth":800}
 - {"type":"halo","x":..,"y":..,"r":50,"color":"halo|ochre|sage|teal|violet|sky|coral"}
 - {"type":"line","x1":..,"y1":..,"x2":..,"y2":..,"color":"ink","width":2.5}
 - {"type":"arrow","x1":..,"y1":..,"x2":..,"y2":..,"color":"ochre","width":2.5}
@@ -2212,6 +2222,14 @@ async function callGemini(){
 
 async function runTeachingTurn(userMessage, displayText){
   addTranscriptMsg('user', displayText !== undefined ? displayText : userMessage);
+  // Guarantee the handwriting webfonts are fully loaded BEFORE any text is
+  // measured for layout. Without this, the very first turn's line-wrap
+  // calculation can run against fallback system-font metrics (if the
+  // custom fonts haven't finished downloading yet), while the actual
+  // canvas paint moments later uses the real, differently-sized font —
+  // so the reserved vertical space is wrong and the next block overlaps
+  // the one before it. Awaiting here costs nothing once fonts are cached.
+  await document.fonts.ready;
   const result = await callTutor(userMessage);
   if(result.board && result.board.length) enqueueCommandsAtCursor(result.board);
   if(result.speech){ addTranscriptMsg('tutor', result.speech); speak(result.speech); }
