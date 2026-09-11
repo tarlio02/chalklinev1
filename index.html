@@ -2519,7 +2519,19 @@ async function runTeachingTurn(userMessage, displayText){
   // the one before it. Awaiting here costs nothing once fonts are cached.
   await document.fonts.ready;
   const result = await callTutor(userMessage);
-  if(result.board && result.board.length) enqueueCommandsAtCursor(result.board);
+  if(result.board && result.board.length){
+    console.log('[Chalkline debug] raw board commands:', result.board);
+    const shapeTypes = new Set(['path','circle','curve','line','rect','arrow']);
+    const shapeCount = result.board.filter(c => c && shapeTypes.has(c.type)).length;
+    const textCount = result.board.filter(c => c && c.type === 'text').length;
+    console.log(`[Chalkline debug] ${shapeCount} shape commands, ${textCount} text commands`);
+    if(textCount > 0 && shapeCount === 0){
+      console.warn('[Chalkline debug] This turn wrote text labels with ZERO shape commands — the model skipped drawing the actual picture.');
+      setStatus(`⚠ 0 shapes, ${textCount} text (see console)`);
+      setTimeout(()=>{ if(statusLine.textContent.startsWith('⚠')) setStatus('idle'); }, 4000);
+    }
+    enqueueCommandsAtCursor(result.board);
+  }
   if(result.speech){ addTranscriptMsg('tutor', result.speech); speak(result.speech); }
   if(result.quiz) addQuizCard(result.quiz);
   autoSaveSession();
