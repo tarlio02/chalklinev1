@@ -2122,6 +2122,17 @@ CRITICAL LAYOUT RULES - THE APP WILL OVERRIDE YOUR COORDINATES:
 
 TEXT ON THE BOARD MUST USE REAL SYMBOLS, NOT SPELLED-OUT WORDS: π, θ, β, α, γ, Δ, Σ, ∫, √, ∞, ≤, ≥, ≈, ×, ÷, →, ², ³, ₁, ₂, etc. directly inside "text" strings. Use "mono":true for alignment if drawing equations.
 
+NEVER WRITE LaTeX/TeX MARKUP ON THE BOARD. There is no math typesetting engine — the canvas draws "text" strings literally, character for character, so any LaTeX syntax appears as raw garbled text (e.g. "\(\frac{d}{dx}\)" would be painted exactly like that, backslashes and all). This means:
+- NEVER use \( \), \[ \], $ $, or $$ $$ delimiters.
+- NEVER use \frac{a}{b} — instead write it inline as "a/b" or "a ÷ b".
+- NEVER use \cdot, \pm, \sqrt{}, \lim_{}, \sum_{}, ^{...}, _{...}, or any other backslash/brace TeX commands.
+- Instead use the real Unicode symbols and characters directly: write x² not x^{2}, write x₁ not x_{1}, write √(x) not \sqrt{x}, write × or · not \cdot, write ± not \pm, write lim (h→0) not \lim_{h\to0}, write Σ not \sum.
+- Example — WRONG: "f'(x)=lim_{h→0}\frac{f(x+h)-f(x)}{h}"
+  Example — CORRECT: "f'(x) = lim (h→0) [f(x+h) − f(x)] / h"
+- Example — WRONG: "FV = 1000(1+0.1)^{2}"
+  Example — CORRECT: "FV = 1000(1 + 0.1)²"
+This rule applies to every "text" command, including headings, definitions, and worked equations — plain readable notation only, exactly like natural handwriting on a real whiteboard.
+
 Available command types:
 - {"type":"text","x":..,"y":..,"text":"...","size":26,"color":"ink|ochre|sage|brick|teal|violet|sky|coral","mono":false,"weight":700,"maxWidth":800,"heading":false} — set "heading":true ONLY for a section/topic title (e.g. "2. The Friedman-Phelps Critique"). The app automatically underlines heading text and inserts a blank ruled line above it, so DO NOT manually add a blank line or a "---"/underscore divider before a heading yourself — just set "heading":true and let the app handle the spacing and underline. Use a larger "size" (e.g. 32-40) for headings too, but "heading":true is what actually triggers the underline and spacing, not the size alone.
 - {"type":"halo","x":..,"y":..,"r":50,"color":"halo|ochre|sage|teal|violet|sky|coral"}
