@@ -245,7 +245,7 @@ footer{
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"><\/script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"><\/script>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&family=Caveat:wght@600;700&family=STIX+Two+Text:ital,wght@0,400;0,600;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&family=Caveat:wght@600;700&family=Kalam:wght@400;700&family=STIX+Two+Text:ital,wght@0,400;0,600;1,400&display=swap');
 
 :root{
   --board-bg:#F7FBFE;
@@ -966,9 +966,9 @@ function commandScreenBBox(cmd){
   }
   switch(cmd.type){
     case 'text': {
-      const fam = cmd.handwritten ? "'Caveat', cursive" : (cmd.mono ? "'JetBrains Mono', 'STIX Two Text', monospace" : "'Source Serif 4', 'STIX Two Text', serif");
+      const fam = cmd.handwritten ? "'Caveat', cursive" : (cmd.mono ? "'JetBrains Mono', 'STIX Two Text', monospace" : "'Kalam', 'Caveat', cursive");
       const weight = cmd.weight || (cmd.handwritten ? 700 : 400);
-      const size = cmd.handwritten ? (cmd.size||36)*1.25 : (cmd.size||22);
+      const size = cmd.handwritten ? (cmd.size||36)*1.25 : (cmd.size||24)*1.08;
       ctx.font = `${weight} ${sw(size)}px ${fam}`;
       const [sx,sy] = worldToScreen(cmd.x, cmd.y);
       const width = ctx.measureText(cmd.text||'').width;
@@ -1011,9 +1011,9 @@ function renderCommand(cmd){
 
   switch(cmd.type){
     case 'text': {
-      const fam = cmd.handwritten ? "'Caveat', cursive" : (cmd.mono ? "'JetBrains Mono', 'STIX Two Text', monospace" : "'Source Serif 4', 'STIX Two Text', serif");
+      const fam = cmd.handwritten ? "'Caveat', cursive" : (cmd.mono ? "'JetBrains Mono', 'STIX Two Text', monospace" : "'Kalam', 'Caveat', cursive");
       const weight = cmd.weight || (cmd.handwritten ? 700 : 400);
-      const size = cmd.handwritten ? (cmd.size||36)*1.25 : (cmd.size||22);
+      const size = cmd.handwritten ? (cmd.size||36)*1.25 : (cmd.size||24)*1.08;
       ctx.font = `${weight} ${sw(size)}px ${fam}`;
       ctx.textBaseline = 'alphabetic';
       const [sx,sy] = worldToScreen(cmd.x, cmd.y);
@@ -1080,7 +1080,7 @@ function renderCommand(cmd){
     case 'plot': {
       const [ox,oy] = worldToScreen(cmd.x, cmd.y); const w = sw(cmd.w), h = sw(cmd.h);
       drawAxesGrid(ox, oy, w, h, cmd);
-      ctx.lineWidth = sw(2);
+      ctx.lineWidth = sw(2.5);
       ctx.strokeStyle = color; ctx.fillStyle = color;
       ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox, oy - h); ctx.moveTo(ox, oy); ctx.lineTo(ox + w, oy); ctx.stroke();
       drawArrowhead(ox, oy - h, -Math.PI/2, color);
@@ -1090,12 +1090,21 @@ function renderCommand(cmd){
       (cmd.curves || []).forEach(curve => {
         const pts = (curve.points || []).map(p => [scaleX(p[0]), scaleY(p[1])]);
         if(pts.length < 2) return;
-        ctx.strokeStyle = COLORS[curve.color] || color;
-        ctx.lineWidth = sw(curve.width || 2.75);
+        const curveColor = COLORS[curve.color] || color;
+        ctx.save();
+        ctx.shadowColor = hexToRgba(curveColor, 0.35);
+        ctx.shadowBlur = sw(4);
+        ctx.shadowOffsetY = sw(1.5);
+        ctx.strokeStyle = curveColor;
+        ctx.lineWidth = sw(curve.width || 3.25);
         strokeSmoothCurve(pts);
+        ctx.restore();
+        // small hand-plotted dots at each data point for a worked-by-hand feel
+        ctx.fillStyle = curveColor;
+        pts.forEach(p => { ctx.beginPath(); ctx.arc(p[0], p[1], sw(2.75), 0, Math.PI*2); ctx.fill(); });
         if(curve.label){
-          ctx.fillStyle = COLORS[curve.color] || color;
-          ctx.font = `${sw(13)}px 'JetBrains Mono', 'STIX Two Text', monospace`;
+          ctx.fillStyle = curveColor;
+          ctx.font = `700 ${sw(15)}px 'Kalam', cursive`;
           ctx.textAlign = 'left';
           const [lx,ly] = pts[pts.length-1];
           ctx.fillText(curve.label, lx+sw(8), ly+sw(4));
@@ -1141,7 +1150,7 @@ function drawAxesGrid(ox, oy, w, h, cmd){
   if(cmd.grid === false) return;
   const n = cmd.gridLines || 5;
   ctx.save();
-  ctx.strokeStyle = 'rgba(38,36,31,0.09)';
+  ctx.strokeStyle = 'rgba(38,36,31,0.14)';
   ctx.lineWidth = 1;
   ctx.setLineDash([sw(3), sw(4)]);
   for(let i=1;i<=n;i++){
@@ -1185,7 +1194,7 @@ function drawAxesTicksAndLabels(ox, oy, w, h, cmd, color){
   ctx.font = `${sw(15)}px 'JetBrains Mono', 'STIX Two Text', monospace`;
   if(cmd.xlabel){ ctx.textAlign = 'right'; ctx.fillText(cmd.xlabel, ox+w, oy+sw(30)); }
   if(cmd.ylabel){ ctx.save(); ctx.translate(ox-sw(28), oy-h); ctx.textAlign = 'left'; ctx.fillText(cmd.ylabel,0,0); ctx.restore(); }
-  if(cmd.title){ ctx.textAlign = 'center'; ctx.font = `600 ${sw(17)}px 'Source Serif 4', serif`; ctx.fillText(cmd.title, ox+w/2, oy-h-sw(16)); }
+  if(cmd.title){ ctx.textAlign = 'center'; ctx.font = `700 ${sw(20)}px 'Caveat', cursive`; ctx.fillText(cmd.title, ox+w/2, oy-h-sw(16)); }
   ctx.restore();
 }
 
@@ -1476,9 +1485,9 @@ function renderPartialCommand(cmd, t){
       const full = cmd.text || '';
       const nChars = Math.max(1, Math.round(full.length*t));
       const partial = full.slice(0,nChars);
-      const fam = cmd.handwritten ? "'Caveat', cursive" : (cmd.mono ? "'JetBrains Mono', 'STIX Two Text', monospace" : "'Source Serif 4', 'STIX Two Text', serif");
+      const fam = cmd.handwritten ? "'Caveat', cursive" : (cmd.mono ? "'JetBrains Mono', 'STIX Two Text', monospace" : "'Kalam', 'Caveat', cursive");
       const weight = cmd.weight || (cmd.handwritten ? 700 : 400);
-      const size = cmd.handwritten ? (cmd.size||36)*1.25 : (cmd.size||22);
+      const size = cmd.handwritten ? (cmd.size||36)*1.25 : (cmd.size||24)*1.08;
       ctx.font = `${weight} ${sw(size)}px ${fam}`;
       const [sx,sy] = worldToScreen(cmd.x, cmd.y);
       ctx.fillText(partial, sx, sy);
@@ -1945,7 +1954,7 @@ COORDINATES FOR "axes"/"plot": "x","y" is the position of the ORIGIN (bottom-lef
 
 AVOID OVERLAPPING CONTENT: every element you place (text, axes/plot box, highlight-marker, halo) occupies real space, and nothing on the board should visually overlap anything else. Concretely: if you open with a handwritten title at y:120 followed by a highlight-marker of height ~40 (so it occupies roughly y:100-165), don't start the next element — an axes/plot box, a paragraph, an equation — any higher than about y:190. When stacking several elements vertically, leave at least 25-30 units of clear gap between the bottom of one and the top of the next.
 
-Layout pattern: start with ONE handwritten title near the top-left (around x:90,y:120) sized around 30, followed immediately by a highlight-marker behind it (ending by about y:165). Build the explanation below that, starting no earlier than y:190. Keep each turn's board content SHORT — at most 8-12 commands — because each turn should cover only a small, single idea (see pacing rules below), not a full section. For math: mono text, one step per line, 40+ units apart vertically, using real symbols as above. For any data graph, use a single "plot" command (see above) — never bare "axes" plus a separate "curve" — so the picture is always accurate, gridded, ticked, and self-explanatory at a glance.
+Layout pattern: start with ONE handwritten title near the top-left (around x:90,y:120) sized around 30, followed immediately by a highlight-marker behind it (ending by about y:165). Build the explanation below that, starting no earlier than y:190. Even though each turn covers only a small, single idea (see pacing rules below), write it up properly like real class notes — don't leave the board sparse. Use around 14-22 commands per turn: the full definition or claim in one clear text line, then supporting text lines that unpack it (a short elaboration, the intuition behind it, a worked micro-example or numeric case, a labelled diagram/plot where relevant), not just a title and one line. Fill a good portion of the 1000x900 page rather than leaving most of it blank — an equation on its own with nothing else is not enough; always accompany it with plain-language text explaining what it means. For math: mono text, one step per line, 40+ units apart vertically, using real symbols as above. For any data graph, use a single "plot" command (see above) — never bare "axes" plus a separate "curve" — so the picture is always accurate, gridded, ticked, and self-explanatory at a glance.
 
 PACING RULES (strict — this is the most important behavioural constraint):
 - Teach in SMALL bites: explain ONE definition, ONE step of a derivation, or ONE component of a concept per turn — not a whole topic, not even a whole "section". Think 2-4 sentences of speech per turn, occasionally a bit more only when a single idea genuinely needs it (e.g. deriving one formula).
