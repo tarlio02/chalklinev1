@@ -2266,24 +2266,7 @@ DRAWING ACTUAL PICTURES (cells, leaves, animals, organs, diagrams, maps, circuit
   - Every diagram with 3+ distinguishable parts needs 3+ labels. Do not draw an unlabeled outline and call it done.
   - Labels belong to the same local coordinate cluster as the diagram — never place a label's x/y far outside the diagram's own bounding box.
 - A diagram like this still occupies its own vertical slot on the board like a graph does — draw it as one coherent cluster of shape and label commands around a shared local coordinate area (e.g. all within roughly a 300×300 to 500×400 world-unit box) rather than scattering pieces across the whole page, and give it a normal "text" heading above it introducing what it is.
-- HARD RULE — A HEADING FOLLOWED BY A LIST OF LABEL WORDS IS NOT A DIAGRAM AND IS FORBIDDEN. If you write a "text" heading like "X Diagram", every "text" command that follows naming a part (e.g. "nucleus", "tail", "chloroplast") is a label ONLY, and a label with no shape is meaningless and invalid. Before you finish a turn that includes a diagram heading, check your own "board" array: it MUST contain at least 5 commands of type "path", "circle", or "curve" (the actual drawing) in addition to the label "text"/"arrow" commands. If you notice you only wrote text commands under a diagram heading, you have failed the diagram — go back and add the shape commands, don't submit text-only.
-- COPY THIS TEMPLATE STRUCTURE for every diagram (adapt the coordinates, segment points, and colors to the actual subject — this is the literal command sequence to follow, not just a description):
-{"type":"text","x":100,"y":100,"text":"Dog — labeled sketch","heading":true,"size":32,"color":"ink"}
-{"type":"path","segments":[["M",120,220],["C",100,260,110,320,160,340],["C",220,360,300,350,330,300],["C",350,270,340,230,300,210],["C",260,190,160,190,120,220],["Z"]],"color":"ink","width":2.5,"fill":true,"fillColor":"ink","fillOpacity":0.08}
-{"type":"circle","x":330,"y":230,"rx":40,"ry":35,"color":"ink","width":2.5}
-{"type":"path","segments":[["M",300,205],["L",290,175],["L",315,200],["Z"]],"color":"ink","width":2.5}
-{"type":"curve","points":[[160,340],[150,380],[140,410]],"color":"ink","width":2.5}
-{"type":"line","x1":180,"y1":345,"x2":180,"y2":395,"color":"ink","width":2.5}
-{"type":"line","x1":250,"y1":345,"x2":250,"y2":395,"color":"ink","width":2.5}
-{"type":"arrow","x1":420,"y1":220,"x2":350,"y2":225,"color":"ochre","width":2}
-{"type":"text","x":425,"y":225,"text":"head","size":15,"color":"ochre"}
-{"type":"arrow","x1":420,"y1":185,"x2":302,"y2":195,"color":"ochre","width":2}
-{"type":"text","x":425,"y":190,"text":"ear","size":15,"color":"ochre"}
-{"type":"arrow","x1":100,"y1":420,"x2":150,"y2":400,"color":"ochre","width":2}
-{"type":"text","x":60,"y":425,"text":"tail","size":15,"color":"ochre"}
-{"type":"arrow","x1":180,"y1":440,"x2":180,"y2":400,"color":"ochre","width":2}
-{"type":"text","x":165,"y":455,"text":"leg","size":15,"color":"ochre"}
-  Note the pattern: heading, THEN several "path"/"circle"/"curve"/"line" shape commands that actually draw the form (these come first and are the bulk of the diagram), THEN arrow+text pairs for each label (these come last, small in number, one pair per part). A real diagram's command list is dominated by shape commands, not text commands — if your list is mostly "text" entries, you drew a word list, not a picture.
+- Worked example — a labeled diagram is a CLUSTER, e.g. a plant cell: outer "path" (cell wall, fill:true, low fillOpacity) → inner "circle" (nucleus, fill:true) → several small "circle"/"curve" shapes (chloroplasts, mitochondria) → a "circle" (vacuole, fill:true) → then for each of those, one short "arrow" from near its label into the structure plus one small "text" label ("cell wall", "nucleus", "chloroplast", "vacuole", "mitochondria"), all sharing one local x/y region. That whole bundle — outline + internals + arrows + labels — is what "one diagram" means; never just the outline alone.
 
 PACING RULES:
 - If the topic you're covering this turn has any real visual structure, include a labeled diagram for it in this turn's "board" array (see DRAWING ACTUAL PICTURES above) — don't wait to be asked, and don't substitute a bullet list for a picture that should exist.
@@ -2301,22 +2284,6 @@ document.getElementById('brain-select').addEventListener('change', (e)=>{
   aiBrain = e.target.value;
 });
 
-// Detects the "heading + word-list of labels, no actual shapes" failure mode:
-// if the board is clearly attempting a labeled diagram (a heading plus several
-// arrow/label pairs) but contains too few real shape-drawing commands, it's a
-// word list, not a picture, and should be rejected so we can ask for a redo.
-function validateBoard(board){
-  if(!Array.isArray(board)) return { ok:true }; // let other code handle malformed shape
-  const shapeCmds = board.filter(c => c && (c.type==='path' || c.type==='circle' || c.type==='curve')).length;
-  const arrowCmds = board.filter(c => c && c.type==='arrow').length;
-  const headingCmds = board.filter(c => c && c.type==='text' && c.heading).length;
-  const looksLikeAttemptedDiagram = headingCmds > 0 && arrowCmds >= 2;
-  if(looksLikeAttemptedDiagram && shapeCmds < 3){
-    return { ok:false, reason:`Board has a heading and ${arrowCmds} label arrows but only ${shapeCmds} shape commands (path/circle/curve). That's a word list, not a diagram.` };
-  }
-  return { ok:true };
-}
-
 async function callTutor(userMessage){
   setStatus('thinking…');
   const contextParts = [];
@@ -2327,56 +2294,28 @@ async function callTutor(userMessage){
   const fullUserContent = contextParts.join('\n\n---\n\n');
   conversationHistory.push({role:'user', content: fullUserContent});
 
-  const callBrain = () => {
-    if(aiBrain === 'groq') return callGroq();
-    else if(aiBrain === 'openrouter') return callOpenRouter();
-    else if(aiBrain === 'cerebras') return callCerebras();
-    else return callGemini();
-  };
+  let result;
+  if(aiBrain === 'groq') result = await callGroq();
+  else if(aiBrain === 'openrouter') result = await callOpenRouter();
+  else if(aiBrain === 'cerebras') result = await callCerebras();
+  else result = await callGemini();
 
-  const MAX_ATTEMPTS = 2; // 1 initial try + 1 corrective retry
+  if(!result.ok){
+    conversationHistory.pop();
+    setStatus(result.status || 'error — see console');
+    return { speech: result.errorSpeech, board: [] };
+  }
 
-  for(let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++){
-    const result = await callBrain();
-
-    if(!result.ok){
-      conversationHistory.pop();
-      setStatus(result.status || 'error — see console');
-      return { speech: result.errorSpeech, board: [] };
-    }
-
-    let parsed;
-    try{
-      parsed = JSON.parse(result.raw);
-    } catch(jsonErr){
-      console.error('Model output was not valid JSON. Raw text:', result.raw);
-      setStatus('malformed JSON — see console');
-      conversationHistory.pop();
-      return { speech:"The lecture content came back malformed. Check the console to see exactly what came back.", board:[] };
-    }
-
-    const check = validateBoard(parsed.board);
-    if(check.ok){
-      conversationHistory.push({role:'assistant', content: result.raw});
-      setStatus('idle');
-      return parsed;
-    }
-
-    // Invalid diagram: log it, and if we have attempts left, ask the model to redo
-    // it with a corrective instruction instead of showing the bad result to the user.
-    console.warn(`Board validation failed (attempt ${attempt}/${MAX_ATTEMPTS}): ${check.reason}`, parsed.board);
-    if(attempt < MAX_ATTEMPTS){
-      conversationHistory.push({role:'assistant', content: result.raw});
-      conversationHistory.push({role:'user', content:
-        `That board was rejected: ${check.reason} Redo this exact turn's board array. Keep the same "speech", but rebuild "board" so the diagram actually includes at least 5 "path"/"circle"/"curve" shape commands drawing the real outline BEFORE the arrow+label commands, per the DRAWING ACTUAL PICTURES rules. Respond again with the full JSON object.`
-      });
-      setStatus('redrawing diagram…');
-    } else {
-      // Out of attempts: show what we got rather than fail silently, but flag it.
-      conversationHistory.push({role:'assistant', content: result.raw});
-      setStatus('idle (diagram may be incomplete — see console)');
-      return parsed;
-    }
+  try{
+    const parsed = JSON.parse(result.raw);
+    conversationHistory.push({role:'assistant', content: result.raw});
+    setStatus('idle');
+    return parsed;
+  } catch(jsonErr){
+    console.error('Model output was not valid JSON. Raw text:', result.raw);
+    setStatus('malformed JSON — see console');
+    conversationHistory.pop();
+    return { speech:"The lecture content came back malformed. Check the console to see exactly what came back.", board:[] };
   }
 }
 
@@ -2565,19 +2504,7 @@ async function runTeachingTurn(userMessage, displayText){
   // the one before it. Awaiting here costs nothing once fonts are cached.
   await document.fonts.ready;
   const result = await callTutor(userMessage);
-  if(result.board && result.board.length){
-    console.log('[Chalkline debug] raw board commands:', result.board);
-    const shapeTypes = new Set(['path','circle','curve','line','rect','arrow']);
-    const shapeCount = result.board.filter(c => c && shapeTypes.has(c.type)).length;
-    const textCount = result.board.filter(c => c && c.type === 'text').length;
-    console.log(`[Chalkline debug] ${shapeCount} shape commands, ${textCount} text commands`);
-    if(textCount > 0 && shapeCount === 0){
-      console.warn('[Chalkline debug] This turn wrote text labels with ZERO shape commands — the model skipped drawing the actual picture.');
-      setStatus(`⚠ 0 shapes, ${textCount} text (see console)`);
-      setTimeout(()=>{ if(statusLine.textContent.startsWith('⚠')) setStatus('idle'); }, 4000);
-    }
-    enqueueCommandsAtCursor(result.board);
-  }
+  if(result.board && result.board.length) enqueueCommandsAtCursor(result.board);
   if(result.speech){ addTranscriptMsg('tutor', result.speech); speak(result.speech); }
   if(result.quiz) addQuizCard(result.quiz);
   autoSaveSession();
