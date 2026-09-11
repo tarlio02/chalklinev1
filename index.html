@@ -6,22 +6,27 @@
 <title>Chalkline — AI Study Tools</title>
 <style>
   html,body{ margin:0; padding:0; height:100%; overflow:hidden; background:#F3F9FE; font-family:-apple-system,Segoe UI,sans-serif; }
-  iframe{ position:fixed; inset:0; width:100%; height:100%; border:none; display:none; background:#F3F9FE; }
-  iframe.active{ display:block; }
+  iframe{
+    position:fixed; inset:0; width:100%; height:100%; border:none; background:#F3F9FE;
+    opacity:0; visibility:hidden; pointer-events:none;
+    transition:opacity .22s ease;
+  }
+  iframe.active{ opacity:1; visibility:visible; pointer-events:auto; }
 
   #back-btn{
     position:fixed; top:16px; left:16px; z-index:99999;
-    display:none; align-items:center; gap:6px;
+    display:inline-flex; align-items:center; gap:6px;
     background:rgba(255,255,255,0.92); backdrop-filter:blur(6px);
     border:1px solid #D3E6F5; border-radius:20px;
     padding:8px 14px 8px 10px; cursor:pointer;
     font-size:13.5px; color:#1E2B3A; font-weight:600;
     box-shadow:0 2px 10px rgba(30,60,90,0.08);
-    transition:background .15s ease, transform .15s ease;
+    opacity:0; visibility:hidden; transform:translateY(-4px) scale(.97);
+    transition:opacity .18s ease, transform .18s ease, background .15s ease;
   }
   #back-btn:hover{ background:#fff; transform:translateX(-1px); }
   #back-btn svg{ width:15px; height:15px; }
-  #back-btn.show{ display:inline-flex; }
+  #back-btn.show{ opacity:1; visibility:visible; transform:translateY(0) scale(1); pointer-events:auto; }
 </style>
 </head>
 <body>
@@ -2707,8 +2712,9 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 .btn-primary:not(:disabled):hover{ background:#3a372e; }
 .status-line{ font-family:'JetBrains Mono', monospace; font-size:11.5px; color:var(--muted); margin-top:10px; min-height:14px; }
 
-#output-wrap{ margin-top:38px; display:none; }
+#output-wrap{ margin-top:38px; display:none; opacity:0; transform:translateY(6px); transition:opacity .35s ease, transform .35s ease; }
 #output-wrap.show{ display:block; }
+#output-wrap.show.in{ opacity:1; transform:translateY(0); }
 .output-head{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:14px; flex-wrap:wrap; gap:10px; }
 .output-head h2{ font-size:20px; margin:0; font-weight:600; }
 .output-actions{ display:flex; gap:10px; }
@@ -2897,9 +2903,11 @@ btnSummarize.addEventListener('click', async ()=>{
   }
   outputTitle.textContent = `Summary — ${pdfFileName.replace(/\.pdf$/i,'')}`;
   summaryPanel.innerHTML = result.html;
+  outputWrap.classList.remove('in');
   outputWrap.classList.add('show');
   setStatus('done');
   outputWrap.scrollIntoView({behavior:'smooth', block:'start'});
+  requestAnimationFrame(()=> requestAnimationFrame(()=> outputWrap.classList.add('in')));
 });
 
 document.getElementById('btn-copy').addEventListener('click', ()=>{
@@ -2998,6 +3006,16 @@ window.addEventListener('popstate', (e)=>{
 const initial = location.hash ? location.hash.slice(1) : 'home';
 history.replaceState({page: initial}, '', '#' + initial);
 navTo(initial, false);
+
+// Preload the other two pages in the background once the initial page
+// is up, so switching tabs later is a pure crossfade with nothing to build.
+window.addEventListener('load', ()=>{
+  setTimeout(()=>{
+    Object.keys(frames).forEach(page=>{
+      if(page !== current) ensureLoaded(page);
+    });
+  }, 400);
+});
 </script>
 
 </body>
