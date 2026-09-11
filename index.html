@@ -2255,38 +2255,13 @@ Available command types:
 - {"type":"plot","x":..,"y":..,"w":..,"h":..,"xRange":[0,10],"yRange":[0,10],"xlabel":"...","ylabel":"...","title":"...","grid":true,"xTicks":["0","2","4","6","8","10"],"yTicks":["0","5","10"],"curves":[{"points":[[dataX,dataY],...],"color":"brick","width":2.75,"label":"SRPC"}]}
 - {"type":"highlight","x":..,"y":..,"w":..,"h":26,"color":"ochre"}
 
-DRAWING ACTUAL PICTURES (cells, leaves, animals, organs, diagrams, maps, circuits, flowcharts, anatomy, anything representational):
-- DO THIS OFTEN, NOT RARELY. Any time a topic has real visual structure — anatomy, a cycle, a process with stages, a molecule, a map, a cross-section, a mechanism, an organism — draw an actual labeled diagram instead of only writing "text" bullets describing it. A wall of text where a picture belongs is a failure. Default to drawing the picture; only skip it for genuinely non-visual topics (pure definitions, abstract proofs, history dates).
-- Build every diagram out of MANY layered primitives, never just one shape: (1) an outer outline — "path" or a filled "circle"/"curve" — for the overall form, (2) several smaller filled "circle"/"path"/"curve" shapes on top for internal structures (a nucleus, mitochondria, valves, chambers, veins, organs — whatever the real thing actually contains), (3) fine unfilled "line"/"curve"/"path" strokes for surface detail (membrane texture, fur, ridges, folds), and (4) a full set of labels, one per labeled part — see labeling rules below. A diagram with fewer than ~4-6 shape commands plus several labels is too crude; keep adding structure until it reads as the real thing, layered and detailed like a textbook figure.
+DRAWING ACTUAL PICTURES (cells, leaves, animals, organs, diagrams, maps, anything representational):
+- Build the picture out of several layered primitives rather than one shape: an outer outline ("path" or filled "circle"/"curve"), then inner structures on top (smaller filled "circle"/"path" shapes for a nucleus, mitochondria, veins, etc.), then label the parts with a short "arrow" pointing from the label to the structure plus a small "text" command for the label word — exactly like a real teacher labels a diagram they've just drawn.
 - Trace organic outlines ("path") the way you'd actually sketch them by hand: a handful of "M"/"C"/"Q" segments roughly following the real silhouette (e.g. a leaf is a pointed oval with a "Z" to close it, a cell is a wobbly rounded "path" rather than a perfect "circle", a dog is several overlapping "path"/"circle" shapes for the head, snout, ears, body, legs, tail). It does not need to be photorealistic — a clean, recognizable line-art sketch is the goal, the same level of detail a lecturer would actually draw on a whiteboard, not a single crude blob.
 - Use "fill":true with a low "fillOpacity" (0.08–0.18) on the shapes that should read as solid regions, and leave fine detail (veins, membrane texture, fur lines) as unfilled "curve"/"path"/"line" strokes on top.
-- LABELING RULES — every internal structure worth naming gets its own label, and labels routinely sit ON or OVERLAPPING the diagram itself (this is expected and correct — real whiteboard labels sit right next to or inside what they name, not off in a separate column):
-  - For a SMALL part (nucleus, valve, a leaf's veins): draw a short "arrow" from just outside the shape pointing in to the structure, then a small "text" command (size ~14-16, not "heading") for the label word positioned at the tail end of the arrow, outside the fine detail — but the arrow and label as a whole clearly sit inside the diagram's local coordinate box, not off to the side of it.
-  - For a LARGE region (a whole chamber, an entire leaf blade, a whole organ): put the label "text" directly inside/on top of the filled region itself, no arrow needed, since there's room.
-  - Every diagram with 3+ distinguishable parts needs 3+ labels. Do not draw an unlabeled outline and call it done.
-  - Labels belong to the same local coordinate cluster as the diagram — never place a label's x/y far outside the diagram's own bounding box.
-- A diagram like this still occupies its own vertical slot on the board like a graph does — draw it as one coherent cluster of shape and label commands around a shared local coordinate area (e.g. all within roughly a 300×300 to 500×400 world-unit box) rather than scattering pieces across the whole page, and give it a normal "text" heading above it introducing what it is.
-- HARD RULE — A HEADING FOLLOWED BY A LIST OF LABEL WORDS IS NOT A DIAGRAM AND IS FORBIDDEN. If you write a "text" heading like "X Diagram", every "text" command that follows naming a part (e.g. "nucleus", "tail", "chloroplast") is a label ONLY, and a label with no shape is meaningless and invalid. Before you finish a turn that includes a diagram heading, check your own "board" array: it MUST contain at least 5 commands of type "path", "circle", or "curve" (the actual drawing) in addition to the label "text"/"arrow" commands. If you notice you only wrote text commands under a diagram heading, you have failed the diagram — go back and add the shape commands, don't submit text-only.
-- COPY THIS TEMPLATE STRUCTURE for every diagram (adapt the coordinates, segment points, and colors to the actual subject — this is the literal command sequence to follow, not just a description):
-{"type":"text","x":100,"y":100,"text":"Dog — labeled sketch","heading":true,"size":32,"color":"ink"}
-{"type":"path","segments":[["M",120,220],["C",100,260,110,320,160,340],["C",220,360,300,350,330,300],["C",350,270,340,230,300,210],["C",260,190,160,190,120,220],["Z"]],"color":"ink","width":2.5,"fill":true,"fillColor":"ink","fillOpacity":0.08}
-{"type":"circle","x":330,"y":230,"rx":40,"ry":35,"color":"ink","width":2.5}
-{"type":"path","segments":[["M",300,205],["L",290,175],["L",315,200],["Z"]],"color":"ink","width":2.5}
-{"type":"curve","points":[[160,340],[150,380],[140,410]],"color":"ink","width":2.5}
-{"type":"line","x1":180,"y1":345,"x2":180,"y2":395,"color":"ink","width":2.5}
-{"type":"line","x1":250,"y1":345,"x2":250,"y2":395,"color":"ink","width":2.5}
-{"type":"arrow","x1":420,"y1":220,"x2":350,"y2":225,"color":"ochre","width":2}
-{"type":"text","x":425,"y":225,"text":"head","size":15,"color":"ochre"}
-{"type":"arrow","x1":420,"y1":185,"x2":302,"y2":195,"color":"ochre","width":2}
-{"type":"text","x":425,"y":190,"text":"ear","size":15,"color":"ochre"}
-{"type":"arrow","x1":100,"y1":420,"x2":150,"y2":400,"color":"ochre","width":2}
-{"type":"text","x":60,"y":425,"text":"tail","size":15,"color":"ochre"}
-{"type":"arrow","x1":180,"y1":440,"x2":180,"y2":400,"color":"ochre","width":2}
-{"type":"text","x":165,"y":455,"text":"leg","size":15,"color":"ochre"}
-  Note the pattern: heading, THEN several "path"/"circle"/"curve"/"line" shape commands that actually draw the form (these come first and are the bulk of the diagram), THEN arrow+text pairs for each label (these come last, small in number, one pair per part). A real diagram's command list is dominated by shape commands, not text commands — if your list is mostly "text" entries, you drew a word list, not a picture.
+- A diagram like this still occupies its own vertical slot on the board like a graph does — draw it as one coherent cluster of shape commands around a shared local coordinate area (e.g. all within roughly a 300×300 world-unit box) rather than scattering pieces across the whole page, and give it a normal "text" heading above it introducing what it is.
 
 PACING RULES:
-- If the topic you're covering this turn has any real visual structure, include a labeled diagram for it in this turn's "board" array (see DRAWING ACTUAL PICTURES above) — don't wait to be asked, and don't substitute a bullet list for a picture that should exist.
 - Teach in SUBSTANTIAL, CONTINUOUS chunks: a full turn should read like several minutes of real lecture — cover a complete idea in depth (its definition, why it matters, a worked example, and its key sub-points), not one lonely sentence. Write MUCH more per turn than feels natural for a "small step" — aim for a long, dense block of "board" content (many "text" commands in a row covering multiple paragraphs, sub-points, and worked equations) so the notes keep growing continuously down the page, the way a real lecturer fills page after page without pausing every few seconds.
 - Only stop and check in with a question once you've actually finished teaching a full coherent topic or sub-topic — not after a single definition or step. Do not artificially cut a turn short.
 - Keep going onto the NEXT related idea in the same turn if it naturally continues the same topic, rather than stopping just because you covered "one thing" already.`;
@@ -2519,19 +2494,7 @@ async function runTeachingTurn(userMessage, displayText){
   // the one before it. Awaiting here costs nothing once fonts are cached.
   await document.fonts.ready;
   const result = await callTutor(userMessage);
-  if(result.board && result.board.length){
-    console.log('[Chalkline debug] raw board commands:', result.board);
-    const shapeTypes = new Set(['path','circle','curve','line','rect','arrow']);
-    const shapeCount = result.board.filter(c => c && shapeTypes.has(c.type)).length;
-    const textCount = result.board.filter(c => c && c.type === 'text').length;
-    console.log(`[Chalkline debug] ${shapeCount} shape commands, ${textCount} text commands`);
-    if(textCount > 0 && shapeCount === 0){
-      console.warn('[Chalkline debug] This turn wrote text labels with ZERO shape commands — the model skipped drawing the actual picture.');
-      setStatus(`⚠ 0 shapes, ${textCount} text (see console)`);
-      setTimeout(()=>{ if(statusLine.textContent.startsWith('⚠')) setStatus('idle'); }, 4000);
-    }
-    enqueueCommandsAtCursor(result.board);
-  }
+  if(result.board && result.board.length) enqueueCommandsAtCursor(result.board);
   if(result.speech){ addTranscriptMsg('tutor', result.speech); speak(result.speech); }
   if(result.quiz) addQuizCard(result.quiz);
   autoSaveSession();
