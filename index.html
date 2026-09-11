@@ -478,11 +478,11 @@ body{
   background:#fff;
   border:1px solid var(--panel-border);
   border-radius:30px;
-  padding:6px 6px 6px 18px;
+  padding:6px 6px 6px 14px;
   box-shadow:0 3px 14px rgba(0,0,0,0.08);
   width:min(520px, 44vw);
 }
-.ask-zone input{
+.ask-zone input[type="text"]{
   flex:1;
   border:none;outline:none;
   font-family:'Source Serif 4', serif;
@@ -490,14 +490,21 @@ body{
   padding:8px 0;
   background:transparent;
 }
-.ask-zone button{
+#btn-attach { 
+  background: transparent; color: var(--muted); font-size: 18px; 
+  border:none; cursor:pointer; width:36px; height:36px; 
+  display:flex; align-items:center; justify-content:center; border-radius:50%; flex-shrink:0;
+}
+#btn-attach:hover { background: #f0f4f8; color: var(--ink); }
+
+.ask-zone button#btn-ask{
   width:36px;height:36px;border-radius:50%;
   border:none;background:var(--ink);color:#fff;
   cursor:pointer;font-size:14px;
   display:flex;align-items:center;justify-content:center;
   flex-shrink:0;
 }
-.ask-zone button:hover{background:var(--ochre);}
+.ask-zone button#btn-ask:hover{background:var(--ochre);}
 
 .overlay{
   position:fixed;inset:0;
@@ -667,6 +674,8 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
 </div>
 
 <div class="ask-zone">
+  <button id="btn-attach" title="Attach Document">📎</button>
+  <input type="file" id="ask-file-input" accept="application/pdf" style="display:none;">
   <input type="text" id="ask-input" placeholder="Ask a follow-up…">
   <button id="btn-ask" title="Send">➤</button>
 </div>
@@ -870,7 +879,7 @@ function drawBG(){
 }
 
 function drawPageGuides(){
-  const [leftMarginX] = worldToScreen(70, 0);
+  const [leftMarginX] = worldToScreen(35, 0);
   ctx.save();
   ctx.strokeStyle = 'rgba(224, 128, 128, 0.45)';
   ctx.lineWidth = 1.5;
@@ -1575,8 +1584,8 @@ function enqueueCommandsAtCursor(commands){
         let c = { ...cmd };
         
         if (c.type === 'text') {
-            c.x = 80;
-            c.maxWidth = 930;
+            c.x = 45; 
+            c.maxWidth = 940; 
             const size = (c.size || 26) * HAND_SIZE_MULT;
             const fam = "'Kalam', 'Caveat', 'Noto Sans Symbols 2', cursive";
             tCtx.font = `${c.weight || 700} ${size}px ${fam}`;
@@ -1596,8 +1605,8 @@ function enqueueCommandsAtCursor(commands){
             globalCursorY += lines * lh;
 
         } else if (c.type === 'plot' || c.type === 'axes') {
-            c.x = 160;
-            c.w = 640;
+            c.x = 100;
+            c.w = 800;
             c.h = 400;
             
             globalCursorY += RULE_LINE_SPACING;
@@ -2216,7 +2225,7 @@ async function callAuto(){
 async function callTutor(userMessage){
   setStatus('thinking…');
   const contextParts = [];
-  if(pdfText && conversationHistory.length===0){
+  if(pdfText && !conversationHistory.some(m => m.content.includes(`SOURCE DOCUMENT (${pdfFileName})`))){
     contextParts.push(`SOURCE DOCUMENT (${pdfFileName}), extracted text:\n${pdfText.slice(0,15000)}`);
   }
   contextParts.push(userMessage);
@@ -2569,6 +2578,19 @@ function handleAsk(text){
 }
 document.getElementById('btn-ask').addEventListener('click', ()=> handleAsk(document.getElementById('ask-input').value));
 document.getElementById('ask-input').addEventListener('keydown', (e)=>{ if(e.key==='Enter') handleAsk(e.target.value); });
+
+// Attach File Button Wiring
+const btnAttach = document.getElementById('btn-attach');
+const askFileInput = document.getElementById('ask-file-input');
+if(btnAttach && askFileInput) {
+    btnAttach.addEventListener('click', () => askFileInput.click());
+    askFileInput.addEventListener('change', (e) => {
+        if(e.target.files.length) {
+            handlePdfFile(e.target.files[0]);
+            document.getElementById('ask-input').placeholder = `Attached: ${e.target.files[0].name}. Ask about it...`;
+        }
+    });
+}
 
 /* =========================================================
    INIT
