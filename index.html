@@ -325,7 +325,7 @@ body{
   position:fixed;
   top:0;left:0;right:0;
   display:flex;
-  justify-space-between;
+  justify-content:space-between;
   align-items:flex-start;
   padding:18px 20px;
   pointer-events:none;
@@ -751,7 +751,7 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
 
 <script>
 /* =========================================================
-   INFINITE CANVAS: camera model & Notebook Layout
+   INFINITE CANVAS: camera model & Auto-Clustering Layout
    ========================================================= */
 
 const canvas = document.getElementById('board');
@@ -763,41 +763,20 @@ const camera = { x: 500, y: 300, scale: 1 };
 
 const PAGE_W = 1000;
 const PAGE_H = Math.round(PAGE_W * Math.SQRT2);
-const TURN_GAP = 36;
 const RULE_LINE_SPACING = 36;
 
 let userIsScrolledAway = false;
-
-const REGION_BOX = {
-  notes:  { x: 30,  w: 560 },
-  graph:  { x: 610, w: 360 },
-  detail: { x: 30,  w: 940 }
-};
-const TOP_MARGIN = 40;
-
+const TOP_MARGIN = 60;
+let globalCursorY = TOP_MARGIN;
 let currentTopicLabel = 'Topic';
-const regionCursor = { notes: TOP_MARGIN, graph: TOP_MARGIN, detail: TOP_MARGIN };
+
 function resetRegionCursors(){
-  regionCursor.notes = TOP_MARGIN;
-  regionCursor.graph = TOP_MARGIN;
-  regionCursor.detail = TOP_MARGIN;
+  globalCursorY = TOP_MARGIN;
   userIsScrolledAway = false;
 }
 
 function getMaxYWorld(){
-  return Math.max(regionCursor.notes, regionCursor.graph, regionCursor.detail, TOP_MARGIN);
-}
-
-function estimateLocalTurnHeight(commands){
-  const savedCam = { ...camera }, savedW = viewW, savedH = viewH;
-  camera.scale = 1; camera.x = viewW/2; camera.y = viewH/2;
-  let maxY = 100;
-  commands.forEach(cmd => {
-    const box = commandScreenBBox(cmd);
-    if(box && box[3] > maxY) maxY = box[3];
-  });
-  Object.assign(camera, savedCam); viewW = savedW; viewH = savedH;
-  return maxY;
+  return globalCursorY;
 }
 
 let panToken = 0;
@@ -1206,7 +1185,7 @@ function strokeSmoothCurvePartial(pts, t){
   ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
   for(let i=1;i<=segIdx;i++){
     const nextI = Math.min(i+1, pts.length-1);
-    const midX = (pts[i][0]+pts[nextI][0])/2, midY = (pts[i][1]+pts[nextI][1])/2;
+    const midX = (pts[i][0]+nextI[0])/2, midY = (pts[i][1]+nextI[1])/2;
     ctx.quadraticCurveTo(pts[i][0], pts[i][1], midX, midY);
   }
   let penX = pts[segIdx][0], penY = pts[segIdx][1];
@@ -1400,92 +1379,99 @@ function drawPen(x, y, angle){
   ctx.restore();
 }
 
-function placeCommand(cmd, ox, oy, scale){
-  const c = { ...cmd };
-  const S = v => v * scale;
-  if('x' in c) c.x = ox + S(c.x);
-  if('y' in c) c.y = oy + S(c.y);
-  if('x1' in c) c.x1 = ox + S(c.x1);
-  if('y1' in c) c.y1 = oy + S(c.y1);
-  if('x2' in c) c.x2 = ox + S(c.x2);
-  if('y2' in c) c.y2 = oy + S(c.y2);
-  if(Array.isArray(c.points)) c.points = c.points.map(p => [ox + S(p[0]), oy + S(p[1])]);
-  if('w' in c) c.w = S(c.w);
-  if('h' in c) c.h = S(c.h);
-  if('rx' in c) c.rx = S(c.rx);
-  if('ry' in c) c.ry = S(c.ry);
-  if('r' in c) c.r = S(c.r);
-  if(c.type === 'text'){
-    if('size' in c) c.size = S(c.size);
-    if('maxWidth' in c) c.maxWidth = S(c.maxWidth);
-  }
-  return c;
-}
-
 function clampBoardCoords(c){
   const M = 20;
-  const MINX = M, MAXX = 1000 - M, MINY = M, MAXY = 900 - M;
-  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+  const MINX = M, MAXX = 1000 - M;
+  const clampX = v => Math.min(MAXX, Math.max(MINX, v));
   switch(c.type){
     case 'text': case 'circle': case 'halo':
-      c.x = clamp(c.x, MINX, MAXX);
-      c.y = clamp(c.y, MINY, MAXY);
+      c.x = clampX(c.x);
       if(c.type === 'text' && c.maxWidth) c.maxWidth = Math.min(c.maxWidth, MAXX - c.x);
       break;
     case 'line': case 'arrow':
-      c.x1 = clamp(c.x1, MINX, MAXX); c.y1 = clamp(c.y1, MINY, MAXY);
-      c.x2 = clamp(c.x2, MINX, MAXX); c.y2 = clamp(c.y2, MINY, MAXY);
+      c.x1 = clampX(c.x1);
+      c.x2 = clampX(c.x2);
       break;
     case 'rect': case 'highlight':
-      c.x = clamp(c.x, MINX, MAXX);
-      c.y = clamp(c.y, MINY, MAXY);
+      c.x = clampX(c.x);
       if(c.w) c.w = Math.min(c.w, MAXX - c.x);
-      if(c.h) c.h = Math.min(c.h, MAXY - c.y);
       break;
     case 'curve':
-      if(Array.isArray(c.points)) c.points = c.points.map(p => [clamp(p[0],MINX,MAXX), clamp(p[1],MINY,MAXY)]);
+      if(Array.isArray(c.points)) c.points = c.points.map(p => [clampX(p[0]), p[1]]);
       break;
     case 'axes': case 'plot':
-      c.x = clamp(c.x, MINX, MAXX - 60);
-      c.y = clamp(c.y, MINY + 60, MAXY);
+      c.x = clampX(c.x);
       c.w = Math.max(60, Math.min(c.w, MAXX - c.x));
-      c.h = Math.max(60, Math.min(c.h, c.y - MINY));
       break;
   }
   return c;
 }
 
 function enqueueCommandsAtCursor(commands){
-  const clamped = commands.map(c => clampBoardCoords({ ...c }));
-  const groups = { notes: [], graph: [], detail: [] };
-  clamped.forEach(c => {
-    const region = (c.region === 'notes' || c.region === 'graph') ? c.region : 'detail';
-    groups[region].push(c);
-  });
+    let placedAll = [];
 
-  let placedAll = [];
-  let panTargetY = null;
+    commands = commands.map(c => clampBoardCoords({ ...c }));
 
-  ['notes','graph','detail'].forEach(region => {
-    const cmds = groups[region];
-    if(!cmds.length) return;
-    const localH = estimateLocalTurnHeight(cmds);
-    const box = REGION_BOX[region];
-    const scale = box.w / 1000;
-    const originY = regionCursor[region];
-    placedAll.push(...cmds.map(c => placeCommand(c, box.x, originY, scale)));
-    regionCursor[region] = originY + localH*scale + TURN_GAP;
-    if(region === 'detail' || panTargetY === null) panTargetY = originY + (localH*scale)/2;
-  });
+    const savedCam = { ...camera }, savedW = viewW, savedH = viewH;
+    camera.scale = 1; camera.x = viewW/2; camera.y = viewH/2;
 
-  redrawAll();
-  if(panTargetY === null) panTargetY = regionCursor.detail;
-  
-  if(!userIsScrolledAway){
-    panCameraToCursor(panTargetY, () => enqueueCommands(placedAll));
-  } else {
-    enqueueCommands(placedAll);
-  }
+    const localBoxes = commands.map(c => {
+        const box = commandScreenBBox(c); 
+        return { cmd: c, minX: box[0], minY: box[1], maxX: box[2], maxY: box[3] };
+    });
+
+    localBoxes.sort((a,b) => a.minY - b.minY);
+
+    const clusters = [];
+    localBoxes.forEach(item => {
+        if (clusters.length === 0) {
+            clusters.push({ items: [item], minY: item.minY, maxY: item.maxY });
+        } else {
+            const lastCluster = clusters[clusters.length - 1];
+            if (item.minY <= lastCluster.maxY + 30) {
+                lastCluster.items.push(item);
+                lastCluster.maxY = Math.max(lastCluster.maxY, item.maxY);
+            } else {
+                clusters.push({ items: [item], minY: item.minY, maxY: item.maxY });
+            }
+        }
+    });
+
+    clusters.forEach(cluster => {
+        const clusterHeight = cluster.maxY - cluster.minY;
+        const shiftY = globalCursorY - cluster.minY;
+        
+        let clusterMinX = Math.min(...cluster.items.map(i => i.minX));
+        const hasPlot = cluster.items.some(i => i.cmd.type === 'plot' || i.cmd.type === 'axes');
+        
+        const targetX = hasPlot ? 100 : 50; 
+        const shiftX = targetX - clusterMinX;
+
+        cluster.items.forEach(item => {
+            let c = { ...item.cmd };
+            if (c.x !== undefined) c.x += shiftX;
+            if (c.y !== undefined) c.y += shiftY;
+            if (c.x1 !== undefined) { c.x1 += shiftX; c.x2 += shiftX; }
+            if (c.y1 !== undefined) { c.y1 += shiftY; c.y2 += shiftY; }
+            if (c.points) c.points = c.points.map(p => [p[0] + shiftX, p[1] + shiftY]);
+            placedAll.push(c);
+        });
+
+        globalCursorY += clusterHeight + 60; 
+    });
+
+    Object.assign(camera, savedCam); viewW = savedW; viewH = savedH;
+
+    let panTargetY = globalCursorY - 300; 
+    if (panTargetY < TOP_MARGIN) panTargetY = TOP_MARGIN;
+
+    redrawAll();
+    
+    if(!userIsScrolledAway){
+        panCameraToCursor(panTargetY, () => enqueueCommands(placedAll));
+    } else {
+        enqueueCommands(placedAll);
+    }
 }
 
 function enqueueCommands(commands){
@@ -1841,6 +1827,7 @@ function speak(text){
     const utter = new SpeechSynthesisUtterance(chunks[i]);
     utter.rate = 0.96;
     utter.pitch = 1.0;
+    utter.volume = 1.0; // Enforces maximum browser volume
     if(voice) utter.voice = voice;
     renderCaption(text, chunkOffsets[i], chunks[i]);
     utter.onstart = () => avatar.classList.add('speaking');
@@ -1977,15 +1964,16 @@ ALL TEXT, HEADINGS, EQUATIONS, AND EXPLANATIONS ON THE BOARD ARE RENDERED IN REA
 Use color changes on key terms and equations for visual emphasis and clarity.
 Colors available: "ink" (navy blue), "ochre" (amber/orange keyword emphasis), "sage" (green emphasis), "brick" (red emphasis), "teal", "violet", "sky", "coral".
 
-THE BOARD HAS THREE INVISIBLE WRITING ZONES running the full length of the board:
-- "region":"notes" — short bullet-style lines (key terms, definitions).
-- "region":"graph" — diagrams ("axes"/"plot") and short labels.
-- "region":"detail" (default) — main lecture prose, worked examples, equations.
+CRITICAL LAYOUT RULES - YOU MUST FOLLOW THESE EXACTLY:
+1. TOP-LEFT ALIGNMENT: Start writing at the top-left corner (x: 50, y: 50).
+2. STRICT SINGLE COLUMN: Arrange all content vertically. NEVER place text side-by-side with a graph or other text.
+3. NO OVERLAPPING: Never place text on top of diagrams. Leave at least 150 units of vertical 'y' gap between a plot and the next text block.
+4. Use "maxWidth": 800 for any text that is a full sentence or longer so it wraps cleanly.
 
 TEXT ON THE BOARD MUST USE REAL SYMBOLS, NOT SPELLED-OUT WORDS: π, θ, β, α, γ, Δ, Σ, ∫, √, ∞, ≤, ≥, ≈, ×, ÷, →, ², ³, ₁, ₂, etc. directly inside "text" strings. Use "mono":true for alignment if drawing equations.
 
 Available command types:
-- {"type":"text","x":..,"y":..,"text":"...","size":26,"color":"ink|ochre|sage|brick|teal|violet|sky|coral","mono":false,"weight":700,"maxWidth":800,"region":"detail"}
+- {"type":"text","x":..,"y":..,"text":"...","size":26,"color":"ink|ochre|sage|brick|teal|violet|sky|coral","mono":false,"weight":700,"maxWidth":800}
 - {"type":"halo","x":..,"y":..,"r":50,"color":"halo|ochre|sage|teal|violet|sky|coral"}
 - {"type":"line","x1":..,"y1":..,"x2":..,"y2":..,"color":"ink","width":2.5}
 - {"type":"arrow","x1":..,"y1":..,"x2":..,"y2":..,"color":"ochre","width":2.5}
@@ -1998,8 +1986,7 @@ Available command types:
 
 PACING RULES:
 - Teach in SMALL bites: explain ONE definition, ONE step, or ONE component per turn.
-- Stop and check in after every turn.
-- Keep board commands carefully placed without overlapping.`;
+- Stop and check in after every turn.`;
 
 let conversationHistory = [];
 let aiBrain = 'gemini';
@@ -2169,7 +2156,7 @@ async function persistSession(){
     savedAt: Date.now(),
     pdfFileName, pdfText: pdfText ? pdfText.slice(0,15000) : '',
     conversationHistory, drawnCommands, camera,
-    regionCursor, currentTopicLabel,
+    globalCursorY, currentTopicLabel,
     transcriptHtml: transcriptToHtmlSnapshot()
   };
   await window.storage.set('session:' + currentSessionId, JSON.stringify(payload), false);
@@ -2212,8 +2199,10 @@ function loadSession(item){
   conversationHistory = item.conversationHistory || [];
   drawnCommands = item.drawnCommands || [];
   if(item.camera) Object.assign(camera, item.camera);
-  if(item.regionCursor) Object.assign(regionCursor, item.regionCursor);
-  else resetRegionCursors();
+  if(item.globalCursorY !== undefined) globalCursorY = item.globalCursorY;
+  else if(item.regionCursor) globalCursorY = Math.max(item.regionCursor.notes, item.regionCursor.graph, item.regionCursor.detail);
+  else globalCursorY = TOP_MARGIN;
+  
   currentTopicLabel = item.currentTopicLabel || 'Topic';
   transcriptEl.innerHTML = item.transcriptHtml || '<div class="empty-note">No transcript in this session.</div>';
   if(pdfFileName){
