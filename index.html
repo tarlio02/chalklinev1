@@ -2266,7 +2266,24 @@ DRAWING ACTUAL PICTURES (cells, leaves, animals, organs, diagrams, maps, circuit
   - Every diagram with 3+ distinguishable parts needs 3+ labels. Do not draw an unlabeled outline and call it done.
   - Labels belong to the same local coordinate cluster as the diagram — never place a label's x/y far outside the diagram's own bounding box.
 - A diagram like this still occupies its own vertical slot on the board like a graph does — draw it as one coherent cluster of shape and label commands around a shared local coordinate area (e.g. all within roughly a 300×300 to 500×400 world-unit box) rather than scattering pieces across the whole page, and give it a normal "text" heading above it introducing what it is.
-- Worked example — a labeled diagram is a CLUSTER, e.g. a plant cell: outer "path" (cell wall, fill:true, low fillOpacity) → inner "circle" (nucleus, fill:true) → several small "circle"/"curve" shapes (chloroplasts, mitochondria) → a "circle" (vacuole, fill:true) → then for each of those, one short "arrow" from near its label into the structure plus one small "text" label ("cell wall", "nucleus", "chloroplast", "vacuole", "mitochondria"), all sharing one local x/y region. That whole bundle — outline + internals + arrows + labels — is what "one diagram" means; never just the outline alone.
+- HARD RULE — A HEADING FOLLOWED BY A LIST OF LABEL WORDS IS NOT A DIAGRAM AND IS FORBIDDEN. If you write a "text" heading like "X Diagram", every "text" command that follows naming a part (e.g. "nucleus", "tail", "chloroplast") is a label ONLY, and a label with no shape is meaningless and invalid. Before you finish a turn that includes a diagram heading, check your own "board" array: it MUST contain at least 5 commands of type "path", "circle", or "curve" (the actual drawing) in addition to the label "text"/"arrow" commands. If you notice you only wrote text commands under a diagram heading, you have failed the diagram — go back and add the shape commands, don't submit text-only.
+- COPY THIS TEMPLATE STRUCTURE for every diagram (adapt the coordinates, segment points, and colors to the actual subject — this is the literal command sequence to follow, not just a description):
+{"type":"text","x":100,"y":100,"text":"Dog — labeled sketch","heading":true,"size":32,"color":"ink"}
+{"type":"path","segments":[["M",120,220],["C",100,260,110,320,160,340],["C",220,360,300,350,330,300],["C",350,270,340,230,300,210],["C",260,190,160,190,120,220],["Z"]],"color":"ink","width":2.5,"fill":true,"fillColor":"ink","fillOpacity":0.08}
+{"type":"circle","x":330,"y":230,"rx":40,"ry":35,"color":"ink","width":2.5}
+{"type":"path","segments":[["M",300,205],["L",290,175],["L",315,200],["Z"]],"color":"ink","width":2.5}
+{"type":"curve","points":[[160,340],[150,380],[140,410]],"color":"ink","width":2.5}
+{"type":"line","x1":180,"y1":345,"x2":180,"y2":395,"color":"ink","width":2.5}
+{"type":"line","x1":250,"y1":345,"x2":250,"y2":395,"color":"ink","width":2.5}
+{"type":"arrow","x1":420,"y1":220,"x2":350,"y2":225,"color":"ochre","width":2}
+{"type":"text","x":425,"y":225,"text":"head","size":15,"color":"ochre"}
+{"type":"arrow","x1":420,"y1":185,"x2":302,"y2":195,"color":"ochre","width":2}
+{"type":"text","x":425,"y":190,"text":"ear","size":15,"color":"ochre"}
+{"type":"arrow","x1":100,"y1":420,"x2":150,"y2":400,"color":"ochre","width":2}
+{"type":"text","x":60,"y":425,"text":"tail","size":15,"color":"ochre"}
+{"type":"arrow","x1":180,"y1":440,"x2":180,"y2":400,"color":"ochre","width":2}
+{"type":"text","x":165,"y":455,"text":"leg","size":15,"color":"ochre"}
+  Note the pattern: heading, THEN several "path"/"circle"/"curve"/"line" shape commands that actually draw the form (these come first and are the bulk of the diagram), THEN arrow+text pairs for each label (these come last, small in number, one pair per part). A real diagram's command list is dominated by shape commands, not text commands — if your list is mostly "text" entries, you drew a word list, not a picture.
 
 PACING RULES:
 - If the topic you're covering this turn has any real visual structure, include a labeled diagram for it in this turn's "board" array (see DRAWING ACTUAL PICTURES above) — don't wait to be asked, and don't substitute a bullet list for a picture that should exist.
