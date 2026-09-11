@@ -1018,8 +1018,90 @@ function commandScreenBBox(cmd){
       const [x,y] = worldToScreen(cmd.x,cmd.y); const r = sw(cmd.r||60);
       return pad(x-r,y-r,x+r,y+r);
     }
+    case 'path': {
+      const pts = flattenScreenSegsToPoints(worldPathToScreenSegments(cmd.segments||[]));
+      if(!pts.length) return [0,0,0,0];
+      const xs = pts.map(p=>p[0]), ys = pts.map(p=>p[1]);
+      return pad(Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys));
+    }
     default: return [0,0,0,0];
   }
+}
+
+/* ---------- PATH primitive: lets the model compose arbitrary organic
+   shapes (cell membranes, leaf outlines, animal silhouettes, etc.) out
+   of move/line/quadratic/cubic segments in world space, same way an
+   SVG <path> works. Segments: ["M",x,y] ["L",x,y] ["Q",cx,cy,x,y]
+   ["C",c1x,c1y,c2x,c2y,x,y] ["Z"]. ---------- */
+function worldPathToScreenSegments(segments){
+  return (segments||[]).map(seg=>{
+    if(!seg || !seg.length) return null;
+    if(seg[0]==='Z' || seg[0]==='z') return ['Z'];
+    const out = [seg[0]];
+    for(let i=1;i<seg.length;i+=2){
+      const [sx,sy] = worldToScreen(seg[i], seg[i+1]);
+      out.push(sx, sy);
+    }
+    return out;
+  }).filter(Boolean);
+}
+
+function drawPathSegments(pctx, screenSegs){
+  pctx.beginPath();
+  screenSegs.forEach(seg=>{
+    const t = seg[0];
+    if(t==='M') pctx.moveTo(seg[1],seg[2]);
+    else if(t==='L') pctx.lineTo(seg[1],seg[2]);
+    else if(t==='Q') pctx.quadraticCurveTo(seg[1],seg[2],seg[3],seg[4]);
+    else if(t==='C') pctx.bezierCurveTo(seg[1],seg[2],seg[3],seg[4],seg[5],seg[6]);
+    else if(t==='Z') pctx.closePath();
+  });
+}
+
+function flattenScreenSegsToPoints(screenSegs){
+  const pts = [];
+  let cur = [0,0];
+  screenSegs.forEach(seg=>{
+    const t = seg[0];
+    if(t==='M'){ cur=[seg[1],seg[2]]; pts.push(cur); }
+    else if(t==='L'){ cur=[seg[1],seg[2]]; pts.push(cur); }
+    else if(t==='Q'){
+      const [x0,y0]=cur, cx=seg[1], cy=seg[2], x1=seg[3], y1=seg[4];
+      for(let i=1;i<=10;i++){ const tt=i/10, mt=1-tt;
+        pts.push([mt*mt*x0+2*mt*tt*cx+tt*tt*x1, mt*mt*y0+2*mt*tt*cy+tt*tt*y1]); }
+      cur=[x1,y1];
+    } else if(t==='C'){
+      const [x0,y0]=cur, c1x=seg[1],c1y=seg[2],c2x=seg[3],c2y=seg[4],x1=seg[5],y1=seg[6];
+      for(let i=1;i<=12;i++){ const tt=i/12, mt=1-tt;
+        pts.push([mt*mt*mt*x0+3*mt*mt*tt*c1x+3*mt*tt*tt*c2x+tt*tt*tt*x1, mt*mt*mt*y0+3*mt*mt*tt*c1y+3*mt*tt*tt*c2y+tt*tt*tt*y1]); }
+      cur=[x1,y1];
+    }
+    // 'Z' contributes no new point — it just closes back to the start
+  });
+  return pts;
+}
+
+function strokePolylinePartial(pts, t){
+  if(!pts.length) return [0,0];
+  if(pts.length===1) return pts[0];
+  const segLens=[]; let total=0;
+  for(let i=0;i<pts.length-1;i++){ const d=Math.hypot(pts[i+1][0]-pts[i][0], pts[i+1][1]-pts[i][1]); segLens.push(d); total+=d; }
+  const target = total*t;
+  ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+  let acc=0, penX=pts[0][0], penY=pts[0][1];
+  for(let i=0;i<segLens.length;i++){
+    const segLen = segLens[i];
+    if(acc+segLen <= target){ ctx.lineTo(pts[i+1][0], pts[i+1][1]); acc+=segLen; penX=pts[i+1][0]; penY=pts[i+1][1]; }
+    else{
+      const frac = segLen>0 ? (target-acc)/segLen : 0;
+      penX = pts[i][0]+(pts[i+1][0]-pts[i][0])*frac;
+      penY = pts[i][1]+(pts[i+1][1]-pts[i][1])*frac;
+      ctx.lineTo(penX,penY);
+      break;
+    }
+  }
+  ctx.stroke();
+  return [penX,penY];
 }
 
 function renderCommand(cmd){
@@ -1083,7 +1165,34 @@ function renderCommand(cmd){
     case 'curve': {
       ctx.lineWidth = sw(cmd.width || 2.5);
       const pts = cmd.points.map(p => worldToScreen(p[0], p[1]));
+      if(cmd.fill && pts.length>2){
+        ctx.save();
+        ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]);
+        for(let i=1;i<pts.length-1;i++){
+          const midX=(pts[i][0]+pts[i+1][0])/2, midY=(pts[i][1]+pts[i+1][1])/2;
+          ctx.quadraticCurveTo(pts[i][0],pts[i][1],midX,midY);
+        }
+        const last = pts[pts.length-1]; ctx.lineTo(last[0],last[1]); ctx.closePath();
+        ctx.globalAlpha = cmd.fillOpacity!=null ? cmd.fillOpacity : 0.12;
+        ctx.fillStyle = COLORS[cmd.fillColor] || color;
+        ctx.fill();
+        ctx.restore();
+      }
       strokeSmoothCurve(pts);
+      break;
+    }
+    case 'path': {
+      ctx.lineWidth = sw(cmd.width || 2.5);
+      const screenSegs = worldPathToScreenSegments(cmd.segments||[]);
+      drawPathSegments(ctx, screenSegs);
+      if(cmd.fill){
+        ctx.save();
+        ctx.globalAlpha = cmd.fillOpacity!=null ? cmd.fillOpacity : 0.12;
+        ctx.fillStyle = COLORS[cmd.fillColor] || color;
+        ctx.fill();
+        ctx.restore();
+      }
+      ctx.stroke();
       break;
     }
     case 'axes': {
@@ -1495,8 +1604,8 @@ function enqueueCommandsAtCursor(commands){
 
     // Sort to maintain correct reading order
     commands.sort((a,b) => {
-        let ay = a.y ?? a.y1 ?? (a.points?.[0]?.[1]) ?? 0;
-        let by = b.y ?? b.y1 ?? (b.points?.[0]?.[1]) ?? 0;
+        let ay = a.y ?? a.y1 ?? (a.points?.[0]?.[1]) ?? (a.segments?.[0] ? a.segments[0][a.segments[0].length-1] : undefined) ?? 0;
+        let by = b.y ?? b.y1 ?? (b.points?.[0]?.[1]) ?? (b.segments?.[0] ? b.segments[0][b.segments[0].length-1] : undefined) ?? 0;
         if (a.type === 'plot' || a.type === 'axes') ay = a.y - (a.h || 400);
         if (b.type === 'plot' || b.type === 'axes') by = b.y - (b.h || 400);
         return ay - by;
@@ -1641,6 +1750,7 @@ function estimateDuration(cmd){
     case 'plot': return 600 + ((cmd.curves||[]).length)*550;
     case 'highlight': return 250;
     case 'halo': return 450;
+    case 'path': return Math.min(2600, Math.max(600, (cmd.segments||[]).length*220));
     default: return 300;
   }
 }
@@ -1705,7 +1815,36 @@ function renderPartialCommand(cmd, t){
     case 'curve': {
       ctx.lineWidth = sw(cmd.width||2.5);
       const pts = cmd.points.map(p=>worldToScreen(p[0],p[1]));
+      if(cmd.fill && t>=0.999 && pts.length>2){
+        ctx.save();
+        ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]);
+        for(let i=1;i<pts.length-1;i++){
+          const midX=(pts[i][0]+pts[i+1][0])/2, midY=(pts[i][1]+pts[i+1][1])/2;
+          ctx.quadraticCurveTo(pts[i][0],pts[i][1],midX,midY);
+        }
+        const last = pts[pts.length-1]; ctx.lineTo(last[0],last[1]); ctx.closePath();
+        ctx.globalAlpha = cmd.fillOpacity!=null ? cmd.fillOpacity : 0.12;
+        ctx.fillStyle = COLORS[cmd.fillColor] || color;
+        ctx.fill();
+        ctx.restore();
+      }
       const [penX,penY] = strokeSmoothCurvePartial(pts, t);
+      drawPen(penX,penY,0);
+      break;
+    }
+    case 'path': {
+      ctx.lineWidth = sw(cmd.width||2.5);
+      const screenSegs = worldPathToScreenSegments(cmd.segments||[]);
+      const pts = flattenScreenSegsToPoints(screenSegs);
+      if(cmd.fill && t>=0.999){
+        drawPathSegments(ctx, screenSegs);
+        ctx.save();
+        ctx.globalAlpha = cmd.fillOpacity!=null ? cmd.fillOpacity : 0.12;
+        ctx.fillStyle = COLORS[cmd.fillColor] || color;
+        ctx.fill();
+        ctx.restore();
+      }
+      const [penX,penY] = strokePolylinePartial(pts, t);
       drawPen(penX,penY,0);
       break;
     }
@@ -2110,10 +2249,17 @@ Available command types:
 - {"type":"arrow","x1":..,"y1":..,"x2":..,"y2":..,"color":"ochre","width":2.5}
 - {"type":"rect","x":..,"y":..,"w":..,"h":..,"color":"ink","fill":false}
 - {"type":"circle","x":..,"y":..,"rx":..,"ry":..,"color":"ink","fill":false}
-- {"type":"curve","points":[[x,y],[x,y],...],"color":"sage","width":2.5}
+- {"type":"curve","points":[[x,y],[x,y],...],"color":"sage","width":2.5,"fill":false,"fillColor":"sage","fillOpacity":0.12} — a smooth freehand curve through the points; set "fill":true to also tint the interior (treated as a closed loop) for a soft rounded blob like a petal or organelle.
+- {"type":"path","segments":[["M",x,y],["L",x,y],["Q",cx,cy,x,y],["C",c1x,c1y,c2x,c2y,x,y],["Z"]],"color":"sage","width":2.5,"fill":false,"fillColor":"sage","fillOpacity":0.12} — a general freeform outline, like an SVG path: "M" moves the pen (start a new sub-shape), "L" a straight segment, "Q" a quadratic curve (one control point), "C" a cubic curve (two control points), "Z" closes the current outline back to its last "M". THIS is the tool for drawing actual recognizable pictures — a cell and its organelles, a leaf, an animal, an organ, a map — by tracing the outline as a sequence of segments the way you'd sketch it by hand, then optionally filling it.
 - {"type":"axes","x":..,"y":..,"w":..,"h":..,"xlabel":"...","ylabel":"...","title":"...","grid":true,"xTicks":[...],"yTicks":[...]}
 - {"type":"plot","x":..,"y":..,"w":..,"h":..,"xRange":[0,10],"yRange":[0,10],"xlabel":"...","ylabel":"...","title":"...","grid":true,"xTicks":["0","2","4","6","8","10"],"yTicks":["0","5","10"],"curves":[{"points":[[dataX,dataY],...],"color":"brick","width":2.75,"label":"SRPC"}]}
 - {"type":"highlight","x":..,"y":..,"w":..,"h":26,"color":"ochre"}
+
+DRAWING ACTUAL PICTURES (cells, leaves, animals, organs, diagrams, maps, anything representational):
+- Build the picture out of several layered primitives rather than one shape: an outer outline ("path" or filled "circle"/"curve"), then inner structures on top (smaller filled "circle"/"path" shapes for a nucleus, mitochondria, veins, etc.), then label the parts with a short "arrow" pointing from the label to the structure plus a small "text" command for the label word — exactly like a real teacher labels a diagram they've just drawn.
+- Trace organic outlines ("path") the way you'd actually sketch them by hand: a handful of "M"/"C"/"Q" segments roughly following the real silhouette (e.g. a leaf is a pointed oval with a "Z" to close it, a cell is a wobbly rounded "path" rather than a perfect "circle", a dog is several overlapping "path"/"circle" shapes for the head, snout, ears, body, legs, tail). It does not need to be photorealistic — a clean, recognizable line-art sketch is the goal, the same level of detail a lecturer would actually draw on a whiteboard, not a single crude blob.
+- Use "fill":true with a low "fillOpacity" (0.08–0.18) on the shapes that should read as solid regions, and leave fine detail (veins, membrane texture, fur lines) as unfilled "curve"/"path"/"line" strokes on top.
+- A diagram like this still occupies its own vertical slot on the board like a graph does — draw it as one coherent cluster of shape commands around a shared local coordinate area (e.g. all within roughly a 300×300 world-unit box) rather than scattering pieces across the whole page, and give it a normal "text" heading above it introducing what it is.
 
 PACING RULES:
 - Teach in SUBSTANTIAL, CONTINUOUS chunks: a full turn should read like several minutes of real lecture — cover a complete idea in depth (its definition, why it matters, a worked example, and its key sub-points), not one lonely sentence. Write MUCH more per turn than feels natural for a "small step" — aim for a long, dense block of "board" content (many "text" commands in a row covering multiple paragraphs, sub-points, and worked equations) so the notes keep growing continuously down the page, the way a real lecturer fills page after page without pausing every few seconds.
