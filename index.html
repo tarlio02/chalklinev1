@@ -67,7 +67,6 @@ body{
   overflow-x:hidden;
 }
 
-/* ambient halo, same language as the tutor board */
 .ambient-halo{
   position:fixed; inset:0; z-index:0; overflow:hidden; pointer-events:none;
 }
@@ -90,7 +89,6 @@ body{
 
 .wrap{ position:relative; z-index:1; max-width:920px; margin:0 auto; padding:0 28px; }
 
-/* ===== nav ===== */
 nav{
   display:flex; align-items:center; justify-content:space-between;
   padding:26px 0 10px;
@@ -104,7 +102,6 @@ nav{
 .nav-links a{ color:var(--muted); text-decoration:none; }
 .nav-links a:hover{ color:var(--ink); }
 
-/* ===== hero ===== */
 .hero{ padding:70px 0 56px; }
 .hero h1{
   font-size:52px; line-height:1.12; font-weight:600; margin:0 0 18px;
@@ -118,7 +115,6 @@ nav{
   font-size:19px; line-height:1.6; color:#4a4738; max-width:520px; margin:0;
 }
 
-/* ===== tool cards ===== */
 .tools{
   display:grid; grid-template-columns:1fr 1fr; gap:22px; margin:0 0 64px;
 }
@@ -155,10 +151,8 @@ nav{
 .go svg{ width:13px; height:13px; transition:transform .18s ease; }
 .tool-card:hover .go svg{ transform:translateX(3px); }
 
-/* underline squiggle under card titles, chalk-like */
 .tool-card h2 span{ position:relative; }
 
-/* ===== how it works strip ===== */
 .strip{
   border-top:1px solid var(--panel-border); padding:40px 0 70px;
   display:flex; gap:40px; flex-wrap:wrap;
@@ -237,6 +231,7 @@ footer{
 </body>
 </html>
 </script>
+
 <script type="text/plain" id="src-tutor"><!DOCTYPE html>
 <html lang="en">
 <head>
@@ -245,12 +240,12 @@ footer{
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"><\/script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"><\/script>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&family=Caveat:wght@600;700&family=Kalam:wght@400;700&family=STIX+Two+Text:ital,wght@0,400;0,600;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Kalam:wght@400;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 :root{
-  --board-bg:#F7FBFE;
-  --board-bg2:#F7FBFE;
-  --board-line:#DCEBF7;
+  --board-bg:#FAF8F3;
+  --board-line:#E0D9C8;
+  --margin-line:#E08080;
   --ink:#1E2B3A;
   --ochre:#2E7DBE;
   --highlight:#D7ECFB;
@@ -259,8 +254,8 @@ footer{
   --panel:#FFFFFF;
   --panel-border:#D3E6F5;
   --muted:#7C93A8;
-  --halo-blue:#6EA8FE;
-  --halo-blue-soft:#A5C8FF;
+  --halo-blue:#0099FF;
+  --halo-blue-soft:#00E5FF;
 }
 *{box-sizing:border-box;}
 html,body{margin:0;height:100%;}
@@ -272,23 +267,24 @@ body{
   background:var(--board-bg);
 }
 
-/* ===================== BOARD (full-bleed) ===================== */
 #board-wrap{
   position:fixed;
   inset:0;
+  box-shadow: inset 0 0 35px rgba(0, 150, 255, 0.45), inset 0 0 70px rgba(0, 229, 255, 0.25);
+  border: 3px solid rgba(0, 180, 255, 0.6);
+  z-index: 2;
+  pointer-events: none;
 }
 #board{
   width:100%;
   height:100%;
   display:block;
   cursor:grab;
+  pointer-events: auto;
 }
 #board.grabbing{cursor:grabbing;}
 #board.hoverable{cursor:pointer;}
 
-/* Ambient animated blue halo, drifting slowly over the white board.
-   Sits above the canvas (z-index) but below all UI chrome, and never
-   intercepts clicks/hover so it doesn't interfere with board hit-testing. */
 .ambient-halo{
   position:fixed;
   inset:0;
@@ -300,20 +296,20 @@ body{
 .ambient-halo::after{
   content:'';
   position:absolute;
-  width:62vmax;height:62vmax;
+  width:65vmax;height:65vmax;
   border-radius:50%;
-  filter:blur(90px);
-  opacity:0.30;
-  mix-blend-mode:multiply;
+  filter:blur(80px);
+  opacity:0.35;
+  mix-blend-mode:screen;
 }
 .ambient-halo::before{
   top:-20%; left:-15%;
-  background:radial-gradient(circle, var(--halo-blue) 0%, rgba(110,168,254,0) 70%);
+  background:radial-gradient(circle, var(--halo-blue) 0%, rgba(0,153,255,0) 70%);
   animation:haloDrift1 22s ease-in-out infinite;
 }
 .ambient-halo::after{
   bottom:-25%; right:-15%;
-  background:radial-gradient(circle, var(--halo-blue-soft) 0%, rgba(165,200,255,0) 70%);
+  background:radial-gradient(circle, var(--halo-blue-soft) 0%, rgba(0,229,255,0) 70%);
   animation:haloDrift2 26s ease-in-out infinite;
 }
 @keyframes haloDrift1{
@@ -325,36 +321,11 @@ body{
   50%{ transform:translate(-10%,-8%) scale(1.15); }
 }
 
-/* ===================== PAINTED FRAME ===================== */
-/* Frame stays purely decorative and overlaid — the board underneath
-   remains full-bleed so no interactive/writing area is lost to it. */
-.painted-frame{
-  position:fixed;
-  inset:0;
-  z-index:5;
-  pointer-events:none;
-}
-.painted-frame svg{
-  width:100%;
-  height:100%;
-  display:block;
-  overflow:visible;
-}
-/* Neon halo pulse — a slow breathing glow so the frame reads as a lit
-   edge rather than a flat painted border. Purely opacity/filter driven,
-   so it costs nothing on the canvas itself. */
-@keyframes neonPulse{
-  0%,100%{ opacity:0.85; }
-  50%{ opacity:1; }
-}
-.painted-frame .neon-glow{ animation:neonPulse 3.6s ease-in-out infinite; }
-
-/* ===================== TOP BAR ===================== */
 .topbar{
   position:fixed;
   top:0;left:0;right:0;
   display:flex;
-  justify-content:space-between;
+  justify-space-between;
   align-items:flex-start;
   padding:18px 20px;
   pointer-events:none;
@@ -392,7 +363,6 @@ body{
   margin-right:4px;
 }
 
-/* ===================== ZOOM CONTROLS ===================== */
 .zoom-controls{
   position:fixed;
   top:70px;right:20px;
@@ -409,9 +379,6 @@ body{
 }
 .zoom-btn:hover{background:#fff;}
 
-/* Shared small label under any icon/round button — a light pill so it
-   stays legible over both the white board and the blue frame regardless
-   of what's scrolled underneath. */
 .btn-label{
   font-family:'JetBrains Mono', monospace;
   font-size:9px;
@@ -423,7 +390,6 @@ body{
   border-radius:8px;
 }
 
-/* ===================== BOTTOM CAPTION ===================== */
 .caption-zone{
   position:fixed;
   left:0;right:0;
@@ -448,7 +414,6 @@ body{
 }
 .caption-text .fading{color:#b9b295;}
 
-/* ===================== BOTTOM-LEFT AVATAR CLUSTER ===================== */
 .avatar-cluster{
   position:fixed;
   left:22px;bottom:70px;
@@ -493,7 +458,6 @@ body{
 }
 .cluster-btn:hover{background:#faf8f2;}
 
-/* ===================== BOTTOM-RIGHT MIC ===================== */
 .mic-zone{
   position:fixed;
   right:22px;bottom:70px;
@@ -517,7 +481,6 @@ body{
 .mic-btn.unsupported{background:#c9c4b5;box-shadow:none;cursor:not-allowed;}
 @keyframes mic-pulse{0%,100%{box-shadow:0 0 0 0 rgba(168,75,57,.45);}50%{box-shadow:0 0 0 10px rgba(168,75,57,0);}}
 
-/* ===================== TEXT ASK BAR (center-bottom, above caption) ===================== */
 .ask-zone{
   position:fixed;
   left:50%;
@@ -551,7 +514,6 @@ body{
 }
 .ask-zone button:hover{background:var(--ochre);}
 
-/* ===================== SIDE PANEL (slide-out from hamburger) ===================== */
 .overlay{
   position:fixed;inset:0;
   background:rgba(20,18,12,0.25);
@@ -661,132 +623,13 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
 
 ::-webkit-scrollbar{width:7px;}
 ::-webkit-scrollbar-thumb{background:#e4ddc8;border-radius:4px;}
-
-/* ===================== FOLLOW / SCROLL-STATE UI ===================== */
-#jump-latest{
-  position:fixed;
-  left:50%; bottom:126px; transform:translateX(-50%) translateY(12px);
-  z-index:25;
-  display:flex; align-items:center; gap:6px;
-  background:var(--ink); color:#fff;
-  font-family:'JetBrains Mono', monospace; font-size:11.5px;
-  padding:9px 16px; border-radius:20px; border:none; cursor:pointer;
-  box-shadow:0 4px 16px rgba(20,30,50,0.25);
-  opacity:0; pointer-events:none;
-  transition:opacity .2s ease, transform .2s ease;
-}
-#jump-latest.show{ opacity:1; pointer-events:auto; transform:translateX(-50%) translateY(0); }
-#jump-latest:hover{ background:var(--ochre); }
-#jump-latest svg{ width:12px; height:12px; }
-
-/* ===================== RESPONSIVE (tablet / phone) ===================== */
-@media (max-width:780px){
-  .side-panel{ width:min(360px, 88vw); }
-  .ask-zone{ width:min(520px, 78vw); bottom:64px; }
-  .topbar{ padding:12px 12px; }
-  .mic-btn{ width:50px; height:50px; }
-  #jump-latest{ bottom:112px; font-size:11px; padding:8px 14px; }
-}
-@media (max-width:480px){
-  .ask-zone{ width:88vw; bottom:60px; padding:5px 5px 5px 14px; }
-  .ask-zone input{ font-size:13px; }
-  .panel-head h1{ font-size:17px; }
-  #jump-latest{ bottom:104px; }
-}
-/* Coarse-pointer devices (touch): slightly larger hit targets, and make
-   sure hover-only affordances (hover-to-replay) don't leave stray state
-   since touch has no real "hover". */
-@media (pointer:coarse){
-  .icon-btn{ width:38px; height:38px; }
-  #board.hoverable{ cursor:default; }
-}
 </style>
 </head>
 <body>
 
 <div class="ambient-halo"></div>
-<div class="painted-frame" aria-hidden="true">
-  <svg viewBox="0 0 1000 1000" preserveAspectRatio="none">
-    <defs>
-      <!-- Neon glow: blur the stroke heavily then layer the crisp stroke back
-           on top, the classic "outer glow" recipe — this is what turns a flat
-           painted border into something that reads as internally lit. -->
-      <filter id="neonBlurWide" x="-60%" y="-60%" width="220%" height="220%">
-        <feGaussianBlur stdDeviation="26" result="blur"/>
-      </filter>
-      <filter id="neonBlurTight" x="-60%" y="-60%" width="220%" height="220%">
-        <feGaussianBlur stdDeviation="10" result="blur"/>
-      </filter>
-    </defs>
-    <!-- Outer soft halo bloom -->
-    <path class="neon-glow" d="M 38,55
-             C 20,30 45,10 90,12
-             L 910,8
-             C 955,6 985,35 982,70
-             L 986,930
-             C 988,968 958,992 915,988
-             L 85,992
-             C 42,994 14,962 18,922
-             L 14,90
-             C 12,68 24,58 38,55 Z"
-          fill="none" stroke="#6EA8FE" stroke-width="60" stroke-linejoin="round" opacity="0.55" filter="url(#neonBlurWide)"/>
-    <!-- Tighter, brighter glow ring closer to the edge -->
-    <path class="neon-glow" d="M 38,55
-             C 20,30 45,10 90,12
-             L 910,8
-             C 955,6 985,35 982,70
-             L 986,930
-             C 988,968 958,992 915,988
-             L 85,992
-             C 42,994 14,962 18,922
-             L 14,90
-             C 12,68 24,58 38,55 Z"
-          fill="none" stroke="#8FC1FF" stroke-width="30" stroke-linejoin="round" opacity="0.75" filter="url(#neonBlurTight)"/>
-    <!-- Original painted bezel strokes, unblurred, sitting on top so the
-         edge still reads as a crisp line inside all that glow. -->
-    <path d="M 38,55
-             C 20,30 45,10 90,12
-             L 910,8
-             C 955,6 985,35 982,70
-             L 986,930
-             C 988,968 958,992 915,988
-             L 85,992
-             C 42,994 14,962 18,922
-             L 14,90
-             C 12,68 24,58 38,55 Z"
-          fill="none" stroke="#5B9BF0" stroke-width="46" stroke-linejoin="round" opacity="0.55"/>
-    <path d="M 42,58
-             C 26,34 48,14 88,16
-             L 906,10
-             C 948,9 980,38 978,72
-             L 982,926
-             C 984,964 955,988 912,985
-             L 88,989
-             C 46,991 18,960 21,920
-             L 17,92
-             C 16,70 27,60 42,58 Z"
-          fill="none" stroke="#7FB4FF" stroke-width="22" stroke-linejoin="round" opacity="0.65"/>
-    <!-- Bright near-white core line right at the edge, like a neon tube -->
-    <path class="neon-glow" d="M 42,58
-             C 26,34 48,14 88,16
-             L 906,10
-             C 948,9 980,38 978,72
-             L 982,926
-             C 984,964 955,988 912,985
-             L 88,989
-             C 46,991 18,960 21,920
-             L 17,92
-             C 16,70 27,60 42,58 Z"
-          fill="none" stroke="#CFE4FF" stroke-width="4" stroke-linejoin="round" opacity="0.9"/>
-  </svg>
-</div>
 <div id="board-wrap">
   <canvas id="board"></canvas>
-</div>
-<button id="jump-latest" type="button">
-  <svg viewBox="0 0 16 16" fill="none"><path d="M8 2v10M8 12 3.5 7.5M8 12l4.5-4.5" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-  Jump to where it's writing
-</button>
 </div>
 
 <div class="topbar">
@@ -908,7 +751,7 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
 
 <script>
 /* =========================================================
-   INFINITE CANVAS: camera model
+   INFINITE CANVAS: camera model & Notebook Layout
    ========================================================= */
 
 const canvas = document.getElementById('board');
@@ -918,31 +761,13 @@ ctx.lineJoin = 'round';
 let viewW = 0, viewH = 0;
 const camera = { x: 500, y: 300, scale: 1 };
 
-/* Board "cursor": tracks the world-space offset for the NEXT block of
-   content. While teaching, the board is a single INFINITE scroll straight
-   down — there is no live concept of "pages" at all. The model always
-   emits commands in a local 0-1000 x 0-900 authoring frame per teaching
-   turn, and the app places each turn's content directly below whatever
-   already exists, growing the board downward forever. Pages only exist as
-   a slicing step applied at SAVE/EXPORT time (see exportBoardAsPDF below),
-   which cuts the continuous scroll into A4-proportioned pages purely for
-   the PDF — it has no effect on the live board. */
-const PAGE_W = 1000;                 // fixed content column width, and the
-                                      // width used to slice exported pages
-const PAGE_H = Math.round(PAGE_W * Math.SQRT2); // A4 portrait proportion (1 : √2) — export page height only
-const TURN_GAP = 36; // vertical breathing room between consecutive turns stacked in the same region
+const PAGE_W = 1000;
+const PAGE_H = Math.round(PAGE_W * Math.SQRT2);
+const TURN_GAP = 36;
+const RULE_LINE_SPACING = 36;
 
-/* ---- Cornell-style writing zones (invisible — layout only, no drawn
-   borders/labels) ----
-   The board isn't a blank single column: it has three persistent,
-   left-to-right zones that run the FULL length of the endless scroll —
-   a narrower left column for short "Important Notes" bullets, a narrower
-   right column for "Graphs & Diagrams", and a full-width column for the
-   main "Detailed Notes" teaching prose. These are purely x-range targets
-   the app uses to route and scale each command into place; nothing is
-   drawn to mark their edges, so the page still just reads as plain ruled
-   paper — the AI simply knows (via the system prompt) which kind of
-   content belongs in which zone. */
+let userIsScrolledAway = false;
+
 const REGION_BOX = {
   notes:  { x: 30,  w: 560 },
   graph:  { x: 610, w: 360 },
@@ -950,22 +775,19 @@ const REGION_BOX = {
 };
 const TOP_MARGIN = 40;
 
-let currentTopicLabel = 'Topic';       // kept for session bookkeeping/export title only
-// Absolute world-y of where the NEXT item lands in each of the three
-// zones — each fills independently and keeps growing forever (notes stack
-// down column 1, graphs stack down column 2, detail prose grows the wide
-// column), all in the same unbroken scroll.
+let currentTopicLabel = 'Topic';
 const regionCursor = { notes: TOP_MARGIN, graph: TOP_MARGIN, detail: TOP_MARGIN };
 function resetRegionCursors(){
   regionCursor.notes = TOP_MARGIN;
   regionCursor.graph = TOP_MARGIN;
   regionCursor.detail = TOP_MARGIN;
+  userIsScrolledAway = false;
 }
 
-// Measures how tall a (already-clamped, not-yet-translated) turn's content
-// is in its own local 0-900 authoring frame, by reusing the same bbox logic
-// used for hit-testing/export — with the camera temporarily set to the
-// identity transform so worldToScreen(wx,wy) reduces to (wx,wy) itself.
+function getMaxYWorld(){
+  return Math.max(regionCursor.notes, regionCursor.graph, regionCursor.detail, TOP_MARGIN);
+}
+
 function estimateLocalTurnHeight(commands){
   const savedCam = { ...camera }, savedW = viewW, savedH = viewH;
   camera.scale = 1; camera.x = viewW/2; camera.y = viewH/2;
@@ -978,23 +800,18 @@ function estimateLocalTurnHeight(commands){
   return maxY;
 }
 
-// Smoothly scrolls the camera to a target world position, easing over
-// `duration` ms, so moving to the next teaching block reads as continuous
-// downward scrolling rather than a slide-style jump cut. `panToken` lets any
-// in-flight pan be interrupted (e.g. the user grabs the board mid-scroll) —
-// when that happens we stop animating but still fire onDone immediately so
-// queued content still gets drawn.
 let panToken = 0;
 function animateCameraPan(targetX, targetY, duration, onDone){
+  if(userIsScrolledAway) { if(onDone) onDone(); return; }
   const myToken = ++panToken;
   const startX = camera.x, startY = camera.y;
   const dx = targetX - startX, dy = targetY - startY;
   const start = performance.now();
   let finished = false;
   function finish(){ if(!finished){ finished = true; if(onDone) onDone(); } }
-  function ease(t){ return t<0.5 ? 4*t*t*t : 1-Math.pow(-2*t+2,3)/2; } // easeInOutCubic
+  function ease(t){ return t<0.5 ? 4*t*t*t : 1-Math.pow(-2*t+2,3)/2; }
   function frame(now){
-    if(myToken !== panToken){ finish(); return; } // interrupted by a newer pan or manual drag/zoom
+    if(myToken !== panToken || userIsScrolledAway){ finish(); return; }
     const raw = Math.min(1, (now-start)/duration);
     const t = ease(raw);
     camera.x = startX + dx*t;
@@ -1009,27 +826,23 @@ function panCameraToCursor(targetY, onDone){
   animateCameraPan(500, targetY, 900, onDone);
 }
 
+function checkIfScrolledAway(){
+  const maxY = getMaxYWorld();
+  const bottomVisibleY = screenToWorld(0, viewH)[1];
+  userIsScrolledAway = (bottomVisibleY < maxY - 150);
+}
+
 function resizeCanvas(){
   const rect = canvas.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
   canvas.width = rect.width * dpr;
   canvas.height = rect.height * dpr;
   ctx.setTransform(dpr,0,0,dpr,0,0);
-  // Keep whatever world point was centered on screen still centered after
-  // the viewport dimensions change (e.g. portrait <-> landscape rotation).
-  // Without this, camera.x/y stay put while viewW/viewH jump, so content
-  // silently shifts off one edge of the new, differently-proportioned view.
   viewW = rect.width; viewH = rect.height;
   redrawAll();
 }
 window.addEventListener('resize', resizeCanvas);
 
-// iOS/Safari fires 'resize' with stale layout metrics immediately on
-// rotation (before the browser chrome/safe-area has settled), so a single
-// resizeCanvas() call right on orientationchange can capture the wrong
-// rect and leave the board looking shifted/cropped until the user manually
-// interacts. Re-run it a couple of times shortly after the rotation
-// settles to guarantee we end up with accurate final dimensions.
 window.addEventListener('orientationchange', () => {
   setTimeout(resizeCanvas, 50);
   setTimeout(resizeCanvas, 350);
@@ -1048,20 +861,18 @@ function screenToWorld(sx, sy){
   return [(sx - viewW/2) / camera.scale + camera.x, (sy - viewH/2) / camera.scale + camera.y];
 }
 
-const INK = '#26241F';
-const OCHRE = '#B8722E';
-const SAGE = '#5E7F6C';
-const BRICK = '#A84B39';
-const TEAL = '#2E7D7B';
-const VIOLET = '#7B5EA7';
-const SKY = '#3E76A8';
-const CORAL = '#D2694F';
+const INK = '#1E2B3A';
+const OCHRE = '#D96B27';
+const SAGE = '#2A8A5D';
+const BRICK = '#C0392B';
+const TEAL = '#008080';
+const VIOLET = '#6C3483';
+const SKY = '#2980B9';
+const CORAL = '#E67E22';
 const HALO = '#8FA6FF';
 const HILITE = '#FCE896';
 const COLORS = { chalk:INK, ink:INK, ochre:OCHRE, sage:SAGE, brick:BRICK, teal:TEAL, violet:VIOLET, sky:SKY, coral:CORAL, halo:HALO, highlight:HILITE };
 
-/* Converts a #rrggbb color plus an alpha (0-1) into an rgba() string, used for
-   soft glow / gradient effects like the "halo" command. */
 function hexToRgba(hex, alpha){
   const h = hex.replace('#','');
   const r = parseInt(h.substring(0,2),16), g = parseInt(h.substring(2,4),16), b = parseInt(h.substring(4,6),16);
@@ -1071,42 +882,29 @@ function hexToRgba(hex, alpha){
 let drawnCommands = [];
 
 function drawBG(){
-  ctx.fillStyle = '#FFFFFF';
+  ctx.fillStyle = '#FAF8F3';
   ctx.fillRect(0,0,viewW,viewH);
 }
 
-// Faint vertical rules at the left/right edge of the 0-1000 content column,
-// so the endless-scroll board still reads as a single continuous "page"
-// rather than an unbounded void.
 function drawPageGuides(){
-  const [leftX] = worldToScreen(0, 0);
-  const [rightX] = worldToScreen(1000, 0);
+  const [leftMarginX] = worldToScreen(70, 0);
   ctx.save();
-  ctx.strokeStyle = 'rgba(184,114,46,0.10)';
-  ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(leftX, 0); ctx.lineTo(leftX, viewH); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(rightX, 0); ctx.lineTo(rightX, viewH); ctx.stroke();
+  ctx.strokeStyle = 'rgba(224, 128, 128, 0.45)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(leftMarginX, 0); ctx.lineTo(leftMarginX, viewH); ctx.stroke();
   ctx.restore();
 }
 
-// Faint horizontal rule lines across the full page width, evenly spaced like
-// real ruled notebook paper — drawn for whatever vertical range is currently
-// on screen (works the same whether you're near the top of the board or
-// scrolled deep into page 4), so the board always reads as lined paper
-// rather than blank white.
-const RULE_LINE_SPACING = 42; // world units between rule lines
 function drawRuleLines(){
-  const [leftX] = worldToScreen(0, 0);
-  const [rightX] = worldToScreen(1000, 0);
   const topWorldY = screenToWorld(0, 0)[1];
   const bottomWorldY = screenToWorld(0, viewH)[1];
   const firstLine = Math.floor(topWorldY / RULE_LINE_SPACING) * RULE_LINE_SPACING;
   ctx.save();
-  ctx.strokeStyle = 'rgba(38,36,31,0.10)';
+  ctx.strokeStyle = 'rgba(200, 190, 170, 0.4)';
   ctx.lineWidth = 1;
   for(let wy = firstLine; wy <= bottomWorldY; wy += RULE_LINE_SPACING){
     const [, sy] = worldToScreen(0, wy);
-    ctx.beginPath(); ctx.moveTo(leftX, sy); ctx.lineTo(rightX, sy); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, sy); ctx.lineTo(viewW, sy); ctx.stroke();
   }
   ctx.restore();
 }
@@ -1114,36 +912,26 @@ function drawRuleLines(){
 function clearBoard(record=true){
   if(record) drawnCommands = [];
   drawBG();
-  drawPageGuides();
   drawRuleLines();
+  drawPageGuides();
 }
 
 function redrawAll(){
   drawBG();
-  drawPageGuides();
   drawRuleLines();
+  drawPageGuides();
   drawnCommands.forEach(cmd => renderCommand(cmd));
 }
 
-// Same as redrawAll, but leaves one command out of the static pass — used
-// while that command is being re-animated on hover, so it can be built back
-// up stroke-by-stroke/letter-by-letter instead of just sitting there already
-// fully drawn underneath its own animation.
 function redrawAllExcept(skipCmd){
   drawBG();
-  drawPageGuides();
   drawRuleLines();
+  drawPageGuides();
   drawnCommands.forEach(cmd => { if(cmd !== skipCmd) renderCommand(cmd); });
 }
 
 function sw(n){ return n * camera.scale; }
 
-// Approximate screen-space bounding box for a drawn command, padded a bit
-// for a forgiving hover target. Used only for hit-testing, not rendering.
-// Breaks `text` into lines that each fit within `maxWidthPx` (screen px),
-// using the CURRENTLY SET ctx.font — call only after ctx.font is assigned.
-// This is what lets the model write full wrapping paragraphs (like real
-// notebook prose) instead of being limited to one short line per command.
 function wrapTextToLines(text, maxWidthPx){
   const words = (text||'').split(/\s+/).filter(Boolean);
   const lines = [];
@@ -1161,83 +949,6 @@ function wrapTextToLines(text, maxWidthPx){
   return lines.length ? lines : [''];
 }
 
-/* =========================================================
-   INLINE KEYWORD-COLOR MARKUP
-   Lets the model highlight a specific word or phrase in a different
-   handwriting color while the rest of the sentence stays in the
-   command's normal color — e.g. "The {{ochre:price elasticity}} of
-   demand measures..." renders with "price elasticity of demand" in
-   ochre and every other word in the default ink. This is parsed out of
-   "text" strings only (never shown literally), and is fully compatible
-   with word-wrapping and the letter-by-letter write-on animation.
-   ========================================================= */
-function tagTextToChars(text){
-  const re = /\{\{(\w+):([^}]*)\}\}/g;
-  const chars = [];
-  let last = 0, m;
-  const pushPlain = s => { for(const ch of s) chars.push({ch, color:null}); };
-  while((m = re.exec(text||''))){
-    pushPlain(text.slice(last, m.index));
-    for(const ch of m[2]) chars.push({ch, color:m[1]});
-    last = re.lastIndex;
-  }
-  pushPlain((text||'').slice(last));
-  return chars;
-}
-// Greedy word-wrap identical to wrapTextToLines, but operating on the
-// {ch,color} array so each resulting line keeps its per-character color
-// instead of collapsing to plain text.
-function wrapColoredChars(chars, maxWidthPx){
-  const plain = chars.map(c=>c.ch).join('');
-  const words = [...plain.matchAll(/\S+/g)];
-  const lines = [];
-  let curWords = [], curText = '';
-  words.forEach(wm => {
-    const test = curText ? curText + ' ' + wm[0] : wm[0];
-    if(curText && ctx.measureText(test).width > maxWidthPx){
-      lines.push(curWords);
-      curWords = [wm]; curText = wm[0];
-    } else {
-      curWords.push(wm); curText = test;
-    }
-  });
-  if(curWords.length) lines.push(curWords);
-  if(!lines.length) return [[]];
-  return lines.map(wordsArr => {
-    const lineChars = [];
-    wordsArr.forEach((wm, i) => {
-      if(i>0) lineChars.push({ch:' ', color:null});
-      for(let k=wm.index; k<wm.index+wm[0].length; k++) lineChars.push(chars[k]);
-    });
-    return lineChars;
-  });
-}
-function charsToRuns(chars){
-  const runs = [];
-  chars.forEach(c => {
-    const last = runs[runs.length-1];
-    if(last && last.color === c.color) last.text += c.ch;
-    else runs.push({ color:c.color, text:c.ch });
-  });
-  return runs;
-}
-// Draws a (possibly partial, for the write-on animation) line of colored
-// runs starting at (x,y) using the currently-set ctx.font, falling back
-// to `defaultColor` for untagged runs. Returns the x position right after
-// the last drawn character, so the pen-tip cursor can be placed there.
-function drawColoredChars(chars, x, y, defaultColor){
-  let cx = x;
-  charsToRuns(chars).forEach(run => {
-    ctx.fillStyle = run.color ? (COLORS[run.color] || defaultColor) : defaultColor;
-    ctx.fillText(run.text, cx, y);
-    cx += ctx.measureText(run.text).width;
-  });
-  return cx;
-}
-function coloredLineWidth(chars){
-  return ctx.measureText(chars.map(c=>c.ch).join('')).width;
-}
-
 function commandScreenBBox(cmd){
   const PAD = 10;
   function pad(x0,y0,x1,y1){
@@ -1245,19 +956,18 @@ function commandScreenBBox(cmd){
   }
   switch(cmd.type){
     case 'text': {
-      const fam = cmd.handwritten ? "'Caveat', cursive" : (cmd.mono ? "'JetBrains Mono', 'STIX Two Text', monospace" : "'Kalam', 'Caveat', cursive");
-      const weight = cmd.weight || (cmd.handwritten ? 700 : 400);
-      const size = cmd.handwritten ? (cmd.size||36)*1.25 : (cmd.size||24)*1.08;
+      const fam = cmd.mono ? "'JetBrains Mono', monospace" : "'Caveat', 'Kalam', cursive";
+      const weight = cmd.weight || 700;
+      const size = (cmd.size||26)*1.25;
       ctx.font = `${weight} ${sw(size)}px ${fam}`;
       const [sx,sy] = worldToScreen(cmd.x, cmd.y);
-      const chars0 = tagTextToChars(cmd.text||'');
       if(cmd.maxWidth){
-        const lines = wrapColoredChars(chars0, sw(cmd.maxWidth));
+        const lines = wrapTextToLines(cmd.text||'', sw(cmd.maxWidth));
         const lineHeight = sw(size)*1.35;
-        const width = Math.max(0, ...lines.map(l=>coloredLineWidth(l)));
+        const width = Math.max(0, ...lines.map(l=>ctx.measureText(l).width));
         return pad(sx, sy - sw(size)*1.05, sx + width, sy + lineHeight*(lines.length-1) + sw(size)*0.25);
       }
-      const width = coloredLineWidth(chars0);
+      const width = ctx.measureText(cmd.text||'').width;
       return pad(sx, sy - sw(size)*1.05, sx + width, sy + sw(size)*0.25);
     }
     case 'line': case 'arrow': {
@@ -1297,25 +1007,22 @@ function renderCommand(cmd){
 
   switch(cmd.type){
     case 'text': {
-      const fam = cmd.handwritten ? "'Caveat', cursive" : (cmd.mono ? "'JetBrains Mono', 'STIX Two Text', monospace" : "'Kalam', 'Caveat', cursive");
-      const weight = cmd.weight || (cmd.handwritten ? 700 : 400);
-      const size = cmd.handwritten ? (cmd.size||36)*1.25 : (cmd.size||24)*1.08;
+      const fam = cmd.mono ? "'JetBrains Mono', monospace" : "'Caveat', 'Kalam', cursive";
+      const weight = cmd.weight || 700;
+      const size = (cmd.size||26)*1.25;
       ctx.font = `${weight} ${sw(size)}px ${fam}`;
       ctx.textBaseline = 'alphabetic';
       const [sx,sy] = worldToScreen(cmd.x, cmd.y);
-      const chars1 = tagTextToChars(cmd.text||'');
       if(cmd.maxWidth){
-        const lines = wrapColoredChars(chars1, sw(cmd.maxWidth));
+        const lines = wrapTextToLines(cmd.text||'', sw(cmd.maxWidth));
         const lineHeight = sw(size)*1.35;
-        lines.forEach((line,i) => drawColoredChars(line, sx, sy + i*lineHeight, color));
+        lines.forEach((line,i) => ctx.fillText(line, sx, sy + i*lineHeight));
       } else {
-        drawColoredChars(chars1, sx, sy, color);
+        ctx.fillText(cmd.text, sx, sy);
       }
       break;
     }
     case 'highlight-marker': {
-      // Feature removed — no longer drawn, even if an older saved session
-      // or a stray model response still includes this command type.
       break;
     }
     case 'line': {
@@ -1389,12 +1096,11 @@ function renderCommand(cmd){
         ctx.lineWidth = sw(curve.width || 3.25);
         strokeSmoothCurve(pts);
         ctx.restore();
-        // small hand-plotted dots at each data point for a worked-by-hand feel
         ctx.fillStyle = curveColor;
         pts.forEach(p => { ctx.beginPath(); ctx.arc(p[0], p[1], sw(2.75), 0, Math.PI*2); ctx.fill(); });
         if(curve.label){
           ctx.fillStyle = curveColor;
-          ctx.font = `700 ${sw(15)}px 'Kalam', cursive`;
+          ctx.font = `700 ${sw(18)}px 'Caveat', cursive`;
           ctx.textAlign = 'left';
           const [lx,ly] = pts[pts.length-1];
           ctx.fillText(curve.label, lx+sw(8), ly+sw(4));
@@ -1423,7 +1129,6 @@ function renderCommand(cmd){
   }
 }
 
-// Small filled triangle used to cap the ends of axis lines.
 function drawArrowhead(x, y, angle, color, size){
   const headLen = sw(size || 9);
   ctx.fillStyle = color;
@@ -1433,9 +1138,6 @@ function drawArrowhead(x, y, angle, color, size){
   ctx.closePath(); ctx.fill();
 }
 
-// Faint dashed gridlines behind a set of axes, so plotted curves are easy to
-// read at a glance. On by default; a graph author can pass "grid":false to
-// suppress it (e.g. for a simple number line).
 function drawAxesGrid(ox, oy, w, h, cmd){
   if(cmd.grid === false) return;
   const n = cmd.gridLines || 5;
@@ -1453,12 +1155,9 @@ function drawAxesGrid(ox, oy, w, h, cmd){
   ctx.restore();
 }
 
-// Draws optional tick marks + numeric/text labels along each axis, plus the
-// axis labels and an optional title, so a plotted graph is self-explanatory
-// without the student having to guess scale.
 function drawAxesTicksAndLabels(ox, oy, w, h, cmd, color){
   ctx.save();
-  ctx.font = `${sw(12)}px 'JetBrains Mono', 'STIX Two Text', monospace`;
+  ctx.font = `${sw(14)}px 'Caveat', cursive`;
   ctx.fillStyle = color;
   if(Array.isArray(cmd.xTicks)){
     const n = cmd.xTicks.length;
@@ -1481,16 +1180,13 @@ function drawAxesTicksAndLabels(ox, oy, w, h, cmd, color){
     });
   }
   ctx.textAlign = 'left';
-  ctx.font = `${sw(15)}px 'JetBrains Mono', 'STIX Two Text', monospace`;
+  ctx.font = `${sw(16)}px 'Caveat', cursive`;
   if(cmd.xlabel){ ctx.textAlign = 'right'; ctx.fillText(cmd.xlabel, ox+w, oy+sw(30)); }
   if(cmd.ylabel){ ctx.save(); ctx.translate(ox-sw(28), oy-h); ctx.textAlign = 'left'; ctx.fillText(cmd.ylabel,0,0); ctx.restore(); }
   if(cmd.title){ ctx.textAlign = 'center'; ctx.font = `700 ${sw(20)}px 'Caveat', cursive`; ctx.fillText(cmd.title, ox+w/2, oy-h-sw(16)); }
   ctx.restore();
 }
 
-// Strokes a fully-drawn smoothed path through screen-space points. Shared by
-// freehand "curve" and by each curve inside a "plot" — always ends exactly on
-// the final point (unlike a naive quadratic chain, which stops short of it).
 function strokeSmoothCurve(pts){
   ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
   for(let i=1;i<pts.length-1;i++){
@@ -1502,8 +1198,6 @@ function strokeSmoothCurve(pts){
   ctx.stroke();
 }
 
-// Same smoothed path, but stroked only up to fraction t (0-1), for the live
-// drawing animation. Returns the pen tip's screen position.
 function strokeSmoothCurvePartial(pts, t){
   const totalSegs = pts.length-1;
   const segFloat = t*totalSegs;
@@ -1525,10 +1219,6 @@ function strokeSmoothCurvePartial(pts, t){
   return [penX, penY];
 }
 
-// Builds data->screen scale functions for a "plot" command, so every curve
-// inside it is mapped into the SAME axes box it's drawn against — a curve can
-// never end up floating away from its own axes the way independently-placed
-// "axes" + "curve" commands could.
 function plotScalers(ox, oy, w, h, cmd){
   const [xMin,xMax] = cmd.xRange || [0, 10];
   const [yMin,yMax] = cmd.yRange || [0, 10];
@@ -1538,112 +1228,23 @@ function plotScalers(ox, oy, w, h, cmd){
   return [scaleX, scaleY];
 }
 
-/* ---------- FOLLOW MODE ----------
-   While the AI is writing, the camera auto-scrolls to keep the pen in
-   view. The moment the user manually pans/scrolls/zooms, we drop out of
-   follow mode so their scroll is never fought or overridden — new
-   content keeps landing on the board underneath them, in its exact
-   place, but the camera stops chasing it. A "Jump to latest" pill
-   appears while unfollowed; tapping it (or simply scrolling back down
-   close to the live writing point) re-engages auto-follow. */
-let followMode = true;
-let lastWriteAnchor = { x: 500, y: TOP_MARGIN };
-const jumpBtn = document.getElementById('jump-latest');
-
-function currentWriteTargetY(){
-  // Prefer wherever the pen actually is; fall back to the detail column's
-  // running cursor if nothing has been anchored yet this session.
-  return lastWriteAnchor ? lastWriteAnchor.y : regionCursor.detail;
-}
-function nearWriteTarget(){
-  // "Near the bottom" = the live writing point is already comfortably
-  // inside the current viewport, not just technically on-screen.
-  const [, sy] = worldToScreen(500, currentWriteTargetY());
-  return sy > viewH*0.15 && sy < viewH*0.85;
-}
-function setFollowMode(on){
-  followMode = on;
-  jumpBtn.classList.toggle('show', !on);
-}
-function leaveFollowMode(){
-  if(followMode) setFollowMode(false);
-}
-// Called after any manual pan/zoom gesture ends — if the user happened to
-// scroll right back to where the AI is currently writing, resume
-// following automatically instead of making them tap the button.
-function maybeResumeFollow(){
-  if(!followMode && nearWriteTarget()) setFollowMode(true);
-}
-jumpBtn.addEventListener('click', ()=>{
-  panToken++;
-  animateCameraPan(500, currentWriteTargetY(), 500, ()=> setFollowMode(true));
-  setFollowMode(true);
-});
-
-/* ---------- PAN / ZOOM (mouse) ---------- */
+/* ---------- PAN / ZOOM ---------- */
 let isPanning = false, panStart=null, camStart=null;
-canvas.addEventListener('mousedown', (e)=>{ panToken++; isPanning=true; leaveFollowMode(); canvas.classList.add('grabbing'); panStart=[e.clientX,e.clientY]; camStart={x:camera.x,y:camera.y}; if(typeof stopHoverReplay==='function') stopHoverReplay(); });
+canvas.addEventListener('mousedown', (e)=>{ 
+  panToken++; isPanning=true; canvas.classList.add('grabbing'); 
+  panStart=[e.clientX,e.clientY]; camStart={x:camera.x,y:camera.y}; 
+  if(typeof stopHoverReplay==='function') stopHoverReplay(); 
+});
 window.addEventListener('mousemove', (e)=>{
   if(!isPanning) return;
   camera.x = camStart.x - (e.clientX - panStart[0]) / camera.scale;
   camera.y = camStart.y - (e.clientY - panStart[1]) / camera.scale;
+  checkIfScrolledAway();
   redrawAll();
 });
-window.addEventListener('mouseup', ()=>{ if(isPanning) maybeResumeFollow(); isPanning=false; canvas.classList.remove('grabbing'); });
+window.addEventListener('mouseup', ()=>{ isPanning=false; canvas.classList.remove('grabbing'); });
 
-/* ---------- PAN / ZOOM (touch — iPad & mobile) ----------
-   Single finger drags the board exactly like a mouse-drag pan. Two
-   fingers pinch-zoom around their midpoint AND pan with the midpoint's
-   movement, so a natural two-finger scroll+zoom gesture works the way
-   people expect on a tablet. */
-let touchMode = null; // 'pan' | 'pinch' | null
-let pinchStartDist = 0, pinchStartScale = 1, pinchMid = null, pinchWorldMid = null;
-function touchDist(t0,t1){ return Math.hypot(t1.clientX-t0.clientX, t1.clientY-t0.clientY); }
-function touchMidpoint(t0,t1){ return { x:(t0.clientX+t1.clientX)/2, y:(t0.clientY+t1.clientY)/2 }; }
-canvas.addEventListener('touchstart', (e)=>{
-  panToken++; leaveFollowMode(); stopHoverReplay();
-  if(e.touches.length === 1){
-    touchMode = 'pan';
-    panStart = [e.touches[0].clientX, e.touches[0].clientY];
-    camStart = { x:camera.x, y:camera.y };
-  } else if(e.touches.length === 2){
-    touchMode = 'pinch';
-    pinchStartDist = touchDist(e.touches[0], e.touches[1]);
-    pinchStartScale = camera.scale;
-    pinchMid = touchMidpoint(e.touches[0], e.touches[1]);
-    const rect = canvas.getBoundingClientRect();
-    pinchWorldMid = screenToWorld(pinchMid.x-rect.left, pinchMid.y-rect.top);
-  }
-}, {passive:true});
-canvas.addEventListener('touchmove', (e)=>{
-  if(touchMode === 'pan' && e.touches.length === 1){
-    e.preventDefault();
-    camera.x = camStart.x - (e.touches[0].clientX - panStart[0]) / camera.scale;
-    camera.y = camStart.y - (e.touches[0].clientY - panStart[1]) / camera.scale;
-    redrawAll();
-  } else if(touchMode === 'pinch' && e.touches.length === 2){
-    e.preventDefault();
-    const dist = touchDist(e.touches[0], e.touches[1]);
-    camera.scale = Math.min(3, Math.max(0.2, pinchStartScale * (dist/Math.max(1,pinchStartDist))));
-    const rect = canvas.getBoundingClientRect();
-    const mid = touchMidpoint(e.touches[0], e.touches[1]);
-    const [nx,ny] = screenToWorld(mid.x-rect.left, mid.y-rect.top);
-    camera.x += (pinchWorldMid[0]-nx); camera.y += (pinchWorldMid[1]-ny);
-    redrawAll();
-  }
-}, {passive:false});
-canvas.addEventListener('touchend', (e)=>{
-  if(e.touches.length === 0){ touchMode = null; maybeResumeFollow(); }
-  else if(e.touches.length === 1){
-    // dropped from pinch to a single finger — restart as a plain pan
-    touchMode = 'pan';
-    panStart = [e.touches[0].clientX, e.touches[0].clientY];
-    camStart = { x:camera.x, y:camera.y };
-  }
-});
-canvas.addEventListener('touchcancel', ()=>{ touchMode = null; maybeResumeFollow(); });
-
-/* ---------- HOVER-TO-REPLAY: pen re-writes a command on mouse hover ---------- */
+/* ---------- HOVER-TO-REPLAY ---------- */
 const hoverAnim = { cmd:null, raf:null };
 
 function stopHoverReplay(){
@@ -1653,13 +1254,13 @@ function stopHoverReplay(){
 }
 
 function startHoverReplay(cmd){
-  if(hoverAnim.cmd === cmd) return; // already replaying/showing this one
+  if(hoverAnim.cmd === cmd) return;
   if(hoverAnim.raf) cancelAnimationFrame(hoverAnim.raf);
   hoverAnim.cmd = cmd;
   const duration = estimateDuration(cmd);
   const start = performance.now();
   function frame(now){
-    if(hoverAnim.cmd !== cmd) return; // hover moved elsewhere mid-flight
+    if(hoverAnim.cmd !== cmd) return;
     const t = Math.min(1, (now-start)/duration);
     redrawAllExcept(cmd);
     renderPartialCommand(cmd, t);
@@ -1670,13 +1271,13 @@ function startHoverReplay(cmd){
 }
 
 canvas.addEventListener('mousemove', (e)=>{
-  if(isPanning || drawing) return; // don't fight with panning or the live AI draw-in
+  if(isPanning || drawing) return;
   const rect = canvas.getBoundingClientRect();
   const mx = e.clientX - rect.left, my = e.clientY - rect.top;
   let hit = null;
   for(let i = drawnCommands.length - 1; i >= 0; i--){
     const cmd = drawnCommands[i];
-    if(cmd.type === 'highlight' || cmd.type === 'halo') continue; // decorative, not "written" content
+    if(cmd.type === 'highlight' || cmd.type === 'halo') continue;
     const [x0,y0,x1,y1] = commandScreenBBox(cmd);
     if(mx>=x0 && mx<=x1 && my>=y0 && my<=y1){ hit = cmd; break; }
   }
@@ -1687,45 +1288,25 @@ canvas.addEventListener('mouseleave', stopHoverReplay);
 canvas.addEventListener('wheel', (e)=>{
   e.preventDefault();
   panToken++;
-  leaveFollowMode();
   stopHoverReplay();
   const rect = canvas.getBoundingClientRect();
   const mx = e.clientX-rect.left, my = e.clientY-rect.top;
-  // Pinch-to-zoom on a trackpad (or ctrl+wheel) reports as a wheel event
-  // with ctrlKey set — treat that as zoom. A plain wheel/trackpad
-  // scroll (no ctrlKey) is treated as an ordinary scroll of the board,
-  // which is the natural way to review earlier writing on a laptop.
-  if(e.ctrlKey){
-    const [wx,wy] = screenToWorld(mx,my);
-    camera.scale = Math.min(3, Math.max(0.2, camera.scale * (e.deltaY>0?0.9:1.1)));
-    const [nx,ny] = screenToWorld(mx,my);
-    camera.x += (wx-nx); camera.y += (wy-ny);
-  } else {
-    camera.x += e.deltaX / camera.scale;
-    camera.y += e.deltaY / camera.scale;
-  }
+  const [wx,wy] = screenToWorld(mx,my);
+  camera.scale = Math.min(3, Math.max(0.2, camera.scale * (e.deltaY>0?0.9:1.1)));
+  const [nx,ny] = screenToWorld(mx,my);
+  camera.x += (wx-nx); camera.y += (wy-ny);
+  checkIfScrolledAway();
   redrawAll();
-  maybeResumeFollow();
 }, {passive:false});
-document.getElementById('zoom-in').addEventListener('click', ()=>{ leaveFollowMode(); camera.scale=Math.min(3,camera.scale*1.2); redrawAll(); });
-document.getElementById('zoom-out').addEventListener('click', ()=>{ leaveFollowMode(); camera.scale=Math.max(0.2,camera.scale/1.2); redrawAll(); });
-document.getElementById('zoom-reset').addEventListener('click', ()=>{ panToken++; camera.x=500;camera.y=300;camera.scale=1; redrawAll(); maybeResumeFollow(); });
-document.getElementById('btn-clear').addEventListener('click', ()=>{ panToken++; drawQueue=[]; camera.x=500;camera.y=300;camera.scale=1; resetRegionCursors(); lastWriteAnchor={x:500,y:TOP_MARGIN}; setFollowMode(true); clearBoard(); });
+document.getElementById('zoom-in').addEventListener('click', ()=>{ camera.scale=Math.min(3,camera.scale*1.2); checkIfScrolledAway(); redrawAll(); });
+document.getElementById('zoom-out').addEventListener('click', ()=>{ camera.scale=Math.max(0.2,camera.scale/1.2); checkIfScrolledAway(); redrawAll(); });
+document.getElementById('zoom-reset').addEventListener('click', ()=>{ panToken++; camera.x=500;camera.y=300;camera.scale=1; userIsScrolledAway=false; redrawAll(); });
+document.getElementById('btn-clear').addEventListener('click', ()=>{ panToken++; drawQueue=[]; camera.x=500;camera.y=300;camera.scale=1; resetRegionCursors(); clearBoard(); });
 
 /* =========================================================
-   EXPORT: SAVE THE WHOLE (INFINITE, DOWNWARD-SCROLLING) BOARD AS A PDF
-   The board grows straight down as a sequence of A4-proportioned pages, each
-   one filled with as many teaching turns as fit before the next page starts.
-   Export walks that same world space page by page, rendering each page into
-   an offscreen canvas at the real camera transform
-   (so hit-testing/animation code doesn't need to change), then drops each
-   page's image into a multi-page PDF via jsPDF.
+   EXPORT PDF
    ========================================================= */
 function worldContentBounds(){
-  // Reuses commandScreenBBox for its per-type sizing logic: with camera set
-  // to scale 1 and centered so (camera.x,camera.y)===(viewW/2,viewH/2),
-  // worldToScreen(wx,wy) reduces to the identity, so the "screen" bbox it
-  // returns IS the world-space bbox.
   const savedCam = { ...camera }, savedW = viewW, savedH = viewH;
   camera.scale = 1; camera.x = viewW/2; camera.y = viewH/2;
   let minX=0, minY=0, maxX=PAGE_W, maxY=1;
@@ -1739,9 +1320,9 @@ function worldContentBounds(){
 }
 
 async function exportBoardAsPDF(){
-  if(!window.jspdf){ setStatus('pdf export unavailable — see console'); console.error('jsPDF did not load (no network in this context, or the CDN was blocked).'); return; }
+  if(!window.jspdf){ setStatus('pdf export unavailable — see console'); console.error('jsPDF did not load.'); return; }
   if(drawnCommands.length===0){ setStatus('nothing drawn yet'); return; }
-  if(drawing || drawQueue.length){ setStatus('wait for the current drawing to finish'); return; }
+  if(drawing || drawQueue.length){ setStatus('wait for current drawing to finish'); return; }
 
   setStatus('exporting pdf…');
   stopHoverReplay();
@@ -1749,10 +1330,10 @@ async function exportBoardAsPDF(){
 
   try{
     const { minX, minY, maxY } = worldContentBounds();
-    const pageWorldW = PAGE_W; // the board's fixed A4-proportioned content column width
+    const pageWorldW = PAGE_W;
     const pageWorldH = PAGE_H;
     const numPages = Math.max(1, Math.ceil((maxY - minY) / pageWorldH));
-    const PX_PER_WORLD_UNIT = 1.6; // offscreen render resolution — plenty crisp for text
+    const PX_PER_WORLD_UNIT = 1.6;
     const pxW = Math.round(pageWorldW * PX_PER_WORLD_UNIT);
     const pxH = Math.round(pageWorldH * PX_PER_WORLD_UNIT);
 
@@ -1771,9 +1352,10 @@ async function exportBoardAsPDF(){
       camera.x = minX + pageWorldW/2;
       camera.y = (minY + i*pageWorldH) + pageWorldH/2;
 
-      drawBG(); // faint left/right column guides are a screen affordance only — skip those in the export, but keep the ruled lines so each exported A4 page still reads as ruled notebook paper
+      drawBG();
       drawRuleLines();
-      drawnCommands.forEach(cmd => renderCommand(cmd)); // anything outside this page's y-range is simply clipped by the canvas
+      drawPageGuides();
+      drawnCommands.forEach(cmd => renderCommand(cmd));
 
       const dataUrl = off.toDataURL('image/png');
       if(i===0){
@@ -1800,7 +1382,7 @@ async function exportBoardAsPDF(){
 document.getElementById('btn-export-pdf').addEventListener('click', exportBoardAsPDF);
 
 /* =========================================================
-   LIVE PEN + STROKE-BY-STROKE ANIMATION
+   LIVE PEN & DRAWING ANIMATION
    ========================================================= */
 let drawQueue = [], drawing = false;
 
@@ -1817,14 +1399,7 @@ function drawPen(x, y, angle){
   ctx.beginPath(); ctx.arc(s*0.45,s*0.45,3.2,0,Math.PI*2); ctx.fill();
   ctx.restore();
 }
-function clearPen(){}
 
-// Places a command (still expressed in the model's local 0-1000 x 0-900
-// authoring frame) into an absolute world position, scaled to fit whichever
-// region box it's headed for. The model always writes as if it has a full
-// 1000-wide frame, so a narrower box (e.g. the 360-wide Graphs column) is
-// handled purely by shrinking (scale = box.w/1000) rather than the model
-// needing to know actual box geometry.
 function placeCommand(cmd, ox, oy, scale){
   const c = { ...cmd };
   const S = v => v * scale;
@@ -1847,12 +1422,8 @@ function placeCommand(cmd, ox, oy, scale){
   return c;
 }
 
-// Hard-clamps every command into the 1000x900 working frame before it ever
-// gets a cursor offset applied, so a stray/oversized value from the model
-// can never push text or a graph off the visible board or into the next
-// teaching block below it.
 function clampBoardCoords(c){
-  const M = 20; // margin from the frame edge
+  const M = 20;
   const MINX = M, MAXX = 1000 - M, MINY = M, MAXY = 900 - M;
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
   switch(c.type){
@@ -1875,8 +1446,6 @@ function clampBoardCoords(c){
       if(Array.isArray(c.points)) c.points = c.points.map(p => [clamp(p[0],MINX,MAXX), clamp(p[1],MINY,MAXY)]);
       break;
     case 'axes': case 'plot':
-      // x,y is the bottom-left ORIGIN; the box extends upward by h and
-      // rightward by w, so both need clamping relative to that origin.
       c.x = clamp(c.x, MINX, MAXX - 60);
       c.y = clamp(c.y, MINY + 60, MAXY);
       c.w = Math.max(60, Math.min(c.w, MAXX - c.x));
@@ -1886,14 +1455,6 @@ function clampBoardCoords(c){
   return c;
 }
 
-// Routes one teaching turn's commands into the Cornell template: each
-// command can carry an optional "region" of "notes" | "graph" | "detail"
-// (default "detail"), so a single turn can drop a short bullet into the
-// Important Notes column, a diagram into the Graphs column, and its main
-// explanatory prose into the Detailed Notes box, all at once. Each region
-// keeps its own running cursor so content stacks down that column across
-// many turns; only the Detail region (the main teaching flow) triggers a
-// fresh page when it runs out of room.
 function enqueueCommandsAtCursor(commands){
   const clamped = commands.map(c => clampBoardCoords({ ...c }));
   const groups = { notes: [], graph: [], detail: [] };
@@ -1905,10 +1466,6 @@ function enqueueCommandsAtCursor(commands){
   let placedAll = [];
   let panTargetY = null;
 
-  // No page-breaking here at all — the live board is one endless downward
-  // scroll. Each zone (notes/graph/detail) just keeps stacking new content
-  // below whatever it already has, forever. Pagination only happens later,
-  // as a pure slicing step when exporting to PDF (see exportBoardAsPDF).
   ['notes','graph','detail'].forEach(region => {
     const cmds = groups[region];
     if(!cmds.length) return;
@@ -1923,12 +1480,10 @@ function enqueueCommandsAtCursor(commands){
 
   redrawAll();
   if(panTargetY === null) panTargetY = regionCursor.detail;
-  lastWriteAnchor = { x: 500, y: panTargetY };
-  if(followMode){
+  
+  if(!userIsScrolledAway){
     panCameraToCursor(panTargetY, () => enqueueCommands(placedAll));
   } else {
-    // Not following right now (user is reading earlier content) — still
-    // draw the new content in its exact place, just don't yank the camera.
     enqueueCommands(placedAll);
   }
 }
@@ -1937,9 +1492,7 @@ function enqueueCommands(commands){
   drawQueue.push(...commands);
   if(!drawing) processQueue();
 }
-// Approximate world-space point of a command, used to keep the camera
-// pointed at whatever the "pen" is currently writing (rather than only
-// re-centering once per whole teaching turn).
+
 function commandWorldAnchor(cmd){
   if('x' in cmd && 'y' in cmd) return [cmd.x, cmd.y];
   if('x1' in cmd && 'y1' in cmd) return [(cmd.x1+cmd.x2)/2, (cmd.y1+cmd.y2)/2];
@@ -1951,24 +1504,19 @@ function processQueue(){
   if(drawQueue.length===0){ drawing=false; redrawAll(); return; }
   drawing=true;
   const cmd = drawQueue.shift();
-  // If the next stroke lands well outside the current view (e.g. jumping
-  // from the Detail box over to the Graphs column, or onto a fresh page),
-  // ease the camera over to it before/while it draws, so the board always
-  // scrolls to keep pace with wherever the AI is currently writing instead
-  // of leaving new content to appear off-screen.
   const anchor = commandWorldAnchor(cmd);
-  if(anchor){
-    lastWriteAnchor = { x: anchor[0], y: anchor[1] };
-    if(followMode){
-      const [sx, sy] = worldToScreen(anchor[0], anchor[1]);
-      const margin = 60;
-      if(sx < margin || sx > viewW-margin || sy < margin || sy > viewH-margin){
-        animateCameraPan(anchor[0], anchor[1], 260, null);
-      }
+  
+  if(anchor && !userIsScrolledAway){
+    const [sx, sy] = worldToScreen(anchor[0], anchor[1]);
+    const margin = 80;
+    if(sx < margin || sx > viewW-margin || sy < margin || sy > viewH-margin){
+      animateCameraPan(anchor[0], anchor[1], 260, null);
     }
   }
+  
   animateCommand(cmd, ()=>{ drawnCommands.push(cmd); processQueue(); });
 }
+
 function animateCommand(cmd, onDone){
   const duration = estimateDuration(cmd);
   const start = performance.now();
@@ -1980,9 +1528,10 @@ function animateCommand(cmd, onDone){
   }
   requestAnimationFrame(frame);
 }
+
 function estimateDuration(cmd){
   switch(cmd.type){
-    case 'text': return Math.min(2200, Math.max(500,tagTextToChars(cmd.text||'').length*(cmd.handwritten?55:38)));
+    case 'text': return Math.min(2200, Math.max(500,(cmd.text||'').length*50));
     case 'line': case 'arrow': return 380;
     case 'curve': return 700;
     case 'rect': return 550;
@@ -1990,49 +1539,45 @@ function estimateDuration(cmd){
     case 'axes': return 550;
     case 'plot': return 600 + ((cmd.curves||[]).length)*550;
     case 'highlight': return 250;
-    case 'highlight-marker': return 420;
     case 'halo': return 450;
     default: return 300;
   }
 }
+
 function renderPartialCommand(cmd, t){
   const color = COLORS[cmd.color] || INK;
   ctx.strokeStyle = color; ctx.fillStyle = color;
   switch(cmd.type){
     case 'text': {
       const full = cmd.text || '';
-      const fam = cmd.handwritten ? "'Caveat', cursive" : (cmd.mono ? "'JetBrains Mono', 'STIX Two Text', monospace" : "'Kalam', 'Caveat', cursive");
-      const weight = cmd.weight || (cmd.handwritten ? 700 : 400);
-      const size = cmd.handwritten ? (cmd.size||36)*1.25 : (cmd.size||24)*1.08;
+      const fam = cmd.mono ? "'JetBrains Mono', monospace" : "'Caveat', 'Kalam', cursive";
+      const weight = cmd.weight || 700;
+      const size = (cmd.size||26)*1.25;
       ctx.font = `${weight} ${sw(size)}px ${fam}`;
       const [sx,sy] = worldToScreen(cmd.x, cmd.y);
-      const charsFull = tagTextToChars(full);
       if(cmd.maxWidth){
-        const lines = wrapColoredChars(charsFull, sw(cmd.maxWidth));
+        const lines = wrapTextToLines(full, sw(cmd.maxWidth));
         const lineHeight = sw(size)*1.35;
-        const totalLen = lines.reduce((n,l)=>n+l.length,0) || 1;
-        let charsLeft = Math.max(1, Math.round(totalLen*t));
+        let charsLeft = Math.max(1, Math.round(full.length*t));
         let lastX = sx, lastY = sy;
         for(let i=0;i<lines.length;i++){
           const line = lines[i];
           const take = Math.max(0, Math.min(line.length, charsLeft));
           const partial = line.slice(0, take);
-          lastX = drawColoredChars(partial, sx, sy + i*lineHeight, color);
+          ctx.fillText(partial, sx, sy + i*lineHeight);
+          lastX = sx + ctx.measureText(partial).width;
           lastY = sy + i*lineHeight;
-          charsLeft -= take + 1; // +1 roughly accounts for the space between wrapped words
+          charsLeft -= take + 1;
           if(charsLeft <= 0) break;
         }
         drawPen(lastX, lastY, -Math.PI/2);
       } else {
-        const nChars = Math.max(1, Math.round(charsFull.length*t));
-        const partial = charsFull.slice(0,nChars);
-        const w0 = drawColoredChars(partial, sx, sy, color);
-        drawPen(w0, sy, -Math.PI/2);
+        const nChars = Math.max(1, Math.round(full.length*t));
+        const partial = full.slice(0,nChars);
+        ctx.fillText(partial, sx, sy);
+        const w = ctx.measureText(partial).width;
+        drawPen(sx+w, sy, -Math.PI/2);
       }
-      break;
-    }
-    case 'highlight-marker': {
-      // Feature removed — no-op.
       break;
     }
     case 'line': case 'arrow': {
@@ -2100,9 +1645,6 @@ function renderPartialCommand(cmd, t){
     case 'plot': {
       const [ox,oy]=worldToScreen(cmd.x,cmd.y); const w=sw(cmd.w), h=sw(cmd.h);
       const curves = cmd.curves || [];
-      // First slice of the duration draws the axes+grid+ticks; the rest is
-      // split evenly across each curve, drawn one after another, so a plot
-      // with 2 lines visibly draws the first line, then the second.
       const axesFrac = curves.length ? 0.3 : 1;
       const axesT = Math.min(1, t/axesFrac);
       if(axesT>=0.99) drawAxesGrid(ox, oy, w, h, cmd);
@@ -2132,7 +1674,7 @@ function renderPartialCommand(cmd, t){
           if(curveT>=1){
             if(curve.label){
               ctx.fillStyle = COLORS[curve.color] || color;
-              ctx.font = `${sw(13)}px 'JetBrains Mono', 'STIX Two Text', monospace`;
+              ctx.font = `${sw(16)}px 'Caveat', cursive`;
               ctx.textAlign = 'left';
               ctx.fillText(curve.label, cx+sw(8), cy+sw(4));
             }
@@ -2164,29 +1706,19 @@ function renderPartialCommand(cmd, t){
 }
 
 /* =========================================================
-   VOICE: speech synthesis (out, captions) + recognition (in)
-
-   Browser TTS has no truly natural option without a paid API,
-   so this picks the best available system/browser voice by a
-   quality heuristic, and improves cadence by speaking sentence
-   by sentence (with small inter-sentence pauses) rather than as
-   one long utterance, which reduces the flat/rushed rambling
-   that a single long SpeechSynthesisUtterance tends to produce.
+   VOICE
    ========================================================= */
 const avatar = document.getElementById('avatar');
 const captionText = document.getElementById('caption-text');
 let currentUtteranceText = '';
-let currentSpeechToken = 0; // increments to cancel in-flight sentence queues
+let currentSpeechToken = 0;
 
-/* ---- voice selection ---- */
 let bestVoice = null;
 let voicesReady = false;
-let voiceListInitialized = false;
 
 function scoreVoice(v){
   let score = 0;
   const name = v.name || '';
-  // Highest-quality signals first (these names appear in Chrome/Edge/Safari on most OSes)
   if(/Natural/i.test(name)) score += 100;
   if(/Neural/i.test(name)) score += 95;
   if(/Premium/i.test(name)) score += 90;
@@ -2194,14 +1726,10 @@ function scoreVoice(v){
   if(/Google/i.test(name)) score += 70;
   if(/Microsoft.*Online/i.test(name)) score += 65;
   if(/Siri/i.test(name)) score += 60;
-  // Prefer local (no network dependency, more reliable in this sandboxed context)
   if(v.localService) score += 8;
-  // Prefer standard English varieties, mild preference for US/GB over others
   if(/^en-US$/i.test(v.lang)) score += 6;
   else if(/^en-GB$/i.test(v.lang)) score += 5;
   else if(/^en/i.test(v.lang)) score += 3;
-  // Slight preference for voices whose names suggest a warmer/female timbre often
-  // tuned for narration (this is a rough heuristic, not a guarantee)
   if(/Samantha|Aria|Jenny|Libby|Sonia|Serena/i.test(name)) score += 4;
   return score;
 }
@@ -2222,10 +1750,8 @@ function refreshVoiceList(){
 }
 
 if('speechSynthesis' in window){
-  // Chrome loads voices asynchronously; Safari/Firefox often have them immediately.
   refreshVoiceList();
   window.speechSynthesis.onvoiceschanged = refreshVoiceList;
-  // Fallback poll in case onvoiceschanged never fires (some embedded browser contexts)
   let pollTries = 0;
   const pollInterval = setInterval(()=>{
     pollTries++;
@@ -2248,7 +1774,6 @@ function populateVoiceDropdown(){
     opt.textContent = v.name + (v.localService ? '' : ' (network)');
     sel.appendChild(opt);
   });
-  // Restore user's manual choice if they made one, else select bestVoice
   if(currentVal && pool.some(v=>v.name===currentVal)){
     sel.value = currentVal;
   } else if(bestVoice){
@@ -2266,11 +1791,7 @@ function getSelectedVoice(){
   return bestVoice;
 }
 
-/* ---- sentence-chunked speaking for better cadence ---- */
-
 function splitIntoSpeechChunks(text){
-  // Split on sentence boundaries, keeping punctuation; also break very long
-  // sentences at commas/semicolons so no single utterance runs on too long.
   const sentences = text.match(/[^.!?]+[.!?]+(\s|$)|[^.!?]+$/g) || [text];
   const chunks = [];
   for(let s of sentences){
@@ -2315,7 +1836,7 @@ function speak(text){
   const voice = getSelectedVoice();
 
   function speakChunk(i){
-    if(myToken !== currentSpeechToken) return; // superseded by a newer speak() call
+    if(myToken !== currentSpeechToken) return;
     if(i >= chunks.length){ avatar.classList.remove('speaking'); return; }
     const utter = new SpeechSynthesisUtterance(chunks[i]);
     utter.rate = 0.96;
@@ -2325,8 +1846,6 @@ function speak(text){
     utter.onstart = () => avatar.classList.add('speaking');
     utter.onend = () => {
       if(myToken !== currentSpeechToken) return;
-      // small natural pause between sentences; slightly longer after a sentence
-      // that ends with a question mark, to mimic a lecturer pausing for effect
       const pause = /\?\s*$/.test(chunks[i]) ? 260 : 140;
       setTimeout(()=> speakChunk(i+1), pause);
     };
@@ -2361,11 +1880,6 @@ micBtn.addEventListener('click', ()=>{
 /* =========================================================
    PDF IMPORT
    ========================================================= */
-// Guard against the pdf.js CDN script failing to load (blocked, offline,
-// slow network, etc.) — without this guard, referencing pdfjsLib here would
-// throw and silently kill every line of setup code below it (canvas sizing,
-// session restore, event listeners), leaving a blank board with no PDF
-// import ever attempted.
 const pdfjsAvailable = typeof pdfjsLib !== 'undefined';
 if(pdfjsAvailable){
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -2433,9 +1947,6 @@ function addQuizCard(quiz){
       if(idx===quiz.correctIndex){ b.classList.add('correct'); }
       else { b.classList.add('incorrect'); buttons[quiz.correctIndex].classList.add('correct'); }
       explainEl.classList.add('show');
-      // Route the quiz result through the normal teaching turn so roles keep
-      // alternating correctly (Anthropic's API rejects consecutive same-role
-      // turns) and so the tutor can actually react to right/wrong answers.
       const resultNote = idx===quiz.correctIndex ? 'this was correct' : 'this was incorrect';
       runTeachingTurn(
         `[Quiz answer] For "${quiz.question}", I selected "${opt}" — ${resultNote}. Briefly react to this and then continue per the pacing rules.`,
@@ -2450,10 +1961,9 @@ function addQuizCard(quiz){
 }
 
 /* =========================================================
-   AI BACKEND CALL — supports Claude (default, no key) or
-   OpenAI GPT (needs the user's own API key)
+   AI BACKEND CALLS
    ========================================================= */
-const SYSTEM_PROMPT = `You are an expert university lecturer operating a whiteboard tutoring tool called Chalkline.
+const SYSTEM_PROMPT = `You are an expert university lecturer operating a notebook whiteboard tutoring tool called Chalkline.
 You teach at genuine university level: rigorous, first-principles, precise terminology, no hand-waving.
 
 You must respond with ONLY a JSON object (no markdown fences, no prose outside the JSON) with this exact shape:
@@ -2463,53 +1973,36 @@ You must respond with ONLY a JSON object (no markdown fences, no prose outside t
   "quiz": null OR { "question":"...", "options":["...","...","...","..."], "correctIndex":0, "explanation":"..." }
 }
 
-THE PAGE HAS THREE PERSISTENT WRITING ZONES running the full length of the board — there are NO visible borders or labels for these, they are an invisible layout convention only: a narrower left zone for "Important Notes" (short key-term bullets), a narrower right zone for "Graphs & Diagrams" (diagrams only), and a full-width zone for "Detailed Notes" (your main teaching prose). Every command you emit must declare which zone it belongs to via a "region" field: "notes", "graph", or "detail" (omit it, or use "detail", for anything belonging to the main teaching flow). Each region has its OWN independent 0-1000 x 0-900 local coordinate frame that the app automatically scales and positions into the right zone — always author as if each region is a fresh blank 1000x900 area, never worry about the zone's real pixel width, and never mix coordinates meant for one region into a command tagged with a different region.
+ALL TEXT, HEADINGS, EQUATIONS, AND EXPLANATIONS ON THE BOARD ARE RENDERED IN REALISTIC HANDWRITING.
+Use color changes on key terms and equations for visual emphasis and clarity.
+Colors available: "ink" (navy blue), "ochre" (amber/orange keyword emphasis), "sage" (green emphasis), "brick" (red emphasis), "teal", "violet", "sky", "coral".
 
-- "region":"notes" — 1-3 SHORT bullet-style lines per turn (a key term, a one-line definition, a formula) — this column is small, so keep it terse, like margin notes, not paragraphs.
-- "region":"graph" — diagrams ("axes"/"plot") and short labels only — this column is narrower, so keep titles/labels brief.
-- "region":"detail" (or omitted) — the main lecture content: full wrapped-paragraph prose, worked examples, sub-lists — this is where most of your "board" array should live, exactly as described below.
+THE BOARD HAS THREE INVISIBLE WRITING ZONES running the full length of the board:
+- "region":"notes" — short bullet-style lines (key terms, definitions).
+- "region":"graph" — diagrams ("axes"/"plot") and short labels.
+- "region":"detail" (default) — main lecture prose, worked examples, equations.
 
-Not every turn needs all three regions — many turns will only add "detail" content, and only some turns will also drop a short bullet into "notes" or a diagram into "graph". The board is a single ENDLESS scroll straight down for the whole lecture — there are no pages while teaching. The app automatically places each turn's content directly below whatever already occupies that same region (bullets keep stacking down the Notes column, diagrams keep stacking down the Graphs column, prose keeps growing the Detail column), and all three columns simply keep growing forever in parallel — you do NOT need to avoid prior content, track what's already drawn, or think about page breaks or running out of room; the columns have no fixed height. (Pages only get created later, automatically, when the user saves/exports the board — the app then slices this same endless scroll into standard printable A4 pages. This is invisible to you: never reason about page boundaries yourself.)
-
-TEXT ON THE BOARD MUST USE REAL SYMBOLS, NOT SPELLED-OUT WORDS: unlike "speech" (which spells things out for text-to-speech), the "board" is visual, so write actual Unicode glyphs the way you would on a physical whiteboard — π, θ, β, α, γ, Δ, Σ, ∫, √, ∞, ≤, ≥, ≈, ×, ÷, →, ², ³, ₁, ₂, etc. — directly inside "text" strings. E.g. write "β = ∂y/∂x" or "∫₀^∞ e^(−x) dx", not "beta equals the derivative of y with respect to x". Use "mono":true for equations so symbols line up cleanly.
+TEXT ON THE BOARD MUST USE REAL SYMBOLS, NOT SPELLED-OUT WORDS: π, θ, β, α, γ, Δ, Σ, ∫, √, ∞, ≤, ≥, ≈, ×, ÷, →, ², ³, ₁, ₂, etc. directly inside "text" strings. Use "mono":true for alignment if drawing equations.
 
 Available command types:
-Every command below may also include "region":"notes"|"graph"|"detail" as described above (defaults to "detail" if omitted).
-- {"type":"text","x":..,"y":..,"text":"...","size":22,"color":"ink|ochre|sage|brick|teal|violet|sky|coral","mono":false,"handwritten":false,"weight":400,"maxWidth":800,"region":"detail"}  — set "handwritten":true ONLY for section headings/titles (renders in a marker-style script font, larger). Set "maxWidth" (in the same 0-1000 units, e.g. 800-850 for a near-full-width paragraph in the "detail" region — use a smaller value like 480 for "notes"/"graph" text) on any text that's a full sentence or more — the app automatically WRAPS it onto multiple lines within that width, like real handwritten notebook prose, instead of running off as one unreadable line. Only omit "maxWidth" for genuinely short labels/headings that are meant to stay on one line. To highlight a specific keyword or short phrase in a DIFFERENT color while the rest of the sentence stays in the command's normal "color", wrap just that word/phrase inline as {{colorname:word or phrase}} right inside "text" — e.g. "text":"The {{ochre:price elasticity of demand}} measures how sensitive quantity is to price." renders "price elasticity of demand" in ochre and every other word in the surrounding default color. Use this sparingly (the single most important term or two per sentence, not every noun) so the highlight still stands out — most of every sentence should stay in the default color.
-- {"type":"halo","x":..,"y":..,"r":50,"color":"halo|ochre|sage|teal|violet|sky|coral"} — a soft radial glow centered on a point, drawn BEHIND/BEFORE the term it emphasizes (e.g. right before writing a key result or the answer to a check-in question) to make it visually pop
+- {"type":"text","x":..,"y":..,"text":"...","size":26,"color":"ink|ochre|sage|brick|teal|violet|sky|coral","mono":false,"weight":700,"maxWidth":800,"region":"detail"}
+- {"type":"halo","x":..,"y":..,"r":50,"color":"halo|ochre|sage|teal|violet|sky|coral"}
 - {"type":"line","x1":..,"y1":..,"x2":..,"y2":..,"color":"ink","width":2.5}
 - {"type":"arrow","x1":..,"y1":..,"x2":..,"y2":..,"color":"ochre","width":2.5}
 - {"type":"rect","x":..,"y":..,"w":..,"h":..,"color":"ink","fill":false}
 - {"type":"circle","x":..,"y":..,"rx":..,"ry":..,"color":"ink","fill":false}
-- {"type":"curve","points":[[x,y],[x,y],...],"color":"sage","width":2.5} — a FREEHAND smoothed line in raw board coordinates. Only use this for non-data decoration (e.g. a squiggly underline, a loose arc pointing at something). NEVER use it to plot data on a graph — it has no connection to any axes, so it can end up misaligned or floating away from them.
-- {"type":"axes","x":..,"y":..,"w":..,"h":..,"xlabel":"...","ylabel":"...","title":"...","grid":true,"xTicks":[...],"yTicks":[...]} — bare arrowed axes with gridlines, no data. Only use this for a diagram that ISN'T plotting actual data (e.g. a blank axis to gesture at during explanation).
-- {"type":"plot","x":..,"y":..,"w":..,"h":..,"xRange":[0,10],"yRange":[0,10],"xlabel":"...","ylabel":"...","title":"...","grid":true,"xTicks":["0","2","4","6","8","10"],"yTicks":["0","5","10"],"curves":[{"points":[[dataX,dataY],[dataX,dataY],...],"color":"brick","width":2.75,"label":"SRPC"}]} — THIS IS THE COMMAND TO USE FOR ANY ACTUAL DATA GRAPH (a plotted curve, line, demand/supply diagram, function plot, etc). It draws axes+grid+ticks AND every curve together as one unit, with curve "points" given in DATA units (whatever "xRange"/"yRange" span) — the app maps them onto the axes box for you, so the curve is GUARANTEED to sit correctly inside the axes and can never drift off from them the way a separately-placed "axes"+"curve" pair could. You can pass multiple entries in "curves" to overlay several lines (e.g. two Phillips curves before/after a shift) in different colors, each with its own optional "label" drawn at its endpoint.
+- {"type":"curve","points":[[x,y],[x,y],...],"color":"sage","width":2.5}
+- {"type":"axes","x":..,"y":..,"w":..,"h":..,"xlabel":"...","ylabel":"...","title":"...","grid":true,"xTicks":[...],"yTicks":[...]}
+- {"type":"plot","x":..,"y":..,"w":..,"h":..,"xRange":[0,10],"yRange":[0,10],"xlabel":"...","ylabel":"...","title":"...","grid":true,"xTicks":["0","2","4","6","8","10"],"yTicks":["0","5","10"],"curves":[{"points":[[dataX,dataY],...],"color":"brick","width":2.75,"label":"SRPC"}]}
 - {"type":"highlight","x":..,"y":..,"w":..,"h":26,"color":"ochre"}
 
-The board is plain white/cream — colors are: "ink" near-black body text, "ochre" warm amber for emphasis, "sage" muted green for correct/positive, "brick" muted red for warnings/mistakes, "teal", "violet", "sky", "coral" as extra accent colors for distinguishing multiple curves/terms/categories, "halo" a soft blue glow.
-
-COORDINATES FOR "axes"/"plot": "x","y" is the position of the ORIGIN (bottom-left corner), and the box extends UPWARD by "h" and RIGHTWARD by "w" — so the top of the graph is at screen-y = y-h, not y+h. Size the box and choose "y" so the whole box (from y-h to y) fits inside the 0-900 frame with room to spare above (for a title) and below (for axis labels).
-
-STRICT COORDINATE BOUNDS — every command must stay fully inside the 1000x900 page: never place any "x" below 20 or above 980, and never place any "y" below 20 or above 880. For "axes"/"plot", that means "x" + "w" must not exceed ~950, and "y" - "h" must not go below ~90 (leaving headroom for a title above the box). Anything outside this range gets clipped by the app, so an out-of-range value just produces a cut-off, ugly result — always compute values that fit within these bounds up front.
-
-AVOID OVERLAPPING CONTENT: every element you place (text, axes/plot box, halo) occupies real space, and nothing on the board should visually overlap anything else. A wrapped paragraph (with "maxWidth" set) takes up several lines of vertical space, not just one — leave at least 25-30 units of clear gap between the BOTTOM of a wrapped paragraph's last line and whatever comes next, not just below its starting "y".
-
-Layout pattern for "region":"detail" (the bulk of your output, ~14-22 commands per turn): on the very FIRST teaching turn only, start with ONE handwritten topic title (around x:90,y:60, size ~30); every other turn skips a title and just continues the prose. Build full sentences in wrapped paragraphs (use "maxWidth" as described above so they read across most of the width, not short choppy fragments), starting near y:40 (or right after the title on turn one) and organized top-to-bottom in a single clean column of its own local 1000x900 frame — state the definition or claim as a full wrapped sentence, then more wrapped-paragraph text unpacking it (the intuition behind it, a worked micro-example or numeric case), plus a short numbered or lettered sub-list where it naturally fits (e.g. components of a concept, steps of a process) — give each sub-list a distinct accent color (e.g. all its items in "ochre" or "teal") so it visually separates from the surrounding body text, similar to how a student color-codes their own notes. Do not scatter items sideways or place two unrelated things at the same height, since that reads as disorganized — everything reads top-to-bottom in order. For math: mono text, one step per line, 40+ units apart vertically, using real symbols as above. For any data graph placed in "region":"graph", use a single "plot" command (see above) — never bare "axes" plus a separate "curve" — so the picture is always accurate, gridded, ticked, and self-explanatory at a glance, and keep its title/axis labels short since that column is narrower. For "region":"notes", write each key term or definition as its own short "text" command (small "maxWidth" like 480, no more than 1-3 per turn) rather than a paragraph — think index-card bullet, not prose.
-
-PACING RULES (strict — this is the most important behavioural constraint):
-- Teach in SMALL bites: explain ONE definition, ONE step of a derivation, or ONE component of a concept per turn — not a whole topic, not even a whole "section". Think 2-4 sentences of speech per turn, occasionally a bit more only when a single idea genuinely needs it (e.g. deriving one formula).
-- After every single bite, STOP and either ask a real comprehension-check question about exactly what you just said, or explicitly ask "should we continue?" / "want me to go on to the next part?". Never chain multiple ideas together before checking in.
-- Do not lecture for multiple paragraphs uninterrupted. If you notice your "speech" is getting long, cut it — split the idea and save the rest for the next turn.
-- If the student's message is answering a comprehension check or a follow-up, respond conversationally and briefly — correct misconceptions precisely, pointing out exactly where reasoning went wrong — then again stop and check in before adding the next bite. Only add new "board" content if there's something new worth drawing (an empty "board" array is fine if you're just discussing what's already up).
-- If the student explicitly says "continue", "go on", "yes", or similar in response to a check-in, proceed with exactly the next single bite — still short, still followed by another check-in.
-- Only include "quiz" when the student explicitly asks to be quizzed, or it's a natural checkpoint fitting their request. Otherwise null.
-- If source document text is provided, ground explanations in it and reference it directly (e.g. "as your notes on page 3 show...").`;
+PACING RULES:
+- Teach in SMALL bites: explain ONE definition, ONE step, or ONE component per turn.
+- Stop and check in after every turn.
+- Keep board commands carefully placed without overlapping.`;
 
 let conversationHistory = [];
-let aiBrain = 'gemini'; // 'gemini' | 'groq'
-// Set this to your deployed proxy's URL once (see PROXY_SETUP.md). Every
-// visitor's request goes through this endpoint — your Gemini/Groq keys live
-// only on the proxy server as private secrets, never in this file.
+let aiBrain = 'gemini';
 const PROXY_URL = "https://api.takundamambudzi02.workers.dev";
 
 document.getElementById('brain-select').addEventListener('change', (e)=>{
@@ -2531,7 +2024,7 @@ async function callTutor(userMessage){
   else result = await callGemini();
 
   if(!result.ok){
-    conversationHistory.pop(); // don't poison history with a failed turn
+    conversationHistory.pop();
     setStatus(result.status || 'error — see console');
     return { speech: result.errorSpeech, board: [] };
   }
@@ -2551,7 +2044,7 @@ async function callTutor(userMessage){
 
 async function callGroq(){
   if(PROXY_URL.includes('YOUR-WORKER-SUBDOMAIN')){
-    return { ok:false, status:'proxy not configured', errorSpeech:"The AI proxy hasn't been set up yet — see PROXY_SETUP.md to deploy it, then set PROXY_URL in this file." };
+    return { ok:false, status:'proxy not configured', errorSpeech:"The AI proxy hasn't been set up yet." };
   }
   let response, data;
   try{
@@ -2569,40 +2062,32 @@ async function callGroq(){
       })
     });
   } catch(networkErr){
-    console.error('Network-level failure calling the proxy (Groq):', networkErr);
-    return { ok:false, status:'network error — see console', errorSpeech:"The request never reached the proxy — check the browser console and confirm PROXY_URL is correct and the proxy is deployed." };
+    console.error('Network failure calling proxy (Groq):', networkErr);
+    return { ok:false, status:'network error', errorSpeech:"The request never reached the proxy." };
   }
 
   try{ data = await response.json(); }
   catch(parseErr){
-    console.error('Proxy response was not valid JSON. Raw response:', response);
-    return { ok:false, status:'bad response — see console', errorSpeech:"The proxy responded, but not with valid JSON. Check the console." };
+    return { ok:false, status:'bad response', errorSpeech:"The proxy responded with invalid JSON." };
   }
 
   if(!response.ok){
-    console.error('Groq (via proxy) returned an error status:', response.status, data);
     const msg = (data && data.error && data.error.message) ? data.error.message : JSON.stringify(data);
-    return { ok:false, status:`API error ${response.status} — see console`, errorSpeech:`Groq returned an error: ${msg}` };
+    return { ok:false, status:`API error ${response.status}`, errorSpeech:`Groq returned an error: ${msg}` };
   }
 
   const choice = data.choices && data.choices[0];
   const raw = choice && choice.message && choice.message.content;
   if(!raw){
-    console.error('Unexpected Groq response shape:', data);
-    return { ok:false, status:'unexpected response — see console', errorSpeech:"Groq's response came back in a shape I didn't expect. Check the console." };
+    return { ok:false, status:'unexpected response', errorSpeech:"Groq response shape was unexpected." };
   }
   return { ok:true, raw: raw.trim() };
 }
 
 async function callGemini(){
   if(PROXY_URL.includes('YOUR-WORKER-SUBDOMAIN')){
-    return { ok:false, status:'proxy not configured', errorSpeech:"The AI proxy hasn't been set up yet — see PROXY_SETUP.md to deploy it, then set PROXY_URL in this file." };
+    return { ok:false, status:'proxy not configured', errorSpeech:"The AI proxy hasn't been set up yet." };
   }
-  // Gemini's REST format differs from the shared history shape used above:
-  // roles are "user"/"model" (not "assistant"), content is nested under
-  // "parts", and the system prompt is a separate top-level field rather than
-  // a message in the array. Translate conversationHistory into that shape
-  // without altering the shared history structure used elsewhere.
   const geminiContents = conversationHistory.map(m => ({
     role: m.role === 'assistant' ? 'model' : 'user',
     parts: [{ text: m.content }]
@@ -2619,55 +2104,37 @@ async function callGemini(){
         generationConfig: {
           response_mime_type: "application/json",
           maxOutputTokens: 2500,
-          // Gemini 3.x "thinking" defaults to a moderate level, which spends
-          // output-token budget on internal reasoning before the answer.
-          // Our teaching turns are intentionally short (see pacing rules in
-          // SYSTEM_PROMPT), so a light thinking level keeps responses fast
-          // without needing deep reasoning for this kind of task.
           thinkingConfig: { thinkingLevel: "low" }
         }
       })
     });
   } catch(networkErr){
-    console.error('Network-level failure calling the proxy (Gemini):', networkErr);
-    return { ok:false, status:'network error — see console', errorSpeech:"The request never reached the proxy — check the browser console and confirm PROXY_URL is correct and the proxy is deployed." };
+    console.error('Network failure calling proxy (Gemini):', networkErr);
+    return { ok:false, status:'network error', errorSpeech:"The request never reached the proxy." };
   }
 
   try{ data = await response.json(); }
   catch(parseErr){
-    console.error('Gemini response was not valid JSON. Raw response:', response);
-    return { ok:false, status:'bad response — see console', errorSpeech:"Gemini's server responded, but not with valid JSON. Check the console." };
+    return { ok:false, status:'bad response', errorSpeech:"Gemini server responded with invalid JSON." };
   }
 
   if(!response.ok){
-    console.error('Gemini API returned an error status:', response.status, data);
     const msg = (data && data.error && data.error.message) ? data.error.message : JSON.stringify(data);
-    const hint = response.status === 429 ? " You've likely hit the free-tier rate limit (requests per minute or per day) — wait a bit and try again." : '';
-    return { ok:false, status:`API error ${response.status} — see console`, errorSpeech:`Gemini returned an error: ${msg}${hint}` };
+    return { ok:false, status:`API error ${response.status}`, errorSpeech:`Gemini returned an error: ${msg}` };
   }
 
   const candidate = data.candidates && data.candidates[0];
   const part = candidate && candidate.content && candidate.content.parts && candidate.content.parts[0];
   const raw = part && part.text;
   if(!raw){
-    console.error('Unexpected Gemini response shape:', data);
-    // A common non-error case: the response was cut off or blocked by safety
-    // filters, which shows up as a missing parts array with a finishReason.
-    const finishReason = candidate && candidate.finishReason;
-    const extra = finishReason ? ` (finish reason: ${finishReason})` : '';
-    return { ok:false, status:'unexpected response — see console', errorSpeech:`Gemini's response came back in a shape I didn't expect${extra}. Check the console.` };
+    return { ok:false, status:'unexpected response', errorSpeech:"Gemini response came back in an unexpected shape." };
   }
   return { ok:true, raw: raw.trim() };
 }
 
 async function runTeachingTurn(userMessage, displayText){
-  // displayText lets callers show a friendlier line in the transcript than
-  // the full prompt sent to the model (used by the quiz-answer flow).
   addTranscriptMsg('user', displayText !== undefined ? displayText : userMessage);
   const result = await callTutor(userMessage);
-  // Only advance to a fresh block of the board when there's actually new
-  // content to draw — a pure follow-up discussion with no board content
-  // stays on the current view instead of jumping to blank space.
   if(result.board && result.board.length) enqueueCommandsAtCursor(result.board);
   if(result.speech){ addTranscriptMsg('tutor', result.speech); speak(result.speech); }
   if(result.quiz) addQuizCard(result.quiz);
@@ -2753,6 +2220,7 @@ function loadSession(item){
     uploadZone.classList.add('has-file');
     uploadZone.innerHTML = `<div class="file-name">📄 ${escapeHtml(pdfFileName)}</div><div class="file-meta">restored from saved session</div>`;
   } else { resetUploadZoneUI(); }
+  checkIfScrolledAway();
   redrawAll();
   setStatus('session loaded');
   closePanel();
@@ -2812,7 +2280,7 @@ document.getElementById('ask-input').addEventListener('keydown', (e)=>{ if(e.key
    INIT
    ========================================================= */
 document.getElementById('voice-select').addEventListener('change', ()=>{
-  if(currentUtteranceText) speak(currentUtteranceText); // re-speak current line in the new voice
+  if(currentUtteranceText) speak(currentUtteranceText);
 });
 
 resizeCanvas();
@@ -2823,6 +2291,7 @@ refreshSessionList();
 </body>
 </html>
 </script>
+
 <script type="text/plain" id="src-summary"><!DOCTYPE html>
 <html lang="en">
 <head>
@@ -2877,7 +2346,6 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 .page-head h1{ font-size:32px; margin:0 0 10px; font-weight:600; }
 .page-head p{ font-size:16px; color:#5c5847; margin:0; max-width:520px; line-height:1.55; }
 
-/* upload zone */
 #upload-zone{
   border:1.5px dashed var(--panel-border); border-radius:14px;
   padding:38px 24px; text-align:center; cursor:pointer;
@@ -2890,7 +2358,6 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 .file-name{ font-size:16px; color:var(--ink); font-weight:600; }
 .file-meta{ font-family:'JetBrains Mono', monospace; font-size:11.5px; color:var(--muted); margin-top:6px; }
 
-/* controls row */
 .controls{ display:flex; align-items:center; gap:14px; margin-top:18px; flex-wrap:wrap; }
 .length-select{
   font-family:'JetBrains Mono', monospace; font-size:12.5px; color:var(--ink);
@@ -2905,7 +2372,6 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 .btn-primary:not(:disabled):hover{ background:#3a372e; }
 .status-line{ font-family:'JetBrains Mono', monospace; font-size:11.5px; color:var(--muted); margin-top:10px; min-height:14px; }
 
-/* output panel */
 #output-wrap{ margin-top:38px; display:none; }
 #output-wrap.show{ display:block; }
 .output-head{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:14px; flex-wrap:wrap; gap:10px; }
@@ -2982,9 +2448,6 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 </div>
 
 <script>
-/* =========================================================
-   PDF IMPORT (same approach as the Tutor)
-   ========================================================= */
 const pdfjsAvailable = typeof pdfjsLib !== 'undefined';
 if(pdfjsAvailable){
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -3003,7 +2466,7 @@ uploadZone.addEventListener('drop', (e)=>{ e.preventDefault(); if(e.dataTransfer
 pdfInput.addEventListener('change', (e)=>{ if(e.target.files.length) handlePdfFile(e.target.files[0]); });
 
 async function handlePdfFile(file){
-  if(!pdfjsAvailable){ alert("PDF import couldn't load its engine (a network or blocker issue). Try reloading the page."); return; }
+  if(!pdfjsAvailable){ alert("PDF import couldn't load its engine. Try reloading the page."); return; }
   if(file.type !== 'application/pdf'){ alert('Please choose a PDF file.'); return; }
   setStatus('reading pdf…');
   pdfFileName = file.name;
@@ -3028,10 +2491,6 @@ async function handlePdfFile(file){
   }
 }
 
-/* =========================================================
-   AI CALL — via the Chalkline proxy (Gemini). No key needed from
-   the visitor; see PROXY_SETUP.md to deploy the proxy once.
-   ========================================================= */
 const PROXY_URL = "https://api.takundamambudzi02.workers.dev";
 
 function lengthInstruction(mode){
@@ -3042,16 +2501,14 @@ function lengthInstruction(mode){
 
 async function summarizeText(text, mode){
   if(PROXY_URL.includes('YOUR-WORKER-SUBDOMAIN')){
-    return { ok:false, error:"The AI proxy hasn't been set up yet — see PROXY_SETUP.md to deploy it, then set PROXY_URL in this file." };
+    return { ok:false, error:"The AI proxy hasn't been set up yet." };
   }
 
   const system = `You are a study-notes summarizer. You are given the extracted text of a PDF (a chapter, slide deck, or notes) and must produce a summary of it for a student reviewing before an exam.
 
-Output format: plain HTML fragment only (no <html>/<body> tags, no markdown, no code fences) using only these tags: <h3> for section headings, <p> for prose, <ul>/<li> for bullet lists, <strong> for the single most important term or number in a line. Do not invent section headings like "Introduction" unless the source actually has that structure — organize around the source's real content.
+Output format: plain HTML fragment only using: <h3>, <p>, <ul>/<li>, <strong>.
 
-${lengthInstruction(mode)}
-
-If the extracted text looks garbled, is mostly non-text (e.g. a scanned image with no OCR), or is too sparse to summarize meaningfully, say so plainly in a single <p> instead of inventing content.`;
+${lengthInstruction(mode)}`;
 
   const userMsg = `Extracted PDF text (file: ${pdfFileName}):\n\n${text.slice(0, 60000)}`;
 
@@ -3067,18 +2524,15 @@ If the extracted text looks garbled, is mostly non-text (e.g. a scanned image wi
       })
     });
   } catch(networkErr){
-    console.error('Network-level failure calling the proxy:', networkErr);
-    return { ok:false, error:"The request never reached the proxy — check the browser console and confirm PROXY_URL is correct and the proxy is deployed." };
+    return { ok:false, error:"The request never reached the proxy." };
   }
 
   try{ data = await response.json(); }
   catch(parseErr){
-    console.error('Response was not valid JSON. Raw response:', response);
-    return { ok:false, error:"The server responded, but not with valid JSON. Check the console." };
+    return { ok:false, error:"The server responded, but not with valid JSON." };
   }
 
   if(!response.ok){
-    console.error('Gemini (via proxy) returned an error status:', response.status, data);
     const msg = (data && data.error && data.error.message) ? data.error.message : JSON.stringify(data);
     return { ok:false, error:`The model returned an error: ${msg}` };
   }
@@ -3086,15 +2540,11 @@ If the extracted text looks garbled, is mostly non-text (e.g. a scanned image wi
   const candidate = data.candidates && data.candidates[0];
   const part = candidate && candidate.content && candidate.content.parts && candidate.content.parts[0];
   if(!part || !part.text){
-    console.error('Unexpected response shape:', data);
-    return { ok:false, error:"The response came back in a shape I didn't expect. Check the console." };
+    return { ok:false, error:"The response came back in an unexpected shape." };
   }
   return { ok:true, html: part.text.trim().replace(/^```html\s*/i,'').replace(/^```\s*/,'').replace(/```\s*$/,'') };
 }
 
-/* =========================================================
-   WIRE UP
-   ========================================================= */
 const outputWrap = document.getElementById('output-wrap');
 const summaryPanel = document.getElementById('summary-panel');
 const outputTitle = document.getElementById('output-title');
@@ -3103,7 +2553,7 @@ btnSummarize.addEventListener('click', async ()=>{
   if(!pdfText){ setStatus('upload a pdf first'); return; }
   const mode = document.getElementById('length-select').value;
   btnSummarize.disabled = true;
-  setStatus('reading and summarizing… this can take a moment for longer documents');
+  setStatus('reading and summarizing…');
   const result = await summarizeText(pdfText, mode);
   btnSummarize.disabled = false;
   if(!result.ok){
@@ -3119,7 +2569,7 @@ btnSummarize.addEventListener('click', async ()=>{
 
 document.getElementById('btn-copy').addEventListener('click', ()=>{
   const text = summaryPanel.innerText;
-  navigator.clipboard.writeText(text).then(()=> setStatus('summary copied')).catch(()=> setStatus('copy failed — select and copy manually'));
+  navigator.clipboard.writeText(text).then(()=> setStatus('summary copied')).catch(()=> setStatus('copy failed'));
 });
 
 document.getElementById('btn-download').addEventListener('click', ()=>{
