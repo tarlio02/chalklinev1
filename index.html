@@ -2299,6 +2299,22 @@ document.getElementById('brain-select').addEventListener('change', (e)=>{
   aiBrain = e.target.value;
 });
 
+// Detects the "heading + word-list of labels, no actual shapes" failure mode:
+// if the board is clearly attempting a labeled diagram (a heading plus several
+// arrow/label pairs) but contains too few real shape-drawing commands, it's a
+// word list, not a picture, and should be rejected so we can ask for a redo.
+function validateBoard(board){
+  if(!Array.isArray(board)) return { ok:true }; // let other code handle malformed shape
+  const shapeCmds = board.filter(c => c && (c.type==='path' || c.type==='circle' || c.type==='curve')).length;
+  const arrowCmds = board.filter(c => c && c.type==='arrow').length;
+  const headingCmds = board.filter(c => c && c.type==='text' && c.heading).length;
+  const looksLikeAttemptedDiagram = headingCmds > 0 && arrowCmds >= 2;
+  if(looksLikeAttemptedDiagram && shapeCmds < 3){
+    return { ok:false, reason:`Board has a heading and ${arrowCmds} label arrows but only ${shapeCmds} shape commands (path/circle/curve). That's a word list, not a diagram.` };
+  }
+  return { ok:true };
+}
+
 async function callTutor(userMessage){
   setStatus('thinking…');
   const contextParts = [];
@@ -2309,28 +2325,56 @@ async function callTutor(userMessage){
   const fullUserContent = contextParts.join('\n\n---\n\n');
   conversationHistory.push({role:'user', content: fullUserContent});
 
-  let result;
-  if(aiBrain === 'groq') result = await callGroq();
-  else if(aiBrain === 'openrouter') result = await callOpenRouter();
-  else if(aiBrain === 'cerebras') result = await callCerebras();
-  else result = await callGemini();
+  const callBrain = () => {
+    if(aiBrain === 'groq') return callGroq();
+    else if(aiBrain === 'openrouter') return callOpenRouter();
+    else if(aiBrain === 'cerebras') return callCerebras();
+    else return callGemini();
+  };
 
-  if(!result.ok){
-    conversationHistory.pop();
-    setStatus(result.status || 'error — see console');
-    return { speech: result.errorSpeech, board: [] };
-  }
+  const MAX_ATTEMPTS = 2; // 1 initial try + 1 corrective retry
 
-  try{
-    const parsed = JSON.parse(result.raw);
-    conversationHistory.push({role:'assistant', content: result.raw});
-    setStatus('idle');
-    return parsed;
-  } catch(jsonErr){
-    console.error('Model output was not valid JSON. Raw text:', result.raw);
-    setStatus('malformed JSON — see console');
-    conversationHistory.pop();
-    return { speech:"The lecture content came back malformed. Check the console to see exactly what came back.", board:[] };
+  for(let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++){
+    const result = await callBrain();
+
+    if(!result.ok){
+      conversationHistory.pop();
+      setStatus(result.status || 'error — see console');
+      return { speech: result.errorSpeech, board: [] };
+    }
+
+    let parsed;
+    try{
+      parsed = JSON.parse(result.raw);
+    } catch(jsonErr){
+      console.error('Model output was not valid JSON. Raw text:', result.raw);
+      setStatus('malformed JSON — see console');
+      conversationHistory.pop();
+      return { speech:"The lecture content came back malformed. Check the console to see exactly what came back.", board:[] };
+    }
+
+    const check = validateBoard(parsed.board);
+    if(check.ok){
+      conversationHistory.push({role:'assistant', content: result.raw});
+      setStatus('idle');
+      return parsed;
+    }
+
+    // Invalid diagram: log it, and if we have attempts left, ask the model to redo
+    // it with a corrective instruction instead of showing the bad result to the user.
+    console.warn(`Board validation failed (attempt ${attempt}/${MAX_ATTEMPTS}): ${check.reason}`, parsed.board);
+    if(attempt < MAX_ATTEMPTS){
+      conversationHistory.push({role:'assistant', content: result.raw});
+      conversationHistory.push({role:'user', content:
+        `That board was rejected: ${check.reason} Redo this exact turn's board array. Keep the same "speech", but rebuild "board" so the diagram actually includes at least 5 "path"/"circle"/"curve" shape commands drawing the real outline BEFORE the arrow+label commands, per the DRAWING ACTUAL PICTURES rules. Respond again with the full JSON object.`
+      });
+      setStatus('redrawing diagram…');
+    } else {
+      // Out of attempts: show what we got rather than fail silently, but flag it.
+      conversationHistory.push({role:'assistant', content: result.raw});
+      setStatus('idle (diagram may be incomplete — see console)');
+      return parsed;
+    }
   }
 }
 
