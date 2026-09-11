@@ -281,9 +281,7 @@ body{
   display:block;
   cursor:grab;
   pointer-events: auto;
-  touch-action: none; /* we handle all pan/zoom gestures ourselves, so stop
-                          the browser from also trying to scroll/zoom the
-                          page in response to the same finger drag */
+  touch-action: none;
 }
 #board.grabbing{cursor:grabbing;}
 #board.hoverable{cursor:pointer;}
@@ -693,12 +691,13 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
     <div class="p-section">
       <h2>AI brain</h2>
       <select class="topic-input" id="brain-select" style="height:auto;padding:9px 10px;">
-        <option value="gemini">Google Gemini</option>
+        <option value="auto" selected>Auto (Groq → Gemini → OpenRouter)</option>
         <option value="groq">Groq (Llama)</option>
+        <option value="gemini">Google Gemini</option>
         <option value="openrouter">OpenRouter (free models)</option>
         <option value="cerebras">Cerebras (Llama)</option>
       </select>
-      <div class="file-meta" style="margin-top:6px;">Requests go through the Chalkline proxy — no key needed from you.</div>
+      <div class="file-meta" style="margin-top:6px;">Requests go through the Chalkline proxy — automatically selects the best available provider.</div>
     </div>
     <div class="p-section">
       <h2>Narrator voice</h2>
@@ -739,12 +738,6 @@ ctx.lineJoin = 'round';
 let viewW = 0, viewH = 0;
 const camera = { x: 500, y: 300, scale: 1 };
 
-// Kick off loading the handwriting webfonts immediately at page load
-// (rather than waiting for the first canvas draw to implicitly trigger
-// it), so by the time the first AI response comes back over the network
-// the fonts are already cached and text-measurement metrics are accurate
-// from turn one. See the matching `await document.fonts.ready` in
-// runTeachingTurn for why this matters.
 ['700 40px Kalam','400 40px Kalam','700 40px Caveat','400 40px Caveat','400 40px "Noto Sans Symbols 2"'].forEach(f=>{
   document.fonts.load(f).catch(()=>{});
 });
@@ -753,17 +746,8 @@ const PAGE_W = 1000;
 const PAGE_H = Math.round(PAGE_W * Math.SQRT2);
 const RULE_LINE_SPACING = 40;
 
-// The multiplier that converts an author-specified "size" into the actual
-// world-unit font size used for handwriting. Readable but still compact.
 const HAND_SIZE_MULT = 1.18;
-// Line height for a block of text at a given (already-multiplied) world
-// font size, snapped to a whole number of ruled-paper lines so every line
-// of handwriting sits on (or a fixed offset from) an actual rule line —
-// exactly like writing on real notebook paper — while still guaranteeing
-// enough vertical room that taller/bigger text never overlaps the line
-// below it. The 1.25 safety factor (rather than a razor-thin 1.0) absorbs
-// normal font-metric variance (ascenders/descenders, cursive flourishes)
-// so text never visually touches the rule line above or below it.
+
 function lineHeightFor(sizeWorld){
   const needed = sizeWorld * 1.25;
   const mult = Math.max(1, Math.ceil(needed / RULE_LINE_SPACING));
@@ -771,9 +755,7 @@ function lineHeightFor(sizeWorld){
 }
 
 let userIsScrolledAway = false;
-const TOP_MARGIN = 80; // must be a whole multiple of RULE_LINE_SPACING so the
-                        // very first line of writing starts baseline-aligned
-                        // to a rule line, same as every line after it
+const TOP_MARGIN = 80;
 let globalCursorY = TOP_MARGIN;
 let currentTopicLabel = 'Topic';
 
@@ -818,7 +800,6 @@ function panCameraToCursor(targetY, onDone){
   if (Math.abs(camera.scale - idealScale) > 0.01 && !userIsScrolledAway) {
       camera.scale = idealScale;
   }
-  // Force X to stay precisely centered on 500
   animateCameraPan(500, targetY, 900, onDone);
 }
 
@@ -952,10 +933,6 @@ function wrapTextToLines(text, maxWidthPx, customCtx){
   return lines.length ? lines : [''];
 }
 
-// A single underline stroke drawn beneath a finished line of heading text,
-// with a touch of hand-drawn imperfection (a slight downward bow, like a
-// pen underline) rather than a perfectly straight ruled line — so it reads
-// as "the tutor underlined this" rather than a UI decoration.
 function drawHeadingUnderline(sx, baselineY, widthPx, sizeWorld, color){
   if(widthPx <= 0) return;
   const y = baselineY + sw(sizeWorld*0.16);
@@ -1028,11 +1005,6 @@ function commandScreenBBox(cmd){
   }
 }
 
-/* ---------- PATH primitive: lets the model compose arbitrary organic
-   shapes (cell membranes, leaf outlines, animal silhouettes, etc.) out
-   of move/line/quadratic/cubic segments in world space, same way an
-   SVG <path> works. Segments: ["M",x,y] ["L",x,y] ["Q",cx,cy,x,y]
-   ["C",c1x,c1y,c2x,c2y,x,y] ["Z"]. ---------- */
 function worldPathToScreenSegments(segments){
   return (segments||[]).map(seg=>{
     if(!seg || !seg.length) return null;
@@ -1076,7 +1048,6 @@ function flattenScreenSegsToPoints(screenSegs){
         pts.push([mt*mt*mt*x0+3*mt*mt*tt*c1x+3*mt*tt*tt*c2x+tt*tt*tt*x1, mt*mt*mt*y0+3*mt*mt*tt*c1y+3*mt*tt*tt*c2y+tt*tt*tt*y1]); }
       cur=[x1,y1];
     }
-    // 'Z' contributes no new point — it just closes back to the start
   });
   return pts;
 }
@@ -1375,16 +1346,8 @@ window.addEventListener('mousemove', (e)=>{
 });
 window.addEventListener('mouseup', ()=>{ isPanning=false; canvas.classList.remove('grabbing'); });
 
-/* ---------- PAN / ZOOM (touch — iPad & mobile) ----------
-   A single finger drags the board exactly like a mouse-drag pan, so you
-   can swipe up to read earlier notes or swipe down to catch up — this is
-   the primary way to scroll the whiteboard on a touch device. Two fingers
-   pinch-zoom around their midpoint. Both gestures immediately mark the
-   user as "scrolled away" (via checkIfScrolledAway), which is what stops
-   the AI's auto-follow camera from fighting a manual scroll; scrolling
-   back down near the live writing point clears that flag again on its
-   own the next time it's checked. */
-let touchMode = null; // 'pan' | 'pinch' | null
+/* ---------- PAN / ZOOM (touch) ---------- */
+let touchMode = null;
 let pinchStartDist = 0, pinchStartScale = 1, pinchWorldMid = null;
 function touchDist(t0,t1){ return Math.hypot(t1.clientX-t0.clientX, t1.clientY-t0.clientY); }
 function touchMid(t0,t1){ return { x:(t0.clientX+t1.clientX)/2, y:(t0.clientY+t1.clientY)/2 }; }
@@ -1424,7 +1387,6 @@ canvas.addEventListener('touchmove', (e)=>{
 canvas.addEventListener('touchend', (e)=>{
   if(e.touches.length === 0){ touchMode = null; checkIfScrolledAway(); }
   else if(e.touches.length === 1){
-    // dropped from a pinch down to one finger — restart as a plain pan
     touchMode = 'pan';
     panStart = [e.touches[0].clientX, e.touches[0].clientY];
     camStart = { x:camera.x, y:camera.y };
@@ -1479,10 +1441,6 @@ canvas.addEventListener('wheel', (e)=>{
   stopHoverReplay();
   const rect = canvas.getBoundingClientRect();
   const mx = e.clientX-rect.left, my = e.clientY-rect.top;
-  // Pinch-to-zoom on a trackpad (and ctrl+wheel) reports as a wheel event
-  // with ctrlKey set — treat that as zoom. A plain wheel/trackpad scroll
-  // is treated as an ordinary scroll of the board, so the page is fully
-  // scrollable with a normal mouse wheel or two-finger trackpad swipe.
   if(e.ctrlKey){
     const [wx,wy] = screenToWorld(mx,my);
     camera.scale = Math.min(3, Math.max(0.2, camera.scale * (e.deltaY>0?0.9:1.1)));
@@ -1602,7 +1560,6 @@ function drawPen(x, y, angle){
 function enqueueCommandsAtCursor(commands){
     let placedAll = [];
 
-    // Sort to maintain correct reading order
     commands.sort((a,b) => {
         let ay = a.y ?? a.y1 ?? (a.points?.[0]?.[1]) ?? (a.segments?.[0] ? a.segments[0][a.segments[0].length-1] : undefined) ?? 0;
         let by = b.y ?? b.y1 ?? (b.points?.[0]?.[1]) ?? (b.segments?.[0] ? b.segments[0][b.segments[0].length-1] : undefined) ?? 0;
@@ -1618,8 +1575,8 @@ function enqueueCommandsAtCursor(commands){
         let c = { ...cmd };
         
         if (c.type === 'text') {
-            c.x = 80; // Sit close to the left margin line
-            c.maxWidth = 930; // Use nearly the full line width before wrapping
+            c.x = 80;
+            c.maxWidth = 930;
             const size = (c.size || 26) * HAND_SIZE_MULT;
             const fam = "'Kalam', 'Caveat', 'Noto Sans Symbols 2', cursive";
             tCtx.font = `${c.weight || 700} ${size}px ${fam}`;
@@ -1633,42 +1590,19 @@ function enqueueCommandsAtCursor(commands){
             });
             
             const lh = lineHeightFor(size);
-            // A heading skips one blank ruled line before it starts, so it
-            // reads as a new section rather than butting straight up
-            // against whatever came before — but only if something is
-            // already on the board above it (no pointless gap at the very
-            // top of a fresh page).
             if(c.heading && globalCursorY > TOP_MARGIN) globalCursorY += RULE_LINE_SPACING;
-            // Baseline sits exactly ON the rule line at the bottom of this
-            // first allotted line-space (not floating near the top of it),
-            // so the handwriting visually rests on the ruled paper the way
-            // real handwriting does — ascenders reach up into the block,
-            // descenders dip slightly below the line, just like ink on
-            // actual notebook paper.
             c.y = globalCursorY + lh;
             placedAll.push(c);
-            // Advance by exactly the block's own height — no extra blank
-            // gap tacked on — so consecutive notes stack tight against each
-            // other like continuous handwriting, while every line (of this
-            // block and the next) still lands on a whole rule-line boundary
-            // because `lh` is always a whole multiple of RULE_LINE_SPACING.
             globalCursorY += lines * lh;
 
         } else if (c.type === 'plot' || c.type === 'axes') {
             c.x = 160;
             c.w = 640;
-            c.h = 400; // a whole multiple of RULE_LINE_SPACING, like every
-                       // other vertical measurement here — see note below
+            c.h = 400;
             
-            globalCursorY += RULE_LINE_SPACING; // Title margin
-            c.y = globalCursorY + c.h; // Origin is bottom-left
+            globalCursorY += RULE_LINE_SPACING;
+            c.y = globalCursorY + c.h;
             placedAll.push(c);
-            // X-axis label margin. MUST be a whole multiple of
-            // RULE_LINE_SPACING like every other vertical measurement in
-            // this function — otherwise globalCursorY drifts off the rule
-            // grid after the first graph, and every line of handwriting
-            // placed after it stops resting on the ruled lines (it'll
-            // visually "float" between them instead of sitting on one).
             globalCursorY = c.y + RULE_LINE_SPACING*2;
 
         } else if (c.type === 'halo' || c.type === 'highlight') {
@@ -1719,7 +1653,6 @@ function processQueue(){
     const [sx, sy] = worldToScreen(anchor[0], anchor[1]);
     const margin = 80;
     if(sx < margin || sx > viewW-margin || sy < margin || sy > viewH-margin){
-      // Always enforce camera.x locking centrally at 500 when auto-following
       animateCameraPan(500, anchor[1], 260, null);
     }
   }
@@ -1777,9 +1710,6 @@ function renderPartialCommand(cmd, t){
           const partial = line.slice(0, take);
           const ly = sy + i*lineHeight;
           ctx.fillText(partial, sx, ly);
-          // Only underline a heading line once it's fully written — the
-          // underline stroke happens after the words, like a real tutor
-          // finishing a heading and then drawing a line under it.
           if(cmd.heading && take >= line.length) drawHeadingUnderline(sx, ly, ctx.measureText(line).width, size, color);
           lastX = sx + ctx.measureText(partial).width;
           lastY = ly;
@@ -2087,7 +2017,7 @@ function speak(text){
     const utter = new SpeechSynthesisUtterance(chunks[i]);
     utter.rate = 0.96;
     utter.pitch = 1.0;
-    utter.volume = 1.0; // Enforces maximum browser volume output
+    utter.volume = 1.0;
     if(voice) utter.voice = voice;
     renderCaption(text, chunkOffsets[i], chunks[i]);
     utter.onstart = () => avatar.classList.add('speaking');
@@ -2243,44 +2173,45 @@ NEVER WRITE LaTeX/TeX MARKUP ON THE BOARD. There is no math typesetting engine �
 This rule applies to every "text" command, including headings, definitions, and worked equations — plain readable notation only, exactly like natural handwriting on a real whiteboard.
 
 Available command types:
-- {"type":"text","x":..,"y":..,"text":"...","size":26,"color":"ink|ochre|sage|brick|teal|violet|sky|coral","mono":false,"weight":700,"maxWidth":800,"heading":false} — set "heading":true ONLY for a section/topic title (e.g. "2. The Friedman-Phelps Critique"). The app automatically underlines heading text and inserts a blank ruled line above it, so DO NOT manually add a blank line or a "---"/underscore divider before a heading yourself — just set "heading":true and let the app handle the spacing and underline. Use a larger "size" (e.g. 32-40) for headings too, but "heading":true is what actually triggers the underline and spacing, not the size alone.
+- {"type":"text","x":..,"y":..,"text":"...","size":26,"color":"ink|ochre|sage|brick|teal|violet|sky|coral","mono":false,"weight":700,"maxWidth":800,"heading":false}
 - {"type":"halo","x":..,"y":..,"r":50,"color":"halo|ochre|sage|teal|violet|sky|coral"}
 - {"type":"line","x1":..,"y1":..,"x2":..,"y2":..,"color":"ink","width":2.5}
 - {"type":"arrow","x1":..,"y1":..,"x2":..,"y2":..,"color":"ochre","width":2.5}
 - {"type":"rect","x":..,"y":..,"w":..,"h":..,"color":"ink","fill":false}
 - {"type":"circle","x":..,"y":..,"rx":..,"ry":..,"color":"ink","fill":false}
-- {"type":"curve","points":[[x,y],[x,y],...],"color":"sage","width":2.5,"fill":false,"fillColor":"sage","fillOpacity":0.12} — a smooth freehand curve through the points; set "fill":true to also tint the interior (treated as a closed loop) for a soft rounded blob like a petal or organelle.
-- {"type":"path","segments":[["M",x,y],["L",x,y],["Q",cx,cy,x,y],["C",c1x,c1y,c2x,c2y,x,y],["Z"]],"color":"sage","width":2.5,"fill":false,"fillColor":"sage","fillOpacity":0.12} — a general freeform outline, like an SVG path: "M" moves the pen (start a new sub-shape), "L" a straight segment, "Q" a quadratic curve (one control point), "C" a cubic curve (two control points), "Z" closes the current outline back to its last "M". THIS is the tool for drawing actual recognizable pictures — a cell and its organelles, a leaf, an animal, an organ, a map — by tracing the outline as a sequence of segments the way you'd sketch it by hand, then optionally filling it.
+- {"type":"curve","points":[[x,y],[x,y],...],"color":"sage","width":2.5,"fill":false,"fillColor":"sage","fillOpacity":0.12}
+- {"type":"path","segments":[["M",x,y],["L",x,y],["Q",cx,cy,x,y],["C",c1x,c1y,c2x,c2y,x,y],["Z"]],"color":"sage","width":2.5,"fill":false,"fillColor":"sage","fillOpacity":0.12}
 - {"type":"axes","x":..,"y":..,"w":..,"h":..,"xlabel":"...","ylabel":"...","title":"...","grid":true,"xTicks":[...],"yTicks":[...]}
 - {"type":"plot","x":..,"y":..,"w":..,"h":..,"xRange":[0,10],"yRange":[0,10],"xlabel":"...","ylabel":"...","title":"...","grid":true,"xTicks":["0","2","4","6","8","10"],"yTicks":["0","5","10"],"curves":[{"points":[[dataX,dataY],...],"color":"brick","width":2.75,"label":"SRPC"}]}
 - {"type":"highlight","x":..,"y":..,"w":..,"h":26,"color":"ochre"}
 
-LISTS OF LINE ITEMS (financial statements, ledgers, tables of labeled values, any "Label ... $ amount" style list):
-- EVERY line item is its OWN separate "text" command on its OWN "y" row. NEVER put two or more line items inside a single "text" string — even if they'd technically fit on one visual line. One label-and-value pair per command, always.
-- DO NOT set "maxWidth" on a line-item's "text" command (or set it wide enough that the line can never wrap). A wrapped line item is what causes the next item to visually run onto the same row as the one before it — this must never happen. If a label is long, shrink "size" slightly or shorten the label text; do not let it wrap.
-- Build the dotted leader and amount yourself as part of the same string in a consistent style, e.g. "Cash and cash equivalents ......... $ 40,000", with roughly the same total line width across every item in that list (pad the dots so amounts visually line up down the page, the way a real balance sheet aligns its numbers in a column).
-- Give every line item the same left "x" (its label always starts at the same horizontal position as the other items in that list), and space consecutive rows with a consistent "y" gap — never overlap rows or bunch several rows onto one baseline.
-- A sub-total or total line ("Total Current Assets", "Total Liabilities", etc.) is also its own single "text" command, typically in "ochre" or "brick" for emphasis, on its own row, with a small blank gap above it to set it apart from the items it sums.
-- This rule applies any time you're writing a structured list of named values — balance sheets, income statements, cash-flow statements, price lists, comparison tables — not just accounting examples.
-
-DRAWING ACTUAL PICTURES (cells, leaves, animals, organs, diagrams, maps, anything representational):
-- Build the picture out of several layered primitives rather than one shape: an outer outline ("path" or filled "circle"/"curve"), then inner structures on top (smaller filled "circle"/"path" shapes for a nucleus, mitochondria, veins, etc.), then label the parts with a short "arrow" pointing from the label to the structure plus a small "text" command for the label word — exactly like a real teacher labels a diagram they've just drawn.
-- Trace organic outlines ("path") the way you'd actually sketch them by hand: a handful of "M"/"C"/"Q" segments roughly following the real silhouette (e.g. a leaf is a pointed oval with a "Z" to close it, a cell is a wobbly rounded "path" rather than a perfect "circle", a dog is several overlapping "path"/"circle" shapes for the head, snout, ears, body, legs, tail). It does not need to be photorealistic — a clean, recognizable line-art sketch is the goal, the same level of detail a lecturer would actually draw on a whiteboard, not a single crude blob.
-- Use "fill":true with a low "fillOpacity" (0.08–0.18) on the shapes that should read as solid regions, and leave fine detail (veins, membrane texture, fur lines) as unfilled "curve"/"path"/"line" strokes on top.
-- A diagram like this still occupies its own vertical slot on the board like a graph does — draw it as one coherent cluster of shape commands around a shared local coordinate area (e.g. all within roughly a 300×300 world-unit box) rather than scattering pieces across the whole page, and give it a normal "text" heading above it introducing what it is.
-
 PACING RULES:
-- Teach in SUBSTANTIAL, CONTINUOUS chunks: a full turn should read like several minutes of real lecture — cover a complete idea in depth (its definition, why it matters, a worked example, and its key sub-points), not one lonely sentence. Write MUCH more per turn than feels natural for a "small step" — aim for a long, dense block of "board" content (many "text" commands in a row covering multiple paragraphs, sub-points, and worked equations) so the notes keep growing continuously down the page, the way a real lecturer fills page after page without pausing every few seconds.
-- Only stop and check in with a question once you've actually finished teaching a full coherent topic or sub-topic — not after a single definition or step. Do not artificially cut a turn short.
-- Keep going onto the NEXT related idea in the same turn if it naturally continues the same topic, rather than stopping just because you covered "one thing" already.`;
+- Teach in SUBSTANTIAL, CONTINUOUS chunks: a full turn should read like several minutes of real lecture.
+- Only stop and check in with a question once you've actually finished teaching a full coherent topic or sub-topic.`;
 
 let conversationHistory = [];
-let aiBrain = 'gemini';
+let aiBrain = 'auto';
 const PROXY_URL = "https://api.takundamambudzi02.workers.dev";
 
 document.getElementById('brain-select').addEventListener('change', (e)=>{
   aiBrain = e.target.value;
 });
+
+async function callAuto(){
+  setStatus('trying Groq…');
+  let result = await callGroq();
+  if(result.ok) return result;
+
+  setStatus('Groq unavailable, trying Gemini…');
+  result = await callGemini();
+  if(result.ok) return result;
+
+  setStatus('Gemini unavailable, trying OpenRouter…');
+  result = await callOpenRouter();
+  if(result.ok) return result;
+
+  return result;
+}
 
 async function callTutor(userMessage){
   setStatus('thinking…');
@@ -2293,7 +2224,8 @@ async function callTutor(userMessage){
   conversationHistory.push({role:'user', content: fullUserContent});
 
   let result;
-  if(aiBrain === 'groq') result = await callGroq();
+  if(aiBrain === 'auto') result = await callAuto();
+  else if(aiBrain === 'groq') result = await callGroq();
   else if(aiBrain === 'openrouter') result = await callOpenRouter();
   else if(aiBrain === 'cerebras') result = await callCerebras();
   else result = await callGemini();
@@ -2493,13 +2425,6 @@ async function callGemini(){
 
 async function runTeachingTurn(userMessage, displayText){
   addTranscriptMsg('user', displayText !== undefined ? displayText : userMessage);
-  // Guarantee the handwriting webfonts are fully loaded BEFORE any text is
-  // measured for layout. Without this, the very first turn's line-wrap
-  // calculation can run against fallback system-font metrics (if the
-  // custom fonts haven't finished downloading yet), while the actual
-  // canvas paint moments later uses the real, differently-sized font —
-  // so the reserved vertical space is wrong and the next block overlaps
-  // the one before it. Awaiting here costs nothing once fonts are cached.
   await document.fonts.ready;
   const result = await callTutor(userMessage);
   if(result.board && result.board.length) enqueueCommandsAtCursor(result.board);
