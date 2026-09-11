@@ -796,7 +796,9 @@ function lineHeightFor(sizeWorld){
 }
 
 let userIsScrolledAway = false;
-const TOP_MARGIN = 60;
+const TOP_MARGIN = 80; // must be a whole multiple of RULE_LINE_SPACING so the
+                        // very first line of writing starts baseline-aligned
+                        // to a rule line, same as every line after it
 let globalCursorY = TOP_MARGIN;
 let currentTopicLabel = 'Topic';
 
@@ -1529,7 +1531,13 @@ function enqueueCommandsAtCursor(commands){
             });
             
             const lh = lineHeightFor(size);
-            c.y = globalCursorY + size;
+            // Baseline sits exactly ON the rule line at the bottom of this
+            // first allotted line-space (not floating near the top of it),
+            // so the handwriting visually rests on the ruled paper the way
+            // real handwriting does — ascenders reach up into the block,
+            // descenders dip slightly below the line, just like ink on
+            // actual notebook paper.
+            c.y = globalCursorY + lh;
             placedAll.push(c);
             // Advance by exactly the block's own height — no extra blank
             // gap tacked on — so consecutive notes stack tight against each
