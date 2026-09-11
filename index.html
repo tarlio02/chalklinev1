@@ -972,7 +972,7 @@ function commandScreenBBox(cmd){
   }
   switch(cmd.type){
     case 'text': {
-      const fam = cmd.mono ? "'JetBrains Mono', monospace" : "'Caveat', 'Kalam', cursive";
+      const fam = "'Kalam', 'Caveat', cursive";
       const weight = cmd.weight || 700;
       const size = (cmd.size||24)*HAND_SIZE_MULT;
       ctx.font = `${weight} ${sw(size)}px ${fam}`;
@@ -1023,7 +1023,7 @@ function renderCommand(cmd){
 
   switch(cmd.type){
     case 'text': {
-      const fam = cmd.mono ? "'JetBrains Mono', monospace" : "'Caveat', 'Kalam', cursive";
+      const fam = "'Kalam', 'Caveat', cursive";
       const weight = cmd.weight || 700;
       const size = (cmd.size||24)*HAND_SIZE_MULT;
       ctx.font = `${weight} ${sw(size)}px ${fam}`;
@@ -1507,7 +1507,7 @@ function enqueueCommandsAtCursor(commands){
             c.x = 90; // Strictly adhere to left margin
             c.maxWidth = 820; // Force wrapping before edge — use the width fully before breaking
             const size = (c.size || 24) * HAND_SIZE_MULT;
-            const fam = c.mono ? "'JetBrains Mono', monospace" : "'Caveat', 'Kalam', cursive";
+            const fam = "'Kalam', 'Caveat', cursive";
             tCtx.font = `${c.weight || 700} ${size}px ${fam}`;
             
             const words = (c.text || '').split(/\s+/).filter(Boolean);
@@ -1627,7 +1627,7 @@ function renderPartialCommand(cmd, t){
   switch(cmd.type){
     case 'text': {
       const full = cmd.text || '';
-      const fam = cmd.mono ? "'JetBrains Mono', monospace" : "'Caveat', 'Kalam', cursive";
+      const fam = "'Kalam', 'Caveat', cursive";
       const weight = cmd.weight || 700;
       const size = (cmd.size||24)*HAND_SIZE_MULT;
       ctx.font = `${weight} ${sw(size)}px ${fam}`;
