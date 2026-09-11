@@ -281,6 +281,9 @@ body{
   display:block;
   cursor:grab;
   pointer-events: auto;
+  touch-action: none; /* we handle all pan/zoom gestures ourselves, so stop
+                          the browser from also trying to scroll/zoom the
+                          page in response to the same finger drag */
 }
 #board.grabbing{cursor:grabbing;}
 #board.hoverable{cursor:pointer;}
@@ -765,6 +768,23 @@ const PAGE_W = 1000;
 const PAGE_H = Math.round(PAGE_W * Math.SQRT2);
 const RULE_LINE_SPACING = 36;
 
+// The multiplier that converts an author-specified "size" into the actual
+// world-unit font size used for handwriting. Kept slightly smaller than
+// before (was 1.25) so notes read as normal handwriting rather than
+// oversized marker text.
+const HAND_SIZE_MULT = 1.08;
+// Line height for a block of text at a given (already-multiplied) world
+// font size, snapped to a whole number of ruled-paper lines so every line
+// of handwriting sits on (or a fixed offset from) an actual rule line —
+// exactly like writing on real notebook paper — while still guaranteeing
+// enough vertical room that taller/bigger text never overlaps the line
+// below it.
+function lineHeightFor(sizeWorld){
+  const needed = sizeWorld * 1.15;
+  const mult = Math.max(1, Math.ceil(needed / RULE_LINE_SPACING));
+  return mult * RULE_LINE_SPACING;
+}
+
 let userIsScrolledAway = false;
 const TOP_MARGIN = 60;
 let globalCursorY = TOP_MARGIN;
@@ -954,12 +974,12 @@ function commandScreenBBox(cmd){
     case 'text': {
       const fam = cmd.mono ? "'JetBrains Mono', monospace" : "'Caveat', 'Kalam', cursive";
       const weight = cmd.weight || 700;
-      const size = (cmd.size||26)*1.25;
+      const size = (cmd.size||24)*HAND_SIZE_MULT;
       ctx.font = `${weight} ${sw(size)}px ${fam}`;
       const [sx,sy] = worldToScreen(cmd.x, cmd.y);
       if(cmd.maxWidth){
         const lines = wrapTextToLines(cmd.text||'', sw(cmd.maxWidth));
-        const lineHeight = sw(size)*1.35;
+        const lineHeight = sw(lineHeightFor(size));
         const width = Math.max(0, ...lines.map(l=>ctx.measureText(l).width));
         return pad(sx, sy - sw(size)*1.05, sx + width, sy + lineHeight*(lines.length-1) + sw(size)*0.25);
       }
@@ -1005,13 +1025,13 @@ function renderCommand(cmd){
     case 'text': {
       const fam = cmd.mono ? "'JetBrains Mono', monospace" : "'Caveat', 'Kalam', cursive";
       const weight = cmd.weight || 700;
-      const size = (cmd.size||26)*1.25;
+      const size = (cmd.size||24)*HAND_SIZE_MULT;
       ctx.font = `${weight} ${sw(size)}px ${fam}`;
       ctx.textBaseline = 'alphabetic';
       const [sx,sy] = worldToScreen(cmd.x, cmd.y);
       if(cmd.maxWidth){
         const lines = wrapTextToLines(cmd.text||'', sw(cmd.maxWidth));
-        const lineHeight = sw(size)*1.35;
+        const lineHeight = sw(lineHeightFor(size));
         lines.forEach((line,i) => ctx.fillText(line, sx, sy + i*lineHeight));
       } else {
         ctx.fillText(cmd.text, sx, sy);
@@ -1221,7 +1241,7 @@ function plotScalers(ox, oy, w, h, cmd){
   return [scaleX, scaleY];
 }
 
-/* ---------- PAN / ZOOM ---------- */
+/* ---------- PAN / ZOOM (mouse) ---------- */
 let isPanning = false, panStart=null, camStart=null;
 canvas.addEventListener('mousedown', (e)=>{ 
   panToken++; isPanning=true; canvas.classList.add('grabbing'); 
@@ -1236,6 +1256,64 @@ window.addEventListener('mousemove', (e)=>{
   redrawAll();
 });
 window.addEventListener('mouseup', ()=>{ isPanning=false; canvas.classList.remove('grabbing'); });
+
+/* ---------- PAN / ZOOM (touch — iPad & mobile) ----------
+   A single finger drags the board exactly like a mouse-drag pan, so you
+   can swipe up to read earlier notes or swipe down to catch up — this is
+   the primary way to scroll the whiteboard on a touch device. Two fingers
+   pinch-zoom around their midpoint. Both gestures immediately mark the
+   user as "scrolled away" (via checkIfScrolledAway), which is what stops
+   the AI's auto-follow camera from fighting a manual scroll; scrolling
+   back down near the live writing point clears that flag again on its
+   own the next time it's checked. */
+let touchMode = null; // 'pan' | 'pinch' | null
+let pinchStartDist = 0, pinchStartScale = 1, pinchWorldMid = null;
+function touchDist(t0,t1){ return Math.hypot(t1.clientX-t0.clientX, t1.clientY-t0.clientY); }
+function touchMid(t0,t1){ return { x:(t0.clientX+t1.clientX)/2, y:(t0.clientY+t1.clientY)/2 }; }
+canvas.addEventListener('touchstart', (e)=>{
+  panToken++; stopHoverReplay();
+  if(e.touches.length === 1){
+    touchMode = 'pan';
+    panStart = [e.touches[0].clientX, e.touches[0].clientY];
+    camStart = { x:camera.x, y:camera.y };
+  } else if(e.touches.length === 2){
+    touchMode = 'pinch';
+    pinchStartDist = touchDist(e.touches[0], e.touches[1]);
+    pinchStartScale = camera.scale;
+    const mid = touchMid(e.touches[0], e.touches[1]);
+    const rect = canvas.getBoundingClientRect();
+    pinchWorldMid = screenToWorld(mid.x-rect.left, mid.y-rect.top);
+  }
+}, {passive:true});
+canvas.addEventListener('touchmove', (e)=>{
+  if(touchMode === 'pan' && e.touches.length === 1){
+    e.preventDefault();
+    camera.x = camStart.x - (e.touches[0].clientX - panStart[0]) / camera.scale;
+    camera.y = camStart.y - (e.touches[0].clientY - panStart[1]) / camera.scale;
+    checkIfScrolledAway();
+    redrawAll();
+  } else if(touchMode === 'pinch' && e.touches.length === 2){
+    e.preventDefault();
+    const dist = touchDist(e.touches[0], e.touches[1]);
+    camera.scale = Math.min(3, Math.max(0.2, pinchStartScale * (dist/Math.max(1,pinchStartDist))));
+    const rect = canvas.getBoundingClientRect();
+    const mid = touchMid(e.touches[0], e.touches[1]);
+    const [nx,ny] = screenToWorld(mid.x-rect.left, mid.y-rect.top);
+    camera.x += (pinchWorldMid[0]-nx); camera.y += (pinchWorldMid[1]-ny);
+    checkIfScrolledAway();
+    redrawAll();
+  }
+}, {passive:false});
+canvas.addEventListener('touchend', (e)=>{
+  if(e.touches.length === 0){ touchMode = null; checkIfScrolledAway(); }
+  else if(e.touches.length === 1){
+    // dropped from a pinch down to one finger — restart as a plain pan
+    touchMode = 'pan';
+    panStart = [e.touches[0].clientX, e.touches[0].clientY];
+    camStart = { x:camera.x, y:camera.y };
+  }
+});
+canvas.addEventListener('touchcancel', ()=>{ touchMode = null; checkIfScrolledAway(); });
 
 /* ---------- HOVER-TO-REPLAY ---------- */
 const hoverAnim = { cmd:null, raf:null };
@@ -1284,10 +1362,19 @@ canvas.addEventListener('wheel', (e)=>{
   stopHoverReplay();
   const rect = canvas.getBoundingClientRect();
   const mx = e.clientX-rect.left, my = e.clientY-rect.top;
-  const [wx,wy] = screenToWorld(mx,my);
-  camera.scale = Math.min(3, Math.max(0.2, camera.scale * (e.deltaY>0?0.9:1.1)));
-  const [nx,ny] = screenToWorld(mx,my);
-  camera.x += (wx-nx); camera.y += (wy-ny);
+  // Pinch-to-zoom on a trackpad (and ctrl+wheel) reports as a wheel event
+  // with ctrlKey set — treat that as zoom. A plain wheel/trackpad scroll
+  // is treated as an ordinary scroll of the board, so the page is fully
+  // scrollable with a normal mouse wheel or two-finger trackpad swipe.
+  if(e.ctrlKey){
+    const [wx,wy] = screenToWorld(mx,my);
+    camera.scale = Math.min(3, Math.max(0.2, camera.scale * (e.deltaY>0?0.9:1.1)));
+    const [nx,ny] = screenToWorld(mx,my);
+    camera.x += (wx-nx); camera.y += (wy-ny);
+  } else {
+    camera.x += e.deltaX / camera.scale;
+    camera.y += e.deltaY / camera.scale;
+  }
   checkIfScrolledAway();
   redrawAll();
 }, {passive:false});
@@ -1418,8 +1505,8 @@ function enqueueCommandsAtCursor(commands){
         
         if (c.type === 'text') {
             c.x = 90; // Strictly adhere to left margin
-            c.maxWidth = 820; // Force wrapping before edge
-            const size = (c.size || 26) * 1.25;
+            c.maxWidth = 820; // Force wrapping before edge — use the width fully before breaking
+            const size = (c.size || 24) * HAND_SIZE_MULT;
             const fam = c.mono ? "'JetBrains Mono', monospace" : "'Caveat', 'Kalam', cursive";
             tCtx.font = `${c.weight || 700} ${size}px ${fam}`;
             
@@ -1431,19 +1518,25 @@ function enqueueCommandsAtCursor(commands){
                 else { cur = test; }
             });
             
+            const lh = lineHeightFor(size);
             c.y = globalCursorY + size;
             placedAll.push(c);
-            globalCursorY += lines * (size * 1.35) + 40;
+            // Advance by exactly the block's own height — no extra blank
+            // gap tacked on — so consecutive notes stack tight against each
+            // other like continuous handwriting, while every line (of this
+            // block and the next) still lands on a whole rule-line boundary
+            // because `lh` is always a whole multiple of RULE_LINE_SPACING.
+            globalCursorY += lines * lh;
 
         } else if (c.type === 'plot' || c.type === 'axes') {
             c.x = 160;
             c.w = 640;
             c.h = 400;
             
-            globalCursorY += 60; // Title margin
+            globalCursorY += 40; // Title margin — trimmed, still clears the title text
             c.y = globalCursorY + c.h; // Origin is bottom-left
             placedAll.push(c);
-            globalCursorY = c.y + 70; // X-axis label margin
+            globalCursorY = c.y + 56; // X-axis label margin — trimmed, still clears tick/axis labels
 
         } else if (c.type === 'halo' || c.type === 'highlight') {
             if (placedAll.length > 0) {
@@ -1536,12 +1629,12 @@ function renderPartialCommand(cmd, t){
       const full = cmd.text || '';
       const fam = cmd.mono ? "'JetBrains Mono', monospace" : "'Caveat', 'Kalam', cursive";
       const weight = cmd.weight || 700;
-      const size = (cmd.size||26)*1.25;
+      const size = (cmd.size||24)*HAND_SIZE_MULT;
       ctx.font = `${weight} ${sw(size)}px ${fam}`;
       const [sx,sy] = worldToScreen(cmd.x, cmd.y);
       if(cmd.maxWidth){
         const lines = wrapTextToLines(full, sw(cmd.maxWidth));
-        const lineHeight = sw(size)*1.35;
+        const lineHeight = sw(lineHeightFor(size));
         let charsLeft = Math.max(1, Math.round(full.length*t));
         let lastX = sx, lastY = sy;
         for(let i=0;i<lines.length;i++){
@@ -1970,7 +2063,7 @@ CRITICAL LAYOUT RULES - THE APP WILL OVERRIDE YOUR COORDINATES:
 TEXT ON THE BOARD MUST USE REAL SYMBOLS, NOT SPELLED-OUT WORDS: π, θ, β, α, γ, Δ, Σ, ∫, √, ∞, ≤, ≥, ≈, ×, ÷, →, ², ³, ₁, ₂, etc. directly inside "text" strings. Use "mono":true for alignment if drawing equations.
 
 Available command types:
-- {"type":"text","x":..,"y":..,"text":"...","size":26,"color":"ink|ochre|sage|brick|teal|violet|sky|coral","mono":false,"weight":700,"maxWidth":800}
+- {"type":"text","x":..,"y":..,"text":"...","size":22,"color":"ink|ochre|sage|brick|teal|violet|sky|coral","mono":false,"weight":700,"maxWidth":800}
 - {"type":"halo","x":..,"y":..,"r":50,"color":"halo|ochre|sage|teal|violet|sky|coral"}
 - {"type":"line","x1":..,"y1":..,"x2":..,"y2":..,"color":"ink","width":2.5}
 - {"type":"arrow","x1":..,"y1":..,"x2":..,"y2":..,"color":"ochre","width":2.5}
@@ -1982,8 +2075,9 @@ Available command types:
 - {"type":"highlight","x":..,"y":..,"w":..,"h":26,"color":"ochre"}
 
 PACING RULES:
-- Teach in SMALL bites: explain ONE definition, ONE step, or ONE component per turn.
-- Stop and check in after every turn.`;
+- Teach in SUBSTANTIAL, CONTINUOUS chunks: a full turn should read like several minutes of real lecture — cover a complete idea in depth (its definition, why it matters, a worked example, and its key sub-points), not one lonely sentence. Write MUCH more per turn than feels natural for a "small step" — aim for a long, dense block of "board" content (many "text" commands in a row covering multiple paragraphs, sub-points, and worked equations) so the notes keep growing continuously down the page, the way a real lecturer fills page after page without pausing every few seconds.
+- Only stop and check in with a question once you've actually finished teaching a full coherent topic or sub-topic — not after a single definition or step. Do not artificially cut a turn short.
+- Keep going onto the NEXT related idea in the same turn if it naturally continues the same topic, rather than stopping just because you covered "one thing" already.`;
 
 let conversationHistory = [];
 let aiBrain = 'gemini';
@@ -2038,7 +2132,7 @@ async function callGroq(){
       body: JSON.stringify({
         model:"openai/gpt-oss-120b",
         response_format:{ type:"json_object" },
-        max_tokens:2000,
+        max_tokens:6000,
         messages: [
           { role:"system", content: SYSTEM_PROMPT },
           ...conversationHistory
@@ -2087,7 +2181,7 @@ async function callGemini(){
         contents: geminiContents,
         generationConfig: {
           response_mime_type: "application/json",
-          maxOutputTokens: 2500,
+          maxOutputTokens: 7000,
           thinkingConfig: { thinkingLevel: "low" }
         }
       })
