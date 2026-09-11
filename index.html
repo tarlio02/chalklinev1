@@ -833,12 +833,48 @@ const camera = { x: 500, y: 300, scale: 1 };
    idea. */
 const PAGE_W = 1000;                 // fixed content column width
 const PAGE_H = Math.round(PAGE_W * Math.SQRT2); // A4 portrait proportion (1 : √2), in world units
-const PAGE_TOP_MARGIN = 50;
-const PAGE_BOTTOM_MARGIN = 50;
-const TURN_GAP = 36; // vertical breathing room between consecutive turns stacked on the same page
+const TURN_GAP = 36; // vertical breathing room between consecutive turns stacked in the same region
 
-let pageCount = 1;                                  // number of A4 pages used so far
-const boardCursor = { x: 0, y: PAGE_TOP_MARGIN };   // where the NEXT turn's local origin should land
+/* ---- Cornell-style page template ----
+   Every page is laid out identically, in fixed WORLD units (0-1000 wide),
+   so the template is completely independent of the device's current
+   portrait/landscape orientation — orientation only changes how much of
+   this world-space page is visible on screen at once, never its geometry.
+   Layout per page (top to bottom): a topic header, then a row of two boxes
+   ("Important Notes" left / "Graphs & Diagrams" right), then a full-width
+   "Detailed Notes" box that holds the main teaching prose and can keep
+   growing until the page is full, at which point a fresh page (with its
+   own header + two boxes + detail box) starts automatically. */
+const ROW_TOP = 100;
+const ROW_H = 430;
+const NOTES_BOX = { x: 30, w: 560 };
+const GRAPH_BOX = { x: 610, w: 360 };
+const DETAIL_TOP = ROW_TOP + ROW_H + 40;
+const DETAIL_BOTTOM_MARGIN = 40;
+
+function pageRegionBoxes(p){
+  const top = (p - 1) * PAGE_H;
+  return {
+    notes:  { x: NOTES_BOX.x, y: top + ROW_TOP, w: NOTES_BOX.w, h: ROW_H },
+    graph:  { x: GRAPH_BOX.x, y: top + ROW_TOP, w: GRAPH_BOX.w, h: ROW_H },
+    detail: { x: 30, y: top + DETAIL_TOP, w: 940, h: PAGE_H - DETAIL_TOP - DETAIL_BOTTOM_MARGIN }
+  };
+}
+
+let pageCount = 1;                     // number of Cornell pages used so far
+let currentTopicLabel = 'Topic';       // shown as each page's header
+// Absolute world-y of where the NEXT item lands in each of the three
+// regions on the current page — each region fills independently, so notes
+// keep stacking down column 1 across several teaching turns, graphs stack
+// down column 2, and the detail box grows below both, all at once.
+const regionCursor = { notes: 0, graph: 0, detail: 0 };
+function resetRegionCursorsForPage(p){
+  const b = pageRegionBoxes(p);
+  regionCursor.notes = b.notes.y;
+  regionCursor.graph = b.graph.y;
+  regionCursor.detail = b.detail.y;
+}
+resetRegionCursorsForPage(1);
 
 // Measures how tall a (already-clamped, not-yet-translated) turn's content
 // is in its own local 0-900 authoring frame, by reusing the same bbox logic
@@ -854,20 +890,6 @@ function estimateLocalTurnHeight(commands){
   });
   Object.assign(camera, savedCam); viewW = savedW; viewH = savedH;
   return maxY;
-}
-
-// Decides where the next turn should be placed: if it still fits below the
-// current cursor within the current page, keep stacking down the SAME page;
-// once it wouldn't fit before the bottom margin, jump straight to the top of
-// a fresh page instead of squeezing or overlapping the last turn.
-function advanceBoardCursor(turnLocalHeight){
-  const currentPageTop = (pageCount - 1) * PAGE_H;
-  const currentPageBottom = currentPageTop + PAGE_H - PAGE_BOTTOM_MARGIN;
-  if(boardCursor.y + turnLocalHeight > currentPageBottom){
-    pageCount++;
-    boardCursor.y = (pageCount - 1) * PAGE_H + PAGE_TOP_MARGIN;
-  }
-  boardCursor.x = 0;
 }
 
 // Smoothly scrolls the camera to a target world position, easing over
@@ -1003,17 +1025,71 @@ function drawRuleLines(){
   ctx.restore();
 }
 
+// Draws the fixed Cornell-note template (header + Important Notes box +
+// Graphs & Diagrams box + Detailed Notes box) for every page currently in
+// or near view. Purely a guide layer — drawn every frame in world space via
+// worldToScreen, so it always lines up with content regardless of zoom,
+// pan, or the screen's current portrait/landscape aspect ratio.
+const TEMPLATE_LINE = 'rgba(90,70,40,0.32)';
+const TEMPLATE_LABEL = 'rgba(90,70,40,0.55)';
+function drawPageTemplate(){
+  const topWorldY = screenToWorld(0, 0)[1];
+  const bottomWorldY = screenToWorld(0, viewH)[1];
+  const firstPage = Math.max(1, Math.floor(topWorldY / PAGE_H));
+  const lastPage = Math.max(firstPage, Math.ceil(bottomWorldY / PAGE_H)) + 1;
+  ctx.save();
+  ctx.strokeStyle = TEMPLATE_LINE;
+  ctx.lineWidth = 1.5;
+  ctx.fillStyle = TEMPLATE_LABEL;
+  for(let p = firstPage; p <= lastPage; p++){
+    const top = (p - 1) * PAGE_H;
+    const boxes = pageRegionBoxes(p);
+    // Header
+    ctx.textAlign = 'center';
+    ctx.font = "600 24px 'Kalam','Segoe Script',cursive";
+    const [hx, hy] = worldToScreen(500, top + 45);
+    ctx.fillText(currentTopicLabel || 'Topic', hx, hy);
+    // Notes + Graph boxes (fixed height, drawn as full rectangles)
+    ['notes','graph'].forEach(key => {
+      const b = boxes[key];
+      const [x1,y1] = worldToScreen(b.x, b.y);
+      const [x2,y2] = worldToScreen(b.x + b.w, b.y + b.h);
+      ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+    });
+    ctx.textAlign = 'left';
+    ctx.font = "600 17px 'Source Serif 4', serif";
+    let [lx,ly] = worldToScreen(boxes.notes.x + 14, boxes.notes.y + 28);
+    ctx.fillText('Important Notes', lx, ly);
+    [lx,ly] = worldToScreen(boxes.graph.x + 14, boxes.graph.y + 28);
+    ctx.fillText('Graphs & Diagrams', lx, ly);
+    // Detail box: only its top border + side borders are drawn (it grows
+    // downward and its true bottom is the page break, not a hard line)
+    const db = boxes.detail;
+    const [dx1,dy1] = worldToScreen(db.x, db.y);
+    const [dx2] = worldToScreen(db.x + db.w, db.y);
+    const [,dy2] = worldToScreen(db.x, db.y + db.h);
+    ctx.beginPath(); ctx.moveTo(dx1,dy1); ctx.lineTo(dx2,dy1); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(dx1,dy1); ctx.lineTo(dx1,dy2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(dx2,dy1); ctx.lineTo(dx2,dy2); ctx.stroke();
+    [lx,ly] = worldToScreen(db.x + 14, db.y + 28);
+    ctx.fillText('Detailed Notes', lx, ly);
+  }
+  ctx.restore();
+}
+
 function clearBoard(record=true){
   if(record) drawnCommands = [];
   drawBG();
   drawPageGuides();
   drawRuleLines();
+  drawPageTemplate();
 }
 
 function redrawAll(){
   drawBG();
   drawPageGuides();
   drawRuleLines();
+  drawPageTemplate();
   drawnCommands.forEach(cmd => renderCommand(cmd));
 }
 
@@ -1025,6 +1101,7 @@ function redrawAllExcept(skipCmd){
   drawBG();
   drawPageGuides();
   drawRuleLines();
+  drawPageTemplate();
   drawnCommands.forEach(cmd => { if(cmd !== skipCmd) renderCommand(cmd); });
 }
 
@@ -1418,7 +1495,7 @@ canvas.addEventListener('wheel', (e)=>{
 document.getElementById('zoom-in').addEventListener('click', ()=>{ camera.scale=Math.min(3,camera.scale*1.2); redrawAll(); });
 document.getElementById('zoom-out').addEventListener('click', ()=>{ camera.scale=Math.max(0.2,camera.scale/1.2); redrawAll(); });
 document.getElementById('zoom-reset').addEventListener('click', ()=>{ panToken++; camera.x=500;camera.y=300;camera.scale=1; redrawAll(); });
-document.getElementById('btn-clear').addEventListener('click', ()=>{ panToken++; drawQueue=[]; camera.x=500;camera.y=300;camera.scale=1; pageCount=1; boardCursor.x=0; boardCursor.y=PAGE_TOP_MARGIN; clearBoard(); });
+document.getElementById('btn-clear').addEventListener('click', ()=>{ panToken++; drawQueue=[]; camera.x=500;camera.y=300;camera.scale=1; pageCount=1; resetRegionCursorsForPage(1); clearBoard(); });
 
 /* =========================================================
    EXPORT: SAVE THE WHOLE (INFINITE, DOWNWARD-SCROLLING) BOARD AS A PDF
@@ -1479,8 +1556,9 @@ async function exportBoardAsPDF(){
       camera.x = minX + pageWorldW/2;
       camera.y = (minY + i*pageWorldH) + pageWorldH/2;
 
-      drawBG(); // page guides are a screen affordance only — skip those in the export, but keep the rule lines so the exported PDF still reads as ruled notebook paper
+      drawBG(); // faint left/right column guides are a screen affordance only — skip those in the export, but keep the rule lines + Cornell template so the exported PDF still reads as ruled, labeled notebook paper
       drawRuleLines();
+      drawPageTemplate();
       drawnCommands.forEach(cmd => renderCommand(cmd)); // anything outside this page's y-range is simply clipped by the canvas
 
       const dataUrl = off.toDataURL('image/png');
@@ -1527,15 +1605,31 @@ function drawPen(x, y, angle){
 }
 function clearPen(){}
 
-function translateCommand(cmd, dx, dy){
+// Places a command (still expressed in the model's local 0-1000 x 0-900
+// authoring frame) into an absolute world position, scaled to fit whichever
+// region box it's headed for. The model always writes as if it has a full
+// 1000-wide frame, so a narrower box (e.g. the 360-wide Graphs column) is
+// handled purely by shrinking (scale = box.w/1000) rather than the model
+// needing to know actual box geometry.
+function placeCommand(cmd, ox, oy, scale){
   const c = { ...cmd };
-  if('x' in c) c.x += dx;
-  if('y' in c) c.y += dy;
-  if('x1' in c) c.x1 += dx;
-  if('y1' in c) c.y1 += dy;
-  if('x2' in c) c.x2 += dx;
-  if('y2' in c) c.y2 += dy;
-  if(Array.isArray(c.points)) c.points = c.points.map(p => [p[0]+dx, p[1]+dy]);
+  const S = v => v * scale;
+  if('x' in c) c.x = ox + S(c.x);
+  if('y' in c) c.y = oy + S(c.y);
+  if('x1' in c) c.x1 = ox + S(c.x1);
+  if('y1' in c) c.y1 = oy + S(c.y1);
+  if('x2' in c) c.x2 = ox + S(c.x2);
+  if('y2' in c) c.y2 = oy + S(c.y2);
+  if(Array.isArray(c.points)) c.points = c.points.map(p => [ox + S(p[0]), oy + S(p[1])]);
+  if('w' in c) c.w = S(c.w);
+  if('h' in c) c.h = S(c.h);
+  if('rx' in c) c.rx = S(c.rx);
+  if('ry' in c) c.ry = S(c.ry);
+  if('r' in c) c.r = S(c.r);
+  if(c.type === 'text'){
+    if('size' in c) c.size = S(c.size);
+    if('maxWidth' in c) c.maxWidth = S(c.maxWidth);
+  }
   return c;
 }
 
@@ -1578,25 +1672,91 @@ function clampBoardCoords(c){
   return c;
 }
 
+// Routes one teaching turn's commands into the Cornell template: each
+// command can carry an optional "region" of "notes" | "graph" | "detail"
+// (default "detail"), so a single turn can drop a short bullet into the
+// Important Notes column, a diagram into the Graphs column, and its main
+// explanatory prose into the Detailed Notes box, all at once. Each region
+// keeps its own running cursor so content stacks down that column across
+// many turns; only the Detail region (the main teaching flow) triggers a
+// fresh page when it runs out of room.
 function enqueueCommandsAtCursor(commands){
   const clamped = commands.map(c => clampBoardCoords({ ...c }));
-  const turnLocalHeight = estimateLocalTurnHeight(clamped);
-  advanceBoardCursor(turnLocalHeight);
-  const placedAtY = boardCursor.y;
-  const translated = clamped.map(c => translateCommand(c, boardCursor.x, placedAtY));
-  boardCursor.y = placedAtY + turnLocalHeight + TURN_GAP; // next turn keeps stacking on the same page until it no longer fits
+  const groups = { notes: [], graph: [], detail: [] };
+  clamped.forEach(c => {
+    const region = (c.region === 'notes' || c.region === 'graph') ? c.region : 'detail';
+    groups[region].push(c);
+  });
+
+  let placedAll = [];
+  let panTargetY = null;
+
+  ['notes','graph','detail'].forEach(region => {
+    const cmds = groups[region];
+    if(!cmds.length) return;
+    const localH = estimateLocalTurnHeight(cmds);
+
+    if(region === 'detail'){
+      let box = pageRegionBoxes(pageCount).detail;
+      const scale = box.w / 1000;
+      if(regionCursor.detail + localH*scale > box.y + box.h){
+        pageCount++;
+        resetRegionCursorsForPage(pageCount);
+        box = pageRegionBoxes(pageCount).detail;
+      }
+      const originY = regionCursor.detail;
+      placedAll.push(...cmds.map(c => placeCommand(c, box.x, originY, scale)));
+      regionCursor.detail = originY + localH*scale + TURN_GAP;
+      panTargetY = originY + (localH*scale)/2;
+    } else {
+      const box = pageRegionBoxes(pageCount)[region];
+      const scale = box.w / 1000;
+      const originY = regionCursor[region];
+      placedAll.push(...cmds.map(c => placeCommand(c, box.x, originY, scale)));
+      // Notes/Graph columns have a fixed box height, so their cursor is
+      // capped at the box's bottom rather than growing it indefinitely —
+      // keep bullets/diagrams short enough to fit, like real margin notes.
+      regionCursor[region] = Math.min(originY + localH*scale + 14, box.y + box.h - 10);
+      if(panTargetY === null) panTargetY = originY + (localH*scale)/2;
+    }
+  });
+
   redrawAll();
-  panCameraToCursor(placedAtY + turnLocalHeight/2, () => enqueueCommands(translated));
+  if(panTargetY === null) panTargetY = regionCursor.detail;
+  panCameraToCursor(panTargetY, () => enqueueCommands(placedAll));
 }
 
 function enqueueCommands(commands){
   drawQueue.push(...commands);
   if(!drawing) processQueue();
 }
+// Approximate world-space point of a command, used to keep the camera
+// pointed at whatever the "pen" is currently writing (rather than only
+// re-centering once per whole teaching turn).
+function commandWorldAnchor(cmd){
+  if('x' in cmd && 'y' in cmd) return [cmd.x, cmd.y];
+  if('x1' in cmd && 'y1' in cmd) return [(cmd.x1+cmd.x2)/2, (cmd.y1+cmd.y2)/2];
+  if(Array.isArray(cmd.points) && cmd.points.length) return cmd.points[Math.floor(cmd.points.length/2)];
+  return null;
+}
+
 function processQueue(){
   if(drawQueue.length===0){ drawing=false; redrawAll(); return; }
   drawing=true;
   const cmd = drawQueue.shift();
+  // If the next stroke lands well outside the current view (e.g. jumping
+  // from the Detail box over to the Graphs column, or onto a fresh page),
+  // ease the camera over to it before/while it draws, so the board always
+  // scrolls to keep pace with wherever the AI is currently writing instead
+  // of leaving new content to appear off-screen.
+  const anchor = commandWorldAnchor(cmd);
+  if(anchor){
+    const [sx, sy] = worldToScreen(anchor[0], anchor[1]);
+    const margin = 60;
+    if(sx < margin || sx > viewW-margin || sy < margin || sy > viewH-margin){
+      animateCameraPan(anchor[0], anchor[1], 260, null);
+    }
+  }
   animateCommand(cmd, ()=>{ drawnCommands.push(cmd); processQueue(); });
 }
 function animateCommand(cmd, onDone){
@@ -2093,12 +2253,19 @@ You must respond with ONLY a JSON object (no markdown fences, no prose outside t
   "quiz": null OR { "question":"...", "options":["...","...","...","..."], "correctIndex":0, "explanation":"..." }
 }
 
-Drawing commands use a normalized coordinate space of x:0-1000, y:0-900 for EACH teaching turn (y increasing downward — a fairly tall local frame, giving real room for a full diagram plus supporting text without cramming). The app automatically places each turn directly below the last one, packing turns down the page like real notebook writing — you do NOT need to avoid prior content, track what's already drawn, or think about page breaks yourself; always compose your "board" array as if starting on a fresh blank 1000x900 area, and the app handles fitting it onto the page (starting a new page only once the current one is full).
+THE PAGE IS A FIXED CORNELL-NOTES TEMPLATE, already drawn on the board for you: a topic header at the top, then a row of two boxes — "Important Notes" (left column) and "Graphs & Diagrams" (right column) — then a full-width "Detailed Notes" box below that holds your main teaching prose. Every command you emit must declare which of these it belongs to via a "region" field: "notes", "graph", or "detail" (omit it, or use "detail", for anything belonging to the main teaching flow). Each region has its OWN independent 0-1000 x 0-900 local coordinate frame that the app automatically scales and positions into the right box — always author as if each region is a fresh blank 1000x900 area, never worry about the box's real pixel size, and never mix coordinates meant for one region into a command tagged with a different region.
+
+- "region":"notes" — 1-3 SHORT bullet-style lines per turn (a key term, a one-line definition, a formula) — this column is small, so keep it terse, like margin notes, not paragraphs.
+- "region":"graph" — diagrams ("axes"/"plot") and short labels only — this column is narrower, so keep titles/labels brief.
+- "region":"detail" (or omitted) — the main lecture content: full wrapped-paragraph prose, worked examples, sub-lists — this is where most of your "board" array should live, exactly as described below.
+
+Not every turn needs all three regions — many turns will only add "detail" content, and only some turns will also drop a short bullet into "notes" or a diagram into "graph". The app automatically places each turn's content directly below whatever already occupies that same region (bullets keep stacking down the Notes column, diagrams keep stacking down the Graphs column, prose keeps growing the Detail box) — you do NOT need to avoid prior content, track what's already drawn, or think about page breaks yourself; the app starts a fresh page (with its own header + two boxes + detail box) automatically once the Detail box is full.
 
 TEXT ON THE BOARD MUST USE REAL SYMBOLS, NOT SPELLED-OUT WORDS: unlike "speech" (which spells things out for text-to-speech), the "board" is visual, so write actual Unicode glyphs the way you would on a physical whiteboard — π, θ, β, α, γ, Δ, Σ, ∫, √, ∞, ≤, ≥, ≈, ×, ÷, →, ², ³, ₁, ₂, etc. — directly inside "text" strings. E.g. write "β = ∂y/∂x" or "∫₀^∞ e^(−x) dx", not "beta equals the derivative of y with respect to x". Use "mono":true for equations so symbols line up cleanly.
 
 Available command types:
-- {"type":"text","x":..,"y":..,"text":"...","size":22,"color":"ink|ochre|sage|brick|teal|violet|sky|coral","mono":false,"handwritten":false,"weight":400,"maxWidth":800}  — set "handwritten":true ONLY for section headings/titles (renders in a marker-style script font, larger). Set "maxWidth" (in the same 0-1000 units, e.g. 800-850 for a near-full-width paragraph) on any text that's a full sentence or more — the app automatically WRAPS it onto multiple lines within that width, like real handwritten notebook prose, instead of running off as one unreadable line. Only omit "maxWidth" for genuinely short labels/headings that are meant to stay on one line.
+Every command below may also include "region":"notes"|"graph"|"detail" as described above (defaults to "detail" if omitted).
+- {"type":"text","x":..,"y":..,"text":"...","size":22,"color":"ink|ochre|sage|brick|teal|violet|sky|coral","mono":false,"handwritten":false,"weight":400,"maxWidth":800,"region":"detail"}  — set "handwritten":true ONLY for section headings/titles (renders in a marker-style script font, larger). Set "maxWidth" (in the same 0-1000 units, e.g. 800-850 for a near-full-width paragraph in the "detail" region — use a smaller value like 480 for "notes"/"graph" text) on any text that's a full sentence or more — the app automatically WRAPS it onto multiple lines within that width, like real handwritten notebook prose, instead of running off as one unreadable line. Only omit "maxWidth" for genuinely short labels/headings that are meant to stay on one line.
 - {"type":"halo","x":..,"y":..,"r":50,"color":"halo|ochre|sage|teal|violet|sky|coral"} — a soft radial glow centered on a point, drawn BEHIND/BEFORE the term it emphasizes (e.g. right before writing a key result or the answer to a check-in question) to make it visually pop
 - {"type":"line","x1":..,"y1":..,"x2":..,"y2":..,"color":"ink","width":2.5}
 - {"type":"arrow","x1":..,"y1":..,"x2":..,"y2":..,"color":"ochre","width":2.5}
@@ -2117,7 +2284,7 @@ STRICT COORDINATE BOUNDS — every command must stay fully inside the 1000x900 p
 
 AVOID OVERLAPPING CONTENT: every element you place (text, axes/plot box, halo) occupies real space, and nothing on the board should visually overlap anything else. A wrapped paragraph (with "maxWidth" set) takes up several lines of vertical space, not just one — leave at least 25-30 units of clear gap between the BOTTOM of a wrapped paragraph's last line and whatever comes next, not just below its starting "y".
 
-Layout pattern: start with ONE handwritten title near the top-left (around x:90,y:120) sized around 30. Build the explanation below that, starting no earlier than y:170, like a real page of class notes: full sentences in wrapped paragraphs (use "maxWidth" as described above so they read across most of the page width, not short choppy fragments), organized top-to-bottom in a single clean column. Use around 14-22 commands per turn: state the definition or claim as a full wrapped sentence, then more wrapped-paragraph text unpacking it (the intuition behind it, a worked micro-example or numeric case), plus a short numbered or lettered sub-list where it naturally fits (e.g. components of a concept, steps of a process) — give each sub-list a distinct accent color (e.g. all its items in "ochre" or "teal") so it visually separates from the surrounding body text, similar to how a student color-codes their own notes. Fill a good portion of the 1000x900 page rather than leaving most of it blank — an equation on its own with nothing else is not enough; always accompany it with plain-language paragraph text explaining what it means. Do not scatter items sideways or place two unrelated things at the same height, since that reads as disorganized — everything reads top-to-bottom in order. For math: mono text, one step per line, 40+ units apart vertically, using real symbols as above. For any data graph, use a single "plot" command (see above) — never bare "axes" plus a separate "curve" — so the picture is always accurate, gridded, ticked, and self-explanatory at a glance.
+Layout pattern for "region":"detail" (the bulk of your output, ~14-22 commands per turn): build full sentences in wrapped paragraphs (use "maxWidth" as described above so they read across most of the width, not short choppy fragments), starting near y:40 and organized top-to-bottom in a single clean column of its own local 1000x900 frame — state the definition or claim as a full wrapped sentence, then more wrapped-paragraph text unpacking it (the intuition behind it, a worked micro-example or numeric case), plus a short numbered or lettered sub-list where it naturally fits (e.g. components of a concept, steps of a process) — give each sub-list a distinct accent color (e.g. all its items in "ochre" or "teal") so it visually separates from the surrounding body text, similar to how a student color-codes their own notes. Do not scatter items sideways or place two unrelated things at the same height, since that reads as disorganized — everything reads top-to-bottom in order. For math: mono text, one step per line, 40+ units apart vertically, using real symbols as above. For any data graph placed in "region":"graph", use a single "plot" command (see above) — never bare "axes" plus a separate "curve" — so the picture is always accurate, gridded, ticked, and self-explanatory at a glance, and keep its title/axis labels short since that column is narrower. For "region":"notes", write each key term or definition as its own short "text" command (small "maxWidth" like 480, no more than 1-3 per turn) rather than a paragraph — think index-card bullet, not prose.
 
 PACING RULES (strict — this is the most important behavioural constraint):
 - Teach in SMALL bites: explain ONE definition, ONE step of a derivation, or ONE component of a concept per turn — not a whole topic, not even a whole "section". Think 2-4 sentences of speech per turn, occasionally a bit more only when a single idea genuinely needs it (e.g. deriving one formula).
@@ -2325,7 +2492,7 @@ async function persistSession(){
     savedAt: Date.now(),
     pdfFileName, pdfText: pdfText ? pdfText.slice(0,15000) : '',
     conversationHistory, drawnCommands, camera,
-    pageCount, boardCursor,
+    pageCount, regionCursor, currentTopicLabel,
     transcriptHtml: transcriptToHtmlSnapshot()
   };
   await window.storage.set('session:' + currentSessionId, JSON.stringify(payload), false);
@@ -2369,7 +2536,9 @@ function loadSession(item){
   drawnCommands = item.drawnCommands || [];
   if(item.camera) Object.assign(camera, item.camera);
   pageCount = item.pageCount || 1;
-  if(item.boardCursor) Object.assign(boardCursor, item.boardCursor);
+  if(item.regionCursor) Object.assign(regionCursor, item.regionCursor);
+  else resetRegionCursorsForPage(pageCount);
+  currentTopicLabel = item.currentTopicLabel || 'Topic';
   transcriptEl.innerHTML = item.transcriptHtml || '<div class="empty-note">No transcript in this session.</div>';
   if(pdfFileName){
     uploadZone.classList.add('has-file');
@@ -2386,7 +2555,7 @@ document.getElementById('btn-new-session').addEventListener('click', ()=>{
   pdfText=''; pdfFileName='';
   conversationHistory=[]; drawQueue=[]; drawnCommands=[];
   camera.x=500; camera.y=300; camera.scale=1;
-  pageCount=1; boardCursor.x=0; boardCursor.y=PAGE_TOP_MARGIN;
+  pageCount=1; resetRegionCursorsForPage(1); currentTopicLabel='Topic';
   clearBoard();
   transcriptEl.innerHTML = '<div class="empty-note">Your lecture transcript and quiz questions will appear here as we go.</div>';
   resetUploadZoneUI();
@@ -2411,6 +2580,7 @@ document.getElementById('btn-toggle-transcript').addEventListener('click', openP
 document.getElementById('btn-teach').addEventListener('click', ()=>{
   const val = document.getElementById('topic-input').value.trim();
   if(!val) return;
+  if(conversationHistory.length === 0) currentTopicLabel = val.length > 60 ? val.slice(0,57)+'…' : val;
   runTeachingTurn(val);
   document.getElementById('topic-input').value = '';
   closePanel();
