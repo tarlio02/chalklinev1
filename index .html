@@ -1,0 +1,3038 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chalkline — AI Study Tools</title>
+<style>
+  html,body{ margin:0; padding:0; height:100%; overflow:hidden; background:#F3F9FE; font-family:-apple-system,Segoe UI,sans-serif; }
+  iframe{ position:fixed; inset:0; width:100%; height:100%; border:none; display:none; background:#F3F9FE; }
+  iframe.active{ display:block; }
+
+  #back-btn{
+    position:fixed; top:16px; left:16px; z-index:99999;
+    display:none; align-items:center; gap:6px;
+    background:rgba(255,255,255,0.92); backdrop-filter:blur(6px);
+    border:1px solid #D3E6F5; border-radius:20px;
+    padding:8px 14px 8px 10px; cursor:pointer;
+    font-size:13.5px; color:#1E2B3A; font-weight:600;
+    box-shadow:0 2px 10px rgba(30,60,90,0.08);
+    transition:background .15s ease, transform .15s ease;
+  }
+  #back-btn:hover{ background:#fff; transform:translateX(-1px); }
+  #back-btn svg{ width:15px; height:15px; }
+  #back-btn.show{ display:inline-flex; }
+</style>
+</head>
+<body>
+
+<button id="back-btn" onclick="navTo('home', true)">
+  <svg viewBox="0 0 16 16" fill="none"><path d="M14 8H3M7.5 3.5 3 8l4.5 4.5" stroke="#1E2B3A" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  Back
+</button>
+
+<iframe id="frame-home"></iframe>
+<iframe id="frame-tutor"></iframe>
+<iframe id="frame-summary"></iframe>
+
+<script type="text/plain" id="src-home"><!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chalkline — AI Study Tools</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&family=Caveat:wght@600;700&display=swap');
+
+:root{
+  --board-bg:#F3F9FE;
+  --ink:#1E2B3A;
+  --ochre:#2E7DBE;
+  --highlight:#D7ECFB;
+  --sage:#3E8FA6;
+  --brick:#3D6B93;
+  --panel-border:#D3E6F5;
+  --muted:#7C93A8;
+  --halo-blue:#6EA8FE;
+  --halo-blue-soft:#A5C8FF;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:'Source Serif 4', Georgia, serif;
+  color:var(--ink);
+  background:var(--board-bg);
+  min-height:100vh;
+  position:relative;
+  overflow-x:hidden;
+}
+
+.ambient-halo{
+  position:fixed; inset:0; z-index:0; overflow:hidden; pointer-events:none;
+}
+.ambient-halo::before,.ambient-halo::after{
+  content:''; position:absolute; width:60vmax;height:60vmax;
+  border-radius:50%; filter:blur(100px); opacity:0.26; mix-blend-mode:multiply;
+}
+.ambient-halo::before{
+  top:-22%; left:-18%;
+  background:radial-gradient(circle, var(--halo-blue) 0%, rgba(110,168,254,0) 70%);
+  animation:drift1 24s ease-in-out infinite;
+}
+.ambient-halo::after{
+  bottom:-25%; right:-15%;
+  background:radial-gradient(circle, var(--halo-blue-soft) 0%, rgba(165,200,255,0) 70%);
+  animation:drift2 28s ease-in-out infinite;
+}
+@keyframes drift1{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(10%,8%) scale(1.15);}}
+@keyframes drift2{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(-8%,-6%) scale(1.12);}}
+
+.wrap{ position:relative; z-index:1; max-width:920px; margin:0 auto; padding:0 28px; }
+
+nav{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:26px 0 10px;
+}
+.brand{
+  font-family:'Caveat', cursive; font-weight:700; font-size:28px;
+  color:var(--ink); text-decoration:none; display:flex; align-items:center; gap:8px;
+}
+.brand .dot{ width:9px;height:9px;border-radius:50%; background:var(--ochre); display:inline-block; }
+.nav-links{ display:flex; gap:26px; font-family:'JetBrains Mono', monospace; font-size:13px; }
+.nav-links a{ color:var(--muted); text-decoration:none; }
+.nav-links a:hover{ color:var(--ink); }
+
+.hero{ padding:70px 0 56px; }
+.hero h1{
+  font-size:52px; line-height:1.12; font-weight:600; margin:0 0 18px;
+  max-width:680px; letter-spacing:-0.01em;
+}
+.hero h1 .chalk{
+  font-family:'Caveat', cursive; font-weight:700; color:var(--ochre);
+  position:relative; white-space:nowrap;
+}
+.hero p{
+  font-size:19px; line-height:1.6; color:#4a4738; max-width:520px; margin:0;
+}
+
+.tools{
+  display:grid; grid-template-columns:1fr 1fr; gap:22px; margin:0 0 64px;
+}
+@media (max-width:680px){ .tools{ grid-template-columns:1fr; } .hero h1{ font-size:38px; } }
+
+.tool-card{
+  display:block; text-decoration:none; color:inherit;
+  background:#fff; border:1px solid var(--panel-border); border-radius:14px;
+  padding:30px 28px 26px; position:relative; overflow:hidden;
+  transition:border-color .18s ease, transform .18s ease, box-shadow .18s ease;
+}
+.tool-card:hover{
+  border-color:#d8d0b8; transform:translateY(-2px);
+  box-shadow:0 10px 28px rgba(38,36,31,0.07);
+}
+.tool-card .mark{
+  width:44px; height:44px; border-radius:10px; margin-bottom:20px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:20px;
+}
+.tool-card.tutor .mark{ background:#D7ECFB; }
+.tool-card.summary .mark{ background:#E1F0F7; }
+.tool-card h2{
+  font-size:23px; margin:0 0 8px; font-weight:600;
+}
+.tool-card p{
+  font-size:15.5px; line-height:1.55; color:#5c5847; margin:0 0 18px;
+}
+.tool-card .go{
+  font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--ochre);
+  display:inline-flex; align-items:center; gap:6px;
+}
+.tool-card.summary .go{ color:var(--sage); }
+.go svg{ width:13px; height:13px; transition:transform .18s ease; }
+.tool-card:hover .go svg{ transform:translateX(3px); }
+
+.tool-card h2 span{ position:relative; }
+
+.strip{
+  border-top:1px solid var(--panel-border); padding:40px 0 70px;
+  display:flex; gap:40px; flex-wrap:wrap;
+}
+.strip-item{ flex:1; min-width:220px; }
+.strip-item .num{
+  font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--muted);
+  margin-bottom:8px; display:block;
+}
+.strip-item h3{ font-size:16.5px; margin:0 0 6px; font-weight:600; }
+.strip-item p{ font-size:14.5px; color:#6b6754; line-height:1.5; margin:0; }
+
+footer{
+  border-top:1px solid var(--panel-border); padding:22px 0 40px;
+  font-family:'JetBrains Mono', monospace; font-size:11.5px; color:var(--muted);
+  display:flex; justify-content:space-between;
+}
+</style>
+</head>
+<body>
+
+<div class="ambient-halo"></div>
+
+<div class="wrap">
+  <nav>
+    <a class="brand" href="#" onclick="parent.postMessage({nav:'home'},'*');return false;"><span class="dot"></span>Chalkline</a>
+    <div class="nav-links">
+      <a href="#" onclick="parent.postMessage({nav:'tutor'},'*');return false;">Tutor</a>
+      <a href="#" onclick="parent.postMessage({nav:'summary'},'*');return false;">Summary</a>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <h1>A study session, <span class="chalk">drawn out loud.</span></h1>
+    <p>Bring a topic or a PDF. Chalkline either teaches it to you on a live whiteboard, or reads it and hands you back the version worth remembering.</p>
+  </section>
+
+  <section class="tools">
+    <a class="tool-card tutor" href="#" onclick="parent.postMessage({nav:'tutor'},'*');return false;">
+      <div class="mark">✏️</div>
+      <h2>Live Tutor</h2>
+      <p>An AI tutor that teaches on a real whiteboard — writing, diagrams, and worked examples, paced one idea at a time, with check-ins along the way.</p>
+      <span class="go">Start a lesson
+        <svg viewBox="0 0 16 16" fill="none"><path d="M2 8h11M9 3.5 13.5 8 9 12.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </span>
+    </a>
+    <a class="tool-card summary" href="#" onclick="parent.postMessage({nav:'summary'},'*');return false;">
+      <div class="mark">📄</div>
+      <h2>Summary</h2>
+      <p>Upload a chapter, slide deck, or set of notes as a PDF, and get a clear, structured summary of what actually matters — ready to read or save.</p>
+      <span class="go">Summarize a PDF
+        <svg viewBox="0 0 16 16" fill="none"><path d="M2 8h11M9 3.5 13.5 8 9 12.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </span>
+    </a>
+  </section>
+
+  <section class="strip">
+    <div class="strip-item">
+      <span class="num">FOR LEARNING SOMETHING NEW</span>
+      <h3>Live Tutor</h3>
+      <p>Type a topic or upload source material, and the tutor builds the explanation on the board as it talks — pausing to check you're following before it moves on.</p>
+    </div>
+    <div class="strip-item">
+      <span class="num">FOR REVIEWING WHAT YOU HAVE</span>
+      <h3>Summary</h3>
+      <p>Drop in a PDF of notes, slides, or a chapter. Chalkline reads the whole thing and gives you a structured summary you can skim before an exam.</p>
+    </div>
+  </section>
+
+  <footer>
+    <span>Chalkline</span>
+    <span>AI whiteboard tutor &amp; notes summarizer</span>
+  </footer>
+</div>
+
+</body>
+</html>
+</script>
+
+<script type="text/plain" id="src-tutor"><!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Chalkline — AI Whiteboard Tutor</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"><\/script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"><\/script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Kalam:wght@400;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root{
+  --board-bg:#FAF8F3;
+  --board-line:#E0D9C8;
+  --margin-line:#E08080;
+  --ink:#1E2B3A;
+  --ochre:#2E7DBE;
+  --highlight:#D7ECFB;
+  --sage:#3E8FA6;
+  --brick:#3D6B93;
+  --panel:#FFFFFF;
+  --panel-border:#D3E6F5;
+  --muted:#7C93A8;
+  --halo-blue:#0099FF;
+  --halo-blue-soft:#00E5FF;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;height:100%;}
+body{
+  font-family:'Source Serif 4', Georgia, serif;
+  color:var(--ink);
+  height:100vh;
+  overflow:hidden;
+  background:var(--board-bg);
+}
+
+#board-wrap{
+  position:fixed;
+  inset:0;
+  box-shadow: inset 0 0 35px rgba(0, 150, 255, 0.45), inset 0 0 70px rgba(0, 229, 255, 0.25);
+  border: 3px solid rgba(0, 180, 255, 0.6);
+  z-index: 2;
+  pointer-events: none;
+}
+#board{
+  width:100%;
+  height:100%;
+  display:block;
+  cursor:grab;
+  pointer-events: auto;
+  touch-action: none; /* we handle all pan/zoom gestures ourselves, so stop
+                          the browser from also trying to scroll/zoom the
+                          page in response to the same finger drag */
+}
+#board.grabbing{cursor:grabbing;}
+#board.hoverable{cursor:pointer;}
+
+.ambient-halo{
+  position:fixed;
+  inset:0;
+  z-index:1;
+  overflow:hidden;
+  pointer-events:none;
+}
+.ambient-halo::before,
+.ambient-halo::after{
+  content:'';
+  position:absolute;
+  width:65vmax;height:65vmax;
+  border-radius:50%;
+  filter:blur(80px);
+  opacity:0.35;
+  mix-blend-mode:screen;
+}
+.ambient-halo::before{
+  top:-20%; left:-15%;
+  background:radial-gradient(circle, var(--halo-blue) 0%, rgba(0,153,255,0) 70%);
+  animation:haloDrift1 22s ease-in-out infinite;
+}
+.ambient-halo::after{
+  bottom:-25%; right:-15%;
+  background:radial-gradient(circle, var(--halo-blue-soft) 0%, rgba(0,229,255,0) 70%);
+  animation:haloDrift2 26s ease-in-out infinite;
+}
+@keyframes haloDrift1{
+  0%,100%{ transform:translate(0,0) scale(1); }
+  50%{ transform:translate(12%,10%) scale(1.18); }
+}
+@keyframes haloDrift2{
+  0%,100%{ transform:translate(0,0) scale(1); }
+  50%{ transform:translate(-10%,-8%) scale(1.15); }
+}
+
+.topbar{
+  position:fixed;
+  top:0;left:0;right:0;
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  padding:18px 20px;
+  pointer-events:none;
+  z-index:20;
+}
+.topbar > *{pointer-events:auto;}
+.icon-btn{
+  width:40px;height:40px;
+  border-radius:50%;
+  border:none;
+  background:rgba(255,255,255,0.85);
+  backdrop-filter:blur(6px);
+  box-shadow:0 1px 4px rgba(0,0,0,0.08);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;
+  font-size:16px;
+  color:var(--ink);
+}
+.icon-btn:hover{background:#fff;}
+.top-right-cluster{display:flex;gap:10px;align-items:flex-start;}
+.topbar-btn-wrap{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:3px;
+}
+.status-chip{
+  font-family:'JetBrains Mono', monospace;
+  font-size:10.5px;
+  color:var(--muted);
+  background:rgba(255,255,255,0.7);
+  padding:6px 10px;
+  border-radius:20px;
+  align-self:center;
+  margin-right:4px;
+}
+
+.btn-label{
+  font-family:'JetBrains Mono', monospace;
+  font-size:9px;
+  color:var(--muted);
+  letter-spacing:0.2px;
+  white-space:nowrap;
+  background:rgba(255,255,255,0.85);
+  padding:1px 6px;
+  border-radius:8px;
+}
+
+.caption-zone{
+  position:fixed;
+  left:0;right:0;
+  bottom:0;
+  background:linear-gradient(to top, rgba(255,255,255,0.98) 60%, rgba(255,255,255,0.9));
+  border-top:1px solid var(--panel-border);
+  backdrop-filter:blur(8px);
+  padding:10px 200px 8px;
+  min-height:20px;
+  display:flex;
+  justify-content:center;
+  z-index:18;
+  pointer-events:none;
+  box-shadow:0 -4px 16px rgba(0,0,0,0.04);
+}
+.caption-text{
+  max-width:760px;
+  text-align:center;
+  font-size:16px;
+  line-height:1.5;
+  color:#3a372e;
+}
+.caption-text .fading{color:#b9b295;}
+
+.avatar-cluster{
+  position:fixed;
+  left:22px;bottom:70px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  z-index:20;
+}
+.avatar{
+  width:52px;height:52px;
+  border-radius:50%;
+  background:#fff;
+  border:2px solid var(--panel-border);
+  display:flex;align-items:center;justify-content:center;
+  font-size:24px;
+  box-shadow:0 2px 8px rgba(0,0,0,0.08);
+  position:relative;
+}
+.avatar.speaking{border-color:var(--ochre);}
+.avatar.speaking::after{
+  content:'';
+  position:absolute; inset:-6px;
+  border-radius:50%;
+  border:2px solid var(--ochre);
+  opacity:0.5;
+  animation:ripple 1.6s ease-out infinite;
+}
+@keyframes ripple{0%{transform:scale(0.85);opacity:0.6;}100%{transform:scale(1.25);opacity:0;}}
+.cluster-btn-wrap{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:3px;
+}
+.cluster-btn{
+  width:38px;height:38px;border-radius:50%;
+  border:1px solid var(--panel-border);
+  background:#fff;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;font-size:15px;color:var(--ink);
+  box-shadow:0 1px 4px rgba(0,0,0,0.06);
+}
+.cluster-btn:hover{background:#faf8f2;}
+
+.mic-zone{
+  position:fixed;
+  right:22px;bottom:70px;
+  z-index:20;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:4px;
+}
+.mic-btn{
+  width:56px;height:56px;border-radius:50%;
+  border:none;
+  background:var(--brick);
+  color:#fff;
+  font-size:20px;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;
+  box-shadow:0 3px 10px rgba(168,75,57,0.35);
+}
+.mic-btn.live{animation:mic-pulse 1.3s ease-in-out infinite;}
+.mic-btn.unsupported{background:#c9c4b5;box-shadow:none;cursor:not-allowed;}
+@keyframes mic-pulse{0%,100%{box-shadow:0 0 0 0 rgba(168,75,57,.45);}50%{box-shadow:0 0 0 10px rgba(168,75,57,0);}}
+
+.ask-zone{
+  position:fixed;
+  left:50%;
+  bottom:70px;
+  transform:translateX(-50%);
+  z-index:20;
+  display:flex;
+  gap:8px;
+  align-items:center;
+  background:#fff;
+  border:1px solid var(--panel-border);
+  border-radius:30px;
+  padding:6px 6px 6px 18px;
+  box-shadow:0 3px 14px rgba(0,0,0,0.08);
+  width:min(520px, 44vw);
+}
+.ask-zone input{
+  flex:1;
+  border:none;outline:none;
+  font-family:'Source Serif 4', serif;
+  font-size:14px;
+  padding:8px 0;
+  background:transparent;
+}
+.ask-zone button{
+  width:36px;height:36px;border-radius:50%;
+  border:none;background:var(--ink);color:#fff;
+  cursor:pointer;font-size:14px;
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;
+}
+.ask-zone button:hover{background:var(--ochre);}
+
+.overlay{
+  position:fixed;inset:0;
+  background:rgba(20,18,12,0.25);
+  z-index:29;
+  opacity:0;pointer-events:none;
+  transition:opacity .2s ease;
+}
+.overlay.open{opacity:1;pointer-events:auto;}
+
+.side-panel{
+  position:fixed;
+  top:0;left:0;bottom:0;
+  width:360px;
+  background:var(--panel);
+  border-right:1px solid var(--panel-border);
+  z-index:30;
+  transform:translateX(-100%);
+  transition:transform .25s cubic-bezier(.2,.8,.2,1);
+  display:flex;flex-direction:column;
+  box-shadow:8px 0 30px rgba(0,0,0,0.08);
+}
+.side-panel.open{transform:translateX(0);}
+
+.panel-head{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:18px 20px;border-bottom:1px solid var(--panel-border);
+}
+.panel-head h1{
+  font-size:19px;margin:0;font-weight:600;
+}
+.panel-head h1 em{color:var(--ochre);font-style:italic;}
+.panel-close{
+  background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted);
+}
+
+.panel-body{flex:1;overflow-y:auto;}
+.p-section{padding:16px 20px;border-bottom:1px solid var(--panel-border);}
+.p-section h2{
+  font-family:'JetBrains Mono', monospace;
+  font-size:10.5px;letter-spacing:0.4px;color:var(--muted);
+  margin:0 0 10px 0;
+  display:flex;justify-content:space-between;align-items:center;
+}
+.link-btn{
+  font-family:'JetBrains Mono', monospace;font-size:10px;
+  color:var(--ochre);background:none;border:none;cursor:pointer;
+}
+.link-btn:hover{text-decoration:underline;}
+
+.upload-zone{
+  border:1.5px dashed #d8d2bd;border-radius:6px;padding:14px;
+  text-align:center;cursor:pointer;font-size:13px;color:#7a7361;
+  transition:border-color .15s ease;
+}
+.upload-zone:hover{border-color:var(--ochre);}
+.upload-zone.has-file{border-style:solid;border-color:var(--sage);color:var(--ink);text-align:left;}
+.file-name{font-weight:600;font-size:12.5px;}
+.file-meta{font-family:'JetBrains Mono', monospace;font-size:10px;color:var(--muted);margin-top:3px;}
+#pdf-input{display:none;}
+
+.topic-input{
+  width:100%;padding:10px 11px;border:1px solid var(--panel-border);border-radius:6px;
+  font-family:'Source Serif 4', serif;font-size:13px;resize:none;height:56px;
+}
+.topic-input:focus{outline:none;border-color:var(--ochre);}
+select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:pointer;}
+.p-row{display:flex;gap:8px;margin-top:9px;}
+.p-btn{
+  flex:1;font-family:'Source Serif 4', serif;font-size:13px;
+  border:1px solid var(--ink);background:transparent;color:var(--ink);
+  padding:8px 10px;border-radius:5px;cursor:pointer;
+}
+.p-btn.primary{background:var(--ink);color:#fff;}
+.p-btn:hover{background:var(--ochre);border-color:var(--ochre);color:#fff;}
+
+.session-list{max-height:130px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;}
+.session-item{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:7px 9px;border:1px solid var(--panel-border);border-radius:5px;
+  font-size:12px;cursor:pointer;
+}
+.session-item:hover{border-color:var(--ochre);}
+.session-item .s-name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.session-item .s-date{font-family:'JetBrains Mono', monospace;font-size:9.5px;color:var(--muted);flex-shrink:0;margin-left:8px;}
+
+.transcript{padding:14px 20px;display:flex;flex-direction:column;gap:12px;}
+.msg{font-size:13px;line-height:1.5;}
+.msg .who{font-family:'JetBrains Mono', monospace;font-size:9.5px;letter-spacing:0.3px;display:block;margin-bottom:3px;}
+.msg.tutor .who{color:var(--ochre);}
+.msg.user .who{color:var(--sage);}
+.msg.user{color:#514d41;padding-left:9px;border-left:2px solid var(--sage);}
+.empty-note{font-size:12px;color:var(--muted);font-style:italic;}
+
+.quiz-card{background:#fdfcf7;border:1px solid var(--panel-border);border-radius:6px;padding:14px;margin-top:2px;}
+.quiz-q{font-size:13px;font-weight:600;margin-bottom:9px;line-height:1.4;}
+.quiz-opt{
+  display:block;width:100%;text-align:left;padding:8px 10px;margin-bottom:6px;
+  border:1px solid var(--panel-border);border-radius:5px;background:#fff;
+  font-family:'Source Serif 4', serif;font-size:12.5px;cursor:pointer;
+}
+.quiz-opt:hover{border-color:var(--ochre);}
+.quiz-opt.correct{background:#eaf1ec;border-color:var(--sage);}
+.quiz-opt.incorrect{background:#f6e9e5;border-color:var(--brick);}
+.quiz-opt:disabled{cursor:default;}
+.quiz-explain{font-size:12px;margin-top:9px;padding-top:9px;border-top:1px solid var(--panel-border);color:#514d41;display:none;}
+.quiz-explain.show{display:block;}
+
+::-webkit-scrollbar{width:7px;}
+::-webkit-scrollbar-thumb{background:#e4ddc8;border-radius:4px;}
+</style>
+</head>
+<body>
+
+<div class="ambient-halo"></div>
+<div id="board-wrap">
+  <canvas id="board"></canvas>
+</div>
+
+<div class="topbar">
+  <div class="topbar-btn-wrap">
+    <a class="icon-btn" href="#" title="Back to Chalkline" style="text-decoration:none;display:flex;align-items:center;justify-content:center;" onclick="parent.postMessage({nav:'home'},'*');return false;">🏠</a>
+    <span class="btn-label">Home</span>
+  </div>
+  <div class="topbar-btn-wrap">
+    <button class="icon-btn" id="btn-menu" title="Menu">☰</button>
+    <span class="btn-label">Menu</span>
+  </div>
+  <div class="top-right-cluster">
+    <div class="status-chip" id="status-line">idle</div>
+    <div class="topbar-btn-wrap">
+      <button class="icon-btn" id="zoom-reset" title="Reset view">⤾</button>
+      <span class="btn-label">Reset view</span>
+    </div>
+    <div class="topbar-btn-wrap">
+      <button class="icon-btn" id="btn-clear" title="Clear board">🗑</button>
+      <span class="btn-label">Clear</span>
+    </div>
+    <div class="topbar-btn-wrap">
+      <button class="icon-btn" id="btn-save" title="Save session">⬇</button>
+      <span class="btn-label">Save</span>
+    </div>
+    <div class="topbar-btn-wrap">
+      <button class="icon-btn" id="btn-export-pdf" title="Export board as PDF">📄</button>
+      <span class="btn-label">Export PDF</span>
+    </div>
+  </div>
+</div>
+
+<div class="caption-zone">
+  <div class="caption-text" id="caption-text"></div>
+</div>
+
+<div class="avatar-cluster">
+  <div class="cluster-btn-wrap">
+    <div class="avatar" id="avatar">🧑‍🏫</div>
+    <span class="btn-label">Tutor</span>
+  </div>
+  <div class="cluster-btn-wrap">
+    <button class="cluster-btn" id="btn-toggle-transcript" title="Show transcript">💬</button>
+    <span class="btn-label">Transcript</span>
+  </div>
+  <div class="cluster-btn-wrap">
+    <button class="cluster-btn" id="btn-replay" title="Replay narration">🔊</button>
+    <span class="btn-label">Replay</span>
+  </div>
+</div>
+
+<div class="ask-zone">
+  <input type="text" id="ask-input" placeholder="Ask a follow-up…">
+  <button id="btn-ask" title="Send">➤</button>
+</div>
+
+<div class="mic-zone">
+  <button class="mic-btn" id="btn-mic" title="Talk to your tutor">🎙</button>
+  <span class="btn-label">Talk</span>
+</div>
+
+<!-- SIDE PANEL -->
+<div class="overlay" id="overlay"></div>
+<div class="side-panel" id="side-panel">
+  <div class="panel-head">
+    <h1>Chalk<em>line</em></h1>
+    <button class="panel-close" id="btn-panel-close">✕</button>
+  </div>
+  <div class="panel-body">
+    <div class="p-section">
+      <h2>Saved sessions <button class="link-btn" id="btn-new-session">new</button></h2>
+      <div class="session-list" id="session-list"><div class="empty-note">No saved sessions yet.</div></div>
+    </div>
+    <div class="p-section">
+      <h2>AI brain</h2>
+      <select class="topic-input" id="brain-select" style="height:auto;padding:9px 10px;">
+        <option value="gemini">Google Gemini</option>
+        <option value="groq">Groq (Llama)</option>
+        <option value="openrouter">OpenRouter (free models)</option>
+        <option value="cerebras">Cerebras (Llama)</option>
+      </select>
+      <div class="file-meta" style="margin-top:6px;">Requests go through the Chalkline proxy — no key needed from you.</div>
+    </div>
+    <div class="p-section">
+      <h2>Narrator voice</h2>
+      <select class="topic-input" id="voice-select" style="height:auto;padding:9px 10px;"></select>
+      <div class="file-meta" style="margin-top:6px;">Auto-picks the highest-quality voice your browser/OS offers. Chrome and Edge on Windows/Mac usually have the best options.</div>
+    </div>
+    <div class="p-section">
+      <h2>Source material</h2>
+      <div class="upload-zone" id="upload-zone">
+        Drop a PDF, or click to import a chapter, slide deck or notes.
+        <input type="file" id="pdf-input" accept="application/pdf">
+      </div>
+    </div>
+    <div class="p-section">
+      <h2>Ask to be taught</h2>
+      <textarea class="topic-input" id="topic-input" placeholder="e.g. 'Explain price elasticity of demand'"></textarea>
+      <div class="p-row">
+        <button class="p-btn primary" id="btn-teach">Teach this</button>
+        <button class="p-btn" id="btn-quiz">Quiz me</button>
+      </div>
+    </div>
+    <div class="p-section" style="border-bottom:none;">
+      <h2>Transcript</h2>
+      <div class="transcript" id="transcript" style="padding:0;"><div class="empty-note">Your lecture transcript and quiz questions will appear here as we go.</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   INFINITE CANVAS: camera model & Auto-Stacking Layout
+   ========================================================= */
+
+const canvas = document.getElementById('board');
+let ctx = canvas.getContext('2d');
+ctx.lineCap = 'round';
+ctx.lineJoin = 'round';
+let viewW = 0, viewH = 0;
+const camera = { x: 500, y: 300, scale: 1 };
+
+// Kick off loading the handwriting webfonts immediately at page load
+// (rather than waiting for the first canvas draw to implicitly trigger
+// it), so by the time the first AI response comes back over the network
+// the fonts are already cached and text-measurement metrics are accurate
+// from turn one. See the matching `await document.fonts.ready` in
+// runTeachingTurn for why this matters.
+['700 40px Kalam','400 40px Kalam','700 40px Caveat','400 40px Caveat'].forEach(f=>{
+  document.fonts.load(f).catch(()=>{});
+});
+
+const PAGE_W = 1000;
+const PAGE_H = Math.round(PAGE_W * Math.SQRT2);
+const RULE_LINE_SPACING = 40;
+
+// The multiplier that converts an author-specified "size" into the actual
+// world-unit font size used for handwriting. Readable but still compact.
+const HAND_SIZE_MULT = 1.18;
+// Line height for a block of text at a given (already-multiplied) world
+// font size, snapped to a whole number of ruled-paper lines so every line
+// of handwriting sits on (or a fixed offset from) an actual rule line —
+// exactly like writing on real notebook paper — while still guaranteeing
+// enough vertical room that taller/bigger text never overlaps the line
+// below it. The 1.25 safety factor (rather than a razor-thin 1.0) absorbs
+// normal font-metric variance (ascenders/descenders, cursive flourishes)
+// so text never visually touches the rule line above or below it.
+function lineHeightFor(sizeWorld){
+  const needed = sizeWorld * 1.25;
+  const mult = Math.max(1, Math.ceil(needed / RULE_LINE_SPACING));
+  return mult * RULE_LINE_SPACING;
+}
+
+let userIsScrolledAway = false;
+const TOP_MARGIN = 80; // must be a whole multiple of RULE_LINE_SPACING so the
+                        // very first line of writing starts baseline-aligned
+                        // to a rule line, same as every line after it
+let globalCursorY = TOP_MARGIN;
+let currentTopicLabel = 'Topic';
+
+function resetRegionCursors(){
+  globalCursorY = TOP_MARGIN;
+  userIsScrolledAway = false;
+  
+  if (viewW > 0) {
+      camera.scale = Math.min(1.5, viewW / 1050);
+      camera.x = 500;
+  }
+}
+
+function getMaxYWorld(){
+  return globalCursorY;
+}
+
+let panToken = 0;
+function animateCameraPan(targetX, targetY, duration, onDone){
+  if(userIsScrolledAway) { if(onDone) onDone(); return; }
+  const myToken = ++panToken;
+  const startX = camera.x, startY = camera.y;
+  const dx = targetX - startX, dy = targetY - startY;
+  const start = performance.now();
+  let finished = false;
+  function finish(){ if(!finished){ finished = true; if(onDone) onDone(); } }
+  function ease(t){ return t<0.5 ? 4*t*t*t : 1-Math.pow(-2*t+2,3)/2; }
+  function frame(now){
+    if(myToken !== panToken || userIsScrolledAway){ finish(); return; }
+    const raw = Math.min(1, (now-start)/duration);
+    const t = ease(raw);
+    camera.x = startX + dx*t;
+    camera.y = startY + dy*t;
+    redrawAll();
+    if(raw < 1) requestAnimationFrame(frame); else { camera.x = targetX; camera.y = targetY; redrawAll(); finish(); }
+  }
+  requestAnimationFrame(frame);
+}
+
+function panCameraToCursor(targetY, onDone){
+  const idealScale = Math.min(1.5, viewW / 1050);
+  if (Math.abs(camera.scale - idealScale) > 0.01 && !userIsScrolledAway) {
+      camera.scale = idealScale;
+  }
+  // Force X to stay precisely centered on 500
+  animateCameraPan(500, targetY, 900, onDone);
+}
+
+function checkIfScrolledAway(){
+  const maxY = getMaxYWorld();
+  const bottomVisibleY = screenToWorld(0, viewH)[1];
+  userIsScrolledAway = (bottomVisibleY < maxY - 300);
+}
+
+function resizeCanvas(){
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  viewW = rect.width; viewH = rect.height;
+  
+  if (!userIsScrolledAway && viewW > 0) {
+      camera.scale = Math.min(1.5, viewW / 1050);
+      camera.x = 500;
+  }
+  
+  redrawAll();
+}
+window.addEventListener('resize', resizeCanvas);
+
+window.addEventListener('orientationchange', () => {
+  setTimeout(resizeCanvas, 50);
+  setTimeout(resizeCanvas, 350);
+});
+if (screen.orientation && screen.orientation.addEventListener) {
+  screen.orientation.addEventListener('change', () => {
+    setTimeout(resizeCanvas, 50);
+    setTimeout(resizeCanvas, 350);
+  });
+}
+
+function worldToScreen(wx, wy){
+  return [(wx - camera.x) * camera.scale + viewW/2, (wy - camera.y) * camera.scale + viewH/2];
+}
+function screenToWorld(sx, sy){
+  return [(sx - viewW/2) / camera.scale + camera.x, (sy - viewH/2) / camera.scale + camera.y];
+}
+
+const INK = '#1E2B3A';
+const OCHRE = '#D96B27';
+const SAGE = '#2A8A5D';
+const BRICK = '#C0392B';
+const TEAL = '#008080';
+const VIOLET = '#6C3483';
+const SKY = '#2980B9';
+const CORAL = '#E67E22';
+const HALO = '#8FA6FF';
+const HILITE = '#FCE896';
+const COLORS = { chalk:INK, ink:INK, ochre:OCHRE, sage:SAGE, brick:BRICK, teal:TEAL, violet:VIOLET, sky:SKY, coral:CORAL, halo:HALO, highlight:HILITE };
+
+function hexToRgba(hex, alpha){
+  const h = hex.replace('#','');
+  const r = parseInt(h.substring(0,2),16), g = parseInt(h.substring(2,4),16), b = parseInt(h.substring(4,6),16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+let drawnCommands = [];
+
+function drawBG(){
+  ctx.fillStyle = '#FAF8F3';
+  ctx.fillRect(0,0,viewW,viewH);
+}
+
+function drawPageGuides(){
+  const [leftMarginX] = worldToScreen(70, 0);
+  ctx.save();
+  ctx.strokeStyle = 'rgba(224, 128, 128, 0.45)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(leftMarginX, 0); ctx.lineTo(leftMarginX, viewH); ctx.stroke();
+  ctx.restore();
+}
+
+function drawRuleLines(){
+  const topWorldY = screenToWorld(0, 0)[1];
+  const bottomWorldY = screenToWorld(0, viewH)[1];
+  const firstLine = Math.floor(topWorldY / RULE_LINE_SPACING) * RULE_LINE_SPACING;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(200, 190, 170, 0.4)';
+  ctx.lineWidth = 1;
+  for(let wy = firstLine; wy <= bottomWorldY; wy += RULE_LINE_SPACING){
+    const [, sy] = worldToScreen(0, wy);
+    ctx.beginPath(); ctx.moveTo(0, sy); ctx.lineTo(viewW, sy); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function clearBoard(record=true){
+  if(record) drawnCommands = [];
+  drawBG();
+  drawRuleLines();
+  drawPageGuides();
+}
+
+function redrawAll(){
+  drawBG();
+  drawRuleLines();
+  drawPageGuides();
+  drawnCommands.forEach(cmd => renderCommand(cmd));
+}
+
+function redrawAllExcept(skipCmd){
+  drawBG();
+  drawRuleLines();
+  drawPageGuides();
+  drawnCommands.forEach(cmd => { if(cmd !== skipCmd) renderCommand(cmd); });
+}
+
+function sw(n){ return n * camera.scale; }
+
+function wrapTextToLines(text, maxWidthPx, customCtx){
+  const words = (text||'').split(/\s+/).filter(Boolean);
+  const lines = [];
+  let cur = '';
+  const context = customCtx || ctx;
+  words.forEach(w => {
+    const test = cur ? cur + ' ' + w : w;
+    if(cur && context.measureText(test).width > maxWidthPx){
+      lines.push(cur);
+      cur = w;
+    } else {
+      cur = test;
+    }
+  });
+  if(cur) lines.push(cur);
+  return lines.length ? lines : [''];
+}
+
+// A single underline stroke drawn beneath a finished line of heading text,
+// with a touch of hand-drawn imperfection (a slight downward bow, like a
+// pen underline) rather than a perfectly straight ruled line — so it reads
+// as "the tutor underlined this" rather than a UI decoration.
+function drawHeadingUnderline(sx, baselineY, widthPx, sizeWorld, color){
+  if(widthPx <= 0) return;
+  const y = baselineY + sw(sizeWorld*0.16);
+  const bow = sw(sizeWorld*0.03);
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = sw(Math.max(1.5, sizeWorld*0.045));
+  ctx.beginPath();
+  ctx.moveTo(sx, y);
+  ctx.quadraticCurveTo(sx + widthPx/2, y + bow, sx + widthPx, y);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function commandScreenBBox(cmd){
+  const PAD = 10;
+  function pad(x0,y0,x1,y1){
+    return [Math.min(x0,x1)-PAD, Math.min(y0,y1)-PAD, Math.max(x0,x1)+PAD, Math.max(y0,y1)+PAD];
+  }
+  switch(cmd.type){
+    case 'text': {
+      const fam = "'Kalam', 'Caveat', cursive";
+      const weight = cmd.weight || 700;
+      const size = (cmd.size||26)*HAND_SIZE_MULT;
+      ctx.font = `${weight} ${sw(size)}px ${fam}`;
+      const [sx,sy] = worldToScreen(cmd.x, cmd.y);
+      if(cmd.maxWidth){
+        const lines = wrapTextToLines(cmd.text||'', sw(cmd.maxWidth));
+        const lineHeight = sw(lineHeightFor(size));
+        const width = Math.max(0, ...lines.map(l=>ctx.measureText(l).width));
+        return pad(sx, sy - sw(size)*1.05, sx + width, sy + lineHeight*(lines.length-1) + sw(size)*0.25);
+      }
+      const width = ctx.measureText(cmd.text||'').width;
+      return pad(sx, sy - sw(size)*1.05, sx + width, sy + sw(size)*0.25);
+    }
+    case 'line': case 'arrow': {
+      const [x1,y1] = worldToScreen(cmd.x1,cmd.y1); const [x2,y2] = worldToScreen(cmd.x2,cmd.y2);
+      return pad(x1,y1,x2,y2);
+    }
+    case 'rect': case 'highlight': case 'highlight-marker': {
+      const [x,y] = worldToScreen(cmd.x,cmd.y);
+      return pad(x, y, x+sw(cmd.w), y+sw(cmd.h||(cmd.type==='rect'?0:40)));
+    }
+    case 'circle': {
+      const [x,y] = worldToScreen(cmd.x,cmd.y);
+      return pad(x-sw(cmd.rx), y-sw(cmd.ry), x+sw(cmd.rx), y+sw(cmd.ry));
+    }
+    case 'curve': {
+      const pts = (cmd.points||[]).map(p=>worldToScreen(p[0],p[1]));
+      if(!pts.length) return [0,0,0,0];
+      const xs = pts.map(p=>p[0]), ys = pts.map(p=>p[1]);
+      return pad(Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys));
+    }
+    case 'axes': case 'plot': {
+      const [ox,oy] = worldToScreen(cmd.x,cmd.y);
+      const w = sw(cmd.w), h = sw(cmd.h);
+      return pad(ox, oy-h-sw(30), ox+w, oy+sw(20));
+    }
+    case 'halo': {
+      const [x,y] = worldToScreen(cmd.x,cmd.y); const r = sw(cmd.r||60);
+      return pad(x-r,y-r,x+r,y+r);
+    }
+    case 'path': {
+      const pts = flattenScreenSegsToPoints(worldPathToScreenSegments(cmd.segments||[]));
+      if(!pts.length) return [0,0,0,0];
+      const xs = pts.map(p=>p[0]), ys = pts.map(p=>p[1]);
+      return pad(Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys));
+    }
+    default: return [0,0,0,0];
+  }
+}
+
+/* ---------- PATH primitive: lets the model compose arbitrary organic
+   shapes (cell membranes, leaf outlines, animal silhouettes, etc.) out
+   of move/line/quadratic/cubic segments in world space, same way an
+   SVG <path> works. Segments: ["M",x,y] ["L",x,y] ["Q",cx,cy,x,y]
+   ["C",c1x,c1y,c2x,c2y,x,y] ["Z"]. ---------- */
+function worldPathToScreenSegments(segments){
+  return (segments||[]).map(seg=>{
+    if(!seg || !seg.length) return null;
+    if(seg[0]==='Z' || seg[0]==='z') return ['Z'];
+    const out = [seg[0]];
+    for(let i=1;i<seg.length;i+=2){
+      const [sx,sy] = worldToScreen(seg[i], seg[i+1]);
+      out.push(sx, sy);
+    }
+    return out;
+  }).filter(Boolean);
+}
+
+function drawPathSegments(pctx, screenSegs){
+  pctx.beginPath();
+  screenSegs.forEach(seg=>{
+    const t = seg[0];
+    if(t==='M') pctx.moveTo(seg[1],seg[2]);
+    else if(t==='L') pctx.lineTo(seg[1],seg[2]);
+    else if(t==='Q') pctx.quadraticCurveTo(seg[1],seg[2],seg[3],seg[4]);
+    else if(t==='C') pctx.bezierCurveTo(seg[1],seg[2],seg[3],seg[4],seg[5],seg[6]);
+    else if(t==='Z') pctx.closePath();
+  });
+}
+
+function flattenScreenSegsToPoints(screenSegs){
+  const pts = [];
+  let cur = [0,0];
+  screenSegs.forEach(seg=>{
+    const t = seg[0];
+    if(t==='M'){ cur=[seg[1],seg[2]]; pts.push(cur); }
+    else if(t==='L'){ cur=[seg[1],seg[2]]; pts.push(cur); }
+    else if(t==='Q'){
+      const [x0,y0]=cur, cx=seg[1], cy=seg[2], x1=seg[3], y1=seg[4];
+      for(let i=1;i<=10;i++){ const tt=i/10, mt=1-tt;
+        pts.push([mt*mt*x0+2*mt*tt*cx+tt*tt*x1, mt*mt*y0+2*mt*tt*cy+tt*tt*y1]); }
+      cur=[x1,y1];
+    } else if(t==='C'){
+      const [x0,y0]=cur, c1x=seg[1],c1y=seg[2],c2x=seg[3],c2y=seg[4],x1=seg[5],y1=seg[6];
+      for(let i=1;i<=12;i++){ const tt=i/12, mt=1-tt;
+        pts.push([mt*mt*mt*x0+3*mt*mt*tt*c1x+3*mt*tt*tt*c2x+tt*tt*tt*x1, mt*mt*mt*y0+3*mt*mt*tt*c1y+3*mt*tt*tt*c2y+tt*tt*tt*y1]); }
+      cur=[x1,y1];
+    }
+    // 'Z' contributes no new point — it just closes back to the start
+  });
+  return pts;
+}
+
+function strokePolylinePartial(pts, t){
+  if(!pts.length) return [0,0];
+  if(pts.length===1) return pts[0];
+  const segLens=[]; let total=0;
+  for(let i=0;i<pts.length-1;i++){ const d=Math.hypot(pts[i+1][0]-pts[i][0], pts[i+1][1]-pts[i][1]); segLens.push(d); total+=d; }
+  const target = total*t;
+  ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+  let acc=0, penX=pts[0][0], penY=pts[0][1];
+  for(let i=0;i<segLens.length;i++){
+    const segLen = segLens[i];
+    if(acc+segLen <= target){ ctx.lineTo(pts[i+1][0], pts[i+1][1]); acc+=segLen; penX=pts[i+1][0]; penY=pts[i+1][1]; }
+    else{
+      const frac = segLen>0 ? (target-acc)/segLen : 0;
+      penX = pts[i][0]+(pts[i+1][0]-pts[i][0])*frac;
+      penY = pts[i][1]+(pts[i+1][1]-pts[i][1])*frac;
+      ctx.lineTo(penX,penY);
+      break;
+    }
+  }
+  ctx.stroke();
+  return [penX,penY];
+}
+
+function renderCommand(cmd){
+  const color = COLORS[cmd.color] || INK;
+  ctx.strokeStyle = color; ctx.fillStyle = color;
+
+  switch(cmd.type){
+    case 'text': {
+      const fam = "'Kalam', 'Caveat', cursive";
+      const weight = cmd.weight || 700;
+      const size = (cmd.size||26)*HAND_SIZE_MULT;
+      ctx.font = `${weight} ${sw(size)}px ${fam}`;
+      ctx.textBaseline = 'alphabetic';
+      const [sx,sy] = worldToScreen(cmd.x, cmd.y);
+      if(cmd.maxWidth){
+        const lines = wrapTextToLines(cmd.text||'', sw(cmd.maxWidth));
+        const lineHeight = sw(lineHeightFor(size));
+        lines.forEach((line,i) => {
+          const ly = sy + i*lineHeight;
+          ctx.fillText(line, sx, ly);
+          if(cmd.heading) drawHeadingUnderline(sx, ly, ctx.measureText(line).width, size, color);
+        });
+      } else {
+        ctx.fillText(cmd.text, sx, sy);
+        if(cmd.heading) drawHeadingUnderline(sx, sy, ctx.measureText(cmd.text||'').width, size, color);
+      }
+      break;
+    }
+    case 'line': {
+      ctx.lineWidth = sw(cmd.width || 2.5);
+      const [x1,y1] = worldToScreen(cmd.x1, cmd.y1); const [x2,y2] = worldToScreen(cmd.x2, cmd.y2);
+      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+      break;
+    }
+    case 'arrow': {
+      ctx.lineWidth = sw(cmd.width || 2.5);
+      const [x1,y1] = worldToScreen(cmd.x1, cmd.y1); const [x2,y2] = worldToScreen(cmd.x2, cmd.y2);
+      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+      const angle = Math.atan2(y2-y1, x2-x1); const headLen = sw(cmd.headSize || 12);
+      ctx.beginPath(); ctx.moveTo(x2, y2);
+      ctx.lineTo(x2 - headLen*Math.cos(angle - Math.PI/7), y2 - headLen*Math.sin(angle - Math.PI/7));
+      ctx.lineTo(x2 - headLen*Math.cos(angle + Math.PI/7), y2 - headLen*Math.sin(angle + Math.PI/7));
+      ctx.closePath(); ctx.fill();
+      break;
+    }
+    case 'rect': {
+      ctx.lineWidth = sw(cmd.width || 2.5);
+      const [x,y] = worldToScreen(cmd.x, cmd.y); const w = sw(cmd.w), h = sw(cmd.h);
+      if(cmd.fill){ ctx.globalAlpha = 0.10; ctx.fillRect(x,y,w,h); ctx.globalAlpha = 1; }
+      ctx.strokeRect(x,y,w,h);
+      break;
+    }
+    case 'circle': {
+      ctx.lineWidth = sw(cmd.width || 2.5);
+      const [x,y] = worldToScreen(cmd.x, cmd.y);
+      ctx.beginPath(); ctx.ellipse(x, y, sw(cmd.rx), sw(cmd.ry), 0, 0, Math.PI*2);
+      if(cmd.fill){ ctx.globalAlpha = 0.10; ctx.fill(); ctx.globalAlpha = 1; }
+      ctx.stroke();
+      break;
+    }
+    case 'curve': {
+      ctx.lineWidth = sw(cmd.width || 2.5);
+      const pts = cmd.points.map(p => worldToScreen(p[0], p[1]));
+      if(cmd.fill && pts.length>2){
+        ctx.save();
+        ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]);
+        for(let i=1;i<pts.length-1;i++){
+          const midX=(pts[i][0]+pts[i+1][0])/2, midY=(pts[i][1]+pts[i+1][1])/2;
+          ctx.quadraticCurveTo(pts[i][0],pts[i][1],midX,midY);
+        }
+        const last = pts[pts.length-1]; ctx.lineTo(last[0],last[1]); ctx.closePath();
+        ctx.globalAlpha = cmd.fillOpacity!=null ? cmd.fillOpacity : 0.12;
+        ctx.fillStyle = COLORS[cmd.fillColor] || color;
+        ctx.fill();
+        ctx.restore();
+      }
+      strokeSmoothCurve(pts);
+      break;
+    }
+    case 'path': {
+      ctx.lineWidth = sw(cmd.width || 2.5);
+      const screenSegs = worldPathToScreenSegments(cmd.segments||[]);
+      drawPathSegments(ctx, screenSegs);
+      if(cmd.fill){
+        ctx.save();
+        ctx.globalAlpha = cmd.fillOpacity!=null ? cmd.fillOpacity : 0.12;
+        ctx.fillStyle = COLORS[cmd.fillColor] || color;
+        ctx.fill();
+        ctx.restore();
+      }
+      ctx.stroke();
+      break;
+    }
+    case 'axes': {
+      const [ox,oy] = worldToScreen(cmd.x, cmd.y); const w = sw(cmd.w), h = sw(cmd.h);
+      drawAxesGrid(ox, oy, w, h, cmd);
+      ctx.lineWidth = sw(2);
+      ctx.strokeStyle = color; ctx.fillStyle = color;
+      ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox, oy - h); ctx.moveTo(ox, oy); ctx.lineTo(ox + w, oy); ctx.stroke();
+      drawArrowhead(ox, oy - h, -Math.PI/2, color);
+      drawArrowhead(ox + w, oy, 0, color);
+      drawAxesTicksAndLabels(ox, oy, w, h, cmd, color);
+      break;
+    }
+    case 'plot': {
+      const [ox,oy] = worldToScreen(cmd.x, cmd.y); const w = sw(cmd.w), h = sw(cmd.h);
+      drawAxesGrid(ox, oy, w, h, cmd);
+      ctx.lineWidth = sw(2.5);
+      ctx.strokeStyle = color; ctx.fillStyle = color;
+      ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox, oy - h); ctx.moveTo(ox, oy); ctx.lineTo(ox + w, oy); ctx.stroke();
+      drawArrowhead(ox, oy - h, -Math.PI/2, color);
+      drawArrowhead(ox + w, oy, 0, color);
+      drawAxesTicksAndLabels(ox, oy, w, h, cmd, color);
+      const [scaleX, scaleY] = plotScalers(ox, oy, w, h, cmd);
+      (cmd.curves || []).forEach(curve => {
+        const pts = (curve.points || []).map(p => [scaleX(p[0]), scaleY(p[1])]);
+        if(pts.length < 2) return;
+        const curveColor = COLORS[curve.color] || color;
+        ctx.save();
+        ctx.shadowColor = hexToRgba(curveColor, 0.35);
+        ctx.shadowBlur = sw(4);
+        ctx.shadowOffsetY = sw(1.5);
+        ctx.strokeStyle = curveColor;
+        ctx.lineWidth = sw(curve.width || 3.25);
+        strokeSmoothCurve(pts);
+        ctx.restore();
+        ctx.fillStyle = curveColor;
+        pts.forEach(p => { ctx.beginPath(); ctx.arc(p[0], p[1], sw(2.75), 0, Math.PI*2); ctx.fill(); });
+        if(curve.label){
+          ctx.fillStyle = curveColor;
+          ctx.font = `700 ${sw(18)}px 'Caveat', cursive`;
+          ctx.textAlign = 'left';
+          const [lx,ly] = pts[pts.length-1];
+          ctx.fillText(curve.label, lx+sw(8), ly+sw(4));
+        }
+      });
+      break;
+    }
+    case 'highlight': {
+      ctx.globalAlpha = 0.18; ctx.fillStyle = color;
+      const [x,y] = worldToScreen(cmd.x, cmd.y);
+      ctx.fillRect(x, y, sw(cmd.w), sw(cmd.h || 26));
+      ctx.globalAlpha = 1;
+      break;
+    }
+    case 'halo': {
+      const [x,y] = worldToScreen(cmd.x, cmd.y);
+      const r = sw(cmd.r || 60);
+      const glow = COLORS[cmd.color] || HALO;
+      const grad = ctx.createRadialGradient(x,y,0,x,y,r);
+      grad.addColorStop(0, hexToRgba(glow, 0.40));
+      grad.addColorStop(1, hexToRgba(glow, 0));
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+      break;
+    }
+  }
+}
+
+function drawArrowhead(x, y, angle, color, size){
+  const headLen = sw(size || 9);
+  ctx.fillStyle = color;
+  ctx.beginPath(); ctx.moveTo(x, y);
+  ctx.lineTo(x - headLen*Math.cos(angle - Math.PI/7), y - headLen*Math.sin(angle - Math.PI/7));
+  ctx.lineTo(x - headLen*Math.cos(angle + Math.PI/7), y - headLen*Math.sin(angle + Math.PI/7));
+  ctx.closePath(); ctx.fill();
+}
+
+function drawAxesGrid(ox, oy, w, h, cmd){
+  if(cmd.grid === false) return;
+  const n = cmd.gridLines || 5;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(38,36,31,0.14)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([sw(3), sw(4)]);
+  for(let i=1;i<=n;i++){
+    const gx = ox + (w*i/n);
+    ctx.beginPath(); ctx.moveTo(gx, oy); ctx.lineTo(gx, oy-h); ctx.stroke();
+    const gy = oy - (h*i/n);
+    ctx.beginPath(); ctx.moveTo(ox, gy); ctx.lineTo(ox+w, gy); ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+function drawAxesTicksAndLabels(ox, oy, w, h, cmd, color){
+  ctx.save();
+  ctx.font = `${sw(14)}px 'Caveat', cursive`;
+  ctx.fillStyle = color;
+  if(Array.isArray(cmd.xTicks)){
+    const n = cmd.xTicks.length;
+    cmd.xTicks.forEach((label, i) => {
+      const tx = ox + w*(i+1)/(n+1);
+      ctx.strokeStyle = color; ctx.lineWidth = sw(1.5);
+      ctx.beginPath(); ctx.moveTo(tx, oy-sw(4)); ctx.lineTo(tx, oy+sw(4)); ctx.stroke();
+      ctx.textAlign = 'center';
+      ctx.fillText(String(label), tx, oy+sw(18));
+    });
+  }
+  if(Array.isArray(cmd.yTicks)){
+    const n = cmd.yTicks.length;
+    cmd.yTicks.forEach((label, i) => {
+      const ty = oy - h*(i+1)/(n+1);
+      ctx.strokeStyle = color; ctx.lineWidth = sw(1.5);
+      ctx.beginPath(); ctx.moveTo(ox-sw(4), ty); ctx.lineTo(ox+sw(4), ty); ctx.stroke();
+      ctx.textAlign = 'right';
+      ctx.fillText(String(label), ox-sw(8), ty+sw(4));
+    });
+  }
+  ctx.textAlign = 'left';
+  ctx.font = `${sw(16)}px 'Caveat', cursive`;
+  if(cmd.xlabel){ ctx.textAlign = 'right'; ctx.fillText(cmd.xlabel, ox+w, oy+sw(30)); }
+  if(cmd.ylabel){ ctx.save(); ctx.translate(ox-sw(28), oy-h); ctx.textAlign = 'left'; ctx.fillText(cmd.ylabel,0,0); ctx.restore(); }
+  if(cmd.title){ ctx.textAlign = 'center'; ctx.font = `700 ${sw(20)}px 'Caveat', cursive`; ctx.fillText(cmd.title, ox+w/2, oy-h-sw(16)); }
+  ctx.restore();
+}
+
+function strokeSmoothCurve(pts){
+  ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+  for(let i=1;i<pts.length-1;i++){
+    const midX = (pts[i][0]+pts[i+1][0])/2, midY = (pts[i][1]+pts[i+1][1])/2;
+    ctx.quadraticCurveTo(pts[i][0], pts[i][1], midX, midY);
+  }
+  const last = pts[pts.length-1];
+  ctx.lineTo(last[0], last[1]);
+  ctx.stroke();
+}
+
+function strokeSmoothCurvePartial(pts, t){
+  const totalSegs = pts.length-1;
+  const segFloat = t*totalSegs;
+  const segIdx = Math.min(totalSegs-1, Math.floor(segFloat));
+  const segT = segFloat-segIdx;
+  ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+  for(let i=1;i<=segIdx;i++){
+    const nextI = Math.min(i+1, pts.length-1);
+    const midX = (pts[i][0]+pts[nextI][0])/2, midY = (pts[i][1]+pts[nextI][1])/2;
+    ctx.quadraticCurveTo(pts[i][0], pts[i][1], midX, midY);
+  }
+  let penX = pts[segIdx][0], penY = pts[segIdx][1];
+  if(pts[segIdx+1]){
+    penX = pts[segIdx][0]+(pts[segIdx+1][0]-pts[segIdx][0])*segT;
+    penY = pts[segIdx][1]+(pts[segIdx+1][1]-pts[segIdx][1])*segT;
+    ctx.lineTo(penX, penY);
+  }
+  ctx.stroke();
+  return [penX, penY];
+}
+
+function plotScalers(ox, oy, w, h, cmd){
+  const [xMin,xMax] = cmd.xRange || [0, 10];
+  const [yMin,yMax] = cmd.yRange || [0, 10];
+  const xSpan = (xMax-xMin) || 1, ySpan = (yMax-yMin) || 1;
+  const scaleX = v => ox + ((v-xMin)/xSpan)*w;
+  const scaleY = v => oy - ((v-yMin)/ySpan)*h;
+  return [scaleX, scaleY];
+}
+
+/* ---------- PAN / ZOOM (mouse) ---------- */
+let isPanning = false, panStart=null, camStart=null;
+canvas.addEventListener('mousedown', (e)=>{ 
+  panToken++; isPanning=true; canvas.classList.add('grabbing'); 
+  panStart=[e.clientX,e.clientY]; camStart={x:camera.x,y:camera.y}; 
+  if(typeof stopHoverReplay==='function') stopHoverReplay(); 
+});
+window.addEventListener('mousemove', (e)=>{
+  if(!isPanning) return;
+  camera.y = camStart.y - (e.clientY - panStart[1]) / camera.scale;
+  checkIfScrolledAway();
+  redrawAll();
+});
+window.addEventListener('mouseup', ()=>{ isPanning=false; canvas.classList.remove('grabbing'); });
+
+/* ---------- PAN / ZOOM (touch — iPad & mobile) ----------
+   A single finger drags the board exactly like a mouse-drag pan, so you
+   can swipe up to read earlier notes or swipe down to catch up — this is
+   the primary way to scroll the whiteboard on a touch device. Two fingers
+   pinch-zoom around their midpoint. Both gestures immediately mark the
+   user as "scrolled away" (via checkIfScrolledAway), which is what stops
+   the AI's auto-follow camera from fighting a manual scroll; scrolling
+   back down near the live writing point clears that flag again on its
+   own the next time it's checked. */
+let touchMode = null; // 'pan' | 'pinch' | null
+let pinchStartDist = 0, pinchStartScale = 1, pinchWorldMid = null;
+function touchDist(t0,t1){ return Math.hypot(t1.clientX-t0.clientX, t1.clientY-t0.clientY); }
+function touchMid(t0,t1){ return { x:(t0.clientX+t1.clientX)/2, y:(t0.clientY+t1.clientY)/2 }; }
+canvas.addEventListener('touchstart', (e)=>{
+  panToken++; stopHoverReplay();
+  if(e.touches.length === 1){
+    touchMode = 'pan';
+    panStart = [e.touches[0].clientX, e.touches[0].clientY];
+    camStart = { x:camera.x, y:camera.y };
+  } else if(e.touches.length === 2){
+    touchMode = 'pinch';
+    pinchStartDist = touchDist(e.touches[0], e.touches[1]);
+    pinchStartScale = camera.scale;
+    const mid = touchMid(e.touches[0], e.touches[1]);
+    const rect = canvas.getBoundingClientRect();
+    pinchWorldMid = screenToWorld(mid.x-rect.left, mid.y-rect.top);
+  }
+}, {passive:true});
+canvas.addEventListener('touchmove', (e)=>{
+  if(touchMode === 'pan' && e.touches.length === 1){
+    e.preventDefault();
+    camera.y = camStart.y - (e.touches[0].clientY - panStart[1]) / camera.scale;
+    checkIfScrolledAway();
+    redrawAll();
+  } else if(touchMode === 'pinch' && e.touches.length === 2){
+    e.preventDefault();
+    const dist = touchDist(e.touches[0], e.touches[1]);
+    camera.scale = Math.min(3, Math.max(0.2, pinchStartScale * (dist/Math.max(1,pinchStartDist))));
+    const rect = canvas.getBoundingClientRect();
+    const mid = touchMid(e.touches[0], e.touches[1]);
+    const [nx,ny] = screenToWorld(mid.x-rect.left, mid.y-rect.top);
+    camera.x += (pinchWorldMid[0]-nx); camera.y += (pinchWorldMid[1]-ny);
+    checkIfScrolledAway();
+    redrawAll();
+  }
+}, {passive:false});
+canvas.addEventListener('touchend', (e)=>{
+  if(e.touches.length === 0){ touchMode = null; checkIfScrolledAway(); }
+  else if(e.touches.length === 1){
+    // dropped from a pinch down to one finger — restart as a plain pan
+    touchMode = 'pan';
+    panStart = [e.touches[0].clientX, e.touches[0].clientY];
+    camStart = { x:camera.x, y:camera.y };
+  }
+});
+canvas.addEventListener('touchcancel', ()=>{ touchMode = null; checkIfScrolledAway(); });
+
+/* ---------- HOVER-TO-REPLAY ---------- */
+const hoverAnim = { cmd:null, raf:null };
+
+function stopHoverReplay(){
+  if(hoverAnim.raf) cancelAnimationFrame(hoverAnim.raf);
+  hoverAnim.raf = null;
+  if(hoverAnim.cmd){ hoverAnim.cmd = null; redrawAll(); }
+}
+
+function startHoverReplay(cmd){
+  if(hoverAnim.cmd === cmd) return;
+  if(hoverAnim.raf) cancelAnimationFrame(hoverAnim.raf);
+  hoverAnim.cmd = cmd;
+  const duration = estimateDuration(cmd);
+  const start = performance.now();
+  function frame(now){
+    if(hoverAnim.cmd !== cmd) return;
+    const t = Math.min(1, (now-start)/duration);
+    redrawAllExcept(cmd);
+    renderPartialCommand(cmd, t);
+    if(t < 1){ hoverAnim.raf = requestAnimationFrame(frame); }
+    else { hoverAnim.raf = null; redrawAll(); }
+  }
+  hoverAnim.raf = requestAnimationFrame(frame);
+}
+
+canvas.addEventListener('mousemove', (e)=>{
+  if(isPanning || drawing) return;
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  let hit = null;
+  for(let i = drawnCommands.length - 1; i >= 0; i--){
+    const cmd = drawnCommands[i];
+    if(cmd.type === 'highlight' || cmd.type === 'halo') continue;
+    const [x0,y0,x1,y1] = commandScreenBBox(cmd);
+    if(mx>=x0 && mx<=x1 && my>=y0 && my<=y1){ hit = cmd; break; }
+  }
+  canvas.classList.toggle('hoverable', !!hit);
+  if(hit) startHoverReplay(hit); else stopHoverReplay();
+});
+canvas.addEventListener('mouseleave', stopHoverReplay);
+canvas.addEventListener('wheel', (e)=>{
+  e.preventDefault();
+  panToken++;
+  stopHoverReplay();
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX-rect.left, my = e.clientY-rect.top;
+  // Pinch-to-zoom on a trackpad (and ctrl+wheel) reports as a wheel event
+  // with ctrlKey set — treat that as zoom. A plain wheel/trackpad scroll
+  // is treated as an ordinary scroll of the board, so the page is fully
+  // scrollable with a normal mouse wheel or two-finger trackpad swipe.
+  if(e.ctrlKey){
+    const [wx,wy] = screenToWorld(mx,my);
+    camera.scale = Math.min(3, Math.max(0.2, camera.scale * (e.deltaY>0?0.9:1.1)));
+    const [nx,ny] = screenToWorld(mx,my);
+    camera.x += (wx-nx); camera.y += (wy-ny);
+  } else {
+    camera.y += e.deltaY / camera.scale;
+  }
+  checkIfScrolledAway();
+  redrawAll();
+}, {passive:false});
+document.getElementById('zoom-reset').addEventListener('click', ()=>{ 
+  panToken++; camera.x=500; camera.scale=Math.min(1.5, viewW / 1050); 
+  userIsScrolledAway=false; 
+  panCameraToCursor(globalCursorY - 300, null);
+  redrawAll(); 
+});
+document.getElementById('btn-clear').addEventListener('click', ()=>{ panToken++; drawQueue=[]; camera.x=500;camera.y=300;camera.scale=1; resetRegionCursors(); clearBoard(); });
+
+/* =========================================================
+   EXPORT PDF
+   ========================================================= */
+function worldContentBounds(){
+  const savedCam = { ...camera }, savedW = viewW, savedH = viewH;
+  camera.scale = 1; camera.x = viewW/2; camera.y = viewH/2;
+  let minX=0, minY=0, maxX=PAGE_W, maxY=1;
+  drawnCommands.forEach(cmd=>{
+    const [x0,y0,x1,y1] = commandScreenBBox(cmd);
+    minX=Math.min(minX,x0); minY=Math.min(minY,y0);
+    maxX=Math.max(maxX,x1); maxY=Math.max(maxY,y1);
+  });
+  Object.assign(camera, savedCam); viewW = savedW; viewH = savedH;
+  return { minX, minY, maxX, maxY };
+}
+
+async function exportBoardAsPDF(){
+  if(!window.jspdf){ setStatus('pdf export unavailable — see console'); console.error('jsPDF did not load.'); return; }
+  if(drawnCommands.length===0){ setStatus('nothing drawn yet'); return; }
+  if(drawing || drawQueue.length){ setStatus('wait for current drawing to finish'); return; }
+
+  setStatus('exporting pdf…');
+  stopHoverReplay();
+  const savedCam = { ...camera }, savedW = viewW, savedH = viewH, savedCtx = ctx;
+
+  try{
+    const { minX, minY, maxY } = worldContentBounds();
+    const pageWorldW = PAGE_W;
+    const pageWorldH = PAGE_H;
+    const numPages = Math.max(1, Math.ceil((maxY - minY) / pageWorldH));
+    const PX_PER_WORLD_UNIT = 1.6;
+    const pxW = Math.round(pageWorldW * PX_PER_WORLD_UNIT);
+    const pxH = Math.round(pageWorldH * PX_PER_WORLD_UNIT);
+
+    const off = document.createElement('canvas');
+    off.width = pxW; off.height = pxH;
+    const offCtx = off.getContext('2d');
+    offCtx.lineCap = 'round'; offCtx.lineJoin = 'round';
+
+    const { jsPDF } = window.jspdf;
+    let doc = null;
+
+    for(let i=0; i<numPages; i++){
+      ctx = offCtx;
+      viewW = pxW; viewH = pxH;
+      camera.scale = PX_PER_WORLD_UNIT;
+      camera.x = minX + pageWorldW/2;
+      camera.y = (minY + i*pageWorldH) + pageWorldH/2;
+
+      drawBG();
+      drawRuleLines();
+      drawPageGuides();
+      drawnCommands.forEach(cmd => renderCommand(cmd));
+
+      const dataUrl = off.toDataURL('image/png');
+      if(i===0){
+        doc = new jsPDF({ unit:'pt', format:[pageWorldW, pageWorldH], orientation: pageWorldW>=pageWorldH?'landscape':'portrait' });
+      } else {
+        doc.addPage([pageWorldW, pageWorldH], pageWorldW>=pageWorldH?'landscape':'portrait');
+      }
+      doc.addImage(dataUrl, 'PNG', 0, 0, pageWorldW, pageWorldH);
+    }
+
+    const name = (currentSessionTitle || (pdfFileName ? pdfFileName.replace(/\.pdf$/i,'') : 'chalkline-lesson')).replace(/[^\w\-]+/g,'_');
+    doc.save(`${name}.pdf`);
+    setStatus(`saved ${numPages}-page pdf`);
+  } catch(err){
+    console.error('PDF export failed:', err);
+    setStatus('pdf export failed — see console');
+  } finally {
+    ctx = savedCtx;
+    Object.assign(camera, savedCam);
+    viewW = savedW; viewH = savedH;
+    redrawAll();
+  }
+}
+document.getElementById('btn-export-pdf').addEventListener('click', exportBoardAsPDF);
+
+/* =========================================================
+   LIVE PEN & DRAWING ANIMATION
+   ========================================================= */
+let drawQueue = [], drawing = false;
+
+function drawPen(x, y, angle){
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle + Math.PI/4);
+  ctx.fillStyle = '#2A2A2A';
+  const s = 14;
+  ctx.beginPath();
+  ctx.moveTo(0,0); ctx.lineTo(s*0.35,s*0.35); ctx.lineTo(s*1.7,s*1.7-s*0.5); ctx.lineTo(s*1.35,s*2.0-s*0.5);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#B8722E';
+  ctx.beginPath(); ctx.arc(s*0.45,s*0.45,3.2,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+
+function enqueueCommandsAtCursor(commands){
+    let placedAll = [];
+
+    // Sort to maintain correct reading order
+    commands.sort((a,b) => {
+        let ay = a.y ?? a.y1 ?? (a.points?.[0]?.[1]) ?? (a.segments?.[0] ? a.segments[0][a.segments[0].length-1] : undefined) ?? 0;
+        let by = b.y ?? b.y1 ?? (b.points?.[0]?.[1]) ?? (b.segments?.[0] ? b.segments[0][b.segments[0].length-1] : undefined) ?? 0;
+        if (a.type === 'plot' || a.type === 'axes') ay = a.y - (a.h || 400);
+        if (b.type === 'plot' || b.type === 'axes') by = b.y - (b.h || 400);
+        return ay - by;
+    });
+
+    const testCanvas = document.createElement('canvas');
+    const tCtx = testCanvas.getContext('2d');
+
+    commands.forEach(cmd => {
+        let c = { ...cmd };
+        
+        if (c.type === 'text') {
+            c.x = 80; // Sit close to the left margin line
+            c.maxWidth = 930; // Use nearly the full line width before wrapping
+            const size = (c.size || 26) * HAND_SIZE_MULT;
+            const fam = "'Kalam', 'Caveat', cursive";
+            tCtx.font = `${c.weight || 700} ${size}px ${fam}`;
+            
+            const words = (c.text || '').split(/\s+/).filter(Boolean);
+            let lines = 1; let cur = '';
+            words.forEach(w => {
+                const test = cur ? cur + ' ' + w : w;
+                if(tCtx.measureText(test).width > c.maxWidth){ lines++; cur = w; }
+                else { cur = test; }
+            });
+            
+            const lh = lineHeightFor(size);
+            // A heading skips one blank ruled line before it starts, so it
+            // reads as a new section rather than butting straight up
+            // against whatever came before — but only if something is
+            // already on the board above it (no pointless gap at the very
+            // top of a fresh page).
+            if(c.heading && globalCursorY > TOP_MARGIN) globalCursorY += RULE_LINE_SPACING;
+            // Baseline sits exactly ON the rule line at the bottom of this
+            // first allotted line-space (not floating near the top of it),
+            // so the handwriting visually rests on the ruled paper the way
+            // real handwriting does — ascenders reach up into the block,
+            // descenders dip slightly below the line, just like ink on
+            // actual notebook paper.
+            c.y = globalCursorY + lh;
+            placedAll.push(c);
+            // Advance by exactly the block's own height — no extra blank
+            // gap tacked on — so consecutive notes stack tight against each
+            // other like continuous handwriting, while every line (of this
+            // block and the next) still lands on a whole rule-line boundary
+            // because `lh` is always a whole multiple of RULE_LINE_SPACING.
+            globalCursorY += lines * lh;
+
+        } else if (c.type === 'plot' || c.type === 'axes') {
+            c.x = 160;
+            c.w = 640;
+            c.h = 400; // a whole multiple of RULE_LINE_SPACING, like every
+                       // other vertical measurement here — see note below
+            
+            globalCursorY += RULE_LINE_SPACING; // Title margin
+            c.y = globalCursorY + c.h; // Origin is bottom-left
+            placedAll.push(c);
+            // X-axis label margin. MUST be a whole multiple of
+            // RULE_LINE_SPACING like every other vertical measurement in
+            // this function — otherwise globalCursorY drifts off the rule
+            // grid after the first graph, and every line of handwriting
+            // placed after it stops resting on the ruled lines (it'll
+            // visually "float" between them instead of sitting on one).
+            globalCursorY = c.y + RULE_LINE_SPACING*2;
+
+        } else if (c.type === 'halo' || c.type === 'highlight') {
+            if (placedAll.length > 0) {
+               let prev = placedAll[placedAll.length-1];
+               if (prev.type === 'text') {
+                   c.x = prev.x + 40; c.y = prev.y - 10;
+                   placedAll.unshift(c); 
+               }
+            }
+        }
+    });
+
+    let panTargetY = globalCursorY - 300; 
+    if (panTargetY < TOP_MARGIN) panTargetY = TOP_MARGIN;
+
+    redrawAll();
+    
+    if(!userIsScrolledAway){
+        panCameraToCursor(panTargetY, () => enqueueCommands(placedAll));
+    } else {
+        enqueueCommands(placedAll);
+    }
+}
+
+function enqueueCommands(commands){
+  drawQueue.push(...commands);
+  if(!drawing) processQueue();
+}
+
+function commandWorldAnchor(cmd){
+  if(cmd.type === 'plot' || cmd.type === 'axes') {
+      return [cmd.x + (cmd.w||0)/2, cmd.y - (cmd.h||0)/2];
+  }
+  if('x' in cmd && 'y' in cmd) return [cmd.x, cmd.y];
+  if('x1' in cmd && 'y1' in cmd) return [(cmd.x1+cmd.x2)/2, (cmd.y1+cmd.y2)/2];
+  if(Array.isArray(cmd.points) && cmd.points.length) return cmd.points[Math.floor(cmd.points.length/2)];
+  return null;
+}
+
+function processQueue(){
+  if(drawQueue.length===0){ drawing=false; redrawAll(); return; }
+  drawing=true;
+  const cmd = drawQueue.shift();
+  const anchor = commandWorldAnchor(cmd);
+  
+  if(anchor && !userIsScrolledAway){
+    const [sx, sy] = worldToScreen(anchor[0], anchor[1]);
+    const margin = 80;
+    if(sx < margin || sx > viewW-margin || sy < margin || sy > viewH-margin){
+      // Always enforce camera.x locking centrally at 500 when auto-following
+      animateCameraPan(500, anchor[1], 260, null);
+    }
+  }
+  
+  animateCommand(cmd, ()=>{ drawnCommands.push(cmd); processQueue(); });
+}
+
+function animateCommand(cmd, onDone){
+  const duration = estimateDuration(cmd);
+  const start = performance.now();
+  function frame(now){
+    const t = Math.min(1,(now-start)/duration);
+    redrawAll();
+    renderPartialCommand(cmd, t);
+    if(t<1) requestAnimationFrame(frame); else onDone();
+  }
+  requestAnimationFrame(frame);
+}
+
+function estimateDuration(cmd){
+  switch(cmd.type){
+    case 'text': return Math.min(2200, Math.max(500,(cmd.text||'').length*50));
+    case 'line': case 'arrow': return 380;
+    case 'curve': return 700;
+    case 'rect': return 550;
+    case 'circle': return 550;
+    case 'axes': return 550;
+    case 'plot': return 600 + ((cmd.curves||[]).length)*550;
+    case 'highlight': return 250;
+    case 'halo': return 450;
+    case 'path': return Math.min(2600, Math.max(600, (cmd.segments||[]).length*220));
+    default: return 300;
+  }
+}
+
+function renderPartialCommand(cmd, t){
+  const color = COLORS[cmd.color] || INK;
+  ctx.strokeStyle = color; ctx.fillStyle = color;
+  switch(cmd.type){
+    case 'text': {
+      const full = cmd.text || '';
+      const fam = "'Kalam', 'Caveat', cursive";
+      const weight = cmd.weight || 700;
+      const size = (cmd.size||26)*HAND_SIZE_MULT;
+      ctx.font = `${weight} ${sw(size)}px ${fam}`;
+      const [sx,sy] = worldToScreen(cmd.x, cmd.y);
+      if(cmd.maxWidth){
+        const lines = wrapTextToLines(full, sw(cmd.maxWidth));
+        const lineHeight = sw(lineHeightFor(size));
+        let charsLeft = Math.max(1, Math.round(full.length*t));
+        let lastX = sx, lastY = sy;
+        for(let i=0;i<lines.length;i++){
+          const line = lines[i];
+          const take = Math.max(0, Math.min(line.length, charsLeft));
+          const partial = line.slice(0, take);
+          const ly = sy + i*lineHeight;
+          ctx.fillText(partial, sx, ly);
+          // Only underline a heading line once it's fully written — the
+          // underline stroke happens after the words, like a real tutor
+          // finishing a heading and then drawing a line under it.
+          if(cmd.heading && take >= line.length) drawHeadingUnderline(sx, ly, ctx.measureText(line).width, size, color);
+          lastX = sx + ctx.measureText(partial).width;
+          lastY = ly;
+          charsLeft -= take + 1;
+          if(charsLeft <= 0) break;
+        }
+        drawPen(lastX, lastY, -Math.PI/2);
+      } else {
+        const nChars = Math.max(1, Math.round(full.length*t));
+        const partial = full.slice(0,nChars);
+        ctx.fillText(partial, sx, sy);
+        const w = ctx.measureText(partial).width;
+        if(cmd.heading && nChars >= full.length) drawHeadingUnderline(sx, sy, w, size, color);
+        drawPen(sx+w, sy, -Math.PI/2);
+      }
+      break;
+    }
+    case 'line': case 'arrow': {
+      ctx.lineWidth = sw(cmd.width||2.5);
+      const [x1,y1]=worldToScreen(cmd.x1,cmd.y1); const [x2,y2]=worldToScreen(cmd.x2,cmd.y2);
+      const cx=x1+(x2-x1)*t, cy=y1+(y2-y1)*t;
+      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(cx,cy); ctx.stroke();
+      if(cmd.type==='arrow' && t>=0.98){
+        const angle=Math.atan2(y2-y1,x2-x1); const headLen=sw(cmd.headSize||12);
+        ctx.beginPath(); ctx.moveTo(x2,y2);
+        ctx.lineTo(x2-headLen*Math.cos(angle-Math.PI/7), y2-headLen*Math.sin(angle-Math.PI/7));
+        ctx.lineTo(x2-headLen*Math.cos(angle+Math.PI/7), y2-headLen*Math.sin(angle+Math.PI/7));
+        ctx.closePath(); ctx.fill();
+      }
+      drawPen(cx,cy,Math.atan2(y2-y1,x2-x1));
+      break;
+    }
+    case 'curve': {
+      ctx.lineWidth = sw(cmd.width||2.5);
+      const pts = cmd.points.map(p=>worldToScreen(p[0],p[1]));
+      if(cmd.fill && t>=0.999 && pts.length>2){
+        ctx.save();
+        ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]);
+        for(let i=1;i<pts.length-1;i++){
+          const midX=(pts[i][0]+pts[i+1][0])/2, midY=(pts[i][1]+pts[i+1][1])/2;
+          ctx.quadraticCurveTo(pts[i][0],pts[i][1],midX,midY);
+        }
+        const last = pts[pts.length-1]; ctx.lineTo(last[0],last[1]); ctx.closePath();
+        ctx.globalAlpha = cmd.fillOpacity!=null ? cmd.fillOpacity : 0.12;
+        ctx.fillStyle = COLORS[cmd.fillColor] || color;
+        ctx.fill();
+        ctx.restore();
+      }
+      const [penX,penY] = strokeSmoothCurvePartial(pts, t);
+      drawPen(penX,penY,0);
+      break;
+    }
+    case 'path': {
+      ctx.lineWidth = sw(cmd.width||2.5);
+      const screenSegs = worldPathToScreenSegments(cmd.segments||[]);
+      const pts = flattenScreenSegsToPoints(screenSegs);
+      if(cmd.fill && t>=0.999){
+        drawPathSegments(ctx, screenSegs);
+        ctx.save();
+        ctx.globalAlpha = cmd.fillOpacity!=null ? cmd.fillOpacity : 0.12;
+        ctx.fillStyle = COLORS[cmd.fillColor] || color;
+        ctx.fill();
+        ctx.restore();
+      }
+      const [penX,penY] = strokePolylinePartial(pts, t);
+      drawPen(penX,penY,0);
+      break;
+    }
+    case 'rect': {
+      ctx.lineWidth = sw(cmd.width||2.5);
+      const [x,y]=worldToScreen(cmd.x,cmd.y); const w=sw(cmd.w), h=sw(cmd.h);
+      const perim=2*(w+h), drawn=perim*t;
+      ctx.beginPath(); let remaining=drawn, px=x, py=y; ctx.moveTo(px,py);
+      const segs=[[w,0],[0,h],[-w,0],[0,-h]];
+      for(const [dx,dy] of segs){
+        const len=Math.hypot(dx,dy), use=Math.min(len,remaining), frac=use/len;
+        px+=dx*frac; py+=dy*frac; ctx.lineTo(px,py); remaining-=use;
+        if(remaining<=0) break;
+      }
+      ctx.stroke(); drawPen(px,py,0);
+      break;
+    }
+    case 'circle': {
+      ctx.lineWidth = sw(cmd.width||2.5);
+      const [x,y]=worldToScreen(cmd.x,cmd.y); const rx=sw(cmd.rx), ry=sw(cmd.ry);
+      ctx.beginPath(); ctx.ellipse(x,y,rx,ry,0,-Math.PI/2,-Math.PI/2+t*Math.PI*2); ctx.stroke();
+      const ang=-Math.PI/2+t*Math.PI*2;
+      drawPen(x+rx*Math.cos(ang), y+ry*Math.sin(ang), ang+Math.PI/2);
+      break;
+    }
+    case 'axes': {
+      const [ox,oy]=worldToScreen(cmd.x,cmd.y); const w=sw(cmd.w), h=sw(cmd.h);
+      if(t>=0.99) drawAxesGrid(ox, oy, w, h, cmd);
+      ctx.lineWidth = sw(2);
+      const total=w+h, drawn=total*t;
+      ctx.beginPath(); ctx.moveTo(ox,oy);
+      const yLen=Math.min(h,drawn); ctx.lineTo(ox,oy-yLen);
+      let penX=ox, penY=oy-yLen;
+      if(drawn>h){ ctx.moveTo(ox,oy); const xLen=Math.min(w,drawn-h); ctx.lineTo(ox+xLen,oy); penX=ox+xLen; penY=oy; }
+      ctx.stroke();
+      if(t>=0.99){
+        drawArrowhead(ox, oy-h, -Math.PI/2, color);
+        drawArrowhead(ox+w, oy, 0, color);
+        drawAxesTicksAndLabels(ox, oy, w, h, cmd, color);
+      }
+      drawPen(penX,penY,0);
+      break;
+    }
+    case 'plot': {
+      const [ox,oy]=worldToScreen(cmd.x,cmd.y); const w=sw(cmd.w), h=sw(cmd.h);
+      const curves = cmd.curves || [];
+      const axesFrac = curves.length ? 0.3 : 1;
+      const axesT = Math.min(1, t/axesFrac);
+      if(axesT>=0.99) drawAxesGrid(ox, oy, w, h, cmd);
+      ctx.lineWidth = sw(2); ctx.strokeStyle = color; ctx.fillStyle = color;
+      const axTotal=w+h, axDrawn=axTotal*axesT;
+      ctx.beginPath(); ctx.moveTo(ox,oy);
+      const yLen=Math.min(h,axDrawn); ctx.lineTo(ox,oy-yLen);
+      let penX=ox, penY=oy-yLen;
+      if(axDrawn>h){ ctx.moveTo(ox,oy); const xLen=Math.min(w,axDrawn-h); ctx.lineTo(ox+xLen,oy); penX=ox+xLen; penY=oy; }
+      ctx.stroke();
+      if(axesT>=0.99){
+        drawArrowhead(ox, oy-h, -Math.PI/2, color);
+        drawArrowhead(ox+w, oy, 0, color);
+        drawAxesTicksAndLabels(ox, oy, w, h, cmd, color);
+      }
+      if(curves.length){
+        const [scaleX, scaleY] = plotScalers(ox, oy, w, h, cmd);
+        const perCurve = (1-axesFrac)/curves.length;
+        curves.forEach((curve, i) => {
+          const curveT = Math.max(0, Math.min(1, (t-axesFrac-i*perCurve)/perCurve));
+          if(curveT<=0) return;
+          const pts = (curve.points||[]).map(p=>[scaleX(p[0]), scaleY(p[1])]);
+          if(pts.length<2) return;
+          ctx.strokeStyle = COLORS[curve.color] || color;
+          ctx.lineWidth = sw(curve.width||2.75);
+          const [cx,cy] = strokeSmoothCurvePartial(pts, curveT);
+          if(curveT>=1){
+            if(curve.label){
+              ctx.fillStyle = COLORS[curve.color] || color;
+              ctx.font = `${sw(16)}px 'Caveat', cursive`;
+              ctx.textAlign = 'left';
+              ctx.fillText(curve.label, cx+sw(8), cy+sw(4));
+            }
+          } else { penX=cx; penY=cy; }
+        });
+      }
+      drawPen(penX,penY,0);
+      break;
+    }
+    case 'highlight': {
+      ctx.globalAlpha = 0.18*t;
+      const [x,y]=worldToScreen(cmd.x,cmd.y);
+      ctx.fillRect(x,y,sw(cmd.w)*t, sw(cmd.h||26));
+      ctx.globalAlpha=1;
+      break;
+    }
+    case 'halo': {
+      const [x,y] = worldToScreen(cmd.x, cmd.y);
+      const r = sw(cmd.r || 60);
+      const glow = COLORS[cmd.color] || HALO;
+      const grad = ctx.createRadialGradient(x,y,0,x,y,r);
+      grad.addColorStop(0, hexToRgba(glow, 0.40*t));
+      grad.addColorStop(1, hexToRgba(glow, 0));
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+      break;
+    }
+  }
+}
+
+/* =========================================================
+   VOICE
+   ========================================================= */
+const avatar = document.getElementById('avatar');
+const captionText = document.getElementById('caption-text');
+let currentUtteranceText = '';
+let currentSpeechToken = 0;
+
+let bestVoice = null;
+let voicesReady = false;
+
+function scoreVoice(v){
+  let score = 0;
+  const name = v.name || '';
+  if(/Natural/i.test(name)) score += 100;
+  if(/Neural/i.test(name)) score += 95;
+  if(/Premium/i.test(name)) score += 90;
+  if(/Enhanced/i.test(name)) score += 85;
+  if(/Google/i.test(name)) score += 70;
+  if(/Microsoft.*Online/i.test(name)) score += 65;
+  if(/Siri/i.test(name)) score += 60;
+  if(v.localService) score += 8;
+  if(/^en-US$/i.test(v.lang)) score += 6;
+  else if(/^en-GB$/i.test(v.lang)) score += 5;
+  else if(/^en/i.test(v.lang)) score += 3;
+  if(/Samantha|Aria|Jenny|Libby|Sonia|Serena/i.test(name)) score += 4;
+  return score;
+}
+
+function pickBestVoice(){
+  const voices = window.speechSynthesis.getVoices();
+  if(!voices || voices.length === 0) return null;
+  const english = voices.filter(v => /^en/i.test(v.lang));
+  const pool = english.length ? english : voices;
+  pool.sort((a,b) => scoreVoice(b) - scoreVoice(a));
+  return pool[0] || null;
+}
+
+function refreshVoiceList(){
+  bestVoice = pickBestVoice();
+  voicesReady = !!bestVoice;
+  populateVoiceDropdown();
+}
+
+if('speechSynthesis' in window){
+  refreshVoiceList();
+  window.speechSynthesis.onvoiceschanged = refreshVoiceList;
+  let pollTries = 0;
+  const pollInterval = setInterval(()=>{
+    pollTries++;
+    if(voicesReady || pollTries > 20){ clearInterval(pollInterval); return; }
+    refreshVoiceList();
+  }, 250);
+}
+
+function populateVoiceDropdown(){
+  const sel = document.getElementById('voice-select');
+  if(!sel) return;
+  const voices = window.speechSynthesis.getVoices().filter(v => /^en/i.test(v.lang));
+  const pool = voices.length ? voices : window.speechSynthesis.getVoices();
+  if(!pool.length) return;
+  const currentVal = sel.value;
+  sel.innerHTML = '';
+  pool.sort((a,b)=> scoreVoice(b)-scoreVoice(a)).forEach(v=>{
+    const opt = document.createElement('option');
+    opt.value = v.name;
+    opt.textContent = v.name + (v.localService ? '' : ' (network)');
+    sel.appendChild(opt);
+  });
+  if(currentVal && pool.some(v=>v.name===currentVal)){
+    sel.value = currentVal;
+  } else if(bestVoice){
+    sel.value = bestVoice.name;
+  }
+}
+
+function getSelectedVoice(){
+  const sel = document.getElementById('voice-select');
+  const voices = window.speechSynthesis.getVoices();
+  if(sel && sel.value){
+    const chosen = voices.find(v => v.name === sel.value);
+    if(chosen) return chosen;
+  }
+  return bestVoice;
+}
+
+function splitIntoSpeechChunks(text){
+  const sentences = text.match(/[^.!?]+[.!?]+(\s|$)|[^.!?]+$/g) || [text];
+  const chunks = [];
+  for(let s of sentences){
+    s = s.trim();
+    if(!s) continue;
+    if(s.length > 160){
+      const parts = s.split(/(?<=[,;:])\s+/);
+      let buf = '';
+      for(const p of parts){
+        if((buf + ' ' + p).trim().length > 160 && buf){ chunks.push(buf.trim()); buf = p; }
+        else buf = (buf ? buf + ' ' : '') + p;
+      }
+      if(buf.trim()) chunks.push(buf.trim());
+    } else {
+      chunks.push(s);
+    }
+  }
+  return chunks;
+}
+
+function renderCaption(fullText, chunkStartIndex, chunkText){
+  const said = fullText.slice(0, chunkStartIndex);
+  const windowStart = Math.max(0, said.length - 70);
+  const fadedPart = fullText.slice(windowStart, chunkStartIndex);
+  const freshPart = chunkText;
+  captionText.innerHTML = `<span class="fading">${escapeHtml(fadedPart)}</span><span>${escapeHtml(freshPart)}</span>`;
+}
+
+function speak(text){
+  if(!('speechSynthesis' in window)) return;
+  window.speechSynthesis.cancel();
+  const myToken = ++currentSpeechToken;
+  currentUtteranceText = text;
+  const chunks = splitIntoSpeechChunks(text);
+  let searchPos = 0;
+  const chunkOffsets = chunks.map(c => {
+    const idx = text.indexOf(c, searchPos);
+    searchPos = idx >= 0 ? idx + c.length : searchPos;
+    return idx >= 0 ? idx : searchPos;
+  });
+
+  const voice = getSelectedVoice();
+
+  function speakChunk(i){
+    if(myToken !== currentSpeechToken) return;
+    if(i >= chunks.length){ avatar.classList.remove('speaking'); return; }
+    const utter = new SpeechSynthesisUtterance(chunks[i]);
+    utter.rate = 0.96;
+    utter.pitch = 1.0;
+    utter.volume = 1.0; // Enforces maximum browser volume output
+    if(voice) utter.voice = voice;
+    renderCaption(text, chunkOffsets[i], chunks[i]);
+    utter.onstart = () => avatar.classList.add('speaking');
+    utter.onend = () => {
+      if(myToken !== currentSpeechToken) return;
+      const pause = /\?\s*$/.test(chunks[i]) ? 260 : 140;
+      setTimeout(()=> speakChunk(i+1), pause);
+    };
+    utter.onerror = () => { if(myToken === currentSpeechToken) speakChunk(i+1); };
+    window.speechSynthesis.speak(utter);
+  }
+  speakChunk(0);
+}
+document.getElementById('btn-replay').addEventListener('click', ()=>{ if(currentUtteranceText) speak(currentUtteranceText); });
+
+function escapeHtml(str){ const d=document.createElement('div'); d.textContent=str; return d.innerHTML; }
+
+let recognition=null, listening=false;
+const micBtn = document.getElementById('btn-mic');
+const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+if(SpeechRec){
+  recognition = new SpeechRec();
+  recognition.continuous=false; recognition.interimResults=false; recognition.lang='en-US';
+  recognition.onresult = (e)=>{ const text=e.results[0][0].transcript; handleAsk(text); };
+  recognition.onend = ()=>{ listening=false; micBtn.classList.remove('live'); };
+  recognition.onerror = ()=>{ listening=false; micBtn.classList.remove('live'); };
+} else {
+  micBtn.classList.add('unsupported');
+  micBtn.title = 'Voice input not supported in this browser';
+}
+micBtn.addEventListener('click', ()=>{
+  if(!recognition) return;
+  if(listening){ recognition.stop(); return; }
+  listening=true; micBtn.classList.add('live'); recognition.start();
+});
+
+/* =========================================================
+   PDF IMPORT
+   ========================================================= */
+const pdfjsAvailable = typeof pdfjsLib !== 'undefined';
+if(pdfjsAvailable){
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+} else {
+  console.error('pdf.js failed to load from CDN — PDF import will be disabled for this session.');
+}
+let pdfText = '', pdfFileName = '';
+const uploadZone = document.getElementById('upload-zone');
+const pdfInput = document.getElementById('pdf-input');
+uploadZone.addEventListener('click', ()=> pdfInput.click());
+uploadZone.addEventListener('dragover', (e)=> e.preventDefault());
+uploadZone.addEventListener('drop', (e)=>{ e.preventDefault(); if(e.dataTransfer.files.length) handlePdfFile(e.dataTransfer.files[0]); });
+pdfInput.addEventListener('change', (e)=>{ if(e.target.files.length) handlePdfFile(e.target.files[0]); });
+
+async function handlePdfFile(file){
+  if(!pdfjsAvailable){ alert('PDF import couldn\'t load its engine (a network or blocker issue). Try reloading the page.'); return; }
+  if(file.type !== 'application/pdf'){ alert('Please choose a PDF file.'); return; }
+  setStatus('reading pdf…');
+  pdfFileName = file.name;
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+  let fullText = '';
+  const maxPages = Math.min(pdf.numPages, 40);
+  for(let i=1;i<=maxPages;i++){
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    fullText += `\n\n[Page ${i}]\n` + content.items.map(it=>it.str).join(' ');
+  }
+  pdfText = fullText;
+  uploadZone.classList.add('has-file');
+  uploadZone.innerHTML = `<div class="file-name">📄 ${escapeHtml(pdfFileName)}</div><div class="file-meta">${pdf.numPages} pages · text extracted</div>`;
+  setStatus('pdf ready');
+}
+
+/* =========================================================
+   UI HELPERS
+   ========================================================= */
+const transcriptEl = document.getElementById('transcript');
+const statusLine = document.getElementById('status-line');
+function setStatus(s){ statusLine.textContent = s; }
+
+function addTranscriptMsg(who, text){
+  const empty = transcriptEl.querySelector('.empty-note');
+  if(empty) empty.remove();
+  const div = document.createElement('div');
+  div.className = `msg ${who}`;
+  div.innerHTML = `<span class="who">${who==='tutor'?'TUTOR':'YOU'}</span>${escapeHtml(text)}`;
+  transcriptEl.appendChild(div);
+  transcriptEl.scrollTop = transcriptEl.scrollHeight;
+}
+
+function addQuizCard(quiz){
+  const empty = transcriptEl.querySelector('.empty-note');
+  if(empty) empty.remove();
+  const card = document.createElement('div');
+  card.className = 'quiz-card';
+  const qEl = document.createElement('div'); qEl.className='quiz-q'; qEl.textContent = quiz.question;
+  card.appendChild(qEl);
+  const explainEl = document.createElement('div'); explainEl.className='quiz-explain'; explainEl.textContent = quiz.explanation;
+  quiz.options.forEach((opt, idx)=>{
+    const b = document.createElement('button'); b.className='quiz-opt'; b.textContent = opt;
+    b.addEventListener('click', ()=>{
+      const buttons = card.querySelectorAll('.quiz-opt');
+      buttons.forEach(bb=>bb.disabled=true);
+      if(idx===quiz.correctIndex){ b.classList.add('correct'); }
+      else { b.classList.add('incorrect'); buttons[quiz.correctIndex].classList.add('correct'); }
+      explainEl.classList.add('show');
+      const resultNote = idx===quiz.correctIndex ? 'this was correct' : 'this was incorrect';
+      runTeachingTurn(
+        `[Quiz answer] For "${quiz.question}", I selected "${opt}" — ${resultNote}. Briefly react to this and then continue per the pacing rules.`,
+        `Answered: "${opt}"`
+      );
+    });
+    card.appendChild(b);
+  });
+  card.appendChild(explainEl);
+  transcriptEl.appendChild(card);
+  transcriptEl.scrollTop = transcriptEl.scrollHeight;
+}
+
+/* =========================================================
+   AI BACKEND CALLS
+   ========================================================= */
+const SYSTEM_PROMPT = `You are an expert university lecturer operating a notebook whiteboard tutoring tool called Chalkline.
+You teach at genuine university level: rigorous, first-principles, precise terminology, no hand-waving.
+
+You must respond with ONLY a JSON object (no markdown fences, no prose outside the JSON) with this exact shape:
+{
+  "speech": "the spoken explanation, natural spoken lecture language for text-to-speech (spell out symbols, e.g. 'delta' not the character)",
+  "board": [ ...array of drawing command objects... ],
+  "quiz": null OR { "question":"...", "options":["...","...","...","..."], "correctIndex":0, "explanation":"..." }
+}
+
+ALL TEXT, HEADINGS, EQUATIONS, AND EXPLANATIONS ON THE BOARD ARE RENDERED IN REALISTIC HANDWRITING.
+Use color changes on key terms and equations for visual emphasis and clarity.
+Colors available: "ink" (navy blue), "ochre" (amber/orange keyword emphasis), "sage" (green emphasis), "brick" (red emphasis), "teal", "violet", "sky", "coral".
+
+CRITICAL LAYOUT RULES - THE APP WILL OVERRIDE YOUR COORDINATES:
+1. DO NOT try to position text next to a graph. Everything is strictly stacked vertically in a single column by the engine.
+2. ONLY use "text" commands for paragraph explanations. DO NOT use "text" commands to title or label graphs.
+3. FOR GRAPHS, use ONLY the "plot" command. Put the title, xlabel, and ylabel INSIDE the plot command properties. DO NOT use separate text commands near it.
+
+TEXT ON THE BOARD MUST USE REAL SYMBOLS, NOT SPELLED-OUT WORDS: π, θ, β, α, γ, Δ, Σ, ∫, √, ∞, ≤, ≥, ≈, ×, ÷, →, ², ³, ₁, ₂, etc. directly inside "text" strings. Use "mono":true for alignment if drawing equations.
+
+NEVER WRITE LaTeX/TeX MARKUP ON THE BOARD. There is no math typesetting engine — the canvas draws "text" strings literally, character for character, so any LaTeX syntax appears as raw garbled text (e.g. "\(\frac{d}{dx}\)" would be painted exactly like that, backslashes and all). This means:
+- NEVER use \( \), \[ \], $ $, or $$ $$ delimiters.
+- NEVER use \frac{a}{b} — instead write it inline as "a/b" or "a ÷ b".
+- NEVER use \cdot, \pm, \sqrt{}, \lim_{}, \sum_{}, ^{...}, _{...}, or any other backslash/brace TeX commands.
+- Instead use the real Unicode symbols and characters directly: write x² not x^{2}, write x₁ not x_{1}, write √(x) not \sqrt{x}, write × or · not \cdot, write ± not \pm, write lim (h→0) not \lim_{h\to0}, write Σ not \sum.
+- Example — WRONG: "f'(x)=lim_{h→0}\frac{f(x+h)-f(x)}{h}"
+  Example — CORRECT: "f'(x) = lim (h→0) [f(x+h) − f(x)] / h"
+- Example — WRONG: "FV = 1000(1+0.1)^{2}"
+  Example — CORRECT: "FV = 1000(1 + 0.1)²"
+This rule applies to every "text" command, including headings, definitions, and worked equations — plain readable notation only, exactly like natural handwriting on a real whiteboard.
+
+Available command types:
+- {"type":"text","x":..,"y":..,"text":"...","size":26,"color":"ink|ochre|sage|brick|teal|violet|sky|coral","mono":false,"weight":700,"maxWidth":800,"heading":false} — set "heading":true ONLY for a section/topic title (e.g. "2. The Friedman-Phelps Critique"). The app automatically underlines heading text and inserts a blank ruled line above it, so DO NOT manually add a blank line or a "---"/underscore divider before a heading yourself — just set "heading":true and let the app handle the spacing and underline. Use a larger "size" (e.g. 32-40) for headings too, but "heading":true is what actually triggers the underline and spacing, not the size alone.
+- {"type":"halo","x":..,"y":..,"r":50,"color":"halo|ochre|sage|teal|violet|sky|coral"}
+- {"type":"line","x1":..,"y1":..,"x2":..,"y2":..,"color":"ink","width":2.5}
+- {"type":"arrow","x1":..,"y1":..,"x2":..,"y2":..,"color":"ochre","width":2.5}
+- {"type":"rect","x":..,"y":..,"w":..,"h":..,"color":"ink","fill":false}
+- {"type":"circle","x":..,"y":..,"rx":..,"ry":..,"color":"ink","fill":false}
+- {"type":"curve","points":[[x,y],[x,y],...],"color":"sage","width":2.5,"fill":false,"fillColor":"sage","fillOpacity":0.12} — a smooth freehand curve through the points; set "fill":true to also tint the interior (treated as a closed loop) for a soft rounded blob like a petal or organelle.
+- {"type":"path","segments":[["M",x,y],["L",x,y],["Q",cx,cy,x,y],["C",c1x,c1y,c2x,c2y,x,y],["Z"]],"color":"sage","width":2.5,"fill":false,"fillColor":"sage","fillOpacity":0.12} — a general freeform outline, like an SVG path: "M" moves the pen (start a new sub-shape), "L" a straight segment, "Q" a quadratic curve (one control point), "C" a cubic curve (two control points), "Z" closes the current outline back to its last "M". THIS is the tool for drawing actual recognizable pictures — a cell and its organelles, a leaf, an animal, an organ, a map — by tracing the outline as a sequence of segments the way you'd sketch it by hand, then optionally filling it.
+- {"type":"axes","x":..,"y":..,"w":..,"h":..,"xlabel":"...","ylabel":"...","title":"...","grid":true,"xTicks":[...],"yTicks":[...]}
+- {"type":"plot","x":..,"y":..,"w":..,"h":..,"xRange":[0,10],"yRange":[0,10],"xlabel":"...","ylabel":"...","title":"...","grid":true,"xTicks":["0","2","4","6","8","10"],"yTicks":["0","5","10"],"curves":[{"points":[[dataX,dataY],...],"color":"brick","width":2.75,"label":"SRPC"}]}
+- {"type":"highlight","x":..,"y":..,"w":..,"h":26,"color":"ochre"}
+
+DRAWING ACTUAL PICTURES (cells, leaves, animals, organs, diagrams, maps, circuits, flowcharts, anatomy, anything representational):
+- DO THIS OFTEN, NOT RARELY. Any time a topic has real visual structure — anatomy, a cycle, a process with stages, a molecule, a map, a cross-section, a mechanism, an organism — draw an actual labeled diagram instead of only writing "text" bullets describing it. A wall of text where a picture belongs is a failure. Default to drawing the picture; only skip it for genuinely non-visual topics (pure definitions, abstract proofs, history dates).
+- Build every diagram out of MANY layered primitives, never just one shape: (1) an outer outline — "path" or a filled "circle"/"curve" — for the overall form, (2) several smaller filled "circle"/"path"/"curve" shapes on top for internal structures (a nucleus, mitochondria, valves, chambers, veins, organs — whatever the real thing actually contains), (3) fine unfilled "line"/"curve"/"path" strokes for surface detail (membrane texture, fur, ridges, folds), and (4) a full set of labels, one per labeled part — see labeling rules below. A diagram with fewer than ~4-6 shape commands plus several labels is too crude; keep adding structure until it reads as the real thing, layered and detailed like a textbook figure.
+- Trace organic outlines ("path") the way you'd actually sketch them by hand: a handful of "M"/"C"/"Q" segments roughly following the real silhouette (e.g. a leaf is a pointed oval with a "Z" to close it, a cell is a wobbly rounded "path" rather than a perfect "circle", a dog is several overlapping "path"/"circle" shapes for the head, snout, ears, body, legs, tail). It does not need to be photorealistic — a clean, recognizable line-art sketch is the goal, the same level of detail a lecturer would actually draw on a whiteboard, not a single crude blob.
+- Use "fill":true with a low "fillOpacity" (0.08–0.18) on the shapes that should read as solid regions, and leave fine detail (veins, membrane texture, fur lines) as unfilled "curve"/"path"/"line" strokes on top.
+- LABELING RULES — every internal structure worth naming gets its own label, and labels routinely sit ON or OVERLAPPING the diagram itself (this is expected and correct — real whiteboard labels sit right next to or inside what they name, not off in a separate column):
+  - For a SMALL part (nucleus, valve, a leaf's veins): draw a short "arrow" from just outside the shape pointing in to the structure, then a small "text" command (size ~14-16, not "heading") for the label word positioned at the tail end of the arrow, outside the fine detail — but the arrow and label as a whole clearly sit inside the diagram's local coordinate box, not off to the side of it.
+  - For a LARGE region (a whole chamber, an entire leaf blade, a whole organ): put the label "text" directly inside/on top of the filled region itself, no arrow needed, since there's room.
+  - Every diagram with 3+ distinguishable parts needs 3+ labels. Do not draw an unlabeled outline and call it done.
+  - Labels belong to the same local coordinate cluster as the diagram — never place a label's x/y far outside the diagram's own bounding box.
+- A diagram like this still occupies its own vertical slot on the board like a graph does — draw it as one coherent cluster of shape and label commands around a shared local coordinate area (e.g. all within roughly a 300×300 to 500×400 world-unit box) rather than scattering pieces across the whole page, and give it a normal "text" heading above it introducing what it is.
+- Worked example — a labeled diagram is a CLUSTER, e.g. a plant cell: outer "path" (cell wall, fill:true, low fillOpacity) → inner "circle" (nucleus, fill:true) → several small "circle"/"curve" shapes (chloroplasts, mitochondria) → a "circle" (vacuole, fill:true) → then for each of those, one short "arrow" from near its label into the structure plus one small "text" label ("cell wall", "nucleus", "chloroplast", "vacuole", "mitochondria"), all sharing one local x/y region. That whole bundle — outline + internals + arrows + labels — is what "one diagram" means; never just the outline alone.
+
+PACING RULES:
+- If the topic you're covering this turn has any real visual structure, include a labeled diagram for it in this turn's "board" array (see DRAWING ACTUAL PICTURES above) — don't wait to be asked, and don't substitute a bullet list for a picture that should exist.
+- Teach in SUBSTANTIAL, CONTINUOUS chunks: a full turn should read like several minutes of real lecture — cover a complete idea in depth (its definition, why it matters, a worked example, and its key sub-points), not one lonely sentence. Write MUCH more per turn than feels natural for a "small step" — aim for a long, dense block of "board" content (many "text" commands in a row covering multiple paragraphs, sub-points, and worked equations) so the notes keep growing continuously down the page, the way a real lecturer fills page after page without pausing every few seconds.
+- Only stop and check in with a question once you've actually finished teaching a full coherent topic or sub-topic — not after a single definition or step. Do not artificially cut a turn short.
+- Keep going onto the NEXT related idea in the same turn if it naturally continues the same topic, rather than stopping just because you covered "one thing" already.`;
+
+let conversationHistory = [];
+let aiBrain = 'gemini';
+const PROXY_URL = "https://api.takundamambudzi02.workers.dev";
+
+document.getElementById('brain-select').addEventListener('change', (e)=>{
+  aiBrain = e.target.value;
+});
+
+async function callTutor(userMessage){
+  setStatus('thinking…');
+  const contextParts = [];
+  if(pdfText && conversationHistory.length===0){
+    contextParts.push(`SOURCE DOCUMENT (${pdfFileName}), extracted text:\n${pdfText.slice(0,15000)}`);
+  }
+  contextParts.push(userMessage);
+  const fullUserContent = contextParts.join('\n\n---\n\n');
+  conversationHistory.push({role:'user', content: fullUserContent});
+
+  let result;
+  if(aiBrain === 'groq') result = await callGroq();
+  else if(aiBrain === 'openrouter') result = await callOpenRouter();
+  else if(aiBrain === 'cerebras') result = await callCerebras();
+  else result = await callGemini();
+
+  if(!result.ok){
+    conversationHistory.pop();
+    setStatus(result.status || 'error — see console');
+    return { speech: result.errorSpeech, board: [] };
+  }
+
+  try{
+    const parsed = JSON.parse(result.raw);
+    conversationHistory.push({role:'assistant', content: result.raw});
+    setStatus('idle');
+    return parsed;
+  } catch(jsonErr){
+    console.error('Model output was not valid JSON. Raw text:', result.raw);
+    setStatus('malformed JSON — see console');
+    conversationHistory.pop();
+    return { speech:"The lecture content came back malformed. Check the console to see exactly what came back.", board:[] };
+  }
+}
+
+async function callGroq(){
+  if(PROXY_URL.includes('YOUR-WORKER-SUBDOMAIN')){
+    return { ok:false, status:'proxy not configured', errorSpeech:"The AI proxy hasn't been set up yet." };
+  }
+  let response, data;
+  try{
+    response = await fetch(`${PROXY_URL}/groq`, {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        model:"openai/gpt-oss-120b",
+        response_format:{ type:"json_object" },
+        max_tokens:6000,
+        messages: [
+          { role:"system", content: SYSTEM_PROMPT },
+          ...conversationHistory
+        ]
+      })
+    });
+  } catch(networkErr){
+    console.error('Network failure calling proxy (Groq):', networkErr);
+    return { ok:false, status:'network error', errorSpeech:"The request never reached the proxy." };
+  }
+
+  try{ data = await response.json(); }
+  catch(parseErr){
+    return { ok:false, status:'bad response', errorSpeech:"The proxy responded with invalid JSON." };
+  }
+
+  if(!response.ok){
+    const msg = (data && data.error && data.error.message) ? data.error.message : JSON.stringify(data);
+    return { ok:false, status:`API error ${response.status}`, errorSpeech:`Groq returned an error: ${msg}` };
+  }
+
+  const choice = data.choices && data.choices[0];
+  const raw = choice && choice.message && choice.message.content;
+  if(!raw){
+    return { ok:false, status:'unexpected response', errorSpeech:"Groq response shape was unexpected." };
+  }
+  return { ok:true, raw: raw.trim() };
+}
+
+async function callOpenRouter(){
+  if(PROXY_URL.includes('YOUR-WORKER-SUBDOMAIN')){
+    return { ok:false, status:'proxy not configured', errorSpeech:"The AI proxy hasn't been set up yet." };
+  }
+  let response, data;
+  try{
+    response = await fetch(`${PROXY_URL}/openrouter`, {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        model:"openrouter/free",
+        response_format:{ type:"json_object" },
+        max_tokens:6000,
+        messages: [
+          { role:"system", content: SYSTEM_PROMPT },
+          ...conversationHistory
+        ]
+      })
+    });
+  } catch(networkErr){
+    console.error('Network failure calling proxy (OpenRouter):', networkErr);
+    return { ok:false, status:'network error', errorSpeech:"The request never reached the proxy." };
+  }
+
+  try{ data = await response.json(); }
+  catch(parseErr){
+    return { ok:false, status:'bad response', errorSpeech:"The proxy responded with invalid JSON." };
+  }
+
+  if(!response.ok){
+    const msg = (data && data.error && data.error.message) ? data.error.message : JSON.stringify(data);
+    return { ok:false, status:`API error ${response.status}`, errorSpeech:`OpenRouter returned an error: ${msg}` };
+  }
+
+  const choice = data.choices && data.choices[0];
+  const raw = choice && choice.message && choice.message.content;
+  if(!raw){
+    return { ok:false, status:'unexpected response', errorSpeech:"OpenRouter response shape was unexpected." };
+  }
+  return { ok:true, raw: raw.trim() };
+}
+
+async function callCerebras(){
+  if(PROXY_URL.includes('YOUR-WORKER-SUBDOMAIN')){
+    return { ok:false, status:'proxy not configured', errorSpeech:"The AI proxy hasn't been set up yet." };
+  }
+  let response, data;
+  try{
+    response = await fetch(`${PROXY_URL}/cerebras`, {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        model:"llama-3.3-70b",
+        response_format:{ type:"json_object" },
+        max_tokens:6000,
+        messages: [
+          { role:"system", content: SYSTEM_PROMPT },
+          ...conversationHistory
+        ]
+      })
+    });
+  } catch(networkErr){
+    console.error('Network failure calling proxy (Cerebras):', networkErr);
+    return { ok:false, status:'network error', errorSpeech:"The request never reached the proxy." };
+  }
+
+  try{ data = await response.json(); }
+  catch(parseErr){
+    return { ok:false, status:'bad response', errorSpeech:"The proxy responded with invalid JSON." };
+  }
+
+  if(!response.ok){
+    const msg = (data && data.error && data.error.message) ? data.error.message : JSON.stringify(data);
+    return { ok:false, status:`API error ${response.status}`, errorSpeech:`Cerebras returned an error: ${msg}` };
+  }
+
+  const choice = data.choices && data.choices[0];
+  const raw = choice && choice.message && choice.message.content;
+  if(!raw){
+    return { ok:false, status:'unexpected response', errorSpeech:"Cerebras response shape was unexpected." };
+  }
+  return { ok:true, raw: raw.trim() };
+}
+
+async function callGemini(){
+  if(PROXY_URL.includes('YOUR-WORKER-SUBDOMAIN')){
+    return { ok:false, status:'proxy not configured', errorSpeech:"The AI proxy hasn't been set up yet." };
+  }
+  const geminiContents = conversationHistory.map(m => ({
+    role: m.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: m.content }]
+  }));
+
+  let response, data;
+  try{
+    response = await fetch(`${PROXY_URL}/gemini`, {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+        contents: geminiContents,
+        generationConfig: {
+          response_mime_type: "application/json",
+          maxOutputTokens: 7000,
+          thinkingConfig: { thinkingLevel: "low" }
+        }
+      })
+    });
+  } catch(networkErr){
+    console.error('Network failure calling proxy (Gemini):', networkErr);
+    return { ok:false, status:'network error', errorSpeech:"The request never reached the proxy." };
+  }
+
+  try{ data = await response.json(); }
+  catch(parseErr){
+    return { ok:false, status:'bad response', errorSpeech:"Gemini server responded with invalid JSON." };
+  }
+
+  if(!response.ok){
+    const msg = (data && data.error && data.error.message) ? data.error.message : JSON.stringify(data);
+    return { ok:false, status:`API error ${response.status}`, errorSpeech:`Gemini returned an error: ${msg}` };
+  }
+
+  const candidate = data.candidates && data.candidates[0];
+  const part = candidate && candidate.content && candidate.content.parts && candidate.content.parts[0];
+  const raw = part && part.text;
+  if(!raw){
+    return { ok:false, status:'unexpected response', errorSpeech:"Gemini response came back in an unexpected shape." };
+  }
+  return { ok:true, raw: raw.trim() };
+}
+
+async function runTeachingTurn(userMessage, displayText){
+  addTranscriptMsg('user', displayText !== undefined ? displayText : userMessage);
+  // Guarantee the handwriting webfonts are fully loaded BEFORE any text is
+  // measured for layout. Without this, the very first turn's line-wrap
+  // calculation can run against fallback system-font metrics (if the
+  // custom fonts haven't finished downloading yet), while the actual
+  // canvas paint moments later uses the real, differently-sized font —
+  // so the reserved vertical space is wrong and the next block overlaps
+  // the one before it. Awaiting here costs nothing once fonts are cached.
+  await document.fonts.ready;
+  const result = await callTutor(userMessage);
+  if(result.board && result.board.length) enqueueCommandsAtCursor(result.board);
+  if(result.speech){ addTranscriptMsg('tutor', result.speech); speak(result.speech); }
+  if(result.quiz) addQuizCard(result.quiz);
+  autoSaveSession();
+}
+
+/* =========================================================
+   SESSION PERSISTENCE
+   ========================================================= */
+let currentSessionId = 'session_' + Date.now();
+let currentSessionTitle = null;
+
+function transcriptToHtmlSnapshot(){ return transcriptEl.innerHTML; }
+
+async function saveSession(promptForName){
+  try{
+    let title = currentSessionTitle;
+    if(promptForName || !title){
+      title = prompt('Name this session:', title || (pdfFileName ? pdfFileName.replace(/\.pdf$/i,'') : 'Untitled session'));
+      if(title===null) return;
+      currentSessionTitle = title || 'Untitled session';
+    }
+    await persistSession();
+    setStatus('session saved');
+  } catch(err){ console.error('Save failed:', err); setStatus('save failed — see console'); }
+}
+
+async function persistSession(){
+  const payload = {
+    id: currentSessionId,
+    title: currentSessionTitle || (pdfFileName ? pdfFileName.replace(/\.pdf$/i,'') : 'Untitled session'),
+    savedAt: Date.now(),
+    pdfFileName, pdfText: pdfText ? pdfText.slice(0,15000) : '',
+    conversationHistory, drawnCommands, camera,
+    globalCursorY, currentTopicLabel,
+    transcriptHtml: transcriptToHtmlSnapshot()
+  };
+  await window.storage.set('session:' + currentSessionId, JSON.stringify(payload), false);
+  refreshSessionList();
+}
+
+function autoSaveSession(){ if(conversationHistory.length>0) persistSession().catch(e=>console.error('Autosave failed:',e)); }
+
+async function refreshSessionList(){
+  const listEl = document.getElementById('session-list');
+  try{
+    const result = await window.storage.list('session:', false);
+    const keys = (result && result.keys) ? result.keys : [];
+    if(keys.length===0){ listEl.innerHTML = '<div class="empty-note">No saved sessions yet.</div>'; return; }
+    const items = [];
+    for(const key of keys){
+      try{ const rec = await window.storage.get(key, false); if(rec) items.push(JSON.parse(rec.value)); } catch(e){}
+    }
+    items.sort((a,b)=>(b.savedAt||0)-(a.savedAt||0));
+    listEl.innerHTML = '';
+    items.forEach(item=>{
+      const div = document.createElement('div'); div.className='session-item';
+      const date = new Date(item.savedAt);
+      div.innerHTML = `<span class="s-name">${escapeHtml(item.title||'Untitled')}</span><span class="s-date">${date.toLocaleDateString()}</span>`;
+      div.addEventListener('click', ()=> loadSession(item));
+      listEl.appendChild(div);
+    });
+  } catch(err){ console.error('Listing sessions failed:', err); listEl.innerHTML = '<div class="empty-note">Could not load saved sessions.</div>'; }
+}
+
+function resetUploadZoneUI(){
+  uploadZone.classList.remove('has-file');
+  uploadZone.innerHTML = `Drop a PDF, or click to import a chapter, slide deck or notes.<input type="file" id="pdf-input" accept="application/pdf">`;
+  document.getElementById('pdf-input').addEventListener('change', (e)=>{ if(e.target.files.length) handlePdfFile(e.target.files[0]); });
+}
+
+function loadSession(item){
+  currentSessionId = item.id; currentSessionTitle = item.title;
+  pdfFileName = item.pdfFileName || ''; pdfText = item.pdfText || '';
+  conversationHistory = item.conversationHistory || [];
+  drawnCommands = item.drawnCommands || [];
+  if(item.camera) Object.assign(camera, item.camera);
+  if(item.globalCursorY !== undefined) globalCursorY = item.globalCursorY;
+  else if(item.regionCursor) globalCursorY = Math.max(item.regionCursor.notes, item.regionCursor.graph, item.regionCursor.detail);
+  else globalCursorY = TOP_MARGIN;
+  
+  currentTopicLabel = item.currentTopicLabel || 'Topic';
+  transcriptEl.innerHTML = item.transcriptHtml || '<div class="empty-note">No transcript in this session.</div>';
+  if(pdfFileName){
+    uploadZone.classList.add('has-file');
+    uploadZone.innerHTML = `<div class="file-name">📄 ${escapeHtml(pdfFileName)}</div><div class="file-meta">restored from saved session</div>`;
+  } else { resetUploadZoneUI(); }
+  checkIfScrolledAway();
+  redrawAll();
+  setStatus('session loaded');
+  closePanel();
+}
+
+document.getElementById('btn-save').addEventListener('click', ()=> saveSession(true));
+document.getElementById('btn-new-session').addEventListener('click', ()=>{
+  currentSessionId = 'session_' + Date.now(); currentSessionTitle = null;
+  pdfText=''; pdfFileName='';
+  conversationHistory=[]; drawQueue=[]; drawnCommands=[];
+  camera.x=500; camera.scale=1;
+  resetRegionCursors(); currentTopicLabel='Topic';
+  clearBoard();
+  transcriptEl.innerHTML = '<div class="empty-note">Your lecture transcript and quiz questions will appear here as we go.</div>';
+  resetUploadZoneUI();
+  setStatus('new session');
+});
+
+/* =========================================================
+   SIDE PANEL TOGGLES
+   ========================================================= */
+const sidePanel = document.getElementById('side-panel');
+const overlay = document.getElementById('overlay');
+function openPanel(){ sidePanel.classList.add('open'); overlay.classList.add('open'); }
+function closePanel(){ sidePanel.classList.remove('open'); overlay.classList.remove('open'); }
+document.getElementById('btn-menu').addEventListener('click', openPanel);
+document.getElementById('btn-panel-close').addEventListener('click', closePanel);
+overlay.addEventListener('click', closePanel);
+document.getElementById('btn-toggle-transcript').addEventListener('click', openPanel);
+
+/* =========================================================
+   WIRE UP CONTROLS
+   ========================================================= */
+document.getElementById('btn-teach').addEventListener('click', ()=>{
+  const val = document.getElementById('topic-input').value.trim();
+  if(!val) return;
+  if(conversationHistory.length === 0) currentTopicLabel = val.length > 60 ? val.slice(0,57)+'…' : val;
+  runTeachingTurn(val);
+  document.getElementById('topic-input').value = '';
+  closePanel();
+});
+document.getElementById('btn-quiz').addEventListener('click', ()=>{
+  const val = document.getElementById('topic-input').value.trim();
+  const prompt = val ? `Please quiz me on: ${val}` : (pdfText ? `Please quiz me on the uploaded document.` : `Please quiz me on the most recent topic we discussed.`);
+  runTeachingTurn(prompt);
+  closePanel();
+});
+function handleAsk(text){
+  if(!text || !text.trim()) return;
+  runTeachingTurn(text.trim());
+  document.getElementById('ask-input').value = '';
+}
+document.getElementById('btn-ask').addEventListener('click', ()=> handleAsk(document.getElementById('ask-input').value));
+document.getElementById('ask-input').addEventListener('keydown', (e)=>{ if(e.key==='Enter') handleAsk(e.target.value); });
+
+/* =========================================================
+   INIT
+   ========================================================= */
+document.getElementById('voice-select').addEventListener('change', ()=>{
+  if(currentUtteranceText) speak(currentUtteranceText);
+});
+
+resizeCanvas();
+setStatus('idle');
+refreshSessionList();
+<\/script>
+
+</body>
+</html>
+</script>
+
+<script type="text/plain" id="src-summary"><!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chalkline — Summary</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"><\/script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"><\/script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&family=Caveat:wght@600;700&display=swap');
+
+:root{
+  --board-bg:#F3F9FE;
+  --ink:#1E2B3A;
+  --ochre:#2E7DBE;
+  --highlight:#D7ECFB;
+  --sage:#3E8FA6;
+  --brick:#3D6B93;
+  --panel-border:#D3E6F5;
+  --muted:#7C93A8;
+  --halo-blue:#6EA8FE;
+  --halo-blue-soft:#A5C8FF;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:'Source Serif 4', Georgia, serif;
+  color:var(--ink); background:var(--board-bg);
+  min-height:100vh; position:relative;
+}
+.ambient-halo{ position:fixed; inset:0; z-index:0; overflow:hidden; pointer-events:none; }
+.ambient-halo::before,.ambient-halo::after{
+  content:''; position:absolute; width:58vmax;height:58vmax;
+  border-radius:50%; filter:blur(100px); opacity:0.22; mix-blend-mode:multiply;
+}
+.ambient-halo::before{ top:-24%; left:-16%; background:radial-gradient(circle, var(--halo-blue) 0%, rgba(110,168,254,0) 70%); animation:d1 24s ease-in-out infinite; }
+.ambient-halo::after{ bottom:-26%; right:-14%; background:radial-gradient(circle, var(--halo-blue-soft) 0%, rgba(165,200,255,0) 70%); animation:d2 28s ease-in-out infinite; }
+@keyframes d1{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(9%,7%) scale(1.13);}}
+@keyframes d2{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(-7%,-6%) scale(1.1);}}
+
+.wrap{ position:relative; z-index:1; max-width:760px; margin:0 auto; padding:0 28px 80px; }
+
+nav{ display:flex; align-items:center; justify-content:space-between; padding:26px 0 10px; }
+.brand{ font-family:'Caveat', cursive; font-weight:700; font-size:28px; color:var(--ink); text-decoration:none; display:flex; align-items:center; gap:8px; }
+.brand .dot{ width:9px;height:9px;border-radius:50%; background:var(--sage); display:inline-block; }
+.nav-links{ display:flex; gap:26px; font-family:'JetBrains Mono', monospace; font-size:13px; }
+.nav-links a{ color:var(--muted); text-decoration:none; }
+.nav-links a:hover{ color:var(--ink); }
+.nav-links a.active{ color:var(--ink); border-bottom:1.5px solid var(--sage); padding-bottom:2px; }
+
+.page-head{ padding:34px 0 26px; }
+.page-head h1{ font-size:32px; margin:0 0 10px; font-weight:600; }
+.page-head p{ font-size:16px; color:#5c5847; margin:0; max-width:520px; line-height:1.55; }
+
+#upload-zone{
+  border:1.5px dashed var(--panel-border); border-radius:14px;
+  padding:38px 24px; text-align:center; cursor:pointer;
+  color:var(--muted); font-size:15px; background:#fff;
+  transition:border-color .15s ease, background .15s ease;
+}
+#upload-zone:hover{ border-color:var(--sage); background:#FAFCFB; }
+#upload-zone.has-file{ cursor:default; }
+#upload-zone input[type=file]{ display:none; }
+.file-name{ font-size:16px; color:var(--ink); font-weight:600; }
+.file-meta{ font-family:'JetBrains Mono', monospace; font-size:11.5px; color:var(--muted); margin-top:6px; }
+
+.controls{ display:flex; align-items:center; gap:14px; margin-top:18px; flex-wrap:wrap; }
+.length-select{
+  font-family:'JetBrains Mono', monospace; font-size:12.5px; color:var(--ink);
+  border:1px solid var(--panel-border); border-radius:8px; padding:8px 10px; background:#fff;
+}
+.btn-primary{
+  font-family:'Source Serif 4', serif; font-size:15.5px; font-weight:600;
+  background:var(--ink); color:#fff; border:none; border-radius:9px;
+  padding:11px 22px; cursor:pointer;
+}
+.btn-primary:disabled{ background:#cfc9b4; cursor:not-allowed; }
+.btn-primary:not(:disabled):hover{ background:#3a372e; }
+.status-line{ font-family:'JetBrains Mono', monospace; font-size:11.5px; color:var(--muted); margin-top:10px; min-height:14px; }
+
+#output-wrap{ margin-top:38px; display:none; }
+#output-wrap.show{ display:block; }
+.output-head{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:14px; flex-wrap:wrap; gap:10px; }
+.output-head h2{ font-size:20px; margin:0; font-weight:600; }
+.output-actions{ display:flex; gap:10px; }
+.icon-link{
+  font-family:'JetBrains Mono', monospace; font-size:11.5px; color:var(--ochre);
+  text-decoration:none; cursor:pointer; background:none; border:none; padding:0;
+}
+.icon-link:hover{ text-decoration:underline; }
+
+#summary-panel{
+  background:#fff; border:1px solid var(--panel-border); border-radius:14px;
+  padding:30px 32px; font-size:16.5px; line-height:1.7; position:relative;
+}
+#summary-panel::before{
+  content:''; position:absolute; top:0; left:0; right:0; height:4px;
+  background:linear-gradient(90deg, var(--highlight), var(--sage) 60%, var(--halo-blue-soft));
+  border-radius:14px 14px 0 0;
+}
+#summary-panel h3{ font-size:18px; margin:22px 0 8px; font-weight:600; }
+#summary-panel h3:first-child{ margin-top:0; }
+#summary-panel ul{ margin:8px 0 16px; padding-left:22px; }
+#summary-panel li{ margin-bottom:6px; }
+#summary-panel p{ margin:0 0 14px; }
+#summary-panel strong{ color:var(--brick); font-weight:600; }
+
+.empty-hint{ font-family:'JetBrains Mono', monospace; font-size:11.5px; color:var(--muted); margin-top:8px; }
+</style>
+</head>
+<body>
+
+<div class="ambient-halo"></div>
+
+<div class="wrap">
+  <nav>
+    <a class="brand" href="#" onclick="parent.postMessage({nav:'home'},'*');return false;"><span class="dot"></span>Chalkline</a>
+    <div class="nav-links">
+      <a href="#" onclick="parent.postMessage({nav:'tutor'},'*');return false;">Tutor</a>
+      <a href="#" class="active" onclick="return false;">Summary</a>
+    </div>
+  </nav>
+
+  <div class="page-head">
+    <h1>Summarize your notes</h1>
+    <p>Upload a PDF — a chapter, slide deck, or your own notes — and get back a clear, structured summary of what's actually in it.</p>
+  </div>
+
+  <div id="upload-zone">
+    Drop a PDF here, or click to choose a file.
+    <input type="file" id="pdf-input" accept="application/pdf">
+  </div>
+
+  <div class="controls">
+    <select id="length-select" class="length-select">
+      <option value="brief">Brief — key points only</option>
+      <option value="standard" selected>Standard — sectioned summary</option>
+      <option value="detailed">Detailed — thorough walkthrough</option>
+    </select>
+    <button id="btn-summarize" class="btn-primary" disabled>Summarize</button>
+  </div>
+  <div class="status-line" id="status-line"></div>
+
+  <div id="output-wrap">
+    <div class="output-head">
+      <h2 id="output-title">Summary</h2>
+      <div class="output-actions">
+        <button class="icon-link" id="btn-copy">Copy</button>
+        <button class="icon-link" id="btn-download">Download PDF</button>
+      </div>
+    </div>
+    <div id="summary-panel"></div>
+  </div>
+</div>
+
+<script>
+const pdfjsAvailable = typeof pdfjsLib !== 'undefined';
+if(pdfjsAvailable){
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+let pdfText = '', pdfFileName = '';
+const uploadZone = document.getElementById('upload-zone');
+const pdfInput = document.getElementById('pdf-input');
+const btnSummarize = document.getElementById('btn-summarize');
+const statusLine = document.getElementById('status-line');
+function setStatus(s){ statusLine.textContent = s || ''; }
+function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+uploadZone.addEventListener('click', ()=> pdfInput.click());
+uploadZone.addEventListener('dragover', (e)=> e.preventDefault());
+uploadZone.addEventListener('drop', (e)=>{ e.preventDefault(); if(e.dataTransfer.files.length) handlePdfFile(e.dataTransfer.files[0]); });
+pdfInput.addEventListener('change', (e)=>{ if(e.target.files.length) handlePdfFile(e.target.files[0]); });
+
+async function handlePdfFile(file){
+  if(!pdfjsAvailable){ alert("PDF import couldn't load its engine. Try reloading the page."); return; }
+  if(file.type !== 'application/pdf'){ alert('Please choose a PDF file.'); return; }
+  setStatus('reading pdf…');
+  pdfFileName = file.name;
+  try{
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+    let fullText = '';
+    const maxPages = Math.min(pdf.numPages, 60);
+    for(let i=1;i<=maxPages;i++){
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      fullText += `\n\n[Page ${i}]\n` + content.items.map(it=>it.str).join(' ');
+    }
+    pdfText = fullText;
+    uploadZone.classList.add('has-file');
+    uploadZone.innerHTML = `<div class="file-name">📄 ${escapeHtml(pdfFileName)}</div><div class="file-meta">${pdf.numPages} page${pdf.numPages===1?'':'s'} · text extracted${pdf.numPages>60 ? ' (first 60 pages)' : ''}</div>`;
+    btnSummarize.disabled = false;
+    setStatus('ready to summarize');
+  } catch(err){
+    console.error('Failed to read PDF:', err);
+    setStatus('could not read this pdf — see console');
+  }
+}
+
+const PROXY_URL = "https://api.takundamambudzi02.workers.dev";
+
+function lengthInstruction(mode){
+  if(mode === 'brief') return "Keep it short: a handful of the most important bullet points only, no sections, under 150 words.";
+  if(mode === 'detailed') return "Be thorough: cover every section of the source in real depth, with sub-points and examples where the source has them. It's fine for this to be long.";
+  return "Aim for a well-organized overview: a few clear sections with headings, each with 3-6 bullet points covering the important content.";
+}
+
+async function summarizeText(text, mode){
+  if(PROXY_URL.includes('YOUR-WORKER-SUBDOMAIN')){
+    return { ok:false, error:"The AI proxy hasn't been set up yet." };
+  }
+
+  const system = `You are a study-notes summarizer. You are given the extracted text of a PDF (a chapter, slide deck, or notes) and must produce a summary of it for a student reviewing before an exam.
+
+Output format: plain HTML fragment only using: <h3>, <p>, <ul>/<li>, <strong>.
+
+${lengthInstruction(mode)}`;
+
+  const userMsg = `Extracted PDF text (file: ${pdfFileName}):\n\n${text.slice(0, 60000)}`;
+
+  let response, data;
+  try{
+    response = await fetch(`${PROXY_URL}/gemini`, {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: system }] },
+        contents: [{ role:"user", parts:[{ text: userMsg }] }],
+        generationConfig: { maxOutputTokens: 3000 }
+      })
+    });
+  } catch(networkErr){
+    return { ok:false, error:"The request never reached the proxy." };
+  }
+
+  try{ data = await response.json(); }
+  catch(parseErr){
+    return { ok:false, error:"The server responded, but not with valid JSON." };
+  }
+
+  if(!response.ok){
+    const msg = (data && data.error && data.error.message) ? data.error.message : JSON.stringify(data);
+    return { ok:false, error:`The model returned an error: ${msg}` };
+  }
+
+  const candidate = data.candidates && data.candidates[0];
+  const part = candidate && candidate.content && candidate.content.parts && candidate.content.parts[0];
+  if(!part || !part.text){
+    return { ok:false, error:"The response came back in an unexpected shape." };
+  }
+  return { ok:true, html: part.text.trim().replace(/^```html\s*/i,'').replace(/^```\s*/,'').replace(/```\s*$/,'') };
+}
+
+const outputWrap = document.getElementById('output-wrap');
+const summaryPanel = document.getElementById('summary-panel');
+const outputTitle = document.getElementById('output-title');
+
+btnSummarize.addEventListener('click', async ()=>{
+  if(!pdfText){ setStatus('upload a pdf first'); return; }
+  const mode = document.getElementById('length-select').value;
+  btnSummarize.disabled = true;
+  setStatus('reading and summarizing…');
+  const result = await summarizeText(pdfText, mode);
+  btnSummarize.disabled = false;
+  if(!result.ok){
+    setStatus(result.error);
+    return;
+  }
+  outputTitle.textContent = `Summary — ${pdfFileName.replace(/\.pdf$/i,'')}`;
+  summaryPanel.innerHTML = result.html;
+  outputWrap.classList.add('show');
+  setStatus('done');
+  outputWrap.scrollIntoView({behavior:'smooth', block:'start'});
+});
+
+document.getElementById('btn-copy').addEventListener('click', ()=>{
+  const text = summaryPanel.innerText;
+  navigator.clipboard.writeText(text).then(()=> setStatus('summary copied')).catch(()=> setStatus('copy failed'));
+});
+
+document.getElementById('btn-download').addEventListener('click', ()=>{
+  try{
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({unit:'pt', format:'a4'});
+    const margin = 48;
+    const maxWidth = 595 - margin*2;
+    let y = margin;
+    doc.setFont('helvetica','bold'); doc.setFontSize(16);
+    doc.text(outputTitle.textContent, margin, y); y += 26;
+
+    const nodes = summaryPanel.children.length ? Array.from(summaryPanel.children) : [summaryPanel];
+    nodes.forEach(node=>{
+      const tag = node.tagName ? node.tagName.toLowerCase() : 'p';
+      if(tag === 'h3'){
+        doc.setFont('helvetica','bold'); doc.setFontSize(13);
+        if(y > 760){ doc.addPage(); y = margin; }
+        y += 10;
+        const lines = doc.splitTextToSize(node.textContent, maxWidth);
+        doc.text(lines, margin, y); y += lines.length*16 + 4;
+      } else if(tag === 'ul'){
+        doc.setFont('helvetica','normal'); doc.setFontSize(11);
+        Array.from(node.children).forEach(li=>{
+          const lines = doc.splitTextToSize('•  ' + li.textContent, maxWidth);
+          if(y + lines.length*14 > 780){ doc.addPage(); y = margin; }
+          doc.text(lines, margin, y); y += lines.length*14 + 2;
+        });
+        y += 6;
+      } else {
+        doc.setFont('helvetica','normal'); doc.setFontSize(11);
+        const lines = doc.splitTextToSize(node.textContent, maxWidth);
+        if(y + lines.length*14 > 780){ doc.addPage(); y = margin; }
+        doc.text(lines, margin, y); y += lines.length*14 + 8;
+      }
+    });
+
+    doc.save((pdfFileName ? pdfFileName.replace(/\.pdf$/i,'') : 'summary') + ' - summary.pdf');
+    setStatus('pdf downloaded');
+  } catch(err){
+    console.error('PDF export failed:', err);
+    setStatus('pdf export failed — see console');
+  }
+});
+<\/script>
+
+</body>
+</html>
+</script>
+
+<script>
+function unwrap(id){
+  return document.getElementById(id).textContent.replace(/<\\\/script/gi, '</script');
+}
+const frames = {
+  home: document.getElementById('frame-home'),
+  tutor: document.getElementById('frame-tutor'),
+  summary: document.getElementById('frame-summary')
+};
+const loaded = { home:false, tutor:false, summary:false };
+const backBtn = document.getElementById('back-btn');
+let current = 'home';
+
+function ensureLoaded(page){
+  if(loaded[page]) return;
+  frames[page].srcdoc = unwrap('src-' + page);
+  loaded[page] = true;
+}
+
+function navTo(page, pushHistory){
+  if(!frames[page]) page = 'home';
+  ensureLoaded(page);
+  Object.keys(frames).forEach(k => frames[k].classList.toggle('active', k === page));
+  backBtn.classList.toggle('show', page !== 'home');
+  current = page;
+  if(pushHistory !== false){
+    history.pushState({page}, '', '#' + page);
+  }
+}
+
+window.addEventListener('message', (e)=>{
+  const d = e.data;
+  if(d && d.nav) navTo(d.nav, true);
+});
+
+window.addEventListener('popstate', (e)=>{
+  const page = (e.state && e.state.page) || (location.hash ? location.hash.slice(1) : 'home');
+  navTo(page, false);
+});
+
+const initial = location.hash ? location.hash.slice(1) : 'home';
+history.replaceState({page: initial}, '', '#' + initial);
+navTo(initial, false);
+</script>
+
+</body>
+</html>
