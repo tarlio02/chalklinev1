@@ -1605,11 +1605,14 @@ function enqueueCommandsAtCursor(commands){
             });
             
             const lh = lineHeightFor(size);
-            
-            if(c.heading && globalCursorY > TOP_MARGIN) {
-                globalCursorY += RULE_LINE_SPACING * 2; 
+
+            if(globalCursorY > TOP_MARGIN){
+                // Always leave a little breathing room between one written
+                // block and the next; headings get an extra-large gap so a
+                // new topic visually separates from what came before.
+                globalCursorY += c.heading ? RULE_LINE_SPACING * 2.5 : RULE_LINE_SPACING * 0.85;
             }
-            
+
             c.y = globalCursorY + lh;
             placedAll.push(c);
             globalCursorY += lines * lh;
