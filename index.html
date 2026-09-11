@@ -1549,12 +1549,19 @@ function enqueueCommandsAtCursor(commands){
         } else if (c.type === 'plot' || c.type === 'axes') {
             c.x = 160;
             c.w = 640;
-            c.h = 400;
+            c.h = 400; // a whole multiple of RULE_LINE_SPACING, like every
+                       // other vertical measurement here — see note below
             
-            globalCursorY += 40; // Title margin — trimmed, still clears the title text
+            globalCursorY += RULE_LINE_SPACING; // Title margin
             c.y = globalCursorY + c.h; // Origin is bottom-left
             placedAll.push(c);
-            globalCursorY = c.y + 56; // X-axis label margin — trimmed, still clears tick/axis labels
+            // X-axis label margin. MUST be a whole multiple of
+            // RULE_LINE_SPACING like every other vertical measurement in
+            // this function — otherwise globalCursorY drifts off the rule
+            // grid after the first graph, and every line of handwriting
+            // placed after it stops resting on the ruled lines (it'll
+            // visually "float" between them instead of sitting on one).
+            globalCursorY = c.y + RULE_LINE_SPACING*2;
 
         } else if (c.type === 'halo' || c.type === 'highlight') {
             if (placedAll.length > 0) {
