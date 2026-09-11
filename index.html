@@ -751,7 +751,7 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
 
 <script>
 /* =========================================================
-   INFINITE CANVAS: camera model & Auto-Clustering Layout
+   INFINITE CANVAS: camera model & Auto-Stacking Layout
    ========================================================= */
 
 const canvas = document.getElementById('board');
@@ -773,6 +773,11 @@ let currentTopicLabel = 'Topic';
 function resetRegionCursors(){
   globalCursorY = TOP_MARGIN;
   userIsScrolledAway = false;
+  
+  if (viewW > 0) {
+      camera.scale = Math.min(1.5, viewW / 1050);
+      camera.x = 500;
+  }
 }
 
 function getMaxYWorld(){
@@ -802,13 +807,18 @@ function animateCameraPan(targetX, targetY, duration, onDone){
 }
 
 function panCameraToCursor(targetY, onDone){
+  const idealScale = Math.min(1.5, viewW / 1050);
+  if (Math.abs(camera.scale - idealScale) > 0.01 && !userIsScrolledAway) {
+      camera.scale = idealScale;
+  }
+  // Force X to stay precisely centered on 500
   animateCameraPan(500, targetY, 900, onDone);
 }
 
 function checkIfScrolledAway(){
   const maxY = getMaxYWorld();
   const bottomVisibleY = screenToWorld(0, viewH)[1];
-  userIsScrolledAway = (bottomVisibleY < maxY - 150);
+  userIsScrolledAway = (bottomVisibleY < maxY - 300);
 }
 
 function resizeCanvas(){
@@ -818,6 +828,12 @@ function resizeCanvas(){
   canvas.height = rect.height * dpr;
   ctx.setTransform(dpr,0,0,dpr,0,0);
   viewW = rect.width; viewH = rect.height;
+  
+  if (!userIsScrolledAway && viewW > 0) {
+      camera.scale = Math.min(1.5, viewW / 1050);
+      camera.x = 500;
+  }
+  
   redrawAll();
 }
 window.addEventListener('resize', resizeCanvas);
@@ -911,13 +927,14 @@ function redrawAllExcept(skipCmd){
 
 function sw(n){ return n * camera.scale; }
 
-function wrapTextToLines(text, maxWidthPx){
+function wrapTextToLines(text, maxWidthPx, customCtx){
   const words = (text||'').split(/\s+/).filter(Boolean);
   const lines = [];
   let cur = '';
+  const context = customCtx || ctx;
   words.forEach(w => {
     const test = cur ? cur + ' ' + w : w;
-    if(cur && ctx.measureText(test).width > maxWidthPx){
+    if(cur && context.measureText(test).width > maxWidthPx){
       lines.push(cur);
       cur = w;
     } else {
@@ -999,9 +1016,6 @@ function renderCommand(cmd){
       } else {
         ctx.fillText(cmd.text, sx, sy);
       }
-      break;
-    }
-    case 'highlight-marker': {
       break;
     }
     case 'line': {
@@ -1185,7 +1199,7 @@ function strokeSmoothCurvePartial(pts, t){
   ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
   for(let i=1;i<=segIdx;i++){
     const nextI = Math.min(i+1, pts.length-1);
-    const midX = (pts[i][0]+nextI[0])/2, midY = (pts[i][1]+nextI[1])/2;
+    const midX = (pts[i][0]+pts[nextI][0])/2, midY = (pts[i][1]+pts[nextI][1])/2;
     ctx.quadraticCurveTo(pts[i][0], pts[i][1], midX, midY);
   }
   let penX = pts[segIdx][0], penY = pts[segIdx][1];
@@ -1279,7 +1293,12 @@ canvas.addEventListener('wheel', (e)=>{
 }, {passive:false});
 document.getElementById('zoom-in').addEventListener('click', ()=>{ camera.scale=Math.min(3,camera.scale*1.2); checkIfScrolledAway(); redrawAll(); });
 document.getElementById('zoom-out').addEventListener('click', ()=>{ camera.scale=Math.max(0.2,camera.scale/1.2); checkIfScrolledAway(); redrawAll(); });
-document.getElementById('zoom-reset').addEventListener('click', ()=>{ panToken++; camera.x=500;camera.y=300;camera.scale=1; userIsScrolledAway=false; redrawAll(); });
+document.getElementById('zoom-reset').addEventListener('click', ()=>{ 
+  panToken++; camera.x=500; camera.scale=Math.min(1.5, viewW / 1050); 
+  userIsScrolledAway=false; 
+  panCameraToCursor(globalCursorY - 300, null);
+  redrawAll(); 
+});
 document.getElementById('btn-clear').addEventListener('click', ()=>{ panToken++; drawQueue=[]; camera.x=500;camera.y=300;camera.scale=1; resetRegionCursors(); clearBoard(); });
 
 /* =========================================================
@@ -1379,88 +1398,63 @@ function drawPen(x, y, angle){
   ctx.restore();
 }
 
-function clampBoardCoords(c){
-  const M = 20;
-  const MINX = M, MAXX = 1000 - M;
-  const clampX = v => Math.min(MAXX, Math.max(MINX, v));
-  switch(c.type){
-    case 'text': case 'circle': case 'halo':
-      c.x = clampX(c.x);
-      if(c.type === 'text' && c.maxWidth) c.maxWidth = Math.min(c.maxWidth, MAXX - c.x);
-      break;
-    case 'line': case 'arrow':
-      c.x1 = clampX(c.x1);
-      c.x2 = clampX(c.x2);
-      break;
-    case 'rect': case 'highlight':
-      c.x = clampX(c.x);
-      if(c.w) c.w = Math.min(c.w, MAXX - c.x);
-      break;
-    case 'curve':
-      if(Array.isArray(c.points)) c.points = c.points.map(p => [clampX(p[0]), p[1]]);
-      break;
-    case 'axes': case 'plot':
-      c.x = clampX(c.x);
-      c.w = Math.max(60, Math.min(c.w, MAXX - c.x));
-      break;
-  }
-  return c;
-}
-
 function enqueueCommandsAtCursor(commands){
     let placedAll = [];
 
-    commands = commands.map(c => clampBoardCoords({ ...c }));
-
-    const savedCam = { ...camera }, savedW = viewW, savedH = viewH;
-    camera.scale = 1; camera.x = viewW/2; camera.y = viewH/2;
-
-    const localBoxes = commands.map(c => {
-        const box = commandScreenBBox(c); 
-        return { cmd: c, minX: box[0], minY: box[1], maxX: box[2], maxY: box[3] };
+    // Sort to maintain correct reading order
+    commands.sort((a,b) => {
+        let ay = a.y ?? a.y1 ?? (a.points?.[0]?.[1]) ?? 0;
+        let by = b.y ?? b.y1 ?? (b.points?.[0]?.[1]) ?? 0;
+        if (a.type === 'plot' || a.type === 'axes') ay = a.y - (a.h || 400);
+        if (b.type === 'plot' || b.type === 'axes') by = b.y - (b.h || 400);
+        return ay - by;
     });
 
-    localBoxes.sort((a,b) => a.minY - b.minY);
+    const testCanvas = document.createElement('canvas');
+    const tCtx = testCanvas.getContext('2d');
 
-    const clusters = [];
-    localBoxes.forEach(item => {
-        if (clusters.length === 0) {
-            clusters.push({ items: [item], minY: item.minY, maxY: item.maxY });
-        } else {
-            const lastCluster = clusters[clusters.length - 1];
-            if (item.minY <= lastCluster.maxY + 30) {
-                lastCluster.items.push(item);
-                lastCluster.maxY = Math.max(lastCluster.maxY, item.maxY);
-            } else {
-                clusters.push({ items: [item], minY: item.minY, maxY: item.maxY });
+    commands.forEach(cmd => {
+        let c = { ...cmd };
+        
+        if (c.type === 'text') {
+            c.x = 90; // Strictly adhere to left margin
+            c.maxWidth = 820; // Force wrapping before edge
+            const size = (c.size || 26) * 1.25;
+            const fam = c.mono ? "'JetBrains Mono', monospace" : "'Caveat', 'Kalam', cursive";
+            tCtx.font = `${c.weight || 700} ${size}px ${fam}`;
+            
+            const words = (c.text || '').split(/\s+/).filter(Boolean);
+            let lines = 1; let cur = '';
+            words.forEach(w => {
+                const test = cur ? cur + ' ' + w : w;
+                if(tCtx.measureText(test).width > c.maxWidth){ lines++; cur = w; }
+                else { cur = test; }
+            });
+            
+            c.y = globalCursorY + size;
+            placedAll.push(c);
+            globalCursorY += lines * (size * 1.35) + 40;
+
+        } else if (c.type === 'plot' || c.type === 'axes') {
+            c.x = 160;
+            c.w = 640;
+            c.h = 400;
+            
+            globalCursorY += 60; // Title margin
+            c.y = globalCursorY + c.h; // Origin is bottom-left
+            placedAll.push(c);
+            globalCursorY = c.y + 70; // X-axis label margin
+
+        } else if (c.type === 'halo' || c.type === 'highlight') {
+            if (placedAll.length > 0) {
+               let prev = placedAll[placedAll.length-1];
+               if (prev.type === 'text') {
+                   c.x = prev.x + 40; c.y = prev.y - 10;
+                   placedAll.unshift(c); 
+               }
             }
         }
     });
-
-    clusters.forEach(cluster => {
-        const clusterHeight = cluster.maxY - cluster.minY;
-        const shiftY = globalCursorY - cluster.minY;
-        
-        let clusterMinX = Math.min(...cluster.items.map(i => i.minX));
-        const hasPlot = cluster.items.some(i => i.cmd.type === 'plot' || i.cmd.type === 'axes');
-        
-        const targetX = hasPlot ? 100 : 50; 
-        const shiftX = targetX - clusterMinX;
-
-        cluster.items.forEach(item => {
-            let c = { ...item.cmd };
-            if (c.x !== undefined) c.x += shiftX;
-            if (c.y !== undefined) c.y += shiftY;
-            if (c.x1 !== undefined) { c.x1 += shiftX; c.x2 += shiftX; }
-            if (c.y1 !== undefined) { c.y1 += shiftY; c.y2 += shiftY; }
-            if (c.points) c.points = c.points.map(p => [p[0] + shiftX, p[1] + shiftY]);
-            placedAll.push(c);
-        });
-
-        globalCursorY += clusterHeight + 60; 
-    });
-
-    Object.assign(camera, savedCam); viewW = savedW; viewH = savedH;
 
     let panTargetY = globalCursorY - 300; 
     if (panTargetY < TOP_MARGIN) panTargetY = TOP_MARGIN;
@@ -1480,6 +1474,9 @@ function enqueueCommands(commands){
 }
 
 function commandWorldAnchor(cmd){
+  if(cmd.type === 'plot' || cmd.type === 'axes') {
+      return [cmd.x + (cmd.w||0)/2, cmd.y - (cmd.h||0)/2];
+  }
   if('x' in cmd && 'y' in cmd) return [cmd.x, cmd.y];
   if('x1' in cmd && 'y1' in cmd) return [(cmd.x1+cmd.x2)/2, (cmd.y1+cmd.y2)/2];
   if(Array.isArray(cmd.points) && cmd.points.length) return cmd.points[Math.floor(cmd.points.length/2)];
@@ -1496,7 +1493,8 @@ function processQueue(){
     const [sx, sy] = worldToScreen(anchor[0], anchor[1]);
     const margin = 80;
     if(sx < margin || sx > viewW-margin || sy < margin || sy > viewH-margin){
-      animateCameraPan(anchor[0], anchor[1], 260, null);
+      // Always enforce camera.x locking centrally at 500 when auto-following
+      animateCameraPan(500, anchor[1], 260, null);
     }
   }
   
@@ -1827,7 +1825,7 @@ function speak(text){
     const utter = new SpeechSynthesisUtterance(chunks[i]);
     utter.rate = 0.96;
     utter.pitch = 1.0;
-    utter.volume = 1.0; // Enforces maximum browser volume
+    utter.volume = 1.0; // Enforces maximum browser volume output
     if(voice) utter.voice = voice;
     renderCaption(text, chunkOffsets[i], chunks[i]);
     utter.onstart = () => avatar.classList.add('speaking');
@@ -1964,11 +1962,10 @@ ALL TEXT, HEADINGS, EQUATIONS, AND EXPLANATIONS ON THE BOARD ARE RENDERED IN REA
 Use color changes on key terms and equations for visual emphasis and clarity.
 Colors available: "ink" (navy blue), "ochre" (amber/orange keyword emphasis), "sage" (green emphasis), "brick" (red emphasis), "teal", "violet", "sky", "coral".
 
-CRITICAL LAYOUT RULES - YOU MUST FOLLOW THESE EXACTLY:
-1. TOP-LEFT ALIGNMENT: Start writing at the top-left corner (x: 50, y: 50).
-2. STRICT SINGLE COLUMN: Arrange all content vertically. NEVER place text side-by-side with a graph or other text.
-3. NO OVERLAPPING: Never place text on top of diagrams. Leave at least 150 units of vertical 'y' gap between a plot and the next text block.
-4. Use "maxWidth": 800 for any text that is a full sentence or longer so it wraps cleanly.
+CRITICAL LAYOUT RULES - THE APP WILL OVERRIDE YOUR COORDINATES:
+1. DO NOT try to position text next to a graph. Everything is strictly stacked vertically in a single column by the engine.
+2. ONLY use "text" commands for paragraph explanations. DO NOT use "text" commands to title or label graphs.
+3. FOR GRAPHS, use ONLY the "plot" command. Put the title, xlabel, and ylabel INSIDE the plot command properties. DO NOT use separate text commands near it.
 
 TEXT ON THE BOARD MUST USE REAL SYMBOLS, NOT SPELLED-OUT WORDS: π, θ, β, α, γ, Δ, Σ, ∫, √, ∞, ≤, ≥, ≈, ×, ÷, →, ², ³, ₁, ₂, etc. directly inside "text" strings. Use "mono":true for alignment if drawing equations.
 
@@ -2220,7 +2217,7 @@ document.getElementById('btn-new-session').addEventListener('click', ()=>{
   currentSessionId = 'session_' + Date.now(); currentSessionTitle = null;
   pdfText=''; pdfFileName='';
   conversationHistory=[]; drawQueue=[]; drawnCommands=[];
-  camera.x=500; camera.y=300; camera.scale=1;
+  camera.x=500; camera.scale=1;
   resetRegionCursors(); currentTopicLabel='Topic';
   clearBoard();
   transcriptEl.innerHTML = '<div class="empty-note">Your lecture transcript and quiz questions will appear here as we go.</div>';
