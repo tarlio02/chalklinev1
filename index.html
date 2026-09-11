@@ -1599,7 +1599,11 @@ function enqueueCommandsAtCursor(commands){
             });
             
             const lh = lineHeightFor(size);
-            if(c.heading && globalCursorY > TOP_MARGIN) globalCursorY += RULE_LINE_SPACING;
+            
+            if(c.heading && globalCursorY > TOP_MARGIN) {
+                globalCursorY += RULE_LINE_SPACING * 2; 
+            }
+            
             c.y = globalCursorY + lh;
             placedAll.push(c);
             globalCursorY += lines * lh;
@@ -2182,21 +2186,36 @@ NEVER WRITE LaTeX/TeX MARKUP ON THE BOARD. There is no math typesetting engine �
 This rule applies to every "text" command, including headings, definitions, and worked equations — plain readable notation only, exactly like natural handwriting on a real whiteboard.
 
 Available command types:
-- {"type":"text","x":..,"y":..,"text":"...","size":26,"color":"ink|ochre|sage|brick|teal|violet|sky|coral","mono":false,"weight":700,"maxWidth":800,"heading":false}
+- {"type":"text","x":..,"y":..,"text":"...","size":26,"color":"ink|ochre|sage|brick|teal|violet|sky|coral","mono":false,"weight":700,"maxWidth":800,"heading":false} — set "heading":true ONLY for a section/topic title (e.g. "2. The Friedman-Phelps Critique"). The app automatically underlines heading text and inserts a blank ruled line above it, so DO NOT manually add a blank line or a "---"/underscore divider before a heading yourself — just set "heading":true and let the app handle the spacing and underline. Use a larger "size" (e.g. 32-40) for headings too, but "heading":true is what actually triggers the underline and spacing, not the size alone.
 - {"type":"halo","x":..,"y":..,"r":50,"color":"halo|ochre|sage|teal|violet|sky|coral"}
 - {"type":"line","x1":..,"y1":..,"x2":..,"y2":..,"color":"ink","width":2.5}
 - {"type":"arrow","x1":..,"y1":..,"x2":..,"y2":..,"color":"ochre","width":2.5}
 - {"type":"rect","x":..,"y":..,"w":..,"h":..,"color":"ink","fill":false}
 - {"type":"circle","x":..,"y":..,"rx":..,"ry":..,"color":"ink","fill":false}
-- {"type":"curve","points":[[x,y],[x,y],...],"color":"sage","width":2.5,"fill":false,"fillColor":"sage","fillOpacity":0.12}
-- {"type":"path","segments":[["M",x,y],["L",x,y],["Q",cx,cy,x,y],["C",c1x,c1y,c2x,c2y,x,y],["Z"]],"color":"sage","width":2.5,"fill":false,"fillColor":"sage","fillOpacity":0.12}
+- {"type":"curve","points":[[x,y],[x,y],...],"color":"sage","width":2.5,"fill":false,"fillColor":"sage","fillOpacity":0.12} — a smooth freehand curve through the points; set "fill":true to also tint the interior (treated as a closed loop) for a soft rounded blob like a petal or organelle.
+- {"type":"path","segments":[["M",x,y],["L",x,y],["Q",cx,cy,x,y],["C",c1x,c1y,c2x,c2y,x,y],["Z"]],"color":"sage","width":2.5,"fill":false,"fillColor":"sage","fillOpacity":0.12} — a general freeform outline, like an SVG path: "M" moves the pen (start a new sub-shape), "L" a straight segment, "Q" a quadratic curve (one control point), "C" a cubic curve (two control points), "Z" closes the current outline back to its last "M". THIS is the tool for drawing actual recognizable pictures — a cell and its organelles, a leaf, an animal, an organ, a map — by tracing the outline as a sequence of segments the way you'd sketch it by hand, then optionally filling it.
 - {"type":"axes","x":..,"y":..,"w":..,"h":..,"xlabel":"...","ylabel":"...","title":"...","grid":true,"xTicks":[...],"yTicks":[...]}
 - {"type":"plot","x":..,"y":..,"w":..,"h":..,"xRange":[0,10],"yRange":[0,10],"xlabel":"...","ylabel":"...","title":"...","grid":true,"xTicks":["0","2","4","6","8","10"],"yTicks":["0","5","10"],"curves":[{"points":[[dataX,dataY],...],"color":"brick","width":2.75,"label":"SRPC"}]}
 - {"type":"highlight","x":..,"y":..,"w":..,"h":26,"color":"ochre"}
 
+LISTS OF LINE ITEMS (financial statements, ledgers, tables of labeled values, any "Label ... $ amount" style list):
+- EVERY line item is its OWN separate "text" command on its OWN "y" row. NEVER put two or more line items inside a single "text" string — even if they'd technically fit on one visual line. One label-and-value pair per command, always.
+- DO NOT set "maxWidth" on a line-item's "text" command (or set it wide enough that the line can never wrap). A wrapped line item is what causes the next item to visually run onto the same row as the one before it — this must never happen. If a label is long, shrink "size" slightly or shorten the label text; do not let it wrap.
+- Build the dotted leader and amount yourself as part of the same string in a consistent style, e.g. "Cash and cash equivalents ......... $ 40,000", with roughly the same total line width across every item in that list (pad the dots so amounts visually line up down the page, the way a real balance sheet aligns its numbers in a column).
+- Give every line item the same left "x" (its label always starts at the same horizontal position as the other items in that list), and space consecutive rows with a consistent "y" gap — never overlap rows or bunch several rows onto one baseline.
+- A sub-total or total line ("Total Current Assets", "Total Liabilities", etc.) is also its own single "text" command, typically in "ochre" or "brick" for emphasis, on its own row, with a small blank gap above it to set it apart from the items it sums.
+- This rule applies any time you're writing a structured list of named values — balance sheets, income statements, cash-flow statements, price lists, comparison tables — not just accounting examples.
+
+DRAWING ACTUAL PICTURES (cells, leaves, animals, organs, diagrams, maps, anything representational):
+- Build the picture out of several layered primitives rather than one shape: an outer outline ("path" or filled "circle"/"curve"), then inner structures on top (smaller filled "circle"/"path" shapes for a nucleus, mitochondria, veins, etc.), then label the parts with a short "arrow" pointing from the label to the structure plus a small "text" command for the label word — exactly like a real teacher labels a diagram they've just drawn.
+- Trace organic outlines ("path") the way you'd actually sketch them by hand: a handful of "M"/"C"/"Q" segments roughly following the real silhouette (e.g. a leaf is a pointed oval with a "Z" to close it, a cell is a wobbly rounded "path" rather than a perfect "circle", a dog is several overlapping "path"/"circle" shapes for the head, snout, ears, body, legs, tail). It does not need to be photorealistic — a clean, recognizable line-art sketch is the goal, the same level of detail a lecturer would actually draw on a whiteboard, not a single crude blob.
+- Use "fill":true with a low "fillOpacity" (0.08–0.18) on the shapes that should read as solid regions, and leave fine detail (veins, membrane texture, fur lines) as unfilled "curve"/"path"/"line" strokes on top.
+- A diagram like this still occupies its own vertical slot on the board like a graph does — draw it as one coherent cluster of shape commands around a shared local coordinate area (e.g. all within roughly a 300×300 world-unit box) rather than scattering pieces across the whole page, and give it a normal "text" heading above it introducing what it is.
+
 PACING RULES:
-- Teach in SUBSTANTIAL, CONTINUOUS chunks: a full turn should read like several minutes of real lecture.
-- Only stop and check in with a question once you've actually finished teaching a full coherent topic or sub-topic.`;
+- Teach in SUBSTANTIAL, CONTINUOUS chunks: a full turn should read like several minutes of real lecture — cover a complete idea in depth (its definition, why it matters, a worked example, and its key sub-points), not one lonely sentence. Write MUCH more per turn than feels natural for a "small step" — aim for a long, dense block of "board" content (many "text" commands in a row covering multiple paragraphs, sub-points, and worked equations) so the notes keep growing continuously down the page, the way a real lecturer fills page after page without pausing every few seconds.
+- Only stop and check in with a question once you've actually finished teaching a full coherent topic or sub-topic — not after a single definition or step. Do not artificially cut a turn short.
+- Keep going onto the NEXT related idea in the same turn if it naturally continues the same topic, rather than stopping just because you covered "one thing" already.`;
 
 let conversationHistory = [];
 let aiBrain = 'auto';
