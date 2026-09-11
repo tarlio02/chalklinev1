@@ -960,15 +960,39 @@ function drawPageGuides(){
   ctx.restore();
 }
 
+// Faint horizontal rule lines across the full page width, evenly spaced like
+// real ruled notebook paper — drawn for whatever vertical range is currently
+// on screen (works the same whether you're near the top of the board or
+// scrolled deep into page 4), so the board always reads as lined paper
+// rather than blank white.
+const RULE_LINE_SPACING = 42; // world units between rule lines
+function drawRuleLines(){
+  const [leftX] = worldToScreen(0, 0);
+  const [rightX] = worldToScreen(1000, 0);
+  const topWorldY = screenToWorld(0, 0)[1];
+  const bottomWorldY = screenToWorld(0, viewH)[1];
+  const firstLine = Math.floor(topWorldY / RULE_LINE_SPACING) * RULE_LINE_SPACING;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(38,36,31,0.10)';
+  ctx.lineWidth = 1;
+  for(let wy = firstLine; wy <= bottomWorldY; wy += RULE_LINE_SPACING){
+    const [, sy] = worldToScreen(0, wy);
+    ctx.beginPath(); ctx.moveTo(leftX, sy); ctx.lineTo(rightX, sy); ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function clearBoard(record=true){
   if(record) drawnCommands = [];
   drawBG();
   drawPageGuides();
+  drawRuleLines();
 }
 
 function redrawAll(){
   drawBG();
   drawPageGuides();
+  drawRuleLines();
   drawnCommands.forEach(cmd => renderCommand(cmd));
 }
 
@@ -979,6 +1003,7 @@ function redrawAll(){
 function redrawAllExcept(skipCmd){
   drawBG();
   drawPageGuides();
+  drawRuleLines();
   drawnCommands.forEach(cmd => { if(cmd !== skipCmd) renderCommand(cmd); });
 }
 
@@ -1433,7 +1458,8 @@ async function exportBoardAsPDF(){
       camera.x = minX + pageWorldW/2;
       camera.y = (minY + i*pageWorldH) + pageWorldH/2;
 
-      drawBG(); // page guides are a screen affordance only — skip them in the export
+      drawBG(); // page guides are a screen affordance only — skip those in the export, but keep the rule lines so the exported PDF still reads as ruled notebook paper
+      drawRuleLines();
       drawnCommands.forEach(cmd => renderCommand(cmd)); // anything outside this page's y-range is simply clipped by the canvas
 
       const dataUrl = off.toDataURL('image/png');
