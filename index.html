@@ -1287,7 +1287,6 @@ canvas.addEventListener('mousedown', (e)=>{
 });
 window.addEventListener('mousemove', (e)=>{
   if(!isPanning) return;
-  camera.x = camStart.x - (e.clientX - panStart[0]) / camera.scale;
   camera.y = camStart.y - (e.clientY - panStart[1]) / camera.scale;
   checkIfScrolledAway();
   redrawAll();
@@ -1325,7 +1324,6 @@ canvas.addEventListener('touchstart', (e)=>{
 canvas.addEventListener('touchmove', (e)=>{
   if(touchMode === 'pan' && e.touches.length === 1){
     e.preventDefault();
-    camera.x = camStart.x - (e.touches[0].clientX - panStart[0]) / camera.scale;
     camera.y = camStart.y - (e.touches[0].clientY - panStart[1]) / camera.scale;
     checkIfScrolledAway();
     redrawAll();
@@ -1409,7 +1407,6 @@ canvas.addEventListener('wheel', (e)=>{
     const [nx,ny] = screenToWorld(mx,my);
     camera.x += (wx-nx); camera.y += (wy-ny);
   } else {
-    camera.x += e.deltaX / camera.scale;
     camera.y += e.deltaY / camera.scale;
   }
   checkIfScrolledAway();
