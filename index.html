@@ -1201,6 +1201,15 @@ function renderCommand(cmd){
       drawArrowhead(ox + w, oy, 0, color);
       drawAxesTicksAndLabels(ox, oy, w, h, cmd, color);
       const [scaleX, scaleY] = plotScalers(ox, oy, w, h, cmd);
+      // Clip a little padding beyond the axes box: curve data can fall
+      // outside the declared xRange/yRange (e.g. a shifted demand line
+      // whose price exceeds the axis top), and without a clip those
+      // segments draw straight through whatever is above/below the plot.
+      const clipPad = sw(24);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(ox - clipPad, oy - h - clipPad, w + clipPad*2, h + clipPad*2);
+      ctx.clip();
       (cmd.curves || []).forEach(curve => {
         const pts = (curve.points || []).map(p => [scaleX(p[0]), scaleY(p[1])]);
         if(pts.length < 2) return;
@@ -1214,15 +1223,24 @@ function renderCommand(cmd){
         strokeSmoothCurve(pts);
         ctx.restore();
         ctx.fillStyle = curveColor;
-        pts.forEach(p => { ctx.beginPath(); ctx.arc(p[0], p[1], sw(2.75), 0, Math.PI*2); ctx.fill(); });
+        pts.forEach(p => {
+          // Only draw point markers/labels for points actually within the
+          // clipped area — a marker anchored far outside the box would
+          // otherwise still try to render its label out in open space.
+          if(p[0] < ox - clipPad || p[0] > ox + w + clipPad || p[1] < oy - h - clipPad || p[1] > oy + clipPad) return;
+          ctx.beginPath(); ctx.arc(p[0], p[1], sw(2.75), 0, Math.PI*2); ctx.fill();
+        });
         if(curve.label){
-          ctx.fillStyle = curveColor;
-          ctx.font = `700 ${sw(18)}px 'Caveat', cursive`;
-          ctx.textAlign = 'left';
           const [lx,ly] = pts[pts.length-1];
-          ctx.fillText(curve.label, lx+sw(8), ly+sw(4));
+          if(lx >= ox - clipPad && lx <= ox + w + clipPad && ly >= oy - h - clipPad && ly <= oy + clipPad){
+            ctx.fillStyle = curveColor;
+            ctx.font = `700 ${sw(18)}px 'Caveat', cursive`;
+            ctx.textAlign = 'left';
+            ctx.fillText(curve.label, lx+sw(8), ly+sw(4));
+          }
         }
       });
+      ctx.restore();
       break;
     }
     case 'highlight': {
@@ -1881,6 +1899,11 @@ function renderPartialCommand(cmd, t){
       if(curves.length){
         const [scaleX, scaleY] = plotScalers(ox, oy, w, h, cmd);
         const perCurve = (1-axesFrac)/curves.length;
+        const clipPad = sw(24);
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(ox - clipPad, oy - h - clipPad, w + clipPad*2, h + clipPad*2);
+        ctx.clip();
         curves.forEach((curve, i) => {
           const curveT = Math.max(0, Math.min(1, (t-axesFrac-i*perCurve)/perCurve));
           if(curveT<=0) return;
@@ -1890,7 +1913,8 @@ function renderPartialCommand(cmd, t){
           ctx.lineWidth = sw(curve.width||2.75);
           const [cx,cy] = strokeSmoothCurvePartial(pts, curveT);
           if(curveT>=1){
-            if(curve.label){
+            const labelInBounds = cx >= ox - clipPad && cx <= ox + w + clipPad && cy >= oy - h - clipPad && cy <= oy + clipPad;
+            if(curve.label && labelInBounds){
               ctx.fillStyle = COLORS[curve.color] || color;
               ctx.font = `${sw(16)}px 'Caveat', cursive`;
               ctx.textAlign = 'left';
@@ -1898,6 +1922,7 @@ function renderPartialCommand(cmd, t){
             }
           } else { penX=cx; penY=cy; }
         });
+        ctx.restore();
       }
       drawPen(penX,penY,0);
       break;
