@@ -1509,8 +1509,8 @@ function enqueueCommandsAtCursor(commands){
         let c = { ...cmd };
         
         if (c.type === 'text') {
-            c.x = 90; // Strictly adhere to left margin
-            c.maxWidth = 820; // Force wrapping before edge — use the width fully before breaking
+            c.x = 80; // Sit close to the left margin line
+            c.maxWidth = 930; // Use nearly the full line width before wrapping
             const size = (c.size || 26) * HAND_SIZE_MULT;
             const fam = "'Kalam', 'Caveat', cursive";
             tCtx.font = `${c.weight || 700} ${size}px ${fam}`;
