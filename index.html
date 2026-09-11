@@ -977,6 +977,24 @@ function wrapTextToLines(text, maxWidthPx, customCtx){
   return lines.length ? lines : [''];
 }
 
+// A single underline stroke drawn beneath a finished line of heading text,
+// with a touch of hand-drawn imperfection (a slight downward bow, like a
+// pen underline) rather than a perfectly straight ruled line — so it reads
+// as "the tutor underlined this" rather than a UI decoration.
+function drawHeadingUnderline(sx, baselineY, widthPx, sizeWorld, color){
+  if(widthPx <= 0) return;
+  const y = baselineY + sw(sizeWorld*0.16);
+  const bow = sw(sizeWorld*0.03);
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = sw(Math.max(1.5, sizeWorld*0.045));
+  ctx.beginPath();
+  ctx.moveTo(sx, y);
+  ctx.quadraticCurveTo(sx + widthPx/2, y + bow, sx + widthPx, y);
+  ctx.stroke();
+  ctx.restore();
+}
+
 function commandScreenBBox(cmd){
   const PAD = 10;
   function pad(x0,y0,x1,y1){
@@ -1044,9 +1062,14 @@ function renderCommand(cmd){
       if(cmd.maxWidth){
         const lines = wrapTextToLines(cmd.text||'', sw(cmd.maxWidth));
         const lineHeight = sw(lineHeightFor(size));
-        lines.forEach((line,i) => ctx.fillText(line, sx, sy + i*lineHeight));
+        lines.forEach((line,i) => {
+          const ly = sy + i*lineHeight;
+          ctx.fillText(line, sx, ly);
+          if(cmd.heading) drawHeadingUnderline(sx, ly, ctx.measureText(line).width, size, color);
+        });
       } else {
         ctx.fillText(cmd.text, sx, sy);
+        if(cmd.heading) drawHeadingUnderline(sx, sy, ctx.measureText(cmd.text||'').width, size, color);
       }
       break;
     }
@@ -1531,6 +1554,12 @@ function enqueueCommandsAtCursor(commands){
             });
             
             const lh = lineHeightFor(size);
+            // A heading skips one blank ruled line before it starts, so it
+            // reads as a new section rather than butting straight up
+            // against whatever came before — but only if something is
+            // already on the board above it (no pointless gap at the very
+            // top of a fresh page).
+            if(c.heading && globalCursorY > TOP_MARGIN) globalCursorY += RULE_LINE_SPACING;
             // Baseline sits exactly ON the rule line at the bottom of this
             // first allotted line-space (not floating near the top of it),
             // so the handwriting visually rests on the ruled paper the way
@@ -1666,9 +1695,14 @@ function renderPartialCommand(cmd, t){
           const line = lines[i];
           const take = Math.max(0, Math.min(line.length, charsLeft));
           const partial = line.slice(0, take);
-          ctx.fillText(partial, sx, sy + i*lineHeight);
+          const ly = sy + i*lineHeight;
+          ctx.fillText(partial, sx, ly);
+          // Only underline a heading line once it's fully written — the
+          // underline stroke happens after the words, like a real tutor
+          // finishing a heading and then drawing a line under it.
+          if(cmd.heading && take >= line.length) drawHeadingUnderline(sx, ly, ctx.measureText(line).width, size, color);
           lastX = sx + ctx.measureText(partial).width;
-          lastY = sy + i*lineHeight;
+          lastY = ly;
           charsLeft -= take + 1;
           if(charsLeft <= 0) break;
         }
@@ -1678,6 +1712,7 @@ function renderPartialCommand(cmd, t){
         const partial = full.slice(0,nChars);
         ctx.fillText(partial, sx, sy);
         const w = ctx.measureText(partial).width;
+        if(cmd.heading && nChars >= full.length) drawHeadingUnderline(sx, sy, w, size, color);
         drawPen(sx+w, sy, -Math.PI/2);
       }
       break;
@@ -2088,7 +2123,7 @@ CRITICAL LAYOUT RULES - THE APP WILL OVERRIDE YOUR COORDINATES:
 TEXT ON THE BOARD MUST USE REAL SYMBOLS, NOT SPELLED-OUT WORDS: π, θ, β, α, γ, Δ, Σ, ∫, √, ∞, ≤, ≥, ≈, ×, ÷, →, ², ³, ₁, ₂, etc. directly inside "text" strings. Use "mono":true for alignment if drawing equations.
 
 Available command types:
-- {"type":"text","x":..,"y":..,"text":"...","size":26,"color":"ink|ochre|sage|brick|teal|violet|sky|coral","mono":false,"weight":700,"maxWidth":800}
+- {"type":"text","x":..,"y":..,"text":"...","size":26,"color":"ink|ochre|sage|brick|teal|violet|sky|coral","mono":false,"weight":700,"maxWidth":800,"heading":false} — set "heading":true ONLY for a section/topic title (e.g. "2. The Friedman-Phelps Critique"). The app automatically underlines heading text and inserts a blank ruled line above it, so DO NOT manually add a blank line or a "---"/underscore divider before a heading yourself — just set "heading":true and let the app handle the spacing and underline. Use a larger "size" (e.g. 32-40) for headings too, but "heading":true is what actually triggers the underline and spacing, not the size alone.
 - {"type":"halo","x":..,"y":..,"r":50,"color":"halo|ochre|sage|teal|violet|sky|coral"}
 - {"type":"line","x1":..,"y1":..,"x2":..,"y2":..,"color":"ink","width":2.5}
 - {"type":"arrow","x1":..,"y1":..,"x2":..,"y2":..,"color":"ochre","width":2.5}
