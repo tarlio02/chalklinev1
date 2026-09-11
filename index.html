@@ -241,2294 +241,444 @@ footer{
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Chalkline — AI Whiteboard Tutor</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"><\/script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"><\/script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chalkline — Tutor</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&family=Caveat:wght@600;700&family=Kalam:wght@400;700&family=STIX+Two+Text:ital,wght@0,400;0,600;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&family=Caveat:wght@600;700&family=Kalam:wght@400;700&display=swap');
 
 :root{
-  --board-bg:#F7FBFE;
-  --board-bg2:#F7FBFE;
-  --board-line:#DCEBF7;
+  --board-bg:#F7FBFF;
   --ink:#1E2B3A;
   --ochre:#2E7DBE;
   --highlight:#D7ECFB;
   --sage:#3E8FA6;
   --brick:#3D6B93;
-  --panel:#FFFFFF;
   --panel-border:#D3E6F5;
   --muted:#7C93A8;
   --halo-blue:#6EA8FE;
   --halo-blue-soft:#A5C8FF;
+
+  --pen-ink:#20324a;
+  --pen-teal:#0f8f8f;
+  --pen-plum:#9a3fa8;
+  --pen-rust:#c05a2c;
+  --rule-line:rgba(46,125,190,0.16);
+  --margin-line:rgba(192,90,44,0.35);
+  --line-height:40px;
 }
 *{box-sizing:border-box;}
-html,body{margin:0;height:100%;}
+html,body{margin:0;padding:0;height:100%;}
 body{
   font-family:'Source Serif 4', Georgia, serif;
-  color:var(--ink);
-  height:100vh;
-  overflow:hidden;
-  background:var(--board-bg);
+  color:var(--ink); background:var(--board-bg);
+  height:100vh; position:relative; overflow:hidden;
+  display:flex; flex-direction:column;
 }
 
-/* ===================== BOARD (full-bleed) ===================== */
-#board-wrap{
-  position:fixed;
-  inset:0;
+.ambient-halo{ position:fixed; inset:0; z-index:0; overflow:hidden; pointer-events:none; }
+.ambient-halo::before,.ambient-halo::after{
+  content:''; position:absolute; width:58vmax;height:58vmax;
+  border-radius:50%; filter:blur(100px); opacity:0.18; mix-blend-mode:multiply;
 }
-#board{
-  width:100%;
-  height:100%;
-  display:block;
-  cursor:grab;
-}
-#board.grabbing{cursor:grabbing;}
-#board.hoverable{cursor:pointer;}
+.ambient-halo::before{ top:-24%; left:-16%; background:radial-gradient(circle, var(--halo-blue) 0%, rgba(110,168,254,0) 70%); animation:d1 24s ease-in-out infinite; }
+.ambient-halo::after{ bottom:-26%; right:-14%; background:radial-gradient(circle, var(--halo-blue-soft) 0%, rgba(165,200,255,0) 70%); animation:d2 28s ease-in-out infinite; }
+@keyframes d1{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(9%,7%) scale(1.13);}}
+@keyframes d2{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(-7%,-6%) scale(1.1);}}
 
-/* Ambient animated blue halo, drifting slowly over the white board.
-   Sits above the canvas (z-index) but below all UI chrome, and never
-   intercepts clicks/hover so it doesn't interfere with board hit-testing. */
-.ambient-halo{
-  position:fixed;
-  inset:0;
-  z-index:1;
-  overflow:hidden;
-  pointer-events:none;
-}
-.ambient-halo::before,
-.ambient-halo::after{
-  content:'';
-  position:absolute;
-  width:62vmax;height:62vmax;
-  border-radius:50%;
-  filter:blur(90px);
-  opacity:0.30;
-  mix-blend-mode:multiply;
-}
-.ambient-halo::before{
-  top:-20%; left:-15%;
-  background:radial-gradient(circle, var(--halo-blue) 0%, rgba(110,168,254,0) 70%);
-  animation:haloDrift1 22s ease-in-out infinite;
-}
-.ambient-halo::after{
-  bottom:-25%; right:-15%;
-  background:radial-gradient(circle, var(--halo-blue-soft) 0%, rgba(165,200,255,0) 70%);
-  animation:haloDrift2 26s ease-in-out infinite;
-}
-@keyframes haloDrift1{
-  0%,100%{ transform:translate(0,0) scale(1); }
-  50%{ transform:translate(12%,10%) scale(1.18); }
-}
-@keyframes haloDrift2{
-  0%,100%{ transform:translate(0,0) scale(1); }
-  50%{ transform:translate(-10%,-8%) scale(1.15); }
-}
-
-/* ===================== PAINTED FRAME ===================== */
-/* Frame stays purely decorative and overlaid — the board underneath
-   remains full-bleed so no interactive/writing area is lost to it. */
-.painted-frame{
-  position:fixed;
-  inset:0;
-  z-index:5;
-  pointer-events:none;
-}
-.painted-frame svg{
-  width:100%;
-  height:100%;
-  display:block;
-}
-
-/* ===================== TOP BAR ===================== */
+/* ===== top bar ===== */
 .topbar{
-  position:fixed;
-  top:0;left:0;right:0;
-  display:flex;
-  justify-content:space-between;
-  align-items:flex-start;
-  padding:18px 20px;
-  pointer-events:none;
-  z-index:20;
+  position:relative; z-index:2; display:flex; align-items:center; justify-content:space-between;
+  padding:16px 26px; flex-wrap:wrap; gap:12px;
 }
-.topbar > *{pointer-events:auto;}
-.icon-btn{
-  width:40px;height:40px;
-  border-radius:50%;
-  border:none;
-  background:rgba(255,255,255,0.85);
-  backdrop-filter:blur(6px);
-  box-shadow:0 1px 4px rgba(0,0,0,0.08);
-  display:flex;align-items:center;justify-content:center;
-  cursor:pointer;
-  font-size:16px;
-  color:var(--ink);
-}
-.icon-btn:hover{background:#fff;}
-.top-right-cluster{display:flex;gap:10px;align-items:flex-start;}
-.topbar-btn-wrap{
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  gap:3px;
-}
-.status-chip{
-  font-family:'JetBrains Mono', monospace;
-  font-size:10.5px;
-  color:var(--muted);
-  background:rgba(255,255,255,0.7);
-  padding:6px 10px;
-  border-radius:20px;
-  align-self:center;
-  margin-right:4px;
-}
+.brand{ font-family:'Caveat', cursive; font-weight:700; font-size:26px; color:var(--ink); text-decoration:none; display:flex; align-items:center; gap:8px; }
+.brand .dot{ width:9px;height:9px;border-radius:50%; background:var(--ochre); display:inline-block; }
+.nav-links{ display:flex; gap:22px; font-family:'JetBrains Mono', monospace; font-size:12.5px; }
+.nav-links a{ color:var(--muted); text-decoration:none; }
+.nav-links a:hover{ color:var(--ink); }
+.nav-links a.active{ color:var(--ink); border-bottom:1.5px solid var(--ochre); padding-bottom:2px; }
 
-/* ===================== ZOOM CONTROLS ===================== */
-.zoom-controls{
-  position:fixed;
-  top:70px;right:20px;
-  display:flex;
-  flex-direction:column;
-  gap:12px;
-  z-index:20;
+.toolbar{
+  position:relative; z-index:2; display:flex; align-items:center; gap:10px;
+  padding:0 26px 14px; flex-wrap:wrap;
 }
-.zoom-btn{
-  width:34px;height:34px;border-radius:8px;
-  border:none;background:rgba(255,255,255,0.85);backdrop-filter:blur(6px);
-  box-shadow:0 1px 4px rgba(0,0,0,0.08);
-  font-size:16px;cursor:pointer;color:var(--ink);
-}
-.zoom-btn:hover{background:#fff;}
-
-/* Shared small label under any icon/round button — a light pill so it
-   stays legible over both the white board and the blue frame regardless
-   of what's scrolled underneath. */
-.btn-label{
-  font-family:'JetBrains Mono', monospace;
-  font-size:9px;
-  color:var(--muted);
-  letter-spacing:0.2px;
-  white-space:nowrap;
-  background:rgba(255,255,255,0.85);
-  padding:1px 6px;
-  border-radius:8px;
-}
-
-/* ===================== BOTTOM CAPTION ===================== */
-.caption-zone{
-  position:fixed;
-  left:0;right:0;
-  bottom:0;
-  background:linear-gradient(to top, rgba(255,255,255,0.98) 60%, rgba(255,255,255,0.9));
-  border-top:1px solid var(--panel-border);
-  backdrop-filter:blur(8px);
-  padding:10px 200px 8px;
-  min-height:20px;
-  display:flex;
-  justify-content:center;
-  z-index:18;
-  pointer-events:none;
-  box-shadow:0 -4px 16px rgba(0,0,0,0.04);
-}
-.caption-text{
-  max-width:760px;
-  text-align:center;
-  font-size:16px;
-  line-height:1.5;
-  color:#3a372e;
-}
-.caption-text .fading{color:#b9b295;}
-
-/* ===================== BOTTOM-LEFT AVATAR CLUSTER ===================== */
-.avatar-cluster{
-  position:fixed;
-  left:22px;bottom:70px;
-  display:flex;
-  align-items:center;
-  gap:10px;
-  z-index:20;
-}
-.avatar{
-  width:52px;height:52px;
-  border-radius:50%;
-  background:#fff;
-  border:2px solid var(--panel-border);
-  display:flex;align-items:center;justify-content:center;
-  font-size:24px;
-  box-shadow:0 2px 8px rgba(0,0,0,0.08);
-  position:relative;
-}
-.avatar.speaking{border-color:var(--ochre);}
-.avatar.speaking::after{
-  content:'';
-  position:absolute; inset:-6px;
-  border-radius:50%;
-  border:2px solid var(--ochre);
-  opacity:0.5;
-  animation:ripple 1.6s ease-out infinite;
-}
-@keyframes ripple{0%{transform:scale(0.85);opacity:0.6;}100%{transform:scale(1.25);opacity:0;}}
-.cluster-btn-wrap{
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  gap:3px;
-}
-.cluster-btn{
-  width:38px;height:38px;border-radius:50%;
-  border:1px solid var(--panel-border);
-  background:#fff;
-  display:flex;align-items:center;justify-content:center;
-  cursor:pointer;font-size:15px;color:var(--ink);
-  box-shadow:0 1px 4px rgba(0,0,0,0.06);
-}
-.cluster-btn:hover{background:#faf8f2;}
-
-/* ===================== BOTTOM-RIGHT MIC ===================== */
-.mic-zone{
-  position:fixed;
-  right:22px;bottom:70px;
-  z-index:20;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  gap:4px;
-}
-.mic-btn{
-  width:56px;height:56px;border-radius:50%;
-  border:none;
-  background:var(--brick);
-  color:#fff;
-  font-size:20px;
-  display:flex;align-items:center;justify-content:center;
-  cursor:pointer;
-  box-shadow:0 3px 10px rgba(168,75,57,0.35);
-}
-.mic-btn.live{animation:mic-pulse 1.3s ease-in-out infinite;}
-.mic-btn.unsupported{background:#c9c4b5;box-shadow:none;cursor:not-allowed;}
-@keyframes mic-pulse{0%,100%{box-shadow:0 0 0 0 rgba(168,75,57,.45);}50%{box-shadow:0 0 0 10px rgba(168,75,57,0);}}
-
-/* ===================== TEXT ASK BAR (center-bottom, above caption) ===================== */
-.ask-zone{
-  position:fixed;
-  left:50%;
-  bottom:70px;
-  transform:translateX(-50%);
-  z-index:20;
-  display:flex;
-  gap:8px;
-  align-items:center;
-  background:#fff;
-  border:1px solid var(--panel-border);
-  border-radius:30px;
-  padding:6px 6px 6px 18px;
-  box-shadow:0 3px 14px rgba(0,0,0,0.08);
-  width:min(520px, 44vw);
-}
-.ask-zone input{
-  flex:1;
-  border:none;outline:none;
-  font-family:'Source Serif 4', serif;
-  font-size:14px;
-  padding:8px 0;
-  background:transparent;
-}
-.ask-zone button{
-  width:36px;height:36px;border-radius:50%;
-  border:none;background:var(--ink);color:#fff;
-  cursor:pointer;font-size:14px;
-  display:flex;align-items:center;justify-content:center;
-  flex-shrink:0;
-}
-.ask-zone button:hover{background:var(--ochre);}
-
-/* ===================== SIDE PANEL (slide-out from hamburger) ===================== */
-.overlay{
-  position:fixed;inset:0;
-  background:rgba(20,18,12,0.25);
-  z-index:29;
-  opacity:0;pointer-events:none;
-  transition:opacity .2s ease;
-}
-.overlay.open{opacity:1;pointer-events:auto;}
-
-.side-panel{
-  position:fixed;
-  top:0;left:0;bottom:0;
-  width:360px;
-  background:var(--panel);
-  border-right:1px solid var(--panel-border);
-  z-index:30;
-  transform:translateX(-100%);
-  transition:transform .25s cubic-bezier(.2,.8,.2,1);
-  display:flex;flex-direction:column;
-  box-shadow:8px 0 30px rgba(0,0,0,0.08);
-}
-.side-panel.open{transform:translateX(0);}
-
-.panel-head{
-  display:flex;justify-content:space-between;align-items:center;
-  padding:18px 20px;border-bottom:1px solid var(--panel-border);
-}
-.panel-head h1{
-  font-size:19px;margin:0;font-weight:600;
-}
-.panel-head h1 em{color:var(--ochre);font-style:italic;}
-.panel-close{
-  background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted);
-}
-
-.panel-body{flex:1;overflow-y:auto;}
-.p-section{padding:16px 20px;border-bottom:1px solid var(--panel-border);}
-.p-section h2{
-  font-family:'JetBrains Mono', monospace;
-  font-size:10.5px;letter-spacing:0.4px;color:var(--muted);
-  margin:0 0 10px 0;
-  display:flex;justify-content:space-between;align-items:center;
-}
-.link-btn{
-  font-family:'JetBrains Mono', monospace;font-size:10px;
-  color:var(--ochre);background:none;border:none;cursor:pointer;
-}
-.link-btn:hover{text-decoration:underline;}
-
-.upload-zone{
-  border:1.5px dashed #d8d2bd;border-radius:6px;padding:14px;
-  text-align:center;cursor:pointer;font-size:13px;color:#7a7361;
-  transition:border-color .15s ease;
-}
-.upload-zone:hover{border-color:var(--ochre);}
-.upload-zone.has-file{border-style:solid;border-color:var(--sage);color:var(--ink);text-align:left;}
-.file-name{font-weight:600;font-size:12.5px;}
-.file-meta{font-family:'JetBrains Mono', monospace;font-size:10px;color:var(--muted);margin-top:3px;}
-#pdf-input{display:none;}
-
 .topic-input{
-  width:100%;padding:10px 11px;border:1px solid var(--panel-border);border-radius:6px;
-  font-family:'Source Serif 4', serif;font-size:13px;resize:none;height:56px;
+  flex:1; min-width:180px; font-family:'Source Serif 4', serif; font-size:14.5px;
+  border:1px solid var(--panel-border); border-radius:9px; padding:9px 12px; background:#fff; color:var(--ink);
 }
-.topic-input:focus{outline:none;border-color:var(--ochre);}
-select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:pointer;}
-.p-row{display:flex;gap:8px;margin-top:9px;}
-.p-btn{
-  flex:1;font-family:'Source Serif 4', serif;font-size:13px;
-  border:1px solid var(--ink);background:transparent;color:var(--ink);
-  padding:8px 10px;border-radius:5px;cursor:pointer;
+.btn{
+  font-family:'JetBrains Mono', monospace; font-size:12px; font-weight:600;
+  border:1px solid var(--panel-border); border-radius:9px; padding:9px 14px;
+  background:#fff; color:var(--ink); cursor:pointer; white-space:nowrap;
+  transition:background .15s ease, border-color .15s ease;
 }
-.p-btn.primary{background:var(--ink);color:#fff;}
-.p-btn:hover{background:var(--ochre);border-color:var(--ochre);color:#fff;}
-
-.session-list{max-height:130px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;}
-.session-item{
-  display:flex;justify-content:space-between;align-items:center;
-  padding:7px 9px;border:1px solid var(--panel-border);border-radius:5px;
-  font-size:12px;cursor:pointer;
+.btn:hover{ border-color:var(--ochre); }
+.btn.primary{ background:var(--ink); color:#fff; border-color:var(--ink); }
+.btn.primary:hover{ background:#324457; }
+.btn:disabled{ opacity:0.4; cursor:not-allowed; }
+.pen-legend{
+  display:flex; align-items:center; gap:10px; font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--muted);
+  padding:0 4px;
 }
-.session-item:hover{border-color:var(--ochre);}
-.session-item .s-name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.session-item .s-date{font-family:'JetBrains Mono', monospace;font-size:9.5px;color:var(--muted);flex-shrink:0;margin-left:8px;}
+.pen-swatch{ display:inline-flex; align-items:center; gap:4px; }
+.pen-swatch .dot{ width:8px;height:8px;border-radius:50%; display:inline-block; }
 
-.transcript{padding:14px 20px;display:flex;flex-direction:column;gap:12px;}
-.msg{font-size:13px;line-height:1.5;}
-.msg .who{font-family:'JetBrains Mono', monospace;font-size:9.5px;letter-spacing:0.3px;display:block;margin-bottom:3px;}
-.msg.tutor .who{color:var(--ochre);}
-.msg.user .who{color:var(--sage);}
-.msg.user{color:#514d41;padding-left:9px;border-left:2px solid var(--sage);}
-.empty-note{font-size:12px;color:var(--muted);font-style:italic;}
-
-.quiz-card{background:#fdfcf7;border:1px solid var(--panel-border);border-radius:6px;padding:14px;margin-top:2px;}
-.quiz-q{font-size:13px;font-weight:600;margin-bottom:9px;line-height:1.4;}
-.quiz-opt{
-  display:block;width:100%;text-align:left;padding:8px 10px;margin-bottom:6px;
-  border:1px solid var(--panel-border);border-radius:5px;background:#fff;
-  font-family:'Source Serif 4', serif;font-size:12.5px;cursor:pointer;
+/* ===== whiteboard viewport ===== */
+.board-stage{
+  position:relative; z-index:1; flex:1; min-height:0;
+  margin:0 20px 20px; border-radius:18px;
+  padding:3px;
+  background:#0b1a2e;
+  box-shadow:
+    0 0 0 1px rgba(110,168,254,0.5),
+    0 0 22px 4px rgba(110,168,254,0.55),
+    0 0 60px 14px rgba(110,168,254,0.30),
+    inset 0 0 30px rgba(110,168,254,0.18);
+  animation:halo-breathe 5s ease-in-out infinite;
 }
-.quiz-opt:hover{border-color:var(--ochre);}
-.quiz-opt.correct{background:#eaf1ec;border-color:var(--sage);}
-.quiz-opt.incorrect{background:#f6e9e5;border-color:var(--brick);}
-.quiz-opt:disabled{cursor:default;}
-.quiz-explain{font-size:12px;margin-top:9px;padding-top:9px;border-top:1px solid var(--panel-border);color:#514d41;display:none;}
-.quiz-explain.show{display:block;}
+@keyframes halo-breathe{
+  0%,100%{ box-shadow:0 0 0 1px rgba(110,168,254,0.5), 0 0 22px 4px rgba(110,168,254,0.5), 0 0 60px 14px rgba(110,168,254,0.28), inset 0 0 30px rgba(110,168,254,0.16); }
+  50%{ box-shadow:0 0 0 1px rgba(110,168,254,0.7), 0 0 30px 8px rgba(110,168,254,0.65), 0 0 76px 20px rgba(110,168,254,0.38), inset 0 0 36px rgba(110,168,254,0.22); }
+}
 
-::-webkit-scrollbar{width:7px;}
-::-webkit-scrollbar-thumb{background:#e4ddc8;border-radius:4px;}
+.board-viewport{
+  position:relative; height:100%; width:100%; border-radius:15px;
+  overflow-y:auto; overflow-x:hidden; background:var(--board-bg);
+  scrollbar-width:thin; scrollbar-color:var(--halo-blue-soft) transparent;
+}
+.board-viewport::-webkit-scrollbar{ width:9px; }
+.board-viewport::-webkit-scrollbar-thumb{ background:var(--halo-blue-soft); border-radius:6px; }
+.board-viewport::-webkit-scrollbar-track{ background:transparent; }
+
+/* margin rule, like a real notebook page */
+.board-viewport::before{
+  content:''; position:absolute; top:0; bottom:0; left:64px; width:1.5px;
+  background:var(--margin-line); z-index:1; pointer-events:none;
+}
+
+.board-content{
+  position:relative; z-index:2;
+  min-height:100%;
+  padding:28px 40px 60vh 84px;
+  background-image:repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(var(--line-height) - 1px),
+    var(--rule-line) calc(var(--line-height) - 1px),
+    var(--rule-line) var(--line-height)
+  );
+  background-position: 0 6px;
+}
+
+.board-block{
+  font-family:'Kalam', cursive; font-size:20px; line-height:var(--line-height);
+  color:var(--pen-ink); margin:0; white-space:pre-wrap; word-wrap:break-word;
+}
+.board-block.heading{
+  font-family:'Caveat', cursive; font-weight:700; font-size:34px; line-height:calc(var(--line-height) * 1.35);
+  color:var(--pen-ink); margin-top:8px;
+}
+.board-block.equation{
+  font-family:'Kalam', cursive; font-size:22px; font-weight:700;
+  color:var(--pen-ink); padding-left:26px; position:relative;
+}
+.board-block.equation::before{
+  content:'—'; position:absolute; left:0; color:var(--pen-teal); opacity:0.7;
+}
+.board-block.caption{
+  font-family:'Kalam', cursive; font-size:15.5px; font-style:italic;
+  color:var(--muted); margin-top:-4px;
+}
+.caret{
+  display:inline-block; width:2px; background:var(--pen-ink);
+  animation:blink 0.9s steps(1) infinite; margin-left:1px; vertical-align:baseline;
+}
+@keyframes blink{ 0%,49%{opacity:1;} 50%,100%{opacity:0;} }
+
+.pen-ink{ color:var(--pen-ink); }
+.pen-teal{ color:var(--pen-teal); }
+.pen-plum{ color:var(--pen-plum); }
+.pen-rust{ color:var(--pen-rust); }
+
+/* jump to latest pill */
+.jump-latest{
+  position:absolute; bottom:18px; left:50%; transform:translate(-50%, 20px);
+  z-index:5; background:var(--ink); color:#fff; border:none; border-radius:999px;
+  padding:9px 18px; font-family:'JetBrains Mono', monospace; font-size:11.5px;
+  cursor:pointer; box-shadow:0 6px 18px rgba(20,40,60,0.25);
+  opacity:0; pointer-events:none; transition:opacity .2s ease, transform .2s ease;
+}
+.jump-latest.show{ opacity:1; pointer-events:auto; transform:translate(-50%, 0); }
+.jump-latest:hover{ background:#324457; }
+
+.status-line{
+  position:relative; z-index:2; padding:8px 30px 14px; text-align:center;
+  font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--muted);
+}
+
+@media (max-width:680px){
+  .board-content{ padding:22px 20px 55vh 56px; }
+  .board-viewport::before{ left:40px; }
+  .board-block{ font-size:17px; }
+  .board-block.heading{ font-size:27px; }
+  .board-block.equation{ font-size:18px; }
+  .topbar{ padding:12px 16px 0; }
+  .toolbar{ padding:0 16px 12px; }
+  .board-stage{ margin:0 10px 12px; }
+  .pen-legend{ display:none; }
+}
 </style>
 </head>
 <body>
 
 <div class="ambient-halo"></div>
-<div class="painted-frame" aria-hidden="true">
-  <svg viewBox="0 0 1000 1000" preserveAspectRatio="none">
-    <!-- A hand-painted-looking bezel: an irregular rounded rectangle traced
-         twice with slightly offset, wobbly paths and varying opacity, so it
-         reads as a thick marker/paint stroke rather than a crisp CSS border.
-         viewBox is a fixed 0-1000 square mapped non-uniformly onto whatever
-         the real viewport aspect ratio is (preserveAspectRatio="none"), so
-         the same path works at any window size without redrawing it. -->
-    <path d="M 38,55
-             C 20,30 45,10 90,12
-             L 910,8
-             C 955,6 985,35 982,70
-             L 986,930
-             C 988,968 958,992 915,988
-             L 85,992
-             C 42,994 14,962 18,922
-             L 14,90
-             C 12,68 24,58 38,55 Z"
-          fill="none" stroke="#5B9BF0" stroke-width="46" stroke-linejoin="round" opacity="0.55"/>
-    <path d="M 42,58
-             C 26,34 48,14 88,16
-             L 906,10
-             C 948,9 980,38 978,72
-             L 982,926
-             C 984,964 955,988 912,985
-             L 88,989
-             C 46,991 18,960 21,920
-             L 17,92
-             C 16,70 27,60 42,58 Z"
-          fill="none" stroke="#7FB4FF" stroke-width="22" stroke-linejoin="round" opacity="0.65"/>
-  </svg>
-</div>
-<div id="board-wrap">
-  <canvas id="board"></canvas>
-</div>
 
 <div class="topbar">
-  <div class="topbar-btn-wrap">
-    <a class="icon-btn" href="#" title="Back to Chalkline" style="text-decoration:none;display:flex;align-items:center;justify-content:center;" onclick="parent.postMessage({nav:'home'},'*');return false;">🏠</a>
-    <span class="btn-label">Home</span>
-  </div>
-  <div class="topbar-btn-wrap">
-    <button class="icon-btn" id="btn-menu" title="Menu">☰</button>
-    <span class="btn-label">Menu</span>
-  </div>
-  <div class="top-right-cluster">
-    <div class="status-chip" id="status-line">idle</div>
-    <div class="topbar-btn-wrap">
-      <button class="icon-btn" id="btn-clear" title="Clear board">🗑</button>
-      <span class="btn-label">Clear</span>
-    </div>
-    <div class="topbar-btn-wrap">
-      <button class="icon-btn" id="btn-save" title="Save session">⬇</button>
-      <span class="btn-label">Save</span>
-    </div>
-    <div class="topbar-btn-wrap">
-      <button class="icon-btn" id="btn-export-pdf" title="Export board as PDF">📄</button>
-      <span class="btn-label">Export PDF</span>
-    </div>
+  <a class="brand" href="#" onclick="parent.postMessage({nav:'home'},'*');return false;"><span class="dot"></span>Chalkline</a>
+  <div class="nav-links">
+    <a href="#" class="active" onclick="return false;">Tutor</a>
+    <a href="#" onclick="parent.postMessage({nav:'summary'},'*');return false;">Summary</a>
   </div>
 </div>
 
-<div class="zoom-controls">
-  <div class="topbar-btn-wrap">
-    <button class="zoom-btn" id="zoom-in" title="Zoom in">+</button>
-    <span class="btn-label">Zoom in</span>
-  </div>
-  <div class="topbar-btn-wrap">
-    <button class="zoom-btn" id="zoom-out" title="Zoom out">−</button>
-    <span class="btn-label">Zoom out</span>
-  </div>
-  <div class="topbar-btn-wrap">
-    <button class="zoom-btn" id="zoom-reset" title="Reset view">⤾</button>
-    <span class="btn-label">Reset view</span>
+<div class="toolbar">
+  <input type="text" id="topic-input" class="topic-input" placeholder="Ask the tutor to explain something…" value="Derivatives: the slope of a curve">
+  <button id="btn-start" class="btn primary">Start writing</button>
+  <button id="btn-pause" class="btn" disabled>Pause</button>
+  <button id="btn-restart" class="btn" disabled>Clear board</button>
+  <div class="pen-legend">
+    <span class="pen-swatch"><span class="dot" style="background:var(--pen-ink)"></span>notes</span>
+    <span class="pen-swatch"><span class="dot" style="background:var(--pen-teal)"></span>key term</span>
+    <span class="pen-swatch"><span class="dot" style="background:var(--pen-rust)"></span>warning</span>
+    <span class="pen-swatch"><span class="dot" style="background:var(--pen-plum)"></span>result</span>
   </div>
 </div>
 
-<div class="caption-zone">
-  <div class="caption-text" id="caption-text"></div>
+<div class="board-stage">
+  <div id="board-viewport" class="board-viewport">
+    <div id="board-content" class="board-content"></div>
+  </div>
+  <button id="btn-jump" class="jump-latest">↓ jump to where the tutor is writing</button>
 </div>
 
-<div class="avatar-cluster">
-  <div class="cluster-btn-wrap">
-    <div class="avatar" id="avatar">🧑‍🏫</div>
-    <span class="btn-label">Tutor</span>
-  </div>
-  <div class="cluster-btn-wrap">
-    <button class="cluster-btn" id="btn-toggle-transcript" title="Show transcript">💬</button>
-    <span class="btn-label">Transcript</span>
-  </div>
-  <div class="cluster-btn-wrap">
-    <button class="cluster-btn" id="btn-replay" title="Replay narration">🔊</button>
-    <span class="btn-label">Replay</span>
-  </div>
-</div>
-
-<div class="ask-zone">
-  <input type="text" id="ask-input" placeholder="Ask a follow-up…">
-  <button id="btn-ask" title="Send">➤</button>
-</div>
-
-<div class="mic-zone">
-  <button class="mic-btn" id="btn-mic" title="Talk to your tutor">🎙</button>
-  <span class="btn-label">Talk</span>
-</div>
-
-<!-- SIDE PANEL -->
-<div class="overlay" id="overlay"></div>
-<div class="side-panel" id="side-panel">
-  <div class="panel-head">
-    <h1>Chalk<em>line</em></h1>
-    <button class="panel-close" id="btn-panel-close">✕</button>
-  </div>
-  <div class="panel-body">
-    <div class="p-section">
-      <h2>Saved sessions <button class="link-btn" id="btn-new-session">new</button></h2>
-      <div class="session-list" id="session-list"><div class="empty-note">No saved sessions yet.</div></div>
-    </div>
-    <div class="p-section">
-      <h2>AI brain</h2>
-      <select class="topic-input" id="brain-select" style="height:auto;padding:9px 10px;">
-        <option value="gemini">Google Gemini</option>
-        <option value="groq">Groq (Llama)</option>
-      </select>
-      <div class="file-meta" style="margin-top:6px;">Requests go through the Chalkline proxy — no key needed from you.</div>
-    </div>
-    <div class="p-section">
-      <h2>Narrator voice</h2>
-      <select class="topic-input" id="voice-select" style="height:auto;padding:9px 10px;"></select>
-      <div class="file-meta" style="margin-top:6px;">Auto-picks the highest-quality voice your browser/OS offers. Chrome and Edge on Windows/Mac usually have the best options.</div>
-    </div>
-    <div class="p-section">
-      <h2>Source material</h2>
-      <div class="upload-zone" id="upload-zone">
-        Drop a PDF, or click to import a chapter, slide deck or notes.
-        <input type="file" id="pdf-input" accept="application/pdf">
-      </div>
-    </div>
-    <div class="p-section">
-      <h2>Ask to be taught</h2>
-      <textarea class="topic-input" id="topic-input" placeholder="e.g. 'Explain price elasticity of demand'"></textarea>
-      <div class="p-row">
-        <button class="p-btn primary" id="btn-teach">Teach this</button>
-        <button class="p-btn" id="btn-quiz">Quiz me</button>
-      </div>
-    </div>
-    <div class="p-section" style="border-bottom:none;">
-      <h2>Transcript</h2>
-      <div class="transcript" id="transcript" style="padding:0;"><div class="empty-note">Your lecture transcript and quiz questions will appear here as we go.</div></div>
-    </div>
-  </div>
-</div>
+<div id="status-line" class="status-line">idle — press "Start writing" to begin the lesson</div>
 
 <script>
 /* =========================================================
-   INFINITE CANVAS: camera model
+   CONTENT SCRIPT
+   This is the "lesson plan" the tutor writes onto the board.
+   Each block describes one visual unit (heading / line /
+   equation / caption). A line's "segments" array lets a
+   single line mix pen colors, e.g. plain text plus one
+   highlighted keyword or result.
+
+   In production this array would be produced by the AI model
+   (e.g. streamed from the same proxy the Summary tool uses)
+   rather than hard-coded — the writer engine below consumes
+   whatever segment stream it is given, so swapping a live
+   model feed in means replacing LESSON with that stream.
    ========================================================= */
-
-const canvas = document.getElementById('board');
-let ctx = canvas.getContext('2d');
-ctx.lineCap = 'round';
-ctx.lineJoin = 'round';
-let viewW = 0, viewH = 0;
-const camera = { x: 500, y: 300, scale: 1 };
-
-/* Board "cursor": tracks the world-space offset for the NEXT block of
-   content. While teaching, the board is a single INFINITE scroll straight
-   down — there is no live concept of "pages" at all. The model always
-   emits commands in a local 0-1000 x 0-900 authoring frame per teaching
-   turn, and the app places each turn's content directly below whatever
-   already exists, growing the board downward forever. Pages only exist as
-   a slicing step applied at SAVE/EXPORT time (see exportBoardAsPDF below),
-   which cuts the continuous scroll into A4-proportioned pages purely for
-   the PDF — it has no effect on the live board. */
-const PAGE_W = 1000;                 // fixed content column width, and the
-                                      // width used to slice exported pages
-const PAGE_H = Math.round(PAGE_W * Math.SQRT2); // A4 portrait proportion (1 : √2) — export page height only
-const TURN_GAP = 36; // vertical breathing room between consecutive turns stacked in the same region
-
-/* ---- Cornell-style writing zones (invisible — layout only, no drawn
-   borders/labels) ----
-   The board isn't a blank single column: it has three persistent,
-   left-to-right zones that run the FULL length of the endless scroll —
-   a narrower left column for short "Important Notes" bullets, a narrower
-   right column for "Graphs & Diagrams", and a full-width column for the
-   main "Detailed Notes" teaching prose. These are purely x-range targets
-   the app uses to route and scale each command into place; nothing is
-   drawn to mark their edges, so the page still just reads as plain ruled
-   paper — the AI simply knows (via the system prompt) which kind of
-   content belongs in which zone. */
-const REGION_BOX = {
-  notes:  { x: 30,  w: 560 },
-  graph:  { x: 610, w: 360 },
-  detail: { x: 30,  w: 940 }
-};
-const TOP_MARGIN = 40;
-
-let currentTopicLabel = 'Topic';       // kept for session bookkeeping/export title only
-// Absolute world-y of where the NEXT item lands in each of the three
-// zones — each fills independently and keeps growing forever (notes stack
-// down column 1, graphs stack down column 2, detail prose grows the wide
-// column), all in the same unbroken scroll.
-const regionCursor = { notes: TOP_MARGIN, graph: TOP_MARGIN, detail: TOP_MARGIN };
-function resetRegionCursors(){
-  regionCursor.notes = TOP_MARGIN;
-  regionCursor.graph = TOP_MARGIN;
-  regionCursor.detail = TOP_MARGIN;
-}
-
-// Measures how tall a (already-clamped, not-yet-translated) turn's content
-// is in its own local 0-900 authoring frame, by reusing the same bbox logic
-// used for hit-testing/export — with the camera temporarily set to the
-// identity transform so worldToScreen(wx,wy) reduces to (wx,wy) itself.
-function estimateLocalTurnHeight(commands){
-  const savedCam = { ...camera }, savedW = viewW, savedH = viewH;
-  camera.scale = 1; camera.x = viewW/2; camera.y = viewH/2;
-  let maxY = 100;
-  commands.forEach(cmd => {
-    const box = commandScreenBBox(cmd);
-    if(box && box[3] > maxY) maxY = box[3];
-  });
-  Object.assign(camera, savedCam); viewW = savedW; viewH = savedH;
-  return maxY;
-}
-
-// Smoothly scrolls the camera to a target world position, easing over
-// `duration` ms, so moving to the next teaching block reads as continuous
-// downward scrolling rather than a slide-style jump cut. `panToken` lets any
-// in-flight pan be interrupted (e.g. the user grabs the board mid-scroll) —
-// when that happens we stop animating but still fire onDone immediately so
-// queued content still gets drawn.
-let panToken = 0;
-function animateCameraPan(targetX, targetY, duration, onDone){
-  const myToken = ++panToken;
-  const startX = camera.x, startY = camera.y;
-  const dx = targetX - startX, dy = targetY - startY;
-  const start = performance.now();
-  let finished = false;
-  function finish(){ if(!finished){ finished = true; if(onDone) onDone(); } }
-  function ease(t){ return t<0.5 ? 4*t*t*t : 1-Math.pow(-2*t+2,3)/2; } // easeInOutCubic
-  function frame(now){
-    if(myToken !== panToken){ finish(); return; } // interrupted by a newer pan or manual drag/zoom
-    const raw = Math.min(1, (now-start)/duration);
-    const t = ease(raw);
-    camera.x = startX + dx*t;
-    camera.y = startY + dy*t;
-    redrawAll();
-    if(raw < 1) requestAnimationFrame(frame); else { camera.x = targetX; camera.y = targetY; redrawAll(); finish(); }
-  }
-  requestAnimationFrame(frame);
-}
-
-function panCameraToCursor(targetY, onDone){
-  animateCameraPan(500, targetY, 900, onDone);
-}
-
-function resizeCanvas(){
-  const rect = canvas.getBoundingClientRect();
-  const dpr = window.devicePixelRatio || 1;
-  canvas.width = rect.width * dpr;
-  canvas.height = rect.height * dpr;
-  ctx.setTransform(dpr,0,0,dpr,0,0);
-  // Keep whatever world point was centered on screen still centered after
-  // the viewport dimensions change (e.g. portrait <-> landscape rotation).
-  // Without this, camera.x/y stay put while viewW/viewH jump, so content
-  // silently shifts off one edge of the new, differently-proportioned view.
-  viewW = rect.width; viewH = rect.height;
-  redrawAll();
-}
-window.addEventListener('resize', resizeCanvas);
-
-// iOS/Safari fires 'resize' with stale layout metrics immediately on
-// rotation (before the browser chrome/safe-area has settled), so a single
-// resizeCanvas() call right on orientationchange can capture the wrong
-// rect and leave the board looking shifted/cropped until the user manually
-// interacts. Re-run it a couple of times shortly after the rotation
-// settles to guarantee we end up with accurate final dimensions.
-window.addEventListener('orientationchange', () => {
-  setTimeout(resizeCanvas, 50);
-  setTimeout(resizeCanvas, 350);
-});
-if (screen.orientation && screen.orientation.addEventListener) {
-  screen.orientation.addEventListener('change', () => {
-    setTimeout(resizeCanvas, 50);
-    setTimeout(resizeCanvas, 350);
-  });
-}
-
-function worldToScreen(wx, wy){
-  return [(wx - camera.x) * camera.scale + viewW/2, (wy - camera.y) * camera.scale + viewH/2];
-}
-function screenToWorld(sx, sy){
-  return [(sx - viewW/2) / camera.scale + camera.x, (sy - viewH/2) / camera.scale + camera.y];
-}
-
-const INK = '#26241F';
-const OCHRE = '#B8722E';
-const SAGE = '#5E7F6C';
-const BRICK = '#A84B39';
-const TEAL = '#2E7D7B';
-const VIOLET = '#7B5EA7';
-const SKY = '#3E76A8';
-const CORAL = '#D2694F';
-const HALO = '#8FA6FF';
-const HILITE = '#FCE896';
-const COLORS = { chalk:INK, ink:INK, ochre:OCHRE, sage:SAGE, brick:BRICK, teal:TEAL, violet:VIOLET, sky:SKY, coral:CORAL, halo:HALO, highlight:HILITE };
-
-/* Converts a #rrggbb color plus an alpha (0-1) into an rgba() string, used for
-   soft glow / gradient effects like the "halo" command. */
-function hexToRgba(hex, alpha){
-  const h = hex.replace('#','');
-  const r = parseInt(h.substring(0,2),16), g = parseInt(h.substring(2,4),16), b = parseInt(h.substring(4,6),16);
-  return `rgba(${r},${g},${b},${alpha})`;
-}
-
-let drawnCommands = [];
-
-function drawBG(){
-  ctx.fillStyle = '#FFFFFF';
-  ctx.fillRect(0,0,viewW,viewH);
-}
-
-// Faint vertical rules at the left/right edge of the 0-1000 content column,
-// so the endless-scroll board still reads as a single continuous "page"
-// rather than an unbounded void.
-function drawPageGuides(){
-  const [leftX] = worldToScreen(0, 0);
-  const [rightX] = worldToScreen(1000, 0);
-  ctx.save();
-  ctx.strokeStyle = 'rgba(184,114,46,0.10)';
-  ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(leftX, 0); ctx.lineTo(leftX, viewH); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(rightX, 0); ctx.lineTo(rightX, viewH); ctx.stroke();
-  ctx.restore();
-}
-
-// Faint horizontal rule lines across the full page width, evenly spaced like
-// real ruled notebook paper — drawn for whatever vertical range is currently
-// on screen (works the same whether you're near the top of the board or
-// scrolled deep into page 4), so the board always reads as lined paper
-// rather than blank white.
-const RULE_LINE_SPACING = 42; // world units between rule lines
-function drawRuleLines(){
-  const [leftX] = worldToScreen(0, 0);
-  const [rightX] = worldToScreen(1000, 0);
-  const topWorldY = screenToWorld(0, 0)[1];
-  const bottomWorldY = screenToWorld(0, viewH)[1];
-  const firstLine = Math.floor(topWorldY / RULE_LINE_SPACING) * RULE_LINE_SPACING;
-  ctx.save();
-  ctx.strokeStyle = 'rgba(38,36,31,0.10)';
-  ctx.lineWidth = 1;
-  for(let wy = firstLine; wy <= bottomWorldY; wy += RULE_LINE_SPACING){
-    const [, sy] = worldToScreen(0, wy);
-    ctx.beginPath(); ctx.moveTo(leftX, sy); ctx.lineTo(rightX, sy); ctx.stroke();
-  }
-  ctx.restore();
-}
-
-function clearBoard(record=true){
-  if(record) drawnCommands = [];
-  drawBG();
-  drawPageGuides();
-  drawRuleLines();
-}
-
-function redrawAll(){
-  drawBG();
-  drawPageGuides();
-  drawRuleLines();
-  drawnCommands.forEach(cmd => renderCommand(cmd));
-}
-
-// Same as redrawAll, but leaves one command out of the static pass — used
-// while that command is being re-animated on hover, so it can be built back
-// up stroke-by-stroke/letter-by-letter instead of just sitting there already
-// fully drawn underneath its own animation.
-function redrawAllExcept(skipCmd){
-  drawBG();
-  drawPageGuides();
-  drawRuleLines();
-  drawnCommands.forEach(cmd => { if(cmd !== skipCmd) renderCommand(cmd); });
-}
-
-function sw(n){ return n * camera.scale; }
-
-// Approximate screen-space bounding box for a drawn command, padded a bit
-// for a forgiving hover target. Used only for hit-testing, not rendering.
-// Breaks `text` into lines that each fit within `maxWidthPx` (screen px),
-// using the CURRENTLY SET ctx.font — call only after ctx.font is assigned.
-// This is what lets the model write full wrapping paragraphs (like real
-// notebook prose) instead of being limited to one short line per command.
-function wrapTextToLines(text, maxWidthPx){
-  const words = (text||'').split(/\s+/).filter(Boolean);
-  const lines = [];
-  let cur = '';
-  words.forEach(w => {
-    const test = cur ? cur + ' ' + w : w;
-    if(cur && ctx.measureText(test).width > maxWidthPx){
-      lines.push(cur);
-      cur = w;
-    } else {
-      cur = test;
-    }
-  });
-  if(cur) lines.push(cur);
-  return lines.length ? lines : [''];
-}
-
-function commandScreenBBox(cmd){
-  const PAD = 10;
-  function pad(x0,y0,x1,y1){
-    return [Math.min(x0,x1)-PAD, Math.min(y0,y1)-PAD, Math.max(x0,x1)+PAD, Math.max(y0,y1)+PAD];
-  }
-  switch(cmd.type){
-    case 'text': {
-      const fam = cmd.handwritten ? "'Caveat', cursive" : (cmd.mono ? "'JetBrains Mono', 'STIX Two Text', monospace" : "'Kalam', 'Caveat', cursive");
-      const weight = cmd.weight || (cmd.handwritten ? 700 : 400);
-      const size = cmd.handwritten ? (cmd.size||36)*1.25 : (cmd.size||24)*1.08;
-      ctx.font = `${weight} ${sw(size)}px ${fam}`;
-      const [sx,sy] = worldToScreen(cmd.x, cmd.y);
-      if(cmd.maxWidth){
-        const lines = wrapTextToLines(cmd.text||'', sw(cmd.maxWidth));
-        const lineHeight = sw(size)*1.35;
-        const width = Math.max(0, ...lines.map(l=>ctx.measureText(l).width));
-        return pad(sx, sy - sw(size)*1.05, sx + width, sy + lineHeight*(lines.length-1) + sw(size)*0.25);
-      }
-      const width = ctx.measureText(cmd.text||'').width;
-      return pad(sx, sy - sw(size)*1.05, sx + width, sy + sw(size)*0.25);
-    }
-    case 'line': case 'arrow': {
-      const [x1,y1] = worldToScreen(cmd.x1,cmd.y1); const [x2,y2] = worldToScreen(cmd.x2,cmd.y2);
-      return pad(x1,y1,x2,y2);
-    }
-    case 'rect': case 'highlight': case 'highlight-marker': {
-      const [x,y] = worldToScreen(cmd.x,cmd.y);
-      return pad(x, y, x+sw(cmd.w), y+sw(cmd.h||(cmd.type==='rect'?0:40)));
-    }
-    case 'circle': {
-      const [x,y] = worldToScreen(cmd.x,cmd.y);
-      return pad(x-sw(cmd.rx), y-sw(cmd.ry), x+sw(cmd.rx), y+sw(cmd.ry));
-    }
-    case 'curve': {
-      const pts = (cmd.points||[]).map(p=>worldToScreen(p[0],p[1]));
-      if(!pts.length) return [0,0,0,0];
-      const xs = pts.map(p=>p[0]), ys = pts.map(p=>p[1]);
-      return pad(Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys));
-    }
-    case 'axes': case 'plot': {
-      const [ox,oy] = worldToScreen(cmd.x,cmd.y);
-      const w = sw(cmd.w), h = sw(cmd.h);
-      return pad(ox, oy-h-sw(30), ox+w, oy+sw(20));
-    }
-    case 'halo': {
-      const [x,y] = worldToScreen(cmd.x,cmd.y); const r = sw(cmd.r||60);
-      return pad(x-r,y-r,x+r,y+r);
-    }
-    default: return [0,0,0,0];
-  }
-}
-
-function renderCommand(cmd){
-  const color = COLORS[cmd.color] || INK;
-  ctx.strokeStyle = color; ctx.fillStyle = color;
-
-  switch(cmd.type){
-    case 'text': {
-      const fam = cmd.handwritten ? "'Caveat', cursive" : (cmd.mono ? "'JetBrains Mono', 'STIX Two Text', monospace" : "'Kalam', 'Caveat', cursive");
-      const weight = cmd.weight || (cmd.handwritten ? 700 : 400);
-      const size = cmd.handwritten ? (cmd.size||36)*1.25 : (cmd.size||24)*1.08;
-      ctx.font = `${weight} ${sw(size)}px ${fam}`;
-      ctx.textBaseline = 'alphabetic';
-      const [sx,sy] = worldToScreen(cmd.x, cmd.y);
-      if(cmd.maxWidth){
-        const lines = wrapTextToLines(cmd.text||'', sw(cmd.maxWidth));
-        const lineHeight = sw(size)*1.35;
-        lines.forEach((line,i) => ctx.fillText(line, sx, sy + i*lineHeight));
-      } else {
-        ctx.fillText(cmd.text, sx, sy);
-      }
-      break;
-    }
-    case 'highlight-marker': {
-      // Feature removed — no longer drawn, even if an older saved session
-      // or a stray model response still includes this command type.
-      break;
-    }
-    case 'line': {
-      ctx.lineWidth = sw(cmd.width || 2.5);
-      const [x1,y1] = worldToScreen(cmd.x1, cmd.y1); const [x2,y2] = worldToScreen(cmd.x2, cmd.y2);
-      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
-      break;
-    }
-    case 'arrow': {
-      ctx.lineWidth = sw(cmd.width || 2.5);
-      const [x1,y1] = worldToScreen(cmd.x1, cmd.y1); const [x2,y2] = worldToScreen(cmd.x2, cmd.y2);
-      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
-      const angle = Math.atan2(y2-y1, x2-x1); const headLen = sw(cmd.headSize || 12);
-      ctx.beginPath(); ctx.moveTo(x2, y2);
-      ctx.lineTo(x2 - headLen*Math.cos(angle - Math.PI/7), y2 - headLen*Math.sin(angle - Math.PI/7));
-      ctx.lineTo(x2 - headLen*Math.cos(angle + Math.PI/7), y2 - headLen*Math.sin(angle + Math.PI/7));
-      ctx.closePath(); ctx.fill();
-      break;
-    }
-    case 'rect': {
-      ctx.lineWidth = sw(cmd.width || 2.5);
-      const [x,y] = worldToScreen(cmd.x, cmd.y); const w = sw(cmd.w), h = sw(cmd.h);
-      if(cmd.fill){ ctx.globalAlpha = 0.10; ctx.fillRect(x,y,w,h); ctx.globalAlpha = 1; }
-      ctx.strokeRect(x,y,w,h);
-      break;
-    }
-    case 'circle': {
-      ctx.lineWidth = sw(cmd.width || 2.5);
-      const [x,y] = worldToScreen(cmd.x, cmd.y);
-      ctx.beginPath(); ctx.ellipse(x, y, sw(cmd.rx), sw(cmd.ry), 0, 0, Math.PI*2);
-      if(cmd.fill){ ctx.globalAlpha = 0.10; ctx.fill(); ctx.globalAlpha = 1; }
-      ctx.stroke();
-      break;
-    }
-    case 'curve': {
-      ctx.lineWidth = sw(cmd.width || 2.5);
-      const pts = cmd.points.map(p => worldToScreen(p[0], p[1]));
-      strokeSmoothCurve(pts);
-      break;
-    }
-    case 'axes': {
-      const [ox,oy] = worldToScreen(cmd.x, cmd.y); const w = sw(cmd.w), h = sw(cmd.h);
-      drawAxesGrid(ox, oy, w, h, cmd);
-      ctx.lineWidth = sw(2);
-      ctx.strokeStyle = color; ctx.fillStyle = color;
-      ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox, oy - h); ctx.moveTo(ox, oy); ctx.lineTo(ox + w, oy); ctx.stroke();
-      drawArrowhead(ox, oy - h, -Math.PI/2, color);
-      drawArrowhead(ox + w, oy, 0, color);
-      drawAxesTicksAndLabels(ox, oy, w, h, cmd, color);
-      break;
-    }
-    case 'plot': {
-      const [ox,oy] = worldToScreen(cmd.x, cmd.y); const w = sw(cmd.w), h = sw(cmd.h);
-      drawAxesGrid(ox, oy, w, h, cmd);
-      ctx.lineWidth = sw(2.5);
-      ctx.strokeStyle = color; ctx.fillStyle = color;
-      ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox, oy - h); ctx.moveTo(ox, oy); ctx.lineTo(ox + w, oy); ctx.stroke();
-      drawArrowhead(ox, oy - h, -Math.PI/2, color);
-      drawArrowhead(ox + w, oy, 0, color);
-      drawAxesTicksAndLabels(ox, oy, w, h, cmd, color);
-      const [scaleX, scaleY] = plotScalers(ox, oy, w, h, cmd);
-      (cmd.curves || []).forEach(curve => {
-        const pts = (curve.points || []).map(p => [scaleX(p[0]), scaleY(p[1])]);
-        if(pts.length < 2) return;
-        const curveColor = COLORS[curve.color] || color;
-        ctx.save();
-        ctx.shadowColor = hexToRgba(curveColor, 0.35);
-        ctx.shadowBlur = sw(4);
-        ctx.shadowOffsetY = sw(1.5);
-        ctx.strokeStyle = curveColor;
-        ctx.lineWidth = sw(curve.width || 3.25);
-        strokeSmoothCurve(pts);
-        ctx.restore();
-        // small hand-plotted dots at each data point for a worked-by-hand feel
-        ctx.fillStyle = curveColor;
-        pts.forEach(p => { ctx.beginPath(); ctx.arc(p[0], p[1], sw(2.75), 0, Math.PI*2); ctx.fill(); });
-        if(curve.label){
-          ctx.fillStyle = curveColor;
-          ctx.font = `700 ${sw(15)}px 'Kalam', cursive`;
-          ctx.textAlign = 'left';
-          const [lx,ly] = pts[pts.length-1];
-          ctx.fillText(curve.label, lx+sw(8), ly+sw(4));
-        }
-      });
-      break;
-    }
-    case 'highlight': {
-      ctx.globalAlpha = 0.18; ctx.fillStyle = color;
-      const [x,y] = worldToScreen(cmd.x, cmd.y);
-      ctx.fillRect(x, y, sw(cmd.w), sw(cmd.h || 26));
-      ctx.globalAlpha = 1;
-      break;
-    }
-    case 'halo': {
-      const [x,y] = worldToScreen(cmd.x, cmd.y);
-      const r = sw(cmd.r || 60);
-      const glow = COLORS[cmd.color] || HALO;
-      const grad = ctx.createRadialGradient(x,y,0,x,y,r);
-      grad.addColorStop(0, hexToRgba(glow, 0.40));
-      grad.addColorStop(1, hexToRgba(glow, 0));
-      ctx.fillStyle = grad;
-      ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
-      break;
-    }
-  }
-}
-
-// Small filled triangle used to cap the ends of axis lines.
-function drawArrowhead(x, y, angle, color, size){
-  const headLen = sw(size || 9);
-  ctx.fillStyle = color;
-  ctx.beginPath(); ctx.moveTo(x, y);
-  ctx.lineTo(x - headLen*Math.cos(angle - Math.PI/7), y - headLen*Math.sin(angle - Math.PI/7));
-  ctx.lineTo(x - headLen*Math.cos(angle + Math.PI/7), y - headLen*Math.sin(angle + Math.PI/7));
-  ctx.closePath(); ctx.fill();
-}
-
-// Faint dashed gridlines behind a set of axes, so plotted curves are easy to
-// read at a glance. On by default; a graph author can pass "grid":false to
-// suppress it (e.g. for a simple number line).
-function drawAxesGrid(ox, oy, w, h, cmd){
-  if(cmd.grid === false) return;
-  const n = cmd.gridLines || 5;
-  ctx.save();
-  ctx.strokeStyle = 'rgba(38,36,31,0.14)';
-  ctx.lineWidth = 1;
-  ctx.setLineDash([sw(3), sw(4)]);
-  for(let i=1;i<=n;i++){
-    const gx = ox + (w*i/n);
-    ctx.beginPath(); ctx.moveTo(gx, oy); ctx.lineTo(gx, oy-h); ctx.stroke();
-    const gy = oy - (h*i/n);
-    ctx.beginPath(); ctx.moveTo(ox, gy); ctx.lineTo(ox+w, gy); ctx.stroke();
-  }
-  ctx.setLineDash([]);
-  ctx.restore();
-}
-
-// Draws optional tick marks + numeric/text labels along each axis, plus the
-// axis labels and an optional title, so a plotted graph is self-explanatory
-// without the student having to guess scale.
-function drawAxesTicksAndLabels(ox, oy, w, h, cmd, color){
-  ctx.save();
-  ctx.font = `${sw(12)}px 'JetBrains Mono', 'STIX Two Text', monospace`;
-  ctx.fillStyle = color;
-  if(Array.isArray(cmd.xTicks)){
-    const n = cmd.xTicks.length;
-    cmd.xTicks.forEach((label, i) => {
-      const tx = ox + w*(i+1)/(n+1);
-      ctx.strokeStyle = color; ctx.lineWidth = sw(1.5);
-      ctx.beginPath(); ctx.moveTo(tx, oy-sw(4)); ctx.lineTo(tx, oy+sw(4)); ctx.stroke();
-      ctx.textAlign = 'center';
-      ctx.fillText(String(label), tx, oy+sw(18));
-    });
-  }
-  if(Array.isArray(cmd.yTicks)){
-    const n = cmd.yTicks.length;
-    cmd.yTicks.forEach((label, i) => {
-      const ty = oy - h*(i+1)/(n+1);
-      ctx.strokeStyle = color; ctx.lineWidth = sw(1.5);
-      ctx.beginPath(); ctx.moveTo(ox-sw(4), ty); ctx.lineTo(ox+sw(4), ty); ctx.stroke();
-      ctx.textAlign = 'right';
-      ctx.fillText(String(label), ox-sw(8), ty+sw(4));
-    });
-  }
-  ctx.textAlign = 'left';
-  ctx.font = `${sw(15)}px 'JetBrains Mono', 'STIX Two Text', monospace`;
-  if(cmd.xlabel){ ctx.textAlign = 'right'; ctx.fillText(cmd.xlabel, ox+w, oy+sw(30)); }
-  if(cmd.ylabel){ ctx.save(); ctx.translate(ox-sw(28), oy-h); ctx.textAlign = 'left'; ctx.fillText(cmd.ylabel,0,0); ctx.restore(); }
-  if(cmd.title){ ctx.textAlign = 'center'; ctx.font = `700 ${sw(20)}px 'Caveat', cursive`; ctx.fillText(cmd.title, ox+w/2, oy-h-sw(16)); }
-  ctx.restore();
-}
-
-// Strokes a fully-drawn smoothed path through screen-space points. Shared by
-// freehand "curve" and by each curve inside a "plot" — always ends exactly on
-// the final point (unlike a naive quadratic chain, which stops short of it).
-function strokeSmoothCurve(pts){
-  ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
-  for(let i=1;i<pts.length-1;i++){
-    const midX = (pts[i][0]+pts[i+1][0])/2, midY = (pts[i][1]+pts[i+1][1])/2;
-    ctx.quadraticCurveTo(pts[i][0], pts[i][1], midX, midY);
-  }
-  const last = pts[pts.length-1];
-  ctx.lineTo(last[0], last[1]);
-  ctx.stroke();
-}
-
-// Same smoothed path, but stroked only up to fraction t (0-1), for the live
-// drawing animation. Returns the pen tip's screen position.
-function strokeSmoothCurvePartial(pts, t){
-  const totalSegs = pts.length-1;
-  const segFloat = t*totalSegs;
-  const segIdx = Math.min(totalSegs-1, Math.floor(segFloat));
-  const segT = segFloat-segIdx;
-  ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
-  for(let i=1;i<=segIdx;i++){
-    const nextI = Math.min(i+1, pts.length-1);
-    const midX = (pts[i][0]+pts[nextI][0])/2, midY = (pts[i][1]+pts[nextI][1])/2;
-    ctx.quadraticCurveTo(pts[i][0], pts[i][1], midX, midY);
-  }
-  let penX = pts[segIdx][0], penY = pts[segIdx][1];
-  if(pts[segIdx+1]){
-    penX = pts[segIdx][0]+(pts[segIdx+1][0]-pts[segIdx][0])*segT;
-    penY = pts[segIdx][1]+(pts[segIdx+1][1]-pts[segIdx][1])*segT;
-    ctx.lineTo(penX, penY);
-  }
-  ctx.stroke();
-  return [penX, penY];
-}
-
-// Builds data->screen scale functions for a "plot" command, so every curve
-// inside it is mapped into the SAME axes box it's drawn against — a curve can
-// never end up floating away from its own axes the way independently-placed
-// "axes" + "curve" commands could.
-function plotScalers(ox, oy, w, h, cmd){
-  const [xMin,xMax] = cmd.xRange || [0, 10];
-  const [yMin,yMax] = cmd.yRange || [0, 10];
-  const xSpan = (xMax-xMin) || 1, ySpan = (yMax-yMin) || 1;
-  const scaleX = v => ox + ((v-xMin)/xSpan)*w;
-  const scaleY = v => oy - ((v-yMin)/ySpan)*h;
-  return [scaleX, scaleY];
-}
-
-/* ---------- PAN / ZOOM ---------- */
-let isPanning = false, panStart=null, camStart=null;
-canvas.addEventListener('mousedown', (e)=>{ panToken++; isPanning=true; canvas.classList.add('grabbing'); panStart=[e.clientX,e.clientY]; camStart={x:camera.x,y:camera.y}; if(typeof stopHoverReplay==='function') stopHoverReplay(); });
-window.addEventListener('mousemove', (e)=>{
-  if(!isPanning) return;
-  camera.x = camStart.x - (e.clientX - panStart[0]) / camera.scale;
-  camera.y = camStart.y - (e.clientY - panStart[1]) / camera.scale;
-  redrawAll();
-});
-window.addEventListener('mouseup', ()=>{ isPanning=false; canvas.classList.remove('grabbing'); });
-
-/* ---------- HOVER-TO-REPLAY: pen re-writes a command on mouse hover ---------- */
-const hoverAnim = { cmd:null, raf:null };
-
-function stopHoverReplay(){
-  if(hoverAnim.raf) cancelAnimationFrame(hoverAnim.raf);
-  hoverAnim.raf = null;
-  if(hoverAnim.cmd){ hoverAnim.cmd = null; redrawAll(); }
-}
-
-function startHoverReplay(cmd){
-  if(hoverAnim.cmd === cmd) return; // already replaying/showing this one
-  if(hoverAnim.raf) cancelAnimationFrame(hoverAnim.raf);
-  hoverAnim.cmd = cmd;
-  const duration = estimateDuration(cmd);
-  const start = performance.now();
-  function frame(now){
-    if(hoverAnim.cmd !== cmd) return; // hover moved elsewhere mid-flight
-    const t = Math.min(1, (now-start)/duration);
-    redrawAllExcept(cmd);
-    renderPartialCommand(cmd, t);
-    if(t < 1){ hoverAnim.raf = requestAnimationFrame(frame); }
-    else { hoverAnim.raf = null; redrawAll(); }
-  }
-  hoverAnim.raf = requestAnimationFrame(frame);
-}
-
-canvas.addEventListener('mousemove', (e)=>{
-  if(isPanning || drawing) return; // don't fight with panning or the live AI draw-in
-  const rect = canvas.getBoundingClientRect();
-  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
-  let hit = null;
-  for(let i = drawnCommands.length - 1; i >= 0; i--){
-    const cmd = drawnCommands[i];
-    if(cmd.type === 'highlight' || cmd.type === 'halo') continue; // decorative, not "written" content
-    const [x0,y0,x1,y1] = commandScreenBBox(cmd);
-    if(mx>=x0 && mx<=x1 && my>=y0 && my<=y1){ hit = cmd; break; }
-  }
-  canvas.classList.toggle('hoverable', !!hit);
-  if(hit) startHoverReplay(hit); else stopHoverReplay();
-});
-canvas.addEventListener('mouseleave', stopHoverReplay);
-canvas.addEventListener('wheel', (e)=>{
-  e.preventDefault();
-  panToken++;
-  stopHoverReplay();
-  const rect = canvas.getBoundingClientRect();
-  const mx = e.clientX-rect.left, my = e.clientY-rect.top;
-  const [wx,wy] = screenToWorld(mx,my);
-  camera.scale = Math.min(3, Math.max(0.2, camera.scale * (e.deltaY>0?0.9:1.1)));
-  const [nx,ny] = screenToWorld(mx,my);
-  camera.x += (wx-nx); camera.y += (wy-ny);
-  redrawAll();
-}, {passive:false});
-document.getElementById('zoom-in').addEventListener('click', ()=>{ camera.scale=Math.min(3,camera.scale*1.2); redrawAll(); });
-document.getElementById('zoom-out').addEventListener('click', ()=>{ camera.scale=Math.max(0.2,camera.scale/1.2); redrawAll(); });
-document.getElementById('zoom-reset').addEventListener('click', ()=>{ panToken++; camera.x=500;camera.y=300;camera.scale=1; redrawAll(); });
-document.getElementById('btn-clear').addEventListener('click', ()=>{ panToken++; drawQueue=[]; camera.x=500;camera.y=300;camera.scale=1; resetRegionCursors(); clearBoard(); });
+const LESSON = [
+  { type:'heading', segments:[{t:'Derivatives', c:'ink'}] },
+  { type:'line', segments:[
+      {t:'A ', c:'ink'}, {t:'derivative', c:'teal'},
+      {t:' measures how fast something is changing —', c:'ink'}
+  ]},
+  { type:'line', segments:[{t:'the slope of a curve at one exact point.', c:'ink'}]},
+  { type:'line', segments:[{t:'', c:'ink'}]},
+  { type:'line', segments:[{t:'Start with an ', c:'ink'}, {t:'average', c:'plum'}, {t:' rate of change:', c:'ink'}]},
+  { type:'equation', segments:[{t:'slope = (f(x+h) − f(x)) / h', c:'ink'}]},
+  { type:'caption', segments:[{t:'this is just rise over run, between two nearby points', c:'ink'}]},
+  { type:'line', segments:[{t:'', c:'ink'}]},
+  { type:'line', segments:[{t:'Now shrink ', c:'ink'}, {t:'h', c:'teal'}, {t:' toward zero. The two points', c:'ink'}]},
+  { type:'line', segments:[{t:'collapse onto one — that limit is the derivative:', c:'ink'}]},
+  { type:'equation', segments:[{t:"f'(x) = lim(h→0) (f(x+h) − f(x)) / h", c:'ink'}]},
+  { type:'line', segments:[{t:'', c:'ink'}]},
+  { type:'line', segments:[{t:'Careful: ', c:'rust'}, {t:'the limit must exist from both sides,', c:'ink'}]},
+  { type:'line', segments:[{t:'or the function has no derivative there.', c:'ink'}]},
+  { type:'line', segments:[{t:'', c:'ink'}]},
+  { type:'heading', segments:[{t:'A quick example', c:'ink'}]},
+  { type:'line', segments:[{t:'Let ', c:'ink'}, {t:'f(x) = x²', c:'teal'}, {t:'. Plug into the definition:', c:'ink'}]},
+  { type:'equation', segments:[{t:'f\u2019(x) = lim(h→0) ((x+h)² − x²) / h', c:'ink'}]},
+  { type:'equation', segments:[{t:'= lim(h→0) (2xh + h²) / h  =  lim(h→0) (2x + h)', c:'ink'}]},
+  { type:'line', segments:[{t:'Result: ', c:'ink'}, {t:'f\u2019(x) = 2x', c:'plum'}]},
+  { type:'caption', segments:[{t:'the slope of x² at any point x is simply 2x', c:'ink'}]},
+];
 
 /* =========================================================
-   EXPORT: SAVE THE WHOLE (INFINITE, DOWNWARD-SCROLLING) BOARD AS A PDF
-   The board grows straight down as a sequence of A4-proportioned pages, each
-   one filled with as many teaching turns as fit before the next page starts.
-   Export walks that same world space page by page, rendering each page into
-   an offscreen canvas at the real camera transform
-   (so hit-testing/animation code doesn't need to change), then drops each
-   page's image into a multi-page PDF via jsPDF.
+   WRITER ENGINE
    ========================================================= */
-function worldContentBounds(){
-  // Reuses commandScreenBBox for its per-type sizing logic: with camera set
-  // to scale 1 and centered so (camera.x,camera.y)===(viewW/2,viewH/2),
-  // worldToScreen(wx,wy) reduces to the identity, so the "screen" bbox it
-  // returns IS the world-space bbox.
-  const savedCam = { ...camera }, savedW = viewW, savedH = viewH;
-  camera.scale = 1; camera.x = viewW/2; camera.y = viewH/2;
-  let minX=0, minY=0, maxX=PAGE_W, maxY=1;
-  drawnCommands.forEach(cmd=>{
-    const [x0,y0,x1,y1] = commandScreenBBox(cmd);
-    minX=Math.min(minX,x0); minY=Math.min(minY,y0);
-    maxX=Math.max(maxX,x1); maxY=Math.max(maxY,y1);
-  });
-  Object.assign(camera, savedCam); viewW = savedW; viewH = savedH;
-  return { minX, minY, maxX, maxY };
-}
+const PEN_CLASS = { ink:'pen-ink', teal:'pen-teal', plum:'pen-plum', rust:'pen-rust' };
 
-async function exportBoardAsPDF(){
-  if(!window.jspdf){ setStatus('pdf export unavailable — see console'); console.error('jsPDF did not load (no network in this context, or the CDN was blocked).'); return; }
-  if(drawnCommands.length===0){ setStatus('nothing drawn yet'); return; }
-  if(drawing || drawQueue.length){ setStatus('wait for the current drawing to finish'); return; }
-
-  setStatus('exporting pdf…');
-  stopHoverReplay();
-  const savedCam = { ...camera }, savedW = viewW, savedH = viewH, savedCtx = ctx;
-
-  try{
-    const { minX, minY, maxY } = worldContentBounds();
-    const pageWorldW = PAGE_W; // the board's fixed A4-proportioned content column width
-    const pageWorldH = PAGE_H;
-    const numPages = Math.max(1, Math.ceil((maxY - minY) / pageWorldH));
-    const PX_PER_WORLD_UNIT = 1.6; // offscreen render resolution — plenty crisp for text
-    const pxW = Math.round(pageWorldW * PX_PER_WORLD_UNIT);
-    const pxH = Math.round(pageWorldH * PX_PER_WORLD_UNIT);
-
-    const off = document.createElement('canvas');
-    off.width = pxW; off.height = pxH;
-    const offCtx = off.getContext('2d');
-    offCtx.lineCap = 'round'; offCtx.lineJoin = 'round';
-
-    const { jsPDF } = window.jspdf;
-    let doc = null;
-
-    for(let i=0; i<numPages; i++){
-      ctx = offCtx;
-      viewW = pxW; viewH = pxH;
-      camera.scale = PX_PER_WORLD_UNIT;
-      camera.x = minX + pageWorldW/2;
-      camera.y = (minY + i*pageWorldH) + pageWorldH/2;
-
-      drawBG(); // faint left/right column guides are a screen affordance only — skip those in the export, but keep the ruled lines so each exported A4 page still reads as ruled notebook paper
-      drawRuleLines();
-      drawnCommands.forEach(cmd => renderCommand(cmd)); // anything outside this page's y-range is simply clipped by the canvas
-
-      const dataUrl = off.toDataURL('image/png');
-      if(i===0){
-        doc = new jsPDF({ unit:'pt', format:[pageWorldW, pageWorldH], orientation: pageWorldW>=pageWorldH?'landscape':'portrait' });
-      } else {
-        doc.addPage([pageWorldW, pageWorldH], pageWorldW>=pageWorldH?'landscape':'portrait');
-      }
-      doc.addImage(dataUrl, 'PNG', 0, 0, pageWorldW, pageWorldH);
-    }
-
-    const name = (currentSessionTitle || (pdfFileName ? pdfFileName.replace(/\.pdf$/i,'') : 'chalkline-lesson')).replace(/[^\w\-]+/g,'_');
-    doc.save(`${name}.pdf`);
-    setStatus(`saved ${numPages}-page pdf`);
-  } catch(err){
-    console.error('PDF export failed:', err);
-    setStatus('pdf export failed — see console');
-  } finally {
-    ctx = savedCtx;
-    Object.assign(camera, savedCam);
-    viewW = savedW; viewH = savedH;
-    redrawAll();
-  }
-}
-document.getElementById('btn-export-pdf').addEventListener('click', exportBoardAsPDF);
-
-/* =========================================================
-   LIVE PEN + STROKE-BY-STROKE ANIMATION
-   ========================================================= */
-let drawQueue = [], drawing = false;
-
-function drawPen(x, y, angle){
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(angle + Math.PI/4);
-  ctx.fillStyle = '#2A2A2A';
-  const s = 14;
-  ctx.beginPath();
-  ctx.moveTo(0,0); ctx.lineTo(s*0.35,s*0.35); ctx.lineTo(s*1.7,s*1.7-s*0.5); ctx.lineTo(s*1.35,s*2.0-s*0.5);
-  ctx.closePath(); ctx.fill();
-  ctx.fillStyle = '#B8722E';
-  ctx.beginPath(); ctx.arc(s*0.45,s*0.45,3.2,0,Math.PI*2); ctx.fill();
-  ctx.restore();
-}
-function clearPen(){}
-
-// Places a command (still expressed in the model's local 0-1000 x 0-900
-// authoring frame) into an absolute world position, scaled to fit whichever
-// region box it's headed for. The model always writes as if it has a full
-// 1000-wide frame, so a narrower box (e.g. the 360-wide Graphs column) is
-// handled purely by shrinking (scale = box.w/1000) rather than the model
-// needing to know actual box geometry.
-function placeCommand(cmd, ox, oy, scale){
-  const c = { ...cmd };
-  const S = v => v * scale;
-  if('x' in c) c.x = ox + S(c.x);
-  if('y' in c) c.y = oy + S(c.y);
-  if('x1' in c) c.x1 = ox + S(c.x1);
-  if('y1' in c) c.y1 = oy + S(c.y1);
-  if('x2' in c) c.x2 = ox + S(c.x2);
-  if('y2' in c) c.y2 = oy + S(c.y2);
-  if(Array.isArray(c.points)) c.points = c.points.map(p => [ox + S(p[0]), oy + S(p[1])]);
-  if('w' in c) c.w = S(c.w);
-  if('h' in c) c.h = S(c.h);
-  if('rx' in c) c.rx = S(c.rx);
-  if('ry' in c) c.ry = S(c.ry);
-  if('r' in c) c.r = S(c.r);
-  if(c.type === 'text'){
-    if('size' in c) c.size = S(c.size);
-    if('maxWidth' in c) c.maxWidth = S(c.maxWidth);
-  }
-  return c;
-}
-
-// Hard-clamps every command into the 1000x900 working frame before it ever
-// gets a cursor offset applied, so a stray/oversized value from the model
-// can never push text or a graph off the visible board or into the next
-// teaching block below it.
-function clampBoardCoords(c){
-  const M = 20; // margin from the frame edge
-  const MINX = M, MAXX = 1000 - M, MINY = M, MAXY = 900 - M;
-  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
-  switch(c.type){
-    case 'text': case 'circle': case 'halo':
-      c.x = clamp(c.x, MINX, MAXX);
-      c.y = clamp(c.y, MINY, MAXY);
-      if(c.type === 'text' && c.maxWidth) c.maxWidth = Math.min(c.maxWidth, MAXX - c.x);
-      break;
-    case 'line': case 'arrow':
-      c.x1 = clamp(c.x1, MINX, MAXX); c.y1 = clamp(c.y1, MINY, MAXY);
-      c.x2 = clamp(c.x2, MINX, MAXX); c.y2 = clamp(c.y2, MINY, MAXY);
-      break;
-    case 'rect': case 'highlight':
-      c.x = clamp(c.x, MINX, MAXX);
-      c.y = clamp(c.y, MINY, MAXY);
-      if(c.w) c.w = Math.min(c.w, MAXX - c.x);
-      if(c.h) c.h = Math.min(c.h, MAXY - c.y);
-      break;
-    case 'curve':
-      if(Array.isArray(c.points)) c.points = c.points.map(p => [clamp(p[0],MINX,MAXX), clamp(p[1],MINY,MAXY)]);
-      break;
-    case 'axes': case 'plot':
-      // x,y is the bottom-left ORIGIN; the box extends upward by h and
-      // rightward by w, so both need clamping relative to that origin.
-      c.x = clamp(c.x, MINX, MAXX - 60);
-      c.y = clamp(c.y, MINY + 60, MAXY);
-      c.w = Math.max(60, Math.min(c.w, MAXX - c.x));
-      c.h = Math.max(60, Math.min(c.h, c.y - MINY));
-      break;
-  }
-  return c;
-}
-
-// Routes one teaching turn's commands into the Cornell template: each
-// command can carry an optional "region" of "notes" | "graph" | "detail"
-// (default "detail"), so a single turn can drop a short bullet into the
-// Important Notes column, a diagram into the Graphs column, and its main
-// explanatory prose into the Detailed Notes box, all at once. Each region
-// keeps its own running cursor so content stacks down that column across
-// many turns; only the Detail region (the main teaching flow) triggers a
-// fresh page when it runs out of room.
-function enqueueCommandsAtCursor(commands){
-  const clamped = commands.map(c => clampBoardCoords({ ...c }));
-  const groups = { notes: [], graph: [], detail: [] };
-  clamped.forEach(c => {
-    const region = (c.region === 'notes' || c.region === 'graph') ? c.region : 'detail';
-    groups[region].push(c);
-  });
-
-  let placedAll = [];
-  let panTargetY = null;
-
-  // No page-breaking here at all — the live board is one endless downward
-  // scroll. Each zone (notes/graph/detail) just keeps stacking new content
-  // below whatever it already has, forever. Pagination only happens later,
-  // as a pure slicing step when exporting to PDF (see exportBoardAsPDF).
-  ['notes','graph','detail'].forEach(region => {
-    const cmds = groups[region];
-    if(!cmds.length) return;
-    const localH = estimateLocalTurnHeight(cmds);
-    const box = REGION_BOX[region];
-    const scale = box.w / 1000;
-    const originY = regionCursor[region];
-    placedAll.push(...cmds.map(c => placeCommand(c, box.x, originY, scale)));
-    regionCursor[region] = originY + localH*scale + TURN_GAP;
-    if(region === 'detail' || panTargetY === null) panTargetY = originY + (localH*scale)/2;
-  });
-
-  redrawAll();
-  if(panTargetY === null) panTargetY = regionCursor.detail;
-  panCameraToCursor(panTargetY, () => enqueueCommands(placedAll));
-}
-
-function enqueueCommands(commands){
-  drawQueue.push(...commands);
-  if(!drawing) processQueue();
-}
-// Approximate world-space point of a command, used to keep the camera
-// pointed at whatever the "pen" is currently writing (rather than only
-// re-centering once per whole teaching turn).
-function commandWorldAnchor(cmd){
-  if('x' in cmd && 'y' in cmd) return [cmd.x, cmd.y];
-  if('x1' in cmd && 'y1' in cmd) return [(cmd.x1+cmd.x2)/2, (cmd.y1+cmd.y2)/2];
-  if(Array.isArray(cmd.points) && cmd.points.length) return cmd.points[Math.floor(cmd.points.length/2)];
-  return null;
-}
-
-function processQueue(){
-  if(drawQueue.length===0){ drawing=false; redrawAll(); return; }
-  drawing=true;
-  const cmd = drawQueue.shift();
-  // If the next stroke lands well outside the current view (e.g. jumping
-  // from the Detail box over to the Graphs column, or onto a fresh page),
-  // ease the camera over to it before/while it draws, so the board always
-  // scrolls to keep pace with wherever the AI is currently writing instead
-  // of leaving new content to appear off-screen.
-  const anchor = commandWorldAnchor(cmd);
-  if(anchor){
-    const [sx, sy] = worldToScreen(anchor[0], anchor[1]);
-    const margin = 60;
-    if(sx < margin || sx > viewW-margin || sy < margin || sy > viewH-margin){
-      animateCameraPan(anchor[0], anchor[1], 260, null);
-    }
-  }
-  animateCommand(cmd, ()=>{ drawnCommands.push(cmd); processQueue(); });
-}
-function animateCommand(cmd, onDone){
-  const duration = estimateDuration(cmd);
-  const start = performance.now();
-  function frame(now){
-    const t = Math.min(1,(now-start)/duration);
-    redrawAll();
-    renderPartialCommand(cmd, t);
-    if(t<1) requestAnimationFrame(frame); else onDone();
-  }
-  requestAnimationFrame(frame);
-}
-function estimateDuration(cmd){
-  switch(cmd.type){
-    case 'text': return Math.min(2200, Math.max(500,(cmd.text||'').length*(cmd.handwritten?55:38)));
-    case 'line': case 'arrow': return 380;
-    case 'curve': return 700;
-    case 'rect': return 550;
-    case 'circle': return 550;
-    case 'axes': return 550;
-    case 'plot': return 600 + ((cmd.curves||[]).length)*550;
-    case 'highlight': return 250;
-    case 'highlight-marker': return 420;
-    case 'halo': return 450;
-    default: return 300;
-  }
-}
-function renderPartialCommand(cmd, t){
-  const color = COLORS[cmd.color] || INK;
-  ctx.strokeStyle = color; ctx.fillStyle = color;
-  switch(cmd.type){
-    case 'text': {
-      const full = cmd.text || '';
-      const fam = cmd.handwritten ? "'Caveat', cursive" : (cmd.mono ? "'JetBrains Mono', 'STIX Two Text', monospace" : "'Kalam', 'Caveat', cursive");
-      const weight = cmd.weight || (cmd.handwritten ? 700 : 400);
-      const size = cmd.handwritten ? (cmd.size||36)*1.25 : (cmd.size||24)*1.08;
-      ctx.font = `${weight} ${sw(size)}px ${fam}`;
-      const [sx,sy] = worldToScreen(cmd.x, cmd.y);
-      if(cmd.maxWidth){
-        const lines = wrapTextToLines(full, sw(cmd.maxWidth));
-        const lineHeight = sw(size)*1.35;
-        let charsLeft = Math.max(1, Math.round(full.length*t));
-        let lastX = sx, lastY = sy;
-        for(let i=0;i<lines.length;i++){
-          const line = lines[i];
-          const take = Math.max(0, Math.min(line.length, charsLeft));
-          const partial = line.slice(0, take);
-          ctx.fillText(partial, sx, sy + i*lineHeight);
-          lastX = sx + ctx.measureText(partial).width;
-          lastY = sy + i*lineHeight;
-          charsLeft -= take + 1; // +1 roughly accounts for the space between wrapped words
-          if(charsLeft <= 0) break;
-        }
-        drawPen(lastX, lastY, -Math.PI/2);
-      } else {
-        const nChars = Math.max(1, Math.round(full.length*t));
-        const partial = full.slice(0,nChars);
-        ctx.fillText(partial, sx, sy);
-        const w = ctx.measureText(partial).width;
-        drawPen(sx+w, sy, -Math.PI/2);
-      }
-      break;
-    }
-    case 'highlight-marker': {
-      // Feature removed — no-op.
-      break;
-    }
-    case 'line': case 'arrow': {
-      ctx.lineWidth = sw(cmd.width||2.5);
-      const [x1,y1]=worldToScreen(cmd.x1,cmd.y1); const [x2,y2]=worldToScreen(cmd.x2,cmd.y2);
-      const cx=x1+(x2-x1)*t, cy=y1+(y2-y1)*t;
-      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(cx,cy); ctx.stroke();
-      if(cmd.type==='arrow' && t>=0.98){
-        const angle=Math.atan2(y2-y1,x2-x1); const headLen=sw(cmd.headSize||12);
-        ctx.beginPath(); ctx.moveTo(x2,y2);
-        ctx.lineTo(x2-headLen*Math.cos(angle-Math.PI/7), y2-headLen*Math.sin(angle-Math.PI/7));
-        ctx.lineTo(x2-headLen*Math.cos(angle+Math.PI/7), y2-headLen*Math.sin(angle+Math.PI/7));
-        ctx.closePath(); ctx.fill();
-      }
-      drawPen(cx,cy,Math.atan2(y2-y1,x2-x1));
-      break;
-    }
-    case 'curve': {
-      ctx.lineWidth = sw(cmd.width||2.5);
-      const pts = cmd.points.map(p=>worldToScreen(p[0],p[1]));
-      const [penX,penY] = strokeSmoothCurvePartial(pts, t);
-      drawPen(penX,penY,0);
-      break;
-    }
-    case 'rect': {
-      ctx.lineWidth = sw(cmd.width||2.5);
-      const [x,y]=worldToScreen(cmd.x,cmd.y); const w=sw(cmd.w), h=sw(cmd.h);
-      const perim=2*(w+h), drawn=perim*t;
-      ctx.beginPath(); let remaining=drawn, px=x, py=y; ctx.moveTo(px,py);
-      const segs=[[w,0],[0,h],[-w,0],[0,-h]];
-      for(const [dx,dy] of segs){
-        const len=Math.hypot(dx,dy), use=Math.min(len,remaining), frac=use/len;
-        px+=dx*frac; py+=dy*frac; ctx.lineTo(px,py); remaining-=use;
-        if(remaining<=0) break;
-      }
-      ctx.stroke(); drawPen(px,py,0);
-      break;
-    }
-    case 'circle': {
-      ctx.lineWidth = sw(cmd.width||2.5);
-      const [x,y]=worldToScreen(cmd.x,cmd.y); const rx=sw(cmd.rx), ry=sw(cmd.ry);
-      ctx.beginPath(); ctx.ellipse(x,y,rx,ry,0,-Math.PI/2,-Math.PI/2+t*Math.PI*2); ctx.stroke();
-      const ang=-Math.PI/2+t*Math.PI*2;
-      drawPen(x+rx*Math.cos(ang), y+ry*Math.sin(ang), ang+Math.PI/2);
-      break;
-    }
-    case 'axes': {
-      const [ox,oy]=worldToScreen(cmd.x,cmd.y); const w=sw(cmd.w), h=sw(cmd.h);
-      if(t>=0.99) drawAxesGrid(ox, oy, w, h, cmd);
-      ctx.lineWidth = sw(2);
-      const total=w+h, drawn=total*t;
-      ctx.beginPath(); ctx.moveTo(ox,oy);
-      const yLen=Math.min(h,drawn); ctx.lineTo(ox,oy-yLen);
-      let penX=ox, penY=oy-yLen;
-      if(drawn>h){ ctx.moveTo(ox,oy); const xLen=Math.min(w,drawn-h); ctx.lineTo(ox+xLen,oy); penX=ox+xLen; penY=oy; }
-      ctx.stroke();
-      if(t>=0.99){
-        drawArrowhead(ox, oy-h, -Math.PI/2, color);
-        drawArrowhead(ox+w, oy, 0, color);
-        drawAxesTicksAndLabels(ox, oy, w, h, cmd, color);
-      }
-      drawPen(penX,penY,0);
-      break;
-    }
-    case 'plot': {
-      const [ox,oy]=worldToScreen(cmd.x,cmd.y); const w=sw(cmd.w), h=sw(cmd.h);
-      const curves = cmd.curves || [];
-      // First slice of the duration draws the axes+grid+ticks; the rest is
-      // split evenly across each curve, drawn one after another, so a plot
-      // with 2 lines visibly draws the first line, then the second.
-      const axesFrac = curves.length ? 0.3 : 1;
-      const axesT = Math.min(1, t/axesFrac);
-      if(axesT>=0.99) drawAxesGrid(ox, oy, w, h, cmd);
-      ctx.lineWidth = sw(2); ctx.strokeStyle = color; ctx.fillStyle = color;
-      const axTotal=w+h, axDrawn=axTotal*axesT;
-      ctx.beginPath(); ctx.moveTo(ox,oy);
-      const yLen=Math.min(h,axDrawn); ctx.lineTo(ox,oy-yLen);
-      let penX=ox, penY=oy-yLen;
-      if(axDrawn>h){ ctx.moveTo(ox,oy); const xLen=Math.min(w,axDrawn-h); ctx.lineTo(ox+xLen,oy); penX=ox+xLen; penY=oy; }
-      ctx.stroke();
-      if(axesT>=0.99){
-        drawArrowhead(ox, oy-h, -Math.PI/2, color);
-        drawArrowhead(ox+w, oy, 0, color);
-        drawAxesTicksAndLabels(ox, oy, w, h, cmd, color);
-      }
-      if(curves.length){
-        const [scaleX, scaleY] = plotScalers(ox, oy, w, h, cmd);
-        const perCurve = (1-axesFrac)/curves.length;
-        curves.forEach((curve, i) => {
-          const curveT = Math.max(0, Math.min(1, (t-axesFrac-i*perCurve)/perCurve));
-          if(curveT<=0) return;
-          const pts = (curve.points||[]).map(p=>[scaleX(p[0]), scaleY(p[1])]);
-          if(pts.length<2) return;
-          ctx.strokeStyle = COLORS[curve.color] || color;
-          ctx.lineWidth = sw(curve.width||2.75);
-          const [cx,cy] = strokeSmoothCurvePartial(pts, curveT);
-          if(curveT>=1){
-            if(curve.label){
-              ctx.fillStyle = COLORS[curve.color] || color;
-              ctx.font = `${sw(13)}px 'JetBrains Mono', 'STIX Two Text', monospace`;
-              ctx.textAlign = 'left';
-              ctx.fillText(curve.label, cx+sw(8), cy+sw(4));
-            }
-          } else { penX=cx; penY=cy; }
-        });
-      }
-      drawPen(penX,penY,0);
-      break;
-    }
-    case 'highlight': {
-      ctx.globalAlpha = 0.18*t;
-      const [x,y]=worldToScreen(cmd.x,cmd.y);
-      ctx.fillRect(x,y,sw(cmd.w)*t, sw(cmd.h||26));
-      ctx.globalAlpha=1;
-      break;
-    }
-    case 'halo': {
-      const [x,y] = worldToScreen(cmd.x, cmd.y);
-      const r = sw(cmd.r || 60);
-      const glow = COLORS[cmd.color] || HALO;
-      const grad = ctx.createRadialGradient(x,y,0,x,y,r);
-      grad.addColorStop(0, hexToRgba(glow, 0.40*t));
-      grad.addColorStop(1, hexToRgba(glow, 0));
-      ctx.fillStyle = grad;
-      ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
-      break;
-    }
-  }
-}
-
-/* =========================================================
-   VOICE: speech synthesis (out, captions) + recognition (in)
-
-   Browser TTS has no truly natural option without a paid API,
-   so this picks the best available system/browser voice by a
-   quality heuristic, and improves cadence by speaking sentence
-   by sentence (with small inter-sentence pauses) rather than as
-   one long utterance, which reduces the flat/rushed rambling
-   that a single long SpeechSynthesisUtterance tends to produce.
-   ========================================================= */
-const avatar = document.getElementById('avatar');
-const captionText = document.getElementById('caption-text');
-let currentUtteranceText = '';
-let currentSpeechToken = 0; // increments to cancel in-flight sentence queues
-
-/* ---- voice selection ---- */
-let bestVoice = null;
-let voicesReady = false;
-let voiceListInitialized = false;
-
-function scoreVoice(v){
-  let score = 0;
-  const name = v.name || '';
-  // Highest-quality signals first (these names appear in Chrome/Edge/Safari on most OSes)
-  if(/Natural/i.test(name)) score += 100;
-  if(/Neural/i.test(name)) score += 95;
-  if(/Premium/i.test(name)) score += 90;
-  if(/Enhanced/i.test(name)) score += 85;
-  if(/Google/i.test(name)) score += 70;
-  if(/Microsoft.*Online/i.test(name)) score += 65;
-  if(/Siri/i.test(name)) score += 60;
-  // Prefer local (no network dependency, more reliable in this sandboxed context)
-  if(v.localService) score += 8;
-  // Prefer standard English varieties, mild preference for US/GB over others
-  if(/^en-US$/i.test(v.lang)) score += 6;
-  else if(/^en-GB$/i.test(v.lang)) score += 5;
-  else if(/^en/i.test(v.lang)) score += 3;
-  // Slight preference for voices whose names suggest a warmer/female timbre often
-  // tuned for narration (this is a rough heuristic, not a guarantee)
-  if(/Samantha|Aria|Jenny|Libby|Sonia|Serena/i.test(name)) score += 4;
-  return score;
-}
-
-function pickBestVoice(){
-  const voices = window.speechSynthesis.getVoices();
-  if(!voices || voices.length === 0) return null;
-  const english = voices.filter(v => /^en/i.test(v.lang));
-  const pool = english.length ? english : voices;
-  pool.sort((a,b) => scoreVoice(b) - scoreVoice(a));
-  return pool[0] || null;
-}
-
-function refreshVoiceList(){
-  bestVoice = pickBestVoice();
-  voicesReady = !!bestVoice;
-  populateVoiceDropdown();
-}
-
-if('speechSynthesis' in window){
-  // Chrome loads voices asynchronously; Safari/Firefox often have them immediately.
-  refreshVoiceList();
-  window.speechSynthesis.onvoiceschanged = refreshVoiceList;
-  // Fallback poll in case onvoiceschanged never fires (some embedded browser contexts)
-  let pollTries = 0;
-  const pollInterval = setInterval(()=>{
-    pollTries++;
-    if(voicesReady || pollTries > 20){ clearInterval(pollInterval); return; }
-    refreshVoiceList();
-  }, 250);
-}
-
-function populateVoiceDropdown(){
-  const sel = document.getElementById('voice-select');
-  if(!sel) return;
-  const voices = window.speechSynthesis.getVoices().filter(v => /^en/i.test(v.lang));
-  const pool = voices.length ? voices : window.speechSynthesis.getVoices();
-  if(!pool.length) return;
-  const currentVal = sel.value;
-  sel.innerHTML = '';
-  pool.sort((a,b)=> scoreVoice(b)-scoreVoice(a)).forEach(v=>{
-    const opt = document.createElement('option');
-    opt.value = v.name;
-    opt.textContent = v.name + (v.localService ? '' : ' (network)');
-    sel.appendChild(opt);
-  });
-  // Restore user's manual choice if they made one, else select bestVoice
-  if(currentVal && pool.some(v=>v.name===currentVal)){
-    sel.value = currentVal;
-  } else if(bestVoice){
-    sel.value = bestVoice.name;
-  }
-}
-
-function getSelectedVoice(){
-  const sel = document.getElementById('voice-select');
-  const voices = window.speechSynthesis.getVoices();
-  if(sel && sel.value){
-    const chosen = voices.find(v => v.name === sel.value);
-    if(chosen) return chosen;
-  }
-  return bestVoice;
-}
-
-/* ---- sentence-chunked speaking for better cadence ---- */
-
-function splitIntoSpeechChunks(text){
-  // Split on sentence boundaries, keeping punctuation; also break very long
-  // sentences at commas/semicolons so no single utterance runs on too long.
-  const sentences = text.match(/[^.!?]+[.!?]+(\s|$)|[^.!?]+$/g) || [text];
-  const chunks = [];
-  for(let s of sentences){
-    s = s.trim();
-    if(!s) continue;
-    if(s.length > 160){
-      const parts = s.split(/(?<=[,;:])\s+/);
-      let buf = '';
-      for(const p of parts){
-        if((buf + ' ' + p).trim().length > 160 && buf){ chunks.push(buf.trim()); buf = p; }
-        else buf = (buf ? buf + ' ' : '') + p;
-      }
-      if(buf.trim()) chunks.push(buf.trim());
-    } else {
-      chunks.push(s);
-    }
-  }
-  return chunks;
-}
-
-function renderCaption(fullText, chunkStartIndex, chunkText){
-  const said = fullText.slice(0, chunkStartIndex);
-  const windowStart = Math.max(0, said.length - 70);
-  const fadedPart = fullText.slice(windowStart, chunkStartIndex);
-  const freshPart = chunkText;
-  captionText.innerHTML = `<span class="fading">${escapeHtml(fadedPart)}</span><span>${escapeHtml(freshPart)}</span>`;
-}
-
-function speak(text){
-  if(!('speechSynthesis' in window)) return;
-  window.speechSynthesis.cancel();
-  const myToken = ++currentSpeechToken;
-  currentUtteranceText = text;
-  const chunks = splitIntoSpeechChunks(text);
-  let searchPos = 0;
-  const chunkOffsets = chunks.map(c => {
-    const idx = text.indexOf(c, searchPos);
-    searchPos = idx >= 0 ? idx + c.length : searchPos;
-    return idx >= 0 ? idx : searchPos;
-  });
-
-  const voice = getSelectedVoice();
-
-  function speakChunk(i){
-    if(myToken !== currentSpeechToken) return; // superseded by a newer speak() call
-    if(i >= chunks.length){ avatar.classList.remove('speaking'); return; }
-    const utter = new SpeechSynthesisUtterance(chunks[i]);
-    utter.rate = 0.96;
-    utter.pitch = 1.0;
-    if(voice) utter.voice = voice;
-    renderCaption(text, chunkOffsets[i], chunks[i]);
-    utter.onstart = () => avatar.classList.add('speaking');
-    utter.onend = () => {
-      if(myToken !== currentSpeechToken) return;
-      // small natural pause between sentences; slightly longer after a sentence
-      // that ends with a question mark, to mimic a lecturer pausing for effect
-      const pause = /\?\s*$/.test(chunks[i]) ? 260 : 140;
-      setTimeout(()=> speakChunk(i+1), pause);
-    };
-    utter.onerror = () => { if(myToken === currentSpeechToken) speakChunk(i+1); };
-    window.speechSynthesis.speak(utter);
-  }
-  speakChunk(0);
-}
-document.getElementById('btn-replay').addEventListener('click', ()=>{ if(currentUtteranceText) speak(currentUtteranceText); });
-
-function escapeHtml(str){ const d=document.createElement('div'); d.textContent=str; return d.innerHTML; }
-
-let recognition=null, listening=false;
-const micBtn = document.getElementById('btn-mic');
-const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-if(SpeechRec){
-  recognition = new SpeechRec();
-  recognition.continuous=false; recognition.interimResults=false; recognition.lang='en-US';
-  recognition.onresult = (e)=>{ const text=e.results[0][0].transcript; handleAsk(text); };
-  recognition.onend = ()=>{ listening=false; micBtn.classList.remove('live'); };
-  recognition.onerror = ()=>{ listening=false; micBtn.classList.remove('live'); };
-} else {
-  micBtn.classList.add('unsupported');
-  micBtn.title = 'Voice input not supported in this browser';
-}
-micBtn.addEventListener('click', ()=>{
-  if(!recognition) return;
-  if(listening){ recognition.stop(); return; }
-  listening=true; micBtn.classList.add('live'); recognition.start();
-});
-
-/* =========================================================
-   PDF IMPORT
-   ========================================================= */
-// Guard against the pdf.js CDN script failing to load (blocked, offline,
-// slow network, etc.) — without this guard, referencing pdfjsLib here would
-// throw and silently kill every line of setup code below it (canvas sizing,
-// session restore, event listeners), leaving a blank board with no PDF
-// import ever attempted.
-const pdfjsAvailable = typeof pdfjsLib !== 'undefined';
-if(pdfjsAvailable){
-  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-} else {
-  console.error('pdf.js failed to load from CDN — PDF import will be disabled for this session.');
-}
-let pdfText = '', pdfFileName = '';
-const uploadZone = document.getElementById('upload-zone');
-const pdfInput = document.getElementById('pdf-input');
-uploadZone.addEventListener('click', ()=> pdfInput.click());
-uploadZone.addEventListener('dragover', (e)=> e.preventDefault());
-uploadZone.addEventListener('drop', (e)=>{ e.preventDefault(); if(e.dataTransfer.files.length) handlePdfFile(e.dataTransfer.files[0]); });
-pdfInput.addEventListener('change', (e)=>{ if(e.target.files.length) handlePdfFile(e.target.files[0]); });
-
-async function handlePdfFile(file){
-  if(!pdfjsAvailable){ alert('PDF import couldn\'t load its engine (a network or blocker issue). Try reloading the page.'); return; }
-  if(file.type !== 'application/pdf'){ alert('Please choose a PDF file.'); return; }
-  setStatus('reading pdf…');
-  pdfFileName = file.name;
-  const arrayBuffer = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
-  let fullText = '';
-  const maxPages = Math.min(pdf.numPages, 40);
-  for(let i=1;i<=maxPages;i++){
-    const page = await pdf.getPage(i);
-    const content = await page.getTextContent();
-    fullText += `\n\n[Page ${i}]\n` + content.items.map(it=>it.str).join(' ');
-  }
-  pdfText = fullText;
-  uploadZone.classList.add('has-file');
-  uploadZone.innerHTML = `<div class="file-name">📄 ${escapeHtml(pdfFileName)}</div><div class="file-meta">${pdf.numPages} pages · text extracted</div>`;
-  setStatus('pdf ready');
-}
-
-/* =========================================================
-   UI HELPERS
-   ========================================================= */
-const transcriptEl = document.getElementById('transcript');
+const viewport   = document.getElementById('board-viewport');
+const content    = document.getElementById('board-content');
+const btnStart   = document.getElementById('btn-start');
+const btnPause   = document.getElementById('btn-pause');
+const btnRestart = document.getElementById('btn-restart');
+const btnJump    = document.getElementById('btn-jump');
 const statusLine = document.getElementById('status-line');
-function setStatus(s){ statusLine.textContent = s; }
+const topicInput = document.getElementById('topic-input');
 
-function addTranscriptMsg(who, text){
-  const empty = transcriptEl.querySelector('.empty-note');
-  if(empty) empty.remove();
-  const div = document.createElement('div');
-  div.className = `msg ${who}`;
-  div.innerHTML = `<span class="who">${who==='tutor'?'TUTOR':'YOU'}</span>${escapeHtml(text)}`;
-  transcriptEl.appendChild(div);
-  transcriptEl.scrollTop = transcriptEl.scrollHeight;
-}
+let writing = false;
+let paused = false;
+let stopRequested = false;
+let autoFollow = true;
+let programmaticScroll = false;
+let followRaf = null;
+let followTargetEl = null;
 
-function addQuizCard(quiz){
-  const empty = transcriptEl.querySelector('.empty-note');
-  if(empty) empty.remove();
-  const card = document.createElement('div');
-  card.className = 'quiz-card';
-  const qEl = document.createElement('div'); qEl.className='quiz-q'; qEl.textContent = quiz.question;
-  card.appendChild(qEl);
-  const explainEl = document.createElement('div'); explainEl.className='quiz-explain'; explainEl.textContent = quiz.explanation;
-  quiz.options.forEach((opt, idx)=>{
-    const b = document.createElement('button'); b.className='quiz-opt'; b.textContent = opt;
-    b.addEventListener('click', ()=>{
-      const buttons = card.querySelectorAll('.quiz-opt');
-      buttons.forEach(bb=>bb.disabled=true);
-      if(idx===quiz.correctIndex){ b.classList.add('correct'); }
-      else { b.classList.add('incorrect'); buttons[quiz.correctIndex].classList.add('correct'); }
-      explainEl.classList.add('show');
-      // Route the quiz result through the normal teaching turn so roles keep
-      // alternating correctly (Anthropic's API rejects consecutive same-role
-      // turns) and so the tutor can actually react to right/wrong answers.
-      const resultNote = idx===quiz.correctIndex ? 'this was correct' : 'this was incorrect';
-      runTeachingTurn(
-        `[Quiz answer] For "${quiz.question}", I selected "${opt}" — ${resultNote}. Briefly react to this and then continue per the pacing rules.`,
-        `Answered: "${opt}"`
-      );
-    });
-    card.appendChild(b);
-  });
-  card.appendChild(explainEl);
-  transcriptEl.appendChild(card);
-  transcriptEl.scrollTop = transcriptEl.scrollHeight;
-}
-
-/* =========================================================
-   AI BACKEND CALL — supports Claude (default, no key) or
-   OpenAI GPT (needs the user's own API key)
-   ========================================================= */
-const SYSTEM_PROMPT = `You are an expert university lecturer operating a whiteboard tutoring tool called Chalkline.
-You teach at genuine university level: rigorous, first-principles, precise terminology, no hand-waving.
-
-You must respond with ONLY a JSON object (no markdown fences, no prose outside the JSON) with this exact shape:
-{
-  "speech": "the spoken explanation, natural spoken lecture language for text-to-speech (spell out symbols, e.g. 'delta' not the character)",
-  "board": [ ...array of drawing command objects... ],
-  "quiz": null OR { "question":"...", "options":["...","...","...","..."], "correctIndex":0, "explanation":"..." }
-}
-
-THE PAGE HAS THREE PERSISTENT WRITING ZONES running the full length of the board — there are NO visible borders or labels for these, they are an invisible layout convention only: a narrower left zone for "Important Notes" (short key-term bullets), a narrower right zone for "Graphs & Diagrams" (diagrams only), and a full-width zone for "Detailed Notes" (your main teaching prose). Every command you emit must declare which zone it belongs to via a "region" field: "notes", "graph", or "detail" (omit it, or use "detail", for anything belonging to the main teaching flow). Each region has its OWN independent 0-1000 x 0-900 local coordinate frame that the app automatically scales and positions into the right zone — always author as if each region is a fresh blank 1000x900 area, never worry about the zone's real pixel width, and never mix coordinates meant for one region into a command tagged with a different region.
-
-- "region":"notes" — 1-3 SHORT bullet-style lines per turn (a key term, a one-line definition, a formula) — this column is small, so keep it terse, like margin notes, not paragraphs.
-- "region":"graph" — diagrams ("axes"/"plot") and short labels only — this column is narrower, so keep titles/labels brief.
-- "region":"detail" (or omitted) — the main lecture content: full wrapped-paragraph prose, worked examples, sub-lists — this is where most of your "board" array should live, exactly as described below.
-
-Not every turn needs all three regions — many turns will only add "detail" content, and only some turns will also drop a short bullet into "notes" or a diagram into "graph". The board is a single ENDLESS scroll straight down for the whole lecture — there are no pages while teaching. The app automatically places each turn's content directly below whatever already occupies that same region (bullets keep stacking down the Notes column, diagrams keep stacking down the Graphs column, prose keeps growing the Detail column), and all three columns simply keep growing forever in parallel — you do NOT need to avoid prior content, track what's already drawn, or think about page breaks or running out of room; the columns have no fixed height. (Pages only get created later, automatically, when the user saves/exports the board — the app then slices this same endless scroll into standard printable A4 pages. This is invisible to you: never reason about page boundaries yourself.)
-
-TEXT ON THE BOARD MUST USE REAL SYMBOLS, NOT SPELLED-OUT WORDS: unlike "speech" (which spells things out for text-to-speech), the "board" is visual, so write actual Unicode glyphs the way you would on a physical whiteboard — π, θ, β, α, γ, Δ, Σ, ∫, √, ∞, ≤, ≥, ≈, ×, ÷, →, ², ³, ₁, ₂, etc. — directly inside "text" strings. E.g. write "β = ∂y/∂x" or "∫₀^∞ e^(−x) dx", not "beta equals the derivative of y with respect to x". Use "mono":true for equations so symbols line up cleanly.
-
-Available command types:
-Every command below may also include "region":"notes"|"graph"|"detail" as described above (defaults to "detail" if omitted).
-- {"type":"text","x":..,"y":..,"text":"...","size":22,"color":"ink|ochre|sage|brick|teal|violet|sky|coral","mono":false,"handwritten":false,"weight":400,"maxWidth":800,"region":"detail"}  — set "handwritten":true ONLY for section headings/titles (renders in a marker-style script font, larger). Set "maxWidth" (in the same 0-1000 units, e.g. 800-850 for a near-full-width paragraph in the "detail" region — use a smaller value like 480 for "notes"/"graph" text) on any text that's a full sentence or more — the app automatically WRAPS it onto multiple lines within that width, like real handwritten notebook prose, instead of running off as one unreadable line. Only omit "maxWidth" for genuinely short labels/headings that are meant to stay on one line.
-- {"type":"halo","x":..,"y":..,"r":50,"color":"halo|ochre|sage|teal|violet|sky|coral"} — a soft radial glow centered on a point, drawn BEHIND/BEFORE the term it emphasizes (e.g. right before writing a key result or the answer to a check-in question) to make it visually pop
-- {"type":"line","x1":..,"y1":..,"x2":..,"y2":..,"color":"ink","width":2.5}
-- {"type":"arrow","x1":..,"y1":..,"x2":..,"y2":..,"color":"ochre","width":2.5}
-- {"type":"rect","x":..,"y":..,"w":..,"h":..,"color":"ink","fill":false}
-- {"type":"circle","x":..,"y":..,"rx":..,"ry":..,"color":"ink","fill":false}
-- {"type":"curve","points":[[x,y],[x,y],...],"color":"sage","width":2.5} — a FREEHAND smoothed line in raw board coordinates. Only use this for non-data decoration (e.g. a squiggly underline, a loose arc pointing at something). NEVER use it to plot data on a graph — it has no connection to any axes, so it can end up misaligned or floating away from them.
-- {"type":"axes","x":..,"y":..,"w":..,"h":..,"xlabel":"...","ylabel":"...","title":"...","grid":true,"xTicks":[...],"yTicks":[...]} — bare arrowed axes with gridlines, no data. Only use this for a diagram that ISN'T plotting actual data (e.g. a blank axis to gesture at during explanation).
-- {"type":"plot","x":..,"y":..,"w":..,"h":..,"xRange":[0,10],"yRange":[0,10],"xlabel":"...","ylabel":"...","title":"...","grid":true,"xTicks":["0","2","4","6","8","10"],"yTicks":["0","5","10"],"curves":[{"points":[[dataX,dataY],[dataX,dataY],...],"color":"brick","width":2.75,"label":"SRPC"}]} — THIS IS THE COMMAND TO USE FOR ANY ACTUAL DATA GRAPH (a plotted curve, line, demand/supply diagram, function plot, etc). It draws axes+grid+ticks AND every curve together as one unit, with curve "points" given in DATA units (whatever "xRange"/"yRange" span) — the app maps them onto the axes box for you, so the curve is GUARANTEED to sit correctly inside the axes and can never drift off from them the way a separately-placed "axes"+"curve" pair could. You can pass multiple entries in "curves" to overlay several lines (e.g. two Phillips curves before/after a shift) in different colors, each with its own optional "label" drawn at its endpoint.
-- {"type":"highlight","x":..,"y":..,"w":..,"h":26,"color":"ochre"}
-
-The board is plain white/cream — colors are: "ink" near-black body text, "ochre" warm amber for emphasis, "sage" muted green for correct/positive, "brick" muted red for warnings/mistakes, "teal", "violet", "sky", "coral" as extra accent colors for distinguishing multiple curves/terms/categories, "halo" a soft blue glow.
-
-COORDINATES FOR "axes"/"plot": "x","y" is the position of the ORIGIN (bottom-left corner), and the box extends UPWARD by "h" and RIGHTWARD by "w" — so the top of the graph is at screen-y = y-h, not y+h. Size the box and choose "y" so the whole box (from y-h to y) fits inside the 0-900 frame with room to spare above (for a title) and below (for axis labels).
-
-STRICT COORDINATE BOUNDS — every command must stay fully inside the 1000x900 page: never place any "x" below 20 or above 980, and never place any "y" below 20 or above 880. For "axes"/"plot", that means "x" + "w" must not exceed ~950, and "y" - "h" must not go below ~90 (leaving headroom for a title above the box). Anything outside this range gets clipped by the app, so an out-of-range value just produces a cut-off, ugly result — always compute values that fit within these bounds up front.
-
-AVOID OVERLAPPING CONTENT: every element you place (text, axes/plot box, halo) occupies real space, and nothing on the board should visually overlap anything else. A wrapped paragraph (with "maxWidth" set) takes up several lines of vertical space, not just one — leave at least 25-30 units of clear gap between the BOTTOM of a wrapped paragraph's last line and whatever comes next, not just below its starting "y".
-
-Layout pattern for "region":"detail" (the bulk of your output, ~14-22 commands per turn): on the very FIRST teaching turn only, start with ONE handwritten topic title (around x:90,y:60, size ~30); every other turn skips a title and just continues the prose. Build full sentences in wrapped paragraphs (use "maxWidth" as described above so they read across most of the width, not short choppy fragments), starting near y:40 (or right after the title on turn one) and organized top-to-bottom in a single clean column of its own local 1000x900 frame — state the definition or claim as a full wrapped sentence, then more wrapped-paragraph text unpacking it (the intuition behind it, a worked micro-example or numeric case), plus a short numbered or lettered sub-list where it naturally fits (e.g. components of a concept, steps of a process) — give each sub-list a distinct accent color (e.g. all its items in "ochre" or "teal") so it visually separates from the surrounding body text, similar to how a student color-codes their own notes. Do not scatter items sideways or place two unrelated things at the same height, since that reads as disorganized — everything reads top-to-bottom in order. For math: mono text, one step per line, 40+ units apart vertically, using real symbols as above. For any data graph placed in "region":"graph", use a single "plot" command (see above) — never bare "axes" plus a separate "curve" — so the picture is always accurate, gridded, ticked, and self-explanatory at a glance, and keep its title/axis labels short since that column is narrower. For "region":"notes", write each key term or definition as its own short "text" command (small "maxWidth" like 480, no more than 1-3 per turn) rather than a paragraph — think index-card bullet, not prose.
-
-PACING RULES (strict — this is the most important behavioural constraint):
-- Teach in SMALL bites: explain ONE definition, ONE step of a derivation, or ONE component of a concept per turn — not a whole topic, not even a whole "section". Think 2-4 sentences of speech per turn, occasionally a bit more only when a single idea genuinely needs it (e.g. deriving one formula).
-- After every single bite, STOP and either ask a real comprehension-check question about exactly what you just said, or explicitly ask "should we continue?" / "want me to go on to the next part?". Never chain multiple ideas together before checking in.
-- Do not lecture for multiple paragraphs uninterrupted. If you notice your "speech" is getting long, cut it — split the idea and save the rest for the next turn.
-- If the student's message is answering a comprehension check or a follow-up, respond conversationally and briefly — correct misconceptions precisely, pointing out exactly where reasoning went wrong — then again stop and check in before adding the next bite. Only add new "board" content if there's something new worth drawing (an empty "board" array is fine if you're just discussing what's already up).
-- If the student explicitly says "continue", "go on", "yes", or similar in response to a check-in, proceed with exactly the next single bite — still short, still followed by another check-in.
-- Only include "quiz" when the student explicitly asks to be quizzed, or it's a natural checkpoint fitting their request. Otherwise null.
-- If source document text is provided, ground explanations in it and reference it directly (e.g. "as your notes on page 3 show...").`;
-
-let conversationHistory = [];
-let aiBrain = 'gemini'; // 'gemini' | 'groq'
-// Set this to your deployed proxy's URL once (see PROXY_SETUP.md). Every
-// visitor's request goes through this endpoint — your Gemini/Groq keys live
-// only on the proxy server as private secrets, never in this file.
-const PROXY_URL = "https://api.takundamambudzi02.workers.dev";
-
-document.getElementById('brain-select').addEventListener('change', (e)=>{
-  aiBrain = e.target.value;
-});
-
-async function callTutor(userMessage){
-  setStatus('thinking…');
-  const contextParts = [];
-  if(pdfText && conversationHistory.length===0){
-    contextParts.push(`SOURCE DOCUMENT (${pdfFileName}), extracted text:\n${pdfText.slice(0,15000)}`);
-  }
-  contextParts.push(userMessage);
-  const fullUserContent = contextParts.join('\n\n---\n\n');
-  conversationHistory.push({role:'user', content: fullUserContent});
-
-  let result;
-  if(aiBrain === 'groq') result = await callGroq();
-  else result = await callGemini();
-
-  if(!result.ok){
-    conversationHistory.pop(); // don't poison history with a failed turn
-    setStatus(result.status || 'error — see console');
-    return { speech: result.errorSpeech, board: [] };
-  }
-
-  try{
-    const parsed = JSON.parse(result.raw);
-    conversationHistory.push({role:'assistant', content: result.raw});
-    setStatus('idle');
-    return parsed;
-  } catch(jsonErr){
-    console.error('Model output was not valid JSON. Raw text:', result.raw);
-    setStatus('malformed JSON — see console');
-    conversationHistory.pop();
-    return { speech:"The lecture content came back malformed. Check the console to see exactly what came back.", board:[] };
-  }
-}
-
-async function callGroq(){
-  if(PROXY_URL.includes('YOUR-WORKER-SUBDOMAIN')){
-    return { ok:false, status:'proxy not configured', errorSpeech:"The AI proxy hasn't been set up yet — see PROXY_SETUP.md to deploy it, then set PROXY_URL in this file." };
-  }
-  let response, data;
-  try{
-    response = await fetch(`${PROXY_URL}/groq`, {
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({
-        model:"openai/gpt-oss-120b",
-        response_format:{ type:"json_object" },
-        max_tokens:2000,
-        messages: [
-          { role:"system", content: SYSTEM_PROMPT },
-          ...conversationHistory
-        ]
-      })
-    });
-  } catch(networkErr){
-    console.error('Network-level failure calling the proxy (Groq):', networkErr);
-    return { ok:false, status:'network error — see console', errorSpeech:"The request never reached the proxy — check the browser console and confirm PROXY_URL is correct and the proxy is deployed." };
-  }
-
-  try{ data = await response.json(); }
-  catch(parseErr){
-    console.error('Proxy response was not valid JSON. Raw response:', response);
-    return { ok:false, status:'bad response — see console', errorSpeech:"The proxy responded, but not with valid JSON. Check the console." };
-  }
-
-  if(!response.ok){
-    console.error('Groq (via proxy) returned an error status:', response.status, data);
-    const msg = (data && data.error && data.error.message) ? data.error.message : JSON.stringify(data);
-    return { ok:false, status:`API error ${response.status} — see console`, errorSpeech:`Groq returned an error: ${msg}` };
-  }
-
-  const choice = data.choices && data.choices[0];
-  const raw = choice && choice.message && choice.message.content;
-  if(!raw){
-    console.error('Unexpected Groq response shape:', data);
-    return { ok:false, status:'unexpected response — see console', errorSpeech:"Groq's response came back in a shape I didn't expect. Check the console." };
-  }
-  return { ok:true, raw: raw.trim() };
-}
-
-async function callGemini(){
-  if(PROXY_URL.includes('YOUR-WORKER-SUBDOMAIN')){
-    return { ok:false, status:'proxy not configured', errorSpeech:"The AI proxy hasn't been set up yet — see PROXY_SETUP.md to deploy it, then set PROXY_URL in this file." };
-  }
-  // Gemini's REST format differs from the shared history shape used above:
-  // roles are "user"/"model" (not "assistant"), content is nested under
-  // "parts", and the system prompt is a separate top-level field rather than
-  // a message in the array. Translate conversationHistory into that shape
-  // without altering the shared history structure used elsewhere.
-  const geminiContents = conversationHistory.map(m => ({
-    role: m.role === 'assistant' ? 'model' : 'user',
-    parts: [{ text: m.content }]
-  }));
-
-  let response, data;
-  try{
-    response = await fetch(`${PROXY_URL}/gemini`, {
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
-        contents: geminiContents,
-        generationConfig: {
-          response_mime_type: "application/json",
-          maxOutputTokens: 2500,
-          // Gemini 3.x "thinking" defaults to a moderate level, which spends
-          // output-token budget on internal reasoning before the answer.
-          // Our teaching turns are intentionally short (see pacing rules in
-          // SYSTEM_PROMPT), so a light thinking level keeps responses fast
-          // without needing deep reasoning for this kind of task.
-          thinkingConfig: { thinkingLevel: "low" }
-        }
-      })
-    });
-  } catch(networkErr){
-    console.error('Network-level failure calling the proxy (Gemini):', networkErr);
-    return { ok:false, status:'network error — see console', errorSpeech:"The request never reached the proxy — check the browser console and confirm PROXY_URL is correct and the proxy is deployed." };
-  }
-
-  try{ data = await response.json(); }
-  catch(parseErr){
-    console.error('Gemini response was not valid JSON. Raw response:', response);
-    return { ok:false, status:'bad response — see console', errorSpeech:"Gemini's server responded, but not with valid JSON. Check the console." };
-  }
-
-  if(!response.ok){
-    console.error('Gemini API returned an error status:', response.status, data);
-    const msg = (data && data.error && data.error.message) ? data.error.message : JSON.stringify(data);
-    const hint = response.status === 429 ? " You've likely hit the free-tier rate limit (requests per minute or per day) — wait a bit and try again." : '';
-    return { ok:false, status:`API error ${response.status} — see console`, errorSpeech:`Gemini returned an error: ${msg}${hint}` };
-  }
-
-  const candidate = data.candidates && data.candidates[0];
-  const part = candidate && candidate.content && candidate.content.parts && candidate.content.parts[0];
-  const raw = part && part.text;
-  if(!raw){
-    console.error('Unexpected Gemini response shape:', data);
-    // A common non-error case: the response was cut off or blocked by safety
-    // filters, which shows up as a missing parts array with a finishReason.
-    const finishReason = candidate && candidate.finishReason;
-    const extra = finishReason ? ` (finish reason: ${finishReason})` : '';
-    return { ok:false, status:'unexpected response — see console', errorSpeech:`Gemini's response came back in a shape I didn't expect${extra}. Check the console.` };
-  }
-  return { ok:true, raw: raw.trim() };
-}
-
-async function runTeachingTurn(userMessage, displayText){
-  // displayText lets callers show a friendlier line in the transcript than
-  // the full prompt sent to the model (used by the quiz-answer flow).
-  addTranscriptMsg('user', displayText !== undefined ? displayText : userMessage);
-  const result = await callTutor(userMessage);
-  // Only advance to a fresh block of the board when there's actually new
-  // content to draw — a pure follow-up discussion with no board content
-  // stays on the current view instead of jumping to blank space.
-  if(result.board && result.board.length) enqueueCommandsAtCursor(result.board);
-  if(result.speech){ addTranscriptMsg('tutor', result.speech); speak(result.speech); }
-  if(result.quiz) addQuizCard(result.quiz);
-  autoSaveSession();
-}
-
-/* =========================================================
-   SESSION PERSISTENCE
-   ========================================================= */
-let currentSessionId = 'session_' + Date.now();
-let currentSessionTitle = null;
-
-function transcriptToHtmlSnapshot(){ return transcriptEl.innerHTML; }
-
-async function saveSession(promptForName){
-  try{
-    let title = currentSessionTitle;
-    if(promptForName || !title){
-      title = prompt('Name this session:', title || (pdfFileName ? pdfFileName.replace(/\.pdf$/i,'') : 'Untitled session'));
-      if(title===null) return;
-      currentSessionTitle = title || 'Untitled session';
+/* --- camera follow: smoothly lerp scrollTop toward a target --- */
+function followElement(el){
+  followTargetEl = el;
+  if(!autoFollow) return;
+  if(followRaf) return; // loop already running
+  const step = () => {
+    if(!followTargetEl || !autoFollow){ followRaf = null; return; }
+    const vpRect = viewport.getBoundingClientRect();
+    const elRect = followTargetEl.getBoundingClientRect();
+    // keep the writing point at ~62% of the viewport height
+    const desiredY = vpRect.top + vpRect.height * 0.62;
+    const delta = elRect.bottom - desiredY;
+    if(Math.abs(delta) > 1){
+      programmaticScroll = true;
+      viewport.scrollTop += delta * 0.18; // easing factor -> smooth, no jumps
+      requestAnimationFrame(()=>{ programmaticScroll = false; });
+      followRaf = requestAnimationFrame(step);
+    } else {
+      followRaf = null;
     }
-    await persistSession();
-    setStatus('session saved');
-  } catch(err){ console.error('Save failed:', err); setStatus('save failed — see console'); }
-}
-
-async function persistSession(){
-  const payload = {
-    id: currentSessionId,
-    title: currentSessionTitle || (pdfFileName ? pdfFileName.replace(/\.pdf$/i,'') : 'Untitled session'),
-    savedAt: Date.now(),
-    pdfFileName, pdfText: pdfText ? pdfText.slice(0,15000) : '',
-    conversationHistory, drawnCommands, camera,
-    regionCursor, currentTopicLabel,
-    transcriptHtml: transcriptToHtmlSnapshot()
   };
-  await window.storage.set('session:' + currentSessionId, JSON.stringify(payload), false);
-  refreshSessionList();
+  followRaf = requestAnimationFrame(step);
 }
 
-function autoSaveSession(){ if(conversationHistory.length>0) persistSession().catch(e=>console.error('Autosave failed:',e)); }
+function isNearBottom(){
+  const distance = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+  return distance < 80;
+}
 
-async function refreshSessionList(){
-  const listEl = document.getElementById('session-list');
-  try{
-    const result = await window.storage.list('session:', false);
-    const keys = (result && result.keys) ? result.keys : [];
-    if(keys.length===0){ listEl.innerHTML = '<div class="empty-note">No saved sessions yet.</div>'; return; }
-    const items = [];
-    for(const key of keys){
-      try{ const rec = await window.storage.get(key, false); if(rec) items.push(JSON.parse(rec.value)); } catch(e){}
+viewport.addEventListener('scroll', ()=>{
+  if(programmaticScroll) return; // ignore our own scroll adjustments
+  if(isNearBottom()){
+    if(!autoFollow){
+      autoFollow = true;
+      btnJump.classList.remove('show');
+      if(followTargetEl) followElement(followTargetEl);
     }
-    items.sort((a,b)=>(b.savedAt||0)-(a.savedAt||0));
-    listEl.innerHTML = '';
-    items.forEach(item=>{
-      const div = document.createElement('div'); div.className='session-item';
-      const date = new Date(item.savedAt);
-      div.innerHTML = `<span class="s-name">${escapeHtml(item.title||'Untitled')}</span><span class="s-date">${date.toLocaleDateString()}</span>`;
-      div.addEventListener('click', ()=> loadSession(item));
-      listEl.appendChild(div);
-    });
-  } catch(err){ console.error('Listing sessions failed:', err); listEl.innerHTML = '<div class="empty-note">Could not load saved sessions.</div>'; }
-}
-
-function resetUploadZoneUI(){
-  uploadZone.classList.remove('has-file');
-  uploadZone.innerHTML = `Drop a PDF, or click to import a chapter, slide deck or notes.<input type="file" id="pdf-input" accept="application/pdf">`;
-  document.getElementById('pdf-input').addEventListener('change', (e)=>{ if(e.target.files.length) handlePdfFile(e.target.files[0]); });
-}
-
-function loadSession(item){
-  currentSessionId = item.id; currentSessionTitle = item.title;
-  pdfFileName = item.pdfFileName || ''; pdfText = item.pdfText || '';
-  conversationHistory = item.conversationHistory || [];
-  drawnCommands = item.drawnCommands || [];
-  if(item.camera) Object.assign(camera, item.camera);
-  if(item.regionCursor) Object.assign(regionCursor, item.regionCursor);
-  else resetRegionCursors();
-  currentTopicLabel = item.currentTopicLabel || 'Topic';
-  transcriptEl.innerHTML = item.transcriptHtml || '<div class="empty-note">No transcript in this session.</div>';
-  if(pdfFileName){
-    uploadZone.classList.add('has-file');
-    uploadZone.innerHTML = `<div class="file-name">📄 ${escapeHtml(pdfFileName)}</div><div class="file-meta">restored from saved session</div>`;
-  } else { resetUploadZoneUI(); }
-  redrawAll();
-  setStatus('session loaded');
-  closePanel();
-}
-
-document.getElementById('btn-save').addEventListener('click', ()=> saveSession(true));
-document.getElementById('btn-new-session').addEventListener('click', ()=>{
-  currentSessionId = 'session_' + Date.now(); currentSessionTitle = null;
-  pdfText=''; pdfFileName='';
-  conversationHistory=[]; drawQueue=[]; drawnCommands=[];
-  camera.x=500; camera.y=300; camera.scale=1;
-  resetRegionCursors(); currentTopicLabel='Topic';
-  clearBoard();
-  transcriptEl.innerHTML = '<div class="empty-note">Your lecture transcript and quiz questions will appear here as we go.</div>';
-  resetUploadZoneUI();
-  setStatus('new session');
+  } else {
+    if(autoFollow){
+      autoFollow = false;
+      btnJump.classList.add('show');
+    }
+  }
 });
 
-/* =========================================================
-   SIDE PANEL TOGGLES
-   ========================================================= */
-const sidePanel = document.getElementById('side-panel');
-const overlay = document.getElementById('overlay');
-function openPanel(){ sidePanel.classList.add('open'); overlay.classList.add('open'); }
-function closePanel(){ sidePanel.classList.remove('open'); overlay.classList.remove('open'); }
-document.getElementById('btn-menu').addEventListener('click', openPanel);
-document.getElementById('btn-panel-close').addEventListener('click', closePanel);
-overlay.addEventListener('click', closePanel);
-document.getElementById('btn-toggle-transcript').addEventListener('click', openPanel);
+btnJump.addEventListener('click', ()=>{
+  autoFollow = true;
+  btnJump.classList.remove('show');
+  if(followTargetEl) followElement(followTargetEl);
+});
 
-/* =========================================================
-   WIRE UP CONTROLS
-   ========================================================= */
-document.getElementById('btn-teach').addEventListener('click', ()=>{
-  const val = document.getElementById('topic-input').value.trim();
-  if(!val) return;
-  if(conversationHistory.length === 0) currentTopicLabel = val.length > 60 ? val.slice(0,57)+'…' : val;
-  runTeachingTurn(val);
-  document.getElementById('topic-input').value = '';
-  closePanel();
-});
-document.getElementById('btn-quiz').addEventListener('click', ()=>{
-  const val = document.getElementById('topic-input').value.trim();
-  const prompt = val ? `Please quiz me on: ${val}` : (pdfText ? `Please quiz me on the uploaded document.` : `Please quiz me on the most recent topic we discussed.`);
-  runTeachingTurn(prompt);
-  closePanel();
-});
-function handleAsk(text){
-  if(!text || !text.trim()) return;
-  runTeachingTurn(text.trim());
-  document.getElementById('ask-input').value = '';
+/* --- small helpers --- */
+function sleep(ms){ return new Promise(res => setTimeout(res, ms)); }
+
+async function waitWhilePaused(){
+  while(paused && !stopRequested){ await sleep(80); }
 }
-document.getElementById('btn-ask').addEventListener('click', ()=> handleAsk(document.getElementById('ask-input').value));
-document.getElementById('ask-input').addEventListener('keydown', (e)=>{ if(e.key==='Enter') handleAsk(e.target.value); });
 
-/* =========================================================
-   INIT
-   ========================================================= */
-document.getElementById('voice-select').addEventListener('change', ()=>{
-  if(currentUtteranceText) speak(currentUtteranceText); // re-speak current line in the new voice
+function makeBlockEl(type){
+  const el = document.createElement('div');
+  el.className = 'board-block ' + (type === 'line' ? '' : type);
+  content.appendChild(el);
+  return el;
+}
+
+/* type one segment's text, character by character, into a
+   freshly-created colored span appended to the block */
+async function typeSegment(blockEl, seg, caret){
+  const span = document.createElement('span');
+  span.className = PEN_CLASS[seg.c] || 'pen-ink';
+  blockEl.insertBefore(span, caret);
+  const text = seg.t;
+  for(let i = 0; i < text.length; i++){
+    if(stopRequested) return;
+    await waitWhilePaused();
+    span.textContent += text[i];
+    followElement(blockEl);
+    // slightly irregular pacing reads more like real handwriting
+    const ch = text[i];
+    let delay = 26 + Math.random() * 22;
+    if(ch === ' ') delay *= 0.5;
+    if('.,;:'.includes(ch)) delay += 90;
+    await sleep(delay);
+  }
+}
+
+async function writeBlock(block){
+  const blockEl = makeBlockEl(block.type);
+  const caret = document.createElement('span');
+  caret.className = 'caret';
+  blockEl.appendChild(caret);
+  followElement(blockEl);
+  for(const seg of block.segments){
+    if(stopRequested) return;
+    await typeSegment(blockEl, seg, caret);
+  }
+  caret.remove();
+  // a small pause between lines, like a tutor thinking ahead
+  await sleep(150);
+}
+
+async function runLesson(){
+  writing = true;
+  stopRequested = false;
+  btnStart.disabled = true;
+  btnPause.disabled = false;
+  btnRestart.disabled = false;
+  btnPause.textContent = 'Pause';
+  statusLine.textContent = 'writing…';
+  autoFollow = true;
+  btnJump.classList.remove('show');
+
+  for(const block of LESSON){
+    if(stopRequested) break;
+    await waitWhilePaused();
+    await writeBlock(block);
+  }
+
+  writing = false;
+  btnStart.disabled = false;
+  btnPause.disabled = true;
+  statusLine.textContent = stopRequested ? 'stopped' : 'done — scroll up anytime to review';
+}
+
+btnStart.addEventListener('click', ()=>{
+  if(writing) return;
+  content.innerHTML = '';
+  topicInput.disabled = true;
+  runLesson();
 });
 
-resizeCanvas();
-setStatus('idle');
-refreshSessionList();
-<\/script>
+btnPause.addEventListener('click', ()=>{
+  paused = !paused;
+  btnPause.textContent = paused ? 'Resume' : 'Pause';
+  statusLine.textContent = paused ? 'paused' : 'writing…';
+});
+
+btnRestart.addEventListener('click', ()=>{
+  stopRequested = true;
+  paused = false;
+  writing = false;
+  autoFollow = true;
+  followTargetEl = null;
+  content.innerHTML = '';
+  viewport.scrollTop = 0;
+  btnStart.disabled = false;
+  btnPause.disabled = true;
+  btnRestart.disabled = true;
+  btnJump.classList.remove('show');
+  topicInput.disabled = false;
+  statusLine.textContent = 'idle — press "Start writing" to begin the lesson';
+});
+</script>
 
 </body>
 </html>
