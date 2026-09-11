@@ -722,6 +722,8 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
       <select class="topic-input" id="brain-select" style="height:auto;padding:9px 10px;">
         <option value="gemini">Google Gemini</option>
         <option value="groq">Groq (Llama)</option>
+        <option value="openrouter">OpenRouter (free models)</option>
+        <option value="cerebras">Cerebras (Llama)</option>
       </select>
       <div class="file-meta" style="margin-top:6px;">Requests go through the Chalkline proxy — no key needed from you.</div>
     </div>
@@ -2170,6 +2172,8 @@ async function callTutor(userMessage){
 
   let result;
   if(aiBrain === 'groq') result = await callGroq();
+  else if(aiBrain === 'openrouter') result = await callOpenRouter();
+  else if(aiBrain === 'cerebras') result = await callCerebras();
   else result = await callGemini();
 
   if(!result.ok){
@@ -2229,6 +2233,90 @@ async function callGroq(){
   const raw = choice && choice.message && choice.message.content;
   if(!raw){
     return { ok:false, status:'unexpected response', errorSpeech:"Groq response shape was unexpected." };
+  }
+  return { ok:true, raw: raw.trim() };
+}
+
+async function callOpenRouter(){
+  if(PROXY_URL.includes('YOUR-WORKER-SUBDOMAIN')){
+    return { ok:false, status:'proxy not configured', errorSpeech:"The AI proxy hasn't been set up yet." };
+  }
+  let response, data;
+  try{
+    response = await fetch(`${PROXY_URL}/openrouter`, {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        model:"meta-llama/llama-3.3-70b-instruct:free",
+        response_format:{ type:"json_object" },
+        max_tokens:6000,
+        messages: [
+          { role:"system", content: SYSTEM_PROMPT },
+          ...conversationHistory
+        ]
+      })
+    });
+  } catch(networkErr){
+    console.error('Network failure calling proxy (OpenRouter):', networkErr);
+    return { ok:false, status:'network error', errorSpeech:"The request never reached the proxy." };
+  }
+
+  try{ data = await response.json(); }
+  catch(parseErr){
+    return { ok:false, status:'bad response', errorSpeech:"The proxy responded with invalid JSON." };
+  }
+
+  if(!response.ok){
+    const msg = (data && data.error && data.error.message) ? data.error.message : JSON.stringify(data);
+    return { ok:false, status:`API error ${response.status}`, errorSpeech:`OpenRouter returned an error: ${msg}` };
+  }
+
+  const choice = data.choices && data.choices[0];
+  const raw = choice && choice.message && choice.message.content;
+  if(!raw){
+    return { ok:false, status:'unexpected response', errorSpeech:"OpenRouter response shape was unexpected." };
+  }
+  return { ok:true, raw: raw.trim() };
+}
+
+async function callCerebras(){
+  if(PROXY_URL.includes('YOUR-WORKER-SUBDOMAIN')){
+    return { ok:false, status:'proxy not configured', errorSpeech:"The AI proxy hasn't been set up yet." };
+  }
+  let response, data;
+  try{
+    response = await fetch(`${PROXY_URL}/cerebras`, {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        model:"llama-3.3-70b",
+        response_format:{ type:"json_object" },
+        max_tokens:6000,
+        messages: [
+          { role:"system", content: SYSTEM_PROMPT },
+          ...conversationHistory
+        ]
+      })
+    });
+  } catch(networkErr){
+    console.error('Network failure calling proxy (Cerebras):', networkErr);
+    return { ok:false, status:'network error', errorSpeech:"The request never reached the proxy." };
+  }
+
+  try{ data = await response.json(); }
+  catch(parseErr){
+    return { ok:false, status:'bad response', errorSpeech:"The proxy responded with invalid JSON." };
+  }
+
+  if(!response.ok){
+    const msg = (data && data.error && data.error.message) ? data.error.message : JSON.stringify(data);
+    return { ok:false, status:`API error ${response.status}`, errorSpeech:`Cerebras returned an error: ${msg}` };
+  }
+
+  const choice = data.choices && data.choices[0];
+  const raw = choice && choice.message && choice.message.content;
+  if(!raw){
+    return { ok:false, status:'unexpected response', errorSpeech:"Cerebras response shape was unexpected." };
   }
   return { ok:true, raw: raw.trim() };
 }
