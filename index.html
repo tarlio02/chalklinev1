@@ -822,25 +822,52 @@ ctx.lineJoin = 'round';
 let viewW = 0, viewH = 0;
 const camera = { x: 500, y: 300, scale: 1 };
 
-/* Board "cursor": tracks the world-space offset for the NEXT block of content,
-   so each teaching turn writes to fresh space instead of overlapping prior
-   drawings. The model always emits commands in a local 0-1000 x 0-900 frame
-   (a taller "page" than before, giving more room per turn for a diagram plus
-   supporting text without feeling cramped); we translate every command by
-   (boardCursor.x, boardCursor.y) before drawing, then advance the cursor past
-   the tallest content just written. */
-const boardCursor = { x: 0, y: 0, maxYThisBlock: 0 };
-const BLOCK_HEIGHT = 950; // vertical spacing between successive teaching blocks, stacked downward (900 usable + margin)
-let blockCount = 0;
+/* Board "cursor": tracks the world-space offset for the NEXT block of content.
+   The model always emits commands in a local 0-1000 x 0-900 authoring frame
+   per teaching turn — but unlike a naive "one turn = one page" layout, turns
+   are packed one after another DOWN THE SAME A4-proportioned page (like real
+   notebook pages: you keep writing on the same sheet until it's full), and
+   only jump to a fresh page once the next turn genuinely wouldn't fit below
+   what's already there. This is what makes the board read as a densely
+   filled page you scroll down through, rather than a mostly-blank page per
+   idea. */
+const PAGE_W = 1000;                 // fixed content column width
+const PAGE_H = Math.round(PAGE_W * Math.SQRT2); // A4 portrait proportion (1 : √2), in world units
+const PAGE_TOP_MARGIN = 50;
+const PAGE_BOTTOM_MARGIN = 50;
+const TURN_GAP = 36; // vertical breathing room between consecutive turns stacked on the same page
 
-// The board reads like an endless roll of paper: every new teaching turn is
-// placed directly below the last one (same horizontal position, y growing),
-// rather than wrapping into a grid. Panning down the page IS moving forward
-// through the lesson.
-function advanceBoardCursor(){
+let pageCount = 1;                                  // number of A4 pages used so far
+const boardCursor = { x: 0, y: PAGE_TOP_MARGIN };   // where the NEXT turn's local origin should land
+
+// Measures how tall a (already-clamped, not-yet-translated) turn's content
+// is in its own local 0-900 authoring frame, by reusing the same bbox logic
+// used for hit-testing/export — with the camera temporarily set to the
+// identity transform so worldToScreen(wx,wy) reduces to (wx,wy) itself.
+function estimateLocalTurnHeight(commands){
+  const savedCam = { ...camera }, savedW = viewW, savedH = viewH;
+  camera.scale = 1; camera.x = viewW/2; camera.y = viewH/2;
+  let maxY = 100;
+  commands.forEach(cmd => {
+    const box = commandScreenBBox(cmd);
+    if(box && box[3] > maxY) maxY = box[3];
+  });
+  Object.assign(camera, savedCam); viewW = savedW; viewH = savedH;
+  return maxY;
+}
+
+// Decides where the next turn should be placed: if it still fits below the
+// current cursor within the current page, keep stacking down the SAME page;
+// once it wouldn't fit before the bottom margin, jump straight to the top of
+// a fresh page instead of squeezing or overlapping the last turn.
+function advanceBoardCursor(turnLocalHeight){
+  const currentPageTop = (pageCount - 1) * PAGE_H;
+  const currentPageBottom = currentPageTop + PAGE_H - PAGE_BOTTOM_MARGIN;
+  if(boardCursor.y + turnLocalHeight > currentPageBottom){
+    pageCount++;
+    boardCursor.y = (pageCount - 1) * PAGE_H + PAGE_TOP_MARGIN;
+  }
   boardCursor.x = 0;
-  boardCursor.y = blockCount * BLOCK_HEIGHT;
-  blockCount++;
 }
 
 // Smoothly scrolls the camera to a target world position, easing over
@@ -870,8 +897,8 @@ function animateCameraPan(targetX, targetY, duration, onDone){
   requestAnimationFrame(frame);
 }
 
-function panCameraToCursor(onDone){
-  animateCameraPan(boardCursor.x + 500, boardCursor.y + 300, 900, onDone);
+function panCameraToCursor(targetY, onDone){
+  animateCameraPan(500, targetY, 900, onDone);
 }
 
 function resizeCanvas(){
@@ -959,6 +986,27 @@ function sw(n){ return n * camera.scale; }
 
 // Approximate screen-space bounding box for a drawn command, padded a bit
 // for a forgiving hover target. Used only for hit-testing, not rendering.
+// Breaks `text` into lines that each fit within `maxWidthPx` (screen px),
+// using the CURRENTLY SET ctx.font — call only after ctx.font is assigned.
+// This is what lets the model write full wrapping paragraphs (like real
+// notebook prose) instead of being limited to one short line per command.
+function wrapTextToLines(text, maxWidthPx){
+  const words = (text||'').split(/\s+/).filter(Boolean);
+  const lines = [];
+  let cur = '';
+  words.forEach(w => {
+    const test = cur ? cur + ' ' + w : w;
+    if(cur && ctx.measureText(test).width > maxWidthPx){
+      lines.push(cur);
+      cur = w;
+    } else {
+      cur = test;
+    }
+  });
+  if(cur) lines.push(cur);
+  return lines.length ? lines : [''];
+}
+
 function commandScreenBBox(cmd){
   const PAD = 10;
   function pad(x0,y0,x1,y1){
@@ -971,6 +1019,12 @@ function commandScreenBBox(cmd){
       const size = cmd.handwritten ? (cmd.size||36)*1.25 : (cmd.size||24)*1.08;
       ctx.font = `${weight} ${sw(size)}px ${fam}`;
       const [sx,sy] = worldToScreen(cmd.x, cmd.y);
+      if(cmd.maxWidth){
+        const lines = wrapTextToLines(cmd.text||'', sw(cmd.maxWidth));
+        const lineHeight = sw(size)*1.35;
+        const width = Math.max(0, ...lines.map(l=>ctx.measureText(l).width));
+        return pad(sx, sy - sw(size)*1.05, sx + width, sy + lineHeight*(lines.length-1) + sw(size)*0.25);
+      }
       const width = ctx.measureText(cmd.text||'').width;
       return pad(sx, sy - sw(size)*1.05, sx + width, sy + sw(size)*0.25);
     }
@@ -1017,15 +1071,18 @@ function renderCommand(cmd){
       ctx.font = `${weight} ${sw(size)}px ${fam}`;
       ctx.textBaseline = 'alphabetic';
       const [sx,sy] = worldToScreen(cmd.x, cmd.y);
-      ctx.fillText(cmd.text, sx, sy);
+      if(cmd.maxWidth){
+        const lines = wrapTextToLines(cmd.text||'', sw(cmd.maxWidth));
+        const lineHeight = sw(size)*1.35;
+        lines.forEach((line,i) => ctx.fillText(line, sx, sy + i*lineHeight));
+      } else {
+        ctx.fillText(cmd.text, sx, sy);
+      }
       break;
     }
     case 'highlight-marker': {
-      const [x,y] = worldToScreen(cmd.x, cmd.y);
-      ctx.fillStyle = HILITE;
-      ctx.globalAlpha = 0.75;
-      ctx.fillRect(x, y, sw(cmd.w), sw(cmd.h || 40));
-      ctx.globalAlpha = 1;
+      // Feature removed — no longer drawn, even if an older saved session
+      // or a stray model response still includes this command type.
       break;
     }
     case 'line': {
@@ -1292,7 +1349,7 @@ canvas.addEventListener('mousemove', (e)=>{
   let hit = null;
   for(let i = drawnCommands.length - 1; i >= 0; i--){
     const cmd = drawnCommands[i];
-    if(cmd.type === 'highlight' || cmd.type === 'highlight-marker' || cmd.type === 'halo') continue; // decorative, not "written" content
+    if(cmd.type === 'highlight' || cmd.type === 'halo') continue; // decorative, not "written" content
     const [x0,y0,x1,y1] = commandScreenBBox(cmd);
     if(mx>=x0 && mx<=x1 && my>=y0 && my<=y1){ hit = cmd; break; }
   }
@@ -1315,13 +1372,14 @@ canvas.addEventListener('wheel', (e)=>{
 document.getElementById('zoom-in').addEventListener('click', ()=>{ camera.scale=Math.min(3,camera.scale*1.2); redrawAll(); });
 document.getElementById('zoom-out').addEventListener('click', ()=>{ camera.scale=Math.max(0.2,camera.scale/1.2); redrawAll(); });
 document.getElementById('zoom-reset').addEventListener('click', ()=>{ panToken++; camera.x=500;camera.y=300;camera.scale=1; redrawAll(); });
-document.getElementById('btn-clear').addEventListener('click', ()=>{ panToken++; drawQueue=[]; camera.x=500;camera.y=300;camera.scale=1; blockCount=0; boardCursor.x=0; boardCursor.y=0; clearBoard(); });
+document.getElementById('btn-clear').addEventListener('click', ()=>{ panToken++; drawQueue=[]; camera.x=500;camera.y=300;camera.scale=1; pageCount=1; boardCursor.x=0; boardCursor.y=PAGE_TOP_MARGIN; clearBoard(); });
 
 /* =========================================================
    EXPORT: SAVE THE WHOLE (INFINITE, DOWNWARD-SCROLLING) BOARD AS A PDF
-   The board grows straight down as one continuous roll, one BLOCK_HEIGHT-tall
-   "page" per teaching turn. Export walks that same world space page by page,
-   rendering each page into an offscreen canvas at the real camera transform
+   The board grows straight down as a sequence of A4-proportioned pages, each
+   one filled with as many teaching turns as fit before the next page starts.
+   Export walks that same world space page by page, rendering each page into
+   an offscreen canvas at the real camera transform
    (so hit-testing/animation code doesn't need to change), then drops each
    page's image into a multi-page PDF via jsPDF.
    ========================================================= */
@@ -1332,7 +1390,7 @@ function worldContentBounds(){
   // returns IS the world-space bbox.
   const savedCam = { ...camera }, savedW = viewW, savedH = viewH;
   camera.scale = 1; camera.x = viewW/2; camera.y = viewH/2;
-  let minX=0, minY=0, maxX=1000, maxY=Math.max(1, blockCount*BLOCK_HEIGHT);
+  let minX=0, minY=0, maxX=PAGE_W, maxY=Math.max(1, pageCount*PAGE_H);
   drawnCommands.forEach(cmd=>{
     const [x0,y0,x1,y1] = commandScreenBBox(cmd);
     minX=Math.min(minX,x0); minY=Math.min(minY,y0);
@@ -1353,8 +1411,8 @@ async function exportBoardAsPDF(){
 
   try{
     const { minX, minY, maxY } = worldContentBounds();
-    const pageWorldW = 1000; // the board's fixed content column width
-    const pageWorldH = BLOCK_HEIGHT;
+    const pageWorldW = PAGE_W; // the board's fixed A4-proportioned content column width
+    const pageWorldH = PAGE_H;
     const numPages = Math.max(1, Math.ceil((maxY - minY) / pageWorldH));
     const PX_PER_WORLD_UNIT = 1.6; // offscreen render resolution — plenty crisp for text
     const pxW = Math.round(pageWorldW * PX_PER_WORLD_UNIT);
@@ -1434,11 +1492,54 @@ function translateCommand(cmd, dx, dy){
   return c;
 }
 
+// Hard-clamps every command into the 1000x900 working frame before it ever
+// gets a cursor offset applied, so a stray/oversized value from the model
+// can never push text or a graph off the visible board or into the next
+// teaching block below it.
+function clampBoardCoords(c){
+  const M = 20; // margin from the frame edge
+  const MINX = M, MAXX = 1000 - M, MINY = M, MAXY = 900 - M;
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+  switch(c.type){
+    case 'text': case 'circle': case 'halo':
+      c.x = clamp(c.x, MINX, MAXX);
+      c.y = clamp(c.y, MINY, MAXY);
+      if(c.type === 'text' && c.maxWidth) c.maxWidth = Math.min(c.maxWidth, MAXX - c.x);
+      break;
+    case 'line': case 'arrow':
+      c.x1 = clamp(c.x1, MINX, MAXX); c.y1 = clamp(c.y1, MINY, MAXY);
+      c.x2 = clamp(c.x2, MINX, MAXX); c.y2 = clamp(c.y2, MINY, MAXY);
+      break;
+    case 'rect': case 'highlight':
+      c.x = clamp(c.x, MINX, MAXX);
+      c.y = clamp(c.y, MINY, MAXY);
+      if(c.w) c.w = Math.min(c.w, MAXX - c.x);
+      if(c.h) c.h = Math.min(c.h, MAXY - c.y);
+      break;
+    case 'curve':
+      if(Array.isArray(c.points)) c.points = c.points.map(p => [clamp(p[0],MINX,MAXX), clamp(p[1],MINY,MAXY)]);
+      break;
+    case 'axes': case 'plot':
+      // x,y is the bottom-left ORIGIN; the box extends upward by h and
+      // rightward by w, so both need clamping relative to that origin.
+      c.x = clamp(c.x, MINX, MAXX - 60);
+      c.y = clamp(c.y, MINY + 60, MAXY);
+      c.w = Math.max(60, Math.min(c.w, MAXX - c.x));
+      c.h = Math.max(60, Math.min(c.h, c.y - MINY));
+      break;
+  }
+  return c;
+}
+
 function enqueueCommandsAtCursor(commands){
-  advanceBoardCursor();
-  const translated = commands.map(c => translateCommand(c, boardCursor.x, boardCursor.y));
+  const clamped = commands.map(c => clampBoardCoords({ ...c }));
+  const turnLocalHeight = estimateLocalTurnHeight(clamped);
+  advanceBoardCursor(turnLocalHeight);
+  const placedAtY = boardCursor.y;
+  const translated = clamped.map(c => translateCommand(c, boardCursor.x, placedAtY));
+  boardCursor.y = placedAtY + turnLocalHeight + TURN_GAP; // next turn keeps stacking on the same page until it no longer fits
   redrawAll();
-  panCameraToCursor(() => enqueueCommands(translated));
+  panCameraToCursor(placedAtY + turnLocalHeight/2, () => enqueueCommands(translated));
 }
 
 function enqueueCommands(commands){
@@ -1483,24 +1584,38 @@ function renderPartialCommand(cmd, t){
   switch(cmd.type){
     case 'text': {
       const full = cmd.text || '';
-      const nChars = Math.max(1, Math.round(full.length*t));
-      const partial = full.slice(0,nChars);
       const fam = cmd.handwritten ? "'Caveat', cursive" : (cmd.mono ? "'JetBrains Mono', 'STIX Two Text', monospace" : "'Kalam', 'Caveat', cursive");
       const weight = cmd.weight || (cmd.handwritten ? 700 : 400);
       const size = cmd.handwritten ? (cmd.size||36)*1.25 : (cmd.size||24)*1.08;
       ctx.font = `${weight} ${sw(size)}px ${fam}`;
       const [sx,sy] = worldToScreen(cmd.x, cmd.y);
-      ctx.fillText(partial, sx, sy);
-      const w = ctx.measureText(partial).width;
-      drawPen(sx+w, sy, -Math.PI/2);
+      if(cmd.maxWidth){
+        const lines = wrapTextToLines(full, sw(cmd.maxWidth));
+        const lineHeight = sw(size)*1.35;
+        let charsLeft = Math.max(1, Math.round(full.length*t));
+        let lastX = sx, lastY = sy;
+        for(let i=0;i<lines.length;i++){
+          const line = lines[i];
+          const take = Math.max(0, Math.min(line.length, charsLeft));
+          const partial = line.slice(0, take);
+          ctx.fillText(partial, sx, sy + i*lineHeight);
+          lastX = sx + ctx.measureText(partial).width;
+          lastY = sy + i*lineHeight;
+          charsLeft -= take + 1; // +1 roughly accounts for the space between wrapped words
+          if(charsLeft <= 0) break;
+        }
+        drawPen(lastX, lastY, -Math.PI/2);
+      } else {
+        const nChars = Math.max(1, Math.round(full.length*t));
+        const partial = full.slice(0,nChars);
+        ctx.fillText(partial, sx, sy);
+        const w = ctx.measureText(partial).width;
+        drawPen(sx+w, sy, -Math.PI/2);
+      }
       break;
     }
     case 'highlight-marker': {
-      const [x,y] = worldToScreen(cmd.x, cmd.y);
-      ctx.globalAlpha = 0.75; ctx.fillStyle = HILITE;
-      ctx.fillRect(x, y, sw(cmd.w)*t, sw(cmd.h||40));
-      ctx.globalAlpha = 1;
-      drawPen(x+sw(cmd.w)*t, y+sw(cmd.h||40)/2, 0);
+      // Feature removed — no-op.
       break;
     }
     case 'line': case 'arrow': {
@@ -1931,14 +2046,13 @@ You must respond with ONLY a JSON object (no markdown fences, no prose outside t
   "quiz": null OR { "question":"...", "options":["...","...","...","..."], "correctIndex":0, "explanation":"..." }
 }
 
-Drawing commands use a normalized coordinate space of x:0-1000, y:0-900 (y increasing downward — this is a fairly tall page, giving real room for a full diagram plus supporting text without cramming). Each teaching turn is automatically placed into its OWN fresh area, directly below the previous turn, on one continuous scrolling page (like an endless roll of paper — the app pans the camera downward as you teach) — you do NOT need to avoid prior content or track what's already drawn; always compose your "board" array as if starting on a blank 1000x900 page.
+Drawing commands use a normalized coordinate space of x:0-1000, y:0-900 for EACH teaching turn (y increasing downward — a fairly tall local frame, giving real room for a full diagram plus supporting text without cramming). The app automatically places each turn directly below the last one, packing turns down the page like real notebook writing — you do NOT need to avoid prior content, track what's already drawn, or think about page breaks yourself; always compose your "board" array as if starting on a fresh blank 1000x900 area, and the app handles fitting it onto the page (starting a new page only once the current one is full).
 
 TEXT ON THE BOARD MUST USE REAL SYMBOLS, NOT SPELLED-OUT WORDS: unlike "speech" (which spells things out for text-to-speech), the "board" is visual, so write actual Unicode glyphs the way you would on a physical whiteboard — π, θ, β, α, γ, Δ, Σ, ∫, √, ∞, ≤, ≥, ≈, ×, ÷, →, ², ³, ₁, ₂, etc. — directly inside "text" strings. E.g. write "β = ∂y/∂x" or "∫₀^∞ e^(−x) dx", not "beta equals the derivative of y with respect to x". Use "mono":true for equations so symbols line up cleanly.
 
 Available command types:
-- {"type":"text","x":..,"y":..,"text":"...","size":22,"color":"ink|ochre|sage|brick|teal|violet|sky|coral","mono":false,"handwritten":false,"weight":400}  — set "handwritten":true ONLY for section headings/titles (renders in a marker-style script font, larger)
-- {"type":"highlight-marker","x":..,"y":..,"w":..,"h":40,"color":"highlight"} — draw this RIGHT AFTER a handwritten heading, positioned behind/under it (same x/y roughly, w spanning the heading width) to look like a yellow highlighter stroke drawn under the title
-- {"type":"halo","x":..,"y":..,"r":50,"color":"halo|ochre|sage|teal|violet|sky|coral"} — a soft radial glow centered on a point, drawn BEHIND/BEFORE the term it emphasizes (e.g. right before writing a key result or the answer to a check-in question) to make it visually pop without boxing it in like highlight-marker does
+- {"type":"text","x":..,"y":..,"text":"...","size":22,"color":"ink|ochre|sage|brick|teal|violet|sky|coral","mono":false,"handwritten":false,"weight":400,"maxWidth":800}  — set "handwritten":true ONLY for section headings/titles (renders in a marker-style script font, larger). Set "maxWidth" (in the same 0-1000 units, e.g. 800-850 for a near-full-width paragraph) on any text that's a full sentence or more — the app automatically WRAPS it onto multiple lines within that width, like real handwritten notebook prose, instead of running off as one unreadable line. Only omit "maxWidth" for genuinely short labels/headings that are meant to stay on one line.
+- {"type":"halo","x":..,"y":..,"r":50,"color":"halo|ochre|sage|teal|violet|sky|coral"} — a soft radial glow centered on a point, drawn BEHIND/BEFORE the term it emphasizes (e.g. right before writing a key result or the answer to a check-in question) to make it visually pop
 - {"type":"line","x1":..,"y1":..,"x2":..,"y2":..,"color":"ink","width":2.5}
 - {"type":"arrow","x1":..,"y1":..,"x2":..,"y2":..,"color":"ochre","width":2.5}
 - {"type":"rect","x":..,"y":..,"w":..,"h":..,"color":"ink","fill":false}
@@ -1948,13 +2062,15 @@ Available command types:
 - {"type":"plot","x":..,"y":..,"w":..,"h":..,"xRange":[0,10],"yRange":[0,10],"xlabel":"...","ylabel":"...","title":"...","grid":true,"xTicks":["0","2","4","6","8","10"],"yTicks":["0","5","10"],"curves":[{"points":[[dataX,dataY],[dataX,dataY],...],"color":"brick","width":2.75,"label":"SRPC"}]} — THIS IS THE COMMAND TO USE FOR ANY ACTUAL DATA GRAPH (a plotted curve, line, demand/supply diagram, function plot, etc). It draws axes+grid+ticks AND every curve together as one unit, with curve "points" given in DATA units (whatever "xRange"/"yRange" span) — the app maps them onto the axes box for you, so the curve is GUARANTEED to sit correctly inside the axes and can never drift off from them the way a separately-placed "axes"+"curve" pair could. You can pass multiple entries in "curves" to overlay several lines (e.g. two Phillips curves before/after a shift) in different colors, each with its own optional "label" drawn at its endpoint.
 - {"type":"highlight","x":..,"y":..,"w":..,"h":26,"color":"ochre"}
 
-The board is plain white/cream — colors are: "ink" near-black body text, "ochre" warm amber for emphasis, "sage" muted green for correct/positive, "brick" muted red for warnings/mistakes, "teal", "violet", "sky", "coral" as extra accent colors for distinguishing multiple curves/terms/categories, "halo" a soft blue glow, "highlight" pale yellow (used only by highlight-marker).
+The board is plain white/cream — colors are: "ink" near-black body text, "ochre" warm amber for emphasis, "sage" muted green for correct/positive, "brick" muted red for warnings/mistakes, "teal", "violet", "sky", "coral" as extra accent colors for distinguishing multiple curves/terms/categories, "halo" a soft blue glow.
 
-COORDINATES FOR "axes"/"plot": "x","y" is the position of the ORIGIN (bottom-left corner), and the box extends UPWARD by "h" and RIGHTWARD by "w" — so the top of the graph is at screen-y = y-h, not y+h. Size the box and choose "y" so the whole box (from y-h to y) fits inside the 0-600 frame with room to spare above and below for other content.
+COORDINATES FOR "axes"/"plot": "x","y" is the position of the ORIGIN (bottom-left corner), and the box extends UPWARD by "h" and RIGHTWARD by "w" — so the top of the graph is at screen-y = y-h, not y+h. Size the box and choose "y" so the whole box (from y-h to y) fits inside the 0-900 frame with room to spare above (for a title) and below (for axis labels).
 
-AVOID OVERLAPPING CONTENT: every element you place (text, axes/plot box, highlight-marker, halo) occupies real space, and nothing on the board should visually overlap anything else. Concretely: if you open with a handwritten title at y:120 followed by a highlight-marker of height ~40 (so it occupies roughly y:100-165), don't start the next element — an axes/plot box, a paragraph, an equation — any higher than about y:190. When stacking several elements vertically, leave at least 25-30 units of clear gap between the bottom of one and the top of the next.
+STRICT COORDINATE BOUNDS — every command must stay fully inside the 1000x900 page: never place any "x" below 20 or above 980, and never place any "y" below 20 or above 880. For "axes"/"plot", that means "x" + "w" must not exceed ~950, and "y" - "h" must not go below ~90 (leaving headroom for a title above the box). Anything outside this range gets clipped by the app, so an out-of-range value just produces a cut-off, ugly result — always compute values that fit within these bounds up front.
 
-Layout pattern: start with ONE handwritten title near the top-left (around x:90,y:120) sized around 30, followed immediately by a highlight-marker behind it (ending by about y:165). Build the explanation below that, starting no earlier than y:190. Even though each turn covers only a small, single idea (see pacing rules below), write it up properly like real class notes — don't leave the board sparse. Use around 14-22 commands per turn: the full definition or claim in one clear text line, then supporting text lines that unpack it (a short elaboration, the intuition behind it, a worked micro-example or numeric case, a labelled diagram/plot where relevant), not just a title and one line. Fill a good portion of the 1000x900 page rather than leaving most of it blank — an equation on its own with nothing else is not enough; always accompany it with plain-language text explaining what it means. For math: mono text, one step per line, 40+ units apart vertically, using real symbols as above. For any data graph, use a single "plot" command (see above) — never bare "axes" plus a separate "curve" — so the picture is always accurate, gridded, ticked, and self-explanatory at a glance.
+AVOID OVERLAPPING CONTENT: every element you place (text, axes/plot box, halo) occupies real space, and nothing on the board should visually overlap anything else. A wrapped paragraph (with "maxWidth" set) takes up several lines of vertical space, not just one — leave at least 25-30 units of clear gap between the BOTTOM of a wrapped paragraph's last line and whatever comes next, not just below its starting "y".
+
+Layout pattern: start with ONE handwritten title near the top-left (around x:90,y:120) sized around 30. Build the explanation below that, starting no earlier than y:170, like a real page of class notes: full sentences in wrapped paragraphs (use "maxWidth" as described above so they read across most of the page width, not short choppy fragments), organized top-to-bottom in a single clean column. Use around 14-22 commands per turn: state the definition or claim as a full wrapped sentence, then more wrapped-paragraph text unpacking it (the intuition behind it, a worked micro-example or numeric case), plus a short numbered or lettered sub-list where it naturally fits (e.g. components of a concept, steps of a process) — give each sub-list a distinct accent color (e.g. all its items in "ochre" or "teal") so it visually separates from the surrounding body text, similar to how a student color-codes their own notes. Fill a good portion of the 1000x900 page rather than leaving most of it blank — an equation on its own with nothing else is not enough; always accompany it with plain-language paragraph text explaining what it means. Do not scatter items sideways or place two unrelated things at the same height, since that reads as disorganized — everything reads top-to-bottom in order. For math: mono text, one step per line, 40+ units apart vertically, using real symbols as above. For any data graph, use a single "plot" command (see above) — never bare "axes" plus a separate "curve" — so the picture is always accurate, gridded, ticked, and self-explanatory at a glance.
 
 PACING RULES (strict — this is the most important behavioural constraint):
 - Teach in SMALL bites: explain ONE definition, ONE step of a derivation, or ONE component of a concept per turn — not a whole topic, not even a whole "section". Think 2-4 sentences of speech per turn, occasionally a bit more only when a single idea genuinely needs it (e.g. deriving one formula).
@@ -2162,7 +2278,7 @@ async function persistSession(){
     savedAt: Date.now(),
     pdfFileName, pdfText: pdfText ? pdfText.slice(0,15000) : '',
     conversationHistory, drawnCommands, camera,
-    blockCount, boardCursor,
+    pageCount, boardCursor,
     transcriptHtml: transcriptToHtmlSnapshot()
   };
   await window.storage.set('session:' + currentSessionId, JSON.stringify(payload), false);
@@ -2205,7 +2321,7 @@ function loadSession(item){
   conversationHistory = item.conversationHistory || [];
   drawnCommands = item.drawnCommands || [];
   if(item.camera) Object.assign(camera, item.camera);
-  blockCount = item.blockCount || 0;
+  pageCount = item.pageCount || 1;
   if(item.boardCursor) Object.assign(boardCursor, item.boardCursor);
   transcriptEl.innerHTML = item.transcriptHtml || '<div class="empty-note">No transcript in this session.</div>';
   if(pdfFileName){
@@ -2223,7 +2339,7 @@ document.getElementById('btn-new-session').addEventListener('click', ()=>{
   pdfText=''; pdfFileName='';
   conversationHistory=[]; drawQueue=[]; drawnCommands=[];
   camera.x=500; camera.y=300; camera.scale=1;
-  blockCount=0; boardCursor.x=0; boardCursor.y=0;
+  pageCount=1; boardCursor.x=0; boardCursor.y=PAGE_TOP_MARGIN;
   clearBoard();
   transcriptEl.innerHTML = '<div class="empty-note">Your lecture transcript and quiz questions will appear here as we go.</div>';
   resetUploadZoneUI();
