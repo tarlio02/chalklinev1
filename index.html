@@ -1556,6 +1556,7 @@ document.getElementById('btn-export-pdf').addEventListener('click', exportBoardA
    LIVE PEN & DRAWING ANIMATION
    ========================================================= */
 let drawQueue = [], drawing = false;
+let pacingScale = 1; // stretches/compresses handwriting speed to match narration length
 
 function drawPen(x, y, angle){
   ctx.save();
@@ -1691,19 +1692,39 @@ function animateCommand(cmd, onDone){
 }
 
 function estimateDuration(cmd){
-  switch(cmd.type){
-    case 'text': return Math.min(2200, Math.max(500,(cmd.text||'').length*50));
-    case 'line': case 'arrow': return 380;
-    case 'curve': return 700;
-    case 'rect': return 550;
-    case 'circle': return 550;
-    case 'axes': return 550;
-    case 'plot': return 600 + ((cmd.curves||[]).length)*550;
-    case 'highlight': return 250;
-    case 'halo': return 450;
-    case 'path': return Math.min(2600, Math.max(600, (cmd.segments||[]).length*220));
-    default: return 300;
-  }
+  const base = (()=>{
+    switch(cmd.type){
+      case 'text': return Math.min(2200, Math.max(500,(cmd.text||'').length*50));
+      case 'line': case 'arrow': return 380;
+      case 'curve': return 700;
+      case 'rect': return 550;
+      case 'circle': return 550;
+      case 'axes': return 550;
+      case 'plot': return 600 + ((cmd.curves||[]).length)*550;
+      case 'highlight': return 250;
+      case 'halo': return 450;
+      case 'path': return Math.min(2600, Math.max(600, (cmd.segments||[]).length*220));
+      default: return 300;
+    }
+  })();
+  return base * pacingScale;
+}
+
+// Roughly how long the browser's TTS will take to say a given piece of text,
+// including the little pauses speak() inserts between chunks. Used to stretch
+// or compress the handwriting animation so the pen finishes writing at
+// roughly the same moment the voice finishes speaking.
+function estimateSpeechDuration(text){
+  if(!text) return 0;
+  const rate = (currentUtteranceRate || 0.96);
+  const charsPerSec = 13.5 * rate;
+  const chunks = splitIntoSpeechChunks(text);
+  let total = 0;
+  chunks.forEach(c=>{
+    total += Math.max(400, (c.length / charsPerSec) * 1000);
+    total += /\?\s*$/.test(c) ? 260 : 140;
+  });
+  return total;
 }
 
 function renderPartialCommand(cmd, t){
@@ -1905,6 +1926,7 @@ function renderPartialCommand(cmd, t){
 const avatar = document.getElementById('avatar');
 const captionText = document.getElementById('caption-text');
 let currentUtteranceText = '';
+let currentUtteranceRate = 0.96;
 let currentSpeechToken = 0;
 
 let bestVoice = null;
@@ -2034,6 +2056,7 @@ function speak(text){
     if(i >= chunks.length){ avatar.classList.remove('speaking'); return; }
     const utter = new SpeechSynthesisUtterance(chunks[i]);
     utter.rate = 0.96;
+    currentUtteranceRate = utter.rate;
     utter.pitch = 1.0;
     utter.volume = 1.0;
     if(voice) utter.voice = voice;
@@ -2460,11 +2483,26 @@ async function runTeachingTurn(userMessage, displayText){
   addTranscriptMsg('user', displayText !== undefined ? displayText : userMessage);
   await document.fonts.ready;
   const result = await callTutor(userMessage);
-  if(result.board && result.board.length) enqueueCommandsAtCursor(result.board);
+  if(result.board && result.board.length){
+    // Match the pace of the pen to the pace of the voice: estimate how long
+    // this turn's speech will take, compare it to how long the handwriting
+    // would naturally take, and scale the writing speed so both roughly
+    // start and finish together instead of drifting apart.
+    if(result.speech){
+      const naturalDuration = result.board.reduce((sum, cmd) => sum + estimateDuration({...cmd}) / pacingScale, 0);
+      const speechDuration = estimateSpeechDuration(result.speech);
+      pacingScale = naturalDuration > 0 ? clamp(speechDuration / naturalDuration, 0.5, 2.75) : 1;
+    } else {
+      pacingScale = 1;
+    }
+    enqueueCommandsAtCursor(result.board);
+  }
   if(result.speech){ addTranscriptMsg('tutor', result.speech); speak(result.speech); }
   if(result.quiz) addQuizCard(result.quiz);
   autoSaveSession();
 }
+
+function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
 
 /* =========================================================
    SESSION PERSISTENCE
