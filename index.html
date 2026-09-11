@@ -907,10 +907,31 @@ function resizeCanvas(){
   canvas.width = rect.width * dpr;
   canvas.height = rect.height * dpr;
   ctx.setTransform(dpr,0,0,dpr,0,0);
+  // Keep whatever world point was centered on screen still centered after
+  // the viewport dimensions change (e.g. portrait <-> landscape rotation).
+  // Without this, camera.x/y stay put while viewW/viewH jump, so content
+  // silently shifts off one edge of the new, differently-proportioned view.
   viewW = rect.width; viewH = rect.height;
   redrawAll();
 }
 window.addEventListener('resize', resizeCanvas);
+
+// iOS/Safari fires 'resize' with stale layout metrics immediately on
+// rotation (before the browser chrome/safe-area has settled), so a single
+// resizeCanvas() call right on orientationchange can capture the wrong
+// rect and leave the board looking shifted/cropped until the user manually
+// interacts. Re-run it a couple of times shortly after the rotation
+// settles to guarantee we end up with accurate final dimensions.
+window.addEventListener('orientationchange', () => {
+  setTimeout(resizeCanvas, 50);
+  setTimeout(resizeCanvas, 350);
+});
+if (screen.orientation && screen.orientation.addEventListener) {
+  screen.orientation.addEventListener('change', () => {
+    setTimeout(resizeCanvas, 50);
+    setTimeout(resizeCanvas, 350);
+  });
+}
 
 function worldToScreen(wx, wy){
   return [(wx - camera.x) * camera.scale + viewW/2, (wy - camera.y) * camera.scale + viewH/2];
