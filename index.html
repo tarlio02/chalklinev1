@@ -2464,6 +2464,10 @@ Available command types:
 - {"type":"axes","x":..,"y":..,"w":..,"h":..,"xlabel":"...","ylabel":"...","title":"...","grid":true,"xTicks":[...],"yTicks":[...]}
 - {"type":"plot","x":..,"y":..,"w":..,"h":..,"xRange":[0,10],"yRange":[0,10],"xlabel":"...","ylabel":"...","title":"...","grid":true,"xTicks":["0","2","4","6","8","10"],"yTicks":["0","5","10"],"curves":[{"points":[[dataX,dataY],...],"color":"brick","width":2.75,"label":"SRPC"}]}
 - {"type":"image","query":"specific, image-searchable description, e.g. 'human heart anatomy diagram' or 'map of Europe 1914'","caption":"short caption shown under the image (optional)","alt":"brief plain-text description used only if no image can be found (optional)"} — fetches a REAL photo/diagram from Wikimedia Commons and places it on the board like a pasted-in textbook figure. ALWAYS use this instead of hand-drawing with "path"/"circle"/"curve" for anything representational: anatomy, organisms, cells, maps, historical figures/events, real objects, landmarks, flags, instruments, machinery, artwork, etc. Make "query" specific and literal (what you'd type into an image search), not a vague topic name. Reserve "path"/"circle"/"curve" ONLY for abstract conceptual sketches that could never correspond to a real photographable/diagrammable thing (e.g. an invented illustrative shape for a made-up example). Math/economics/statistics graphs still ALWAYS use "plot", never "image".
+
+NEVER WRITE A BRACKETED PLACEHOLDER FOR A DIAGRAM AS "text" — e.g. never write a "text" command whose content is something like "[Diagram showing X, Y, Z]" or "[Image of ...]" or "[Figure: ...]". That placeholder style is BANNED. Every single time you would be tempted to write that kind of bracketed description, use an actual {"type":"image","query":"..."} command instead — the app will genuinely fetch and place a real picture there. A bracket placeholder is never an acceptable substitute for a real "image" command.
+  Example — WRONG: {"type":"text","text":"[Diagram showing plant cell wall, plasma membrane, nucleus, chloroplasts]"}
+  Example — CORRECT: {"type":"image","query":"labeled plant cell diagram organelles","caption":"Plant cell structure"}
 - {"type":"highlight","x":..,"y":..,"w":..,"h":26,"color":"ochre"}
 
 LISTS OF LINE ITEMS (financial statements, ledgers, tables of labeled values, any "Label ... $ amount" style list):
@@ -2725,7 +2729,7 @@ async function runTeachingTurn(userMessage, displayText){
   await document.fonts.ready;
   const result = await callTutor(userMessage);
   if(result.board && result.board.length){
-    result.board = await resolveImageCommands(result.board);
+    result.board = await resolveImageCommands(upgradePlaceholderTextCommands(result.board));
     // Match the pace of the pen to the pace of the voice: estimate how long
     // this turn's speech will take, compare it to how long the handwriting
     // would naturally take, and scale the writing speed so both roughly
@@ -2745,6 +2749,27 @@ async function runTeachingTurn(userMessage, displayText){
 }
 
 function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
+
+// Safety net: some models occasionally ignore the instruction and write a
+// bracketed placeholder like "[Diagram showing X, Y, Z]" as plain text
+// instead of using a real "image" command. Catch that pattern and convert
+// it into an actual image fetch so the placeholder never survives to the
+// board even if the model slips up.
+const DIAGRAM_PLACEHOLDER_RE = /^\s*\[\s*(?:diagram|image|figure|photo|picture|illustration)\b[^\]]*\]\s*$/i;
+
+function extractPlaceholderQuery(text){
+  const inner = text.replace(/^\s*\[\s*/, '').replace(/\s*\]\s*$/, '');
+  return inner.replace(/^(diagram|image|figure|photo|picture|illustration)\s*(showing|of|:)?\s*/i, '').trim() || inner;
+}
+
+function upgradePlaceholderTextCommands(commands){
+  return commands.map(cmd => {
+    if(cmd.type === 'text' && typeof cmd.text === 'string' && DIAGRAM_PLACEHOLDER_RE.test(cmd.text)){
+      return { type: 'image', query: extractPlaceholderQuery(cmd.text), alt: cmd.text };
+    }
+    return cmd;
+  });
+}
 
 // ---------- Fetching real diagrams/photos from Wikimedia Commons ----------
 // Wikimedia's API is CORS-open (via origin=*) so this calls it directly from
