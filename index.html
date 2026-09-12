@@ -176,6 +176,14 @@ footer{
   font-family:'JetBrains Mono', monospace; font-size:11.5px; color:var(--muted);
   display:flex; justify-content:space-between;
 }
+
+/* --- handwritten look --- */
+@import url('https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Caveat:wght@600;700&display=swap');
+body, p, li, a, span, div, h1, h2, h3, h4, h5, h6, button, label, input, textarea, nav, footer{
+  font-family:'Patrick Hand','Caveat',cursive !important;
+  letter-spacing:0.2px;
+}
+h1, h2, .brand, .hero h1 .chalk{ font-family:'Caveat',cursive !important; }
 </style>
 </head>
 <body>
@@ -315,6 +323,47 @@ body{
   margin:0 0 4px;
 }
 .board-block.in{opacity:1;transform:translateY(0);}
+
+/* ---------- "teacher pointing at the board" highlight ----------
+   Subtle by default; a little more present for diagrams/plots/equations
+   since those benefit most from a clear "this is what I'm talking about". */
+.board-block.tutor-focus{
+  position:relative;
+  border-radius:8px;
+  transition:transform .3s ease, filter .3s ease, box-shadow .3s ease, background .3s ease;
+  background:rgba(215,236,251,0.45);
+  box-shadow:0 0 0 6px rgba(215,236,251,0.45);
+}
+.board-block.tutor-focus.b-text,
+.board-block.tutor-focus.b-equation,
+.board-block.tutor-focus.b-heading{
+  filter:none;
+}
+.board-block.tutor-focus.b-diagram,
+.board-block.tutor-focus.b-plot,
+.board-block.tutor-focus.b-figure{
+  transform:scale(1.015);
+  box-shadow:0 0 0 8px rgba(215,236,251,0.5), 0 6px 22px rgba(30,60,100,0.10);
+}
+.board-block.tutor-focus::before{
+  content:'';
+  position:absolute;
+  left:-14px; top:6px; bottom:6px;
+  width:3px;
+  border-radius:2px;
+  background:var(--accent, #6EA8FE);
+  opacity:.85;
+}
+/* Tiny, unobtrusive "tutor is explaining this" tick — a dot, not a banner. */
+.board-block.tutor-focus::after{
+  content:'';
+  position:absolute;
+  right:-10px; top:-10px;
+  width:8px; height:8px;
+  border-radius:50%;
+  background:var(--accent, #6EA8FE);
+  box-shadow:0 0 0 3px rgba(110,168,254,0.25);
+}
 
 .b-heading{
   font-family:'Kalam', cursive;
@@ -786,6 +835,14 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
 
 ::-webkit-scrollbar{width:7px;}
 ::-webkit-scrollbar-thumb{background:#e4ddc8;border-radius:4px;}
+
+/* --- handwritten look --- */
+@import url('https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Kalam:wght@400;700&family=Caveat:wght@600;700&display=swap');
+body, p, li, a, span, div, h1, h2, h3, h4, h5, h6, button, label, input, textarea, nav, footer{
+  font-family:'Patrick Hand','Kalam',cursive !important;
+  letter-spacing:0.2px;
+}
+h1, h2, .brand{ font-family:'Caveat',cursive !important; }
 </style>
 </head>
 <body>
@@ -937,6 +994,23 @@ let drawing = false;
 let pacingScale = 1;         // stretches/compresses reveal speed to match narration length
 let userIsScrolledAway = false;
 
+/* ---------- tutor "pointing at the board" system ----------
+   Every board command gets a stable id the moment it's first created (see
+   nextBlockId/appendBlockForCommand/flushVectorGroup below). boardElementMap
+   maps that id -> its live DOM element, so the narration can look an element
+   back up at any point later — after scrolling, after a session reload,
+   after the board has been rebuilt from drawnCommands, doesn't matter. */
+let blockIdCounter = 0;
+function nextBlockId(){ return 'board-block-' + (blockIdCounter++); }
+const boardElementMap = new Map();     // stable id -> DOM element
+let lastAppendedBlockId = null;        // used as the "infer the most recent item" fallback
+
+let currentTurnBoardCommands = [];     // this turn's `board` array (post image/placeholder resolution)
+let currentTurnBreakpoints = null;     // [{charStart, refs}] aligned to this turn's `speech` string, or null
+let currentlyFocusedIds = new Set();   // ids currently wearing .tutor-focus
+let pendingFocusTimers = [];           // setTimeout handles for "wait for it to be drawn" retries
+let lastAppliedBreakpointCharStart = -1;
+
 const COLORS = {
   chalk:'#1E2B3A', ink:'#1E2B3A', ochre:'#2E7DBE', sage:'#3E8FA6', brick:'#3D6B93',
   teal:'#0F8C82', violet:'#7C5CBF', sky:'#2AA9E0', coral:'#E0665A',
@@ -965,12 +1039,171 @@ function scrollToBottomIfFollowing(smooth){
   boardScroll.scrollTo({ top: boardScroll.scrollHeight, behavior: smooth===false ? 'auto' : 'smooth' });
 }
 
+/* ---------- "teacher pointing at the board" focus system ----------
+   Resolves the AI's speechSegments[].boardRefs into live elements, scrolls
+   to them only when genuinely needed, and applies/removes the .tutor-focus
+   highlight as narration moves on — including scrolling BACK UP when the
+   tutor refers to something taught earlier. */
+
+function elementComfortablyVisible(el){
+  const outer = boardScroll.getBoundingClientRect();
+  const rect = el.getBoundingClientRect();
+  const margin = 48;
+  return rect.top >= outer.top + margin && rect.bottom <= outer.bottom - margin;
+}
+
+// Only scrolls if the element isn't already comfortably in view, and never
+// fights a user who has manually scrolled away (same rule the rest of the
+// board follows — see userIsScrolledAway / checkIfScrolledAway above).
+function focusBoardElement(element){
+  if(!element) return;
+  if(userIsScrolledAway) return;
+  if(elementComfortablyVisible(element)) return;
+  element.scrollIntoView({ behavior:'smooth', block:'center' });
+}
+
+// A ref is either:
+//   - a number: an index into THIS turn's `board` array (a just-drawn item)
+//   - a string: a short snippet of text to search for among ALL board items
+//     ever rendered (a back-reference to something taught earlier, so the
+//     AI can point at the existing element instead of redrawing it)
+function resolveBoardRef(ref){
+  if(typeof ref === 'number'){
+    const cmd = currentTurnBoardCommands[ref];
+    if(!cmd || !cmd.id) return null;
+    const el = boardElementMap.get(cmd.id);
+    return el ? { id: cmd.id, el } : null;
+  }
+  if(typeof ref === 'string'){
+    const needle = ref.toLowerCase().replace(/^ref:/,'').trim();
+    if(!needle) return null;
+    let best = null;
+    // Map preserves insertion order, so the last match found is the most
+    // recently-taught matching element — the natural "refer back" target.
+    boardElementMap.forEach((el, id) => {
+      const hay = (el.textContent || '').toLowerCase();
+      if(hay && hay.includes(needle)) best = { id, el };
+    });
+    return best;
+  }
+  return null;
+}
+
+function cancelPendingFocusTimers(){
+  pendingFocusTimers.forEach(t => clearTimeout(t));
+  pendingFocusTimers = [];
+}
+
+// Removes highlight from anything not in `resolved`, adds it to anything
+// newly referenced, and scrolls (at most once) to the primary reference.
+function setActiveFocusElements(resolved, myToken){
+  if(myToken !== currentSpeechToken) return;
+  const newIds = new Set(resolved.map(r => r.id));
+  currentlyFocusedIds.forEach(id => {
+    if(!newIds.has(id)){
+      const el = boardElementMap.get(id);
+      if(el) el.classList.remove('tutor-focus');
+    }
+  });
+  let scrolled = false;
+  resolved.forEach(({id, el}) => {
+    if(!el) return;
+    el.classList.add('tutor-focus');
+    if(!scrolled){ focusBoardElement(el); scrolled = true; }
+  });
+  currentlyFocusedIds = newIds;
+}
+
+function clearBoardFocus(){
+  currentlyFocusedIds.forEach(id => {
+    const el = boardElementMap.get(id);
+    if(el) el.classList.remove('tutor-focus');
+  });
+  currentlyFocusedIds.clear();
+  lastAppliedBreakpointCharStart = -1;
+  cancelPendingFocusTimers();
+}
+
+// Resolves a breakpoint's refs into elements, retrying briefly if a
+// just-mentioned board item hasn't finished being drawn yet (the drawing
+// queue and the narration are paced to track each other, but aren't
+// perfectly locked together). Falls back to "the most recently drawn item"
+// when there's nothing else to go on — this is also the entire code path
+// used for old AI responses that never included speechSegments at all.
+function applyFocusForRefs(refs, myToken, attemptsLeft){
+  if(myToken !== currentSpeechToken) return;
+  const resolved = [];
+  let anyKnownButUndrawn = false;
+  (refs || []).forEach(ref => {
+    const r = resolveBoardRef(ref);
+    if(r) resolved.push(r);
+    else if(typeof ref === 'number' && currentTurnBoardCommands[ref]) anyKnownButUndrawn = true;
+  });
+  if(resolved.length === 0 && anyKnownButUndrawn && attemptsLeft > 0){
+    const t = setTimeout(() => applyFocusForRefs(refs, myToken, attemptsLeft - 1), 220);
+    pendingFocusTimers.push(t);
+    return;
+  }
+  if(resolved.length === 0 && lastAppendedBlockId){
+    const el = boardElementMap.get(lastAppendedBlockId);
+    if(el) resolved.push({ id: lastAppendedBlockId, el });
+  }
+  setActiveFocusElements(resolved, myToken);
+}
+
+// Called whenever spoken narration crosses into a new breakpoint's region —
+// from a chunk boundary (always available) or, when the browser supports
+// it, a finer-grained utterance.onboundary word event.
+function updateFocusForCharOffset(absCharOffset, myToken){
+  if(myToken !== currentSpeechToken) return;
+  if(!currentTurnBreakpoints){
+    // No explicit speechSegments this turn — just keep pointing at whatever
+    // was most recently drawn, so the tutor still "follows" its own pen.
+    applyFocusForRefs(null, myToken, 0);
+    return;
+  }
+  let active = null;
+  for(const bp of currentTurnBreakpoints){
+    if(bp.charStart <= absCharOffset) active = bp; else break;
+  }
+  if(!active || active.charStart === lastAppliedBreakpointCharStart) return;
+  lastAppliedBreakpointCharStart = active.charStart;
+  applyFocusForRefs(active.refs, myToken, 5);
+}
+
+// Builds the char-offset -> boardRefs alignment for one turn by locating
+// each speechSegment's text within the full `speech` string. Best-effort:
+// a segment that can't be located (paraphrased slightly differently than
+// the model wrote it) is simply skipped rather than breaking the rest.
+function buildSpeechBoardAlignment(speechText, speechSegments){
+  if(!speechText || !Array.isArray(speechSegments) || speechSegments.length === 0) return null;
+  const breakpoints = [];
+  let searchFrom = 0;
+  for(const seg of speechSegments){
+    if(!seg || typeof seg.text !== 'string' || !seg.text.trim()) continue;
+    const needle = seg.text.trim();
+    let idx = speechText.indexOf(needle, searchFrom);
+    if(idx === -1){
+      const firstWords = needle.split(/\s+/).slice(0,6).join(' ');
+      idx = firstWords ? speechText.indexOf(firstWords, searchFrom) : -1;
+    }
+    if(idx === -1) continue;
+    breakpoints.push({ charStart: idx, refs: Array.isArray(seg.boardRefs) ? seg.boardRefs : [] });
+    searchFrom = idx + needle.length;
+  }
+  breakpoints.sort((a,b) => a.charStart - b.charStart);
+  return breakpoints.length ? breakpoints : null;
+}
+
 /* ---------- board lifecycle ---------- */
 function clearBoard(record=true){
   if(record) drawnCommands = [];
   boardContent.innerHTML = '';
   boardContent.classList.add('empty');
   pendingVectorGroup = [];
+  boardElementMap.clear();
+  lastAppendedBlockId = null;
+  clearBoardFocus();
 }
 function resetRegionCursors(){
   globalCursorY = TOP_MARGIN;
@@ -984,6 +1217,18 @@ function resetRegionCursors(){
 function rebuildBoard(commands){
   boardContent.innerHTML = '';
   pendingVectorGroup = [];
+  boardElementMap.clear();
+  lastAppendedBlockId = null;
+  clearBoardFocus();
+  // Re-establish the id counter above the highest id already used in this
+  // history, so newly-generated commands after a reload never collide with
+  // stable ids that old sessions (and old back-references) still rely on.
+  let maxSeen = -1;
+  (commands || []).forEach(cmd => {
+    const m = typeof cmd.id === 'string' && /^board-block-(\d+)$/.exec(cmd.id);
+    if(m) maxSeen = Math.max(maxSeen, parseInt(m[1], 10));
+  });
+  if(maxSeen >= blockIdCounter) blockIdCounter = maxSeen + 1;
   (commands || []).forEach(cmd => appendBlockForCommand(cmd, /*animate*/false));
   flushVectorGroup(false);
   boardContent.classList.toggle('empty', boardContent.children.length === 0);
@@ -1148,6 +1393,13 @@ function flushVectorGroup(animate){
   wrap.appendChild(svg);
   boardContent.appendChild(wrap);
   revealBlock(wrap, animate);
+  // A grouped diagram is one visual block made of several vector commands —
+  // register the shared wrapper under every command id in the group, so a
+  // reference to ANY of them (e.g. "the arrow on the demand curve") finds
+  // the same element to scroll to / highlight.
+  group.forEach(cmd => { if(cmd.id) boardElementMap.set(cmd.id, wrap); });
+  const lastWithId = [...group].reverse().find(cmd => cmd.id);
+  if(lastWithId) lastAppendedBlockId = lastWithId.id;
 }
 
 /* ---------- text wrapping is handled natively by the browser now;
@@ -1381,7 +1633,10 @@ function appendBlockForCommand(cmd, animate){
   if(cmd.type === 'text') el = renderTextBlock(cmd);
   else if(cmd.type === 'plot' || cmd.type === 'axes') el = renderPlotBlock(cmd);
   else if(cmd.type === 'image') el = renderImageBlock(cmd);
-  if(el) revealBlock(el, animate);
+  if(el){
+    revealBlock(el, animate);
+    if(cmd.id){ boardElementMap.set(cmd.id, el); lastAppendedBlockId = cmd.id; }
+  }
   boardContent.classList.remove('empty');
   return el;
 }
@@ -1682,6 +1937,7 @@ function speakBrowser(text){
   stopElevenLabsAudio();
   const myToken = ++currentSpeechToken;
   currentUtteranceText = text;
+  clearBoardFocus();
   const chunks = splitIntoSpeechChunks(text);
   let searchPos = 0;
   const chunkOffsets = chunks.map(c => {
@@ -1702,7 +1958,20 @@ function speakBrowser(text){
     utter.volume = 1.0;
     if(voice) utter.voice = voice;
     renderCaption(text, chunkOffsets[i], chunks[i]);
-    utter.onstart = () => avatar.classList.add('speaking');
+    utter.onstart = () => {
+      avatar.classList.add('speaking');
+      updateFocusForCharOffset(chunkOffsets[i], myToken);
+    };
+    // Word-level sync where the browser supports it: refine which board
+    // element is focused as narration moves through a longer chunk, instead
+    // of only updating at chunk (roughly sentence) boundaries. Browsers that
+    // don't fire onboundary reliably (notably Safari) simply never call
+    // this, and the chunk-level update above is the fallback.
+    utter.onboundary = (event) => {
+      if(myToken !== currentSpeechToken) return;
+      if(event.name && event.name !== 'word' && event.name !== 'sentence') return;
+      updateFocusForCharOffset(chunkOffsets[i] + (event.charIndex || 0), myToken);
+    };
     utter.onend = () => {
       if(myToken !== currentSpeechToken) return;
       const pause = /\?\s*$/.test(chunks[i]) ? 260 : 140;
@@ -1759,6 +2028,7 @@ function speakElevenLabs(text, voiceId){
   stopElevenLabsAudio();
   const myToken = ++currentSpeechToken;
   currentUtteranceText = text;
+  clearBoardFocus();
   const chunks = splitIntoSpeechChunks(text);
   let searchPos = 0;
   const chunkOffsets = chunks.map(c => {
@@ -1788,12 +2058,13 @@ function speakElevenLabs(text, voiceId){
     const url = await ensureFetched(i);
     if(myToken !== currentSpeechToken) return;
     if(!url){
+      updateFocusForCharOffset(chunkOffsets[i], myToken);
       speakBrowserChunkFallback(chunks[i], () => playChunk(i+1));
       return;
     }
     const audioEl = new Audio(url);
     currentAudioEls.push(audioEl);
-    audioEl.onplay = () => avatar.classList.add('speaking');
+    audioEl.onplay = () => { avatar.classList.add('speaking'); updateFocusForCharOffset(chunkOffsets[i], myToken); };
     audioEl.onended = () => { if(myToken === currentSpeechToken) playChunk(i+1); };
     audioEl.onerror = () => { if(myToken === currentSpeechToken) playChunk(i+1); };
     audioEl.play().catch(() => { if(myToken === currentSpeechToken) playChunk(i+1); });
@@ -1830,6 +2101,7 @@ function speakGoogleTTS(text, voiceName){
   stopElevenLabsAudio(); // also clears any in-flight Google audio elements — shared array
   const myToken = ++currentSpeechToken;
   currentUtteranceText = text;
+  clearBoardFocus();
   const chunks = splitIntoSpeechChunks(text);
   let searchPos = 0;
   const chunkOffsets = chunks.map(c => {
@@ -1859,12 +2131,13 @@ function speakGoogleTTS(text, voiceName){
     const url = await ensureFetched(i);
     if(myToken !== currentSpeechToken) return;
     if(!url){
+      updateFocusForCharOffset(chunkOffsets[i], myToken);
       speakBrowserChunkFallback(chunks[i], () => playChunk(i+1));
       return;
     }
     const audioEl = new Audio(url);
     currentAudioEls.push(audioEl);
-    audioEl.onplay = () => avatar.classList.add('speaking');
+    audioEl.onplay = () => { avatar.classList.add('speaking'); updateFocusForCharOffset(chunkOffsets[i], myToken); };
     audioEl.onended = () => { if(myToken === currentSpeechToken) playChunk(i+1); };
     audioEl.onerror = () => { if(myToken === currentSpeechToken) playChunk(i+1); };
     audioEl.play().catch(() => { if(myToken === currentSpeechToken) playChunk(i+1); });
@@ -1987,8 +2260,28 @@ You must respond with ONLY a JSON object (no markdown fences, no prose outside t
 {
   "speech": "the spoken explanation, natural spoken lecture language for text-to-speech (spell out symbols, e.g. 'delta' not the character)",
   "board": [ ...array of drawing command objects... ],
+  "speechSegments": [ ...optional, see below... ],
   "quiz": null OR { "question":"...", "options":["...","...","...","..."], "correctIndex":0, "explanation":"..." }
 }
+
+"speechSegments" (OPTIONAL, but strongly preferred) lets the app scroll to and highlight
+the exact thing you're talking about while you say it — like a real teacher pointing at
+the board. Break "speech" into its natural pieces in spoken order, and for each piece say
+which board item(s) it's about:
+[
+  { "text":"First, let's look at the demand curve.", "boardRefs":[2] },
+  { "text":"Notice that it slopes downward.", "boardRefs":[2] },
+  { "text":"Remember the equation we wrote earlier for elasticity.", "boardRefs":["elasticity"] }
+]
+Rules for "speechSegments":
+- Every "text" value MUST be an exact, verbatim substring of "speech" (same words, same order, no paraphrasing) — the app locates each segment by searching for it inside "speech".
+- The segments, concatenated in order, should cover all of "speech" (a short one-off aside can be left out, but don't skip large chunks).
+- "boardRefs" is a list where each entry is EITHER:
+  (a) a number — the 0-based index of an item in THIS turn's "board" array (something you're drawing right now), or
+  (b) a short string — a few distinctive words copied from the TEXT of an item you (or an earlier turn) already put on the board, used to point back at that EXISTING item instead of redrawing it. Pick words specific enough to uniquely identify that item (e.g. "slopes downward because" rather than just "the curve").
+- When you say "remember...", "as we saw earlier...", "going back to...", or otherwise refer to something already on the board, use a string boardRef to point at the existing item — NEVER regenerate a duplicate copy of it in "board" just so you have something to reference.
+- It's fine and expected for consecutive segments to share the same boardRefs while you keep talking about one item, and for boardRefs to jump back to an earlier item and then forward again — that back-and-forth is exactly what makes the lesson feel like a real lecture rather than a scroll-through.
+- If you omit "speechSegments" entirely, the app falls back to simply following along with whatever is most recently drawn — so it still works, but won't be able to point back at earlier material. Prefer including it.
 
 ALL TEXT, HEADINGS, EQUATIONS, AND EXPLANATIONS ON THE BOARD ARE RENDERED IN REALISTIC HANDWRITING.
 Use color changes on key terms and equations for visual emphasis and clarity.
@@ -2296,6 +2589,10 @@ async function runTeachingTurn(userMessage, displayText){
   const result = await callTutor(userMessage);
   if(result.board && result.board.length){
     result.board = await resolveImageCommands(upgradePlaceholderTextCommands(result.board));
+    // Every board command gets a stable id the first time it exists, before
+    // it's ever drawn — this is what speechSegments[].boardRefs points at,
+    // and what survives scrolling/highlighting/session save+reload.
+    result.board.forEach(cmd => { if(!cmd.id) cmd.id = nextBlockId(); });
     // Match the pace of the pen to the pace of the voice: estimate how long
     // this turn's speech will take, compare it to how long the handwriting
     // would naturally take, and scale the writing speed so both roughly
@@ -2309,6 +2606,11 @@ async function runTeachingTurn(userMessage, displayText){
     }
     enqueueCommandsAtCursor(result.board);
   }
+  // Set up this turn's speech -> board alignment BEFORE speaking, so the
+  // very first chunk already knows what it's pointing at.
+  currentTurnBoardCommands = result.board || [];
+  currentTurnBreakpoints = buildSpeechBoardAlignment(result.speech, result.speechSegments);
+  clearBoardFocus();
   if(result.speech){ addTranscriptMsg('tutor', result.speech); speak(result.speech); }
   if(result.quiz) addQuizCard(result.quiz);
   autoSaveSession();
@@ -2331,7 +2633,7 @@ function extractPlaceholderQuery(text){
 function upgradePlaceholderTextCommands(commands){
   return commands.map(cmd => {
     if(cmd.type === 'text' && typeof cmd.text === 'string' && DIAGRAM_PLACEHOLDER_RE.test(cmd.text)){
-      return { type: 'image', query: extractPlaceholderQuery(cmd.text), alt: cmd.text };
+      return { type: 'image', query: extractPlaceholderQuery(cmd.text), alt: cmd.text, id: cmd.id };
     }
     return cmd;
   });
@@ -2403,7 +2705,8 @@ async function resolveImageCommands(commands){
         text: '[' + (cmd.alt || cmd.caption || ('Diagram: ' + (cmd.query || ''))) + ']',
         size: 22,
         color: 'ink',
-        weight: 400
+        weight: 400,
+        id: cmd.id
       });
     }
   }
@@ -2505,6 +2808,8 @@ document.getElementById('btn-new-session').addEventListener('click', ()=>{
   camera.x=500; camera.scale=1;
   resetRegionCursors(); currentTopicLabel='Topic';
   clearBoard();
+  blockIdCounter = 0;
+  currentTurnBoardCommands = []; currentTurnBreakpoints = null;
   transcriptEl.innerHTML = '<div class="empty-note">Your lecture transcript and quiz questions will appear here as we go.</div>';
   resetUploadZoneUI();
   setStatus('new session');
@@ -2687,6 +2992,14 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 #summary-panel strong{ color:var(--brick); font-weight:600; }
 
 .empty-hint{ font-family:'JetBrains Mono', monospace; font-size:11.5px; color:var(--muted); margin-top:8px; }
+
+/* --- handwritten look --- */
+@import url('https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Caveat:wght@600;700&display=swap');
+body, p, li, a, span, div, h1, h2, h3, h4, h5, h6, button, label, input, textarea, nav, footer{
+  font-family:'Patrick Hand','Caveat',cursive !important;
+  letter-spacing:0.2px;
+}
+h1, h2, .brand{ font-family:'Caveat',cursive !important; }
 </style>
 </head>
 <body>
