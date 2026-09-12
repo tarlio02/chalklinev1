@@ -1670,6 +1670,7 @@ function drawPen(x, y, angle){
 }
 
 function enqueueCommandsAtCursor(commands){
+    const isFirstContentEver = (globalCursorY <= TOP_MARGIN + 0.5) && drawnCommands.length === 0;
     let placedAll = [];
 
     commands.sort((a,b) => {
@@ -1749,7 +1750,17 @@ function enqueueCommandsAtCursor(commands){
         }
     });
 
-    let panTargetY = globalCursorY - 300; 
+    let panTargetY;
+    if(isFirstContentEver){
+        // Fresh page, nothing written yet: bring the very top of the page
+        // near the top of the viewport so writing visibly starts like a
+        // blank notebook page, instead of jumping ahead to frame the end
+        // of this (often long) first response and starting mid-screen.
+        const desiredTopScreenY = 130;
+        panTargetY = TOP_MARGIN - (desiredTopScreenY - viewH/2) / camera.scale;
+    } else {
+        panTargetY = globalCursorY - 300;
+    }
     if (panTargetY < TOP_MARGIN) panTargetY = TOP_MARGIN;
 
     redrawAll();
