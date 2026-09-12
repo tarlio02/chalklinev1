@@ -3374,9 +3374,11 @@ function confirmSubject(){
   const val = subjectInput.value.trim();
   if(val) currentSubject = val;
   closeSubjectModal();
-  // Save immediately so the lesson has a folder in Previous Tutorials
-  // right away, even if the person leaves before their first exchange.
-  persistSession().catch(e=>console.error('Initial save failed:', e));
+  // No save here — an empty lesson (subject picked, nothing taught yet)
+  // shouldn't create a session entry. The first real exchange with the
+  // AI (autoSaveSession, called from runTeachingTurn) is what actually
+  // persists it, keyed to this subject.
+  refreshSessionList();
 }
 document.getElementById('btn-subject-go').addEventListener('click', confirmSubject);
 document.getElementById('btn-subject-skip').addEventListener('click', closeSubjectModal);
@@ -3437,6 +3439,7 @@ function resetTutorBoardState(){
   clearBoard();
   transcriptEl.innerHTML = '<div class="empty-note">Your lecture transcript and quiz questions will appear here as we go.</div>';
   resetUploadZoneUI();
+  refreshSessionList();
 }
 
 function applyAuthState(signedIn, user){
@@ -3501,9 +3504,12 @@ async function saveSession(promptForName){
   try{
     let title = currentSessionTitle;
     if(promptForName || !title){
-      title = prompt('Name this session:', title || (pdfFileName ? pdfFileName.replace(/\.pdf$/i,'') : 'Untitled session'));
+      const fallback = (currentTopicLabel && currentTopicLabel !== 'Topic')
+        ? currentTopicLabel
+        : (pdfFileName ? pdfFileName.replace(/\.pdf$/i,'') : 'Untitled session');
+      title = prompt('Name this session:', title || fallback);
       if(title===null) return;
-      currentSessionTitle = title || 'Untitled session';
+      currentSessionTitle = title || fallback;
     }
     await persistSession();
     setStatus('session saved');
@@ -3511,9 +3517,19 @@ async function saveSession(promptForName){
 }
 
 async function persistSession(){
+  // Prefer an explicit title the person set (via Save > name it), then
+  // fall back to what was actually discussed with the AI — the first
+  // "teach this" topic, captured in currentTopicLabel — before falling
+  // further back to the uploaded file name or a generic label. This
+  // means a session saved via autosave (never explicitly named) still
+  // shows up in the list as e.g. "Price elasticity of demand" instead
+  // of a meaningless "Untitled session".
+  const derivedTitle = currentTopicLabel && currentTopicLabel !== 'Topic'
+    ? currentTopicLabel
+    : (pdfFileName ? pdfFileName.replace(/\.pdf$/i,'') : 'Untitled session');
   const payload = {
     id: currentSessionId,
-    title: currentSessionTitle || (pdfFileName ? pdfFileName.replace(/\.pdf$/i,'') : 'Untitled session'),
+    title: currentSessionTitle || derivedTitle,
     subject: currentSubject || 'Unsorted',
     savedAt: Date.now(),
     pdfFileName, pdfText: pdfText ? pdfText.slice(0,15000) : '',
@@ -3536,8 +3552,11 @@ function autoSaveSession(){ if(conversationHistory.length>0) persistSession().ca
 // navigating to another Chalkline page, or closing the browser, so
 // content already produced is never lost even if the person leaves
 // before the next AI turn would have triggered autoSaveSession().
+// Guarded the same way as autoSaveSession — a subject was picked but
+// nothing was actually taught yet is still a blank canvas and shouldn't
+// leave behind a session entry.
 function flushSaveOnExit(){
-  if(conversationHistory.length>0 || currentSubject){
+  if(conversationHistory.length>0){
     persistSession().catch(e=>console.error('Exit-time save failed:', e));
   }
 }
@@ -3568,9 +3587,20 @@ async function refreshSessionList(){
       try{ const rec = await window.storage.get(key, false); if(rec) items.push(JSON.parse(rec.value)); } catch(e){}
     }
     if(myReq !== sessionListReq) return;
-    items.sort((a,b)=>(b.savedAt||0)-(a.savedAt||0));
+    // Only show sessions that belong to the subject/course currently
+    // being worked in — not every saved lesson across every subject.
+    // With no subject picked yet (e.g. right after "new"), fall back to
+    // showing the unsorted/no-subject sessions instead of everything.
+    const filtered = currentSubject
+      ? items.filter(item => (item.subject || 'Unsorted') === currentSubject)
+      : items.filter(item => !item.subject || item.subject === 'Unsorted');
+    if(filtered.length===0){
+      listEl.innerHTML = `<div class="empty-note">No saved sessions yet${currentSubject ? ' in ' + escapeHtml(currentSubject) : ''}.</div>`;
+      return;
+    }
+    filtered.sort((a,b)=>(b.savedAt||0)-(a.savedAt||0));
     listEl.innerHTML = '';
-    items.forEach(item=>{
+    filtered.forEach(item=>{
       const div = document.createElement('div'); div.className='session-item';
       const date = new Date(item.savedAt);
       div.innerHTML = `<span class="s-name">${escapeHtml(item.title||'Untitled')}</span><span class="s-date">${date.toLocaleDateString()}</span><button type="button" class="s-delete" title="Delete">✕</button>`;
@@ -3608,6 +3638,9 @@ function loadSession(item){
   redrawAll();
   setStatus('session loaded');
   closePanel();
+  // Subject may have changed loading this session — refresh the list so
+  // it's still scoped to whatever subject/course is now active.
+  refreshSessionList();
 }
 
 document.getElementById('btn-save').addEventListener('click', ()=> saveSession(true));
