@@ -3246,8 +3246,30 @@ function sessionKeyPrefix(){
   return 'session:' + (currentUser ? currentUser.sub : 'local') + ':';
 }
 
+function resetTutorBoardState(){
+  currentSessionId = 'session_' + Date.now(); currentSessionTitle = null; currentSubject = '';
+  pdfText=''; pdfFileName='';
+  conversationHistory=[]; drawQueue=[]; drawnCommands=[];
+  camera.x=500; camera.scale=1;
+  resetRegionCursors(); currentTopicLabel='Topic';
+  clearBoard();
+  transcriptEl.innerHTML = '<div class="empty-note">Your lecture transcript and quiz questions will appear here as we go.</div>';
+  resetUploadZoneUI();
+}
+
 function applyAuthState(signedIn, user){
-  currentUser = signedIn ? user : null;
+  // Whatever session is on screen belongs to whichever account was
+  // previously signed in (or to this browser as a guest). If the
+  // account identity actually changes — signing out, or a different
+  // account signing in — that on-screen content must not carry over,
+  // or the next viewer (including a signed-out visitor) would still
+  // see it even though it was never re-fetched from storage.
+  const prevSub = currentUser ? currentUser.sub : null;
+  const newUser = signedIn ? user : null;
+  const newSub = newUser ? newUser.sub : null;
+  const accountChanged = prevSub !== null && prevSub !== newSub;
+
+  currentUser = newUser;
   document.getElementById('account-signed-out').style.display = signedIn ? 'none' : 'block';
   document.getElementById('account-signed-in').style.display = signedIn ? 'block' : 'none';
   if(signedIn){
@@ -3255,6 +3277,10 @@ function applyAuthState(signedIn, user){
     document.getElementById('account-name').textContent = user.name || user.email || 'Signed in';
   }
   updateLoginPillVisibility();
+  if(accountChanged){
+    resetTutorBoardState();
+    setStatus(signedIn ? 'switched account — showing a blank board' : 'signed out — showing a blank board');
+  }
   // TODO: once a backend exists, this is where you'd fetch/merge that
   // user's saved sessions instead of just relighting the local list.
   refreshSessionList();
@@ -3390,14 +3416,7 @@ function loadSession(item){
 
 document.getElementById('btn-save').addEventListener('click', ()=> saveSession(true));
 document.getElementById('btn-new-session').addEventListener('click', ()=>{
-  currentSessionId = 'session_' + Date.now(); currentSessionTitle = null; currentSubject = '';
-  pdfText=''; pdfFileName='';
-  conversationHistory=[]; drawQueue=[]; drawnCommands=[];
-  camera.x=500; camera.scale=1;
-  resetRegionCursors(); currentTopicLabel='Topic';
-  clearBoard();
-  transcriptEl.innerHTML = '<div class="empty-note">Your lecture transcript and quiz questions will appear here as we go.</div>';
-  resetUploadZoneUI();
+  resetTutorBoardState();
   setStatus('new session');
   openSubjectModal();
 });
@@ -3763,10 +3782,33 @@ function summarySessionKeyPrefix(){
   return 'summary:' + (currentUser ? currentUser.sub : 'local') + ':';
 }
 
+function resetSummaryViewState(){
+  currentSummarySessionId = 'summary_' + Date.now(); currentSummaryTitle = null;
+  pdfText=''; pdfFileName='';
+  uploadZone.classList.remove('has-file');
+  uploadZone.innerHTML = `Drop a PDF here, or click to choose a file.<input type="file" id="pdf-input" accept="application/pdf">`;
+  document.getElementById('pdf-input').addEventListener('change', (e)=>{ if(e.target.files.length) handlePdfFile(e.target.files[0]); });
+  btnSummarize.disabled = true;
+  outputWrap.classList.remove('show');
+  summaryPanel.innerHTML = '';
+}
+
 window.addEventListener('message', (e)=>{
   const d = e.data;
   if(!d || !d.chalklineAuth) return;
-  currentUser = d.signedIn ? d.user : null;
+  // Same reasoning as the tutor page: don't let a summary that was
+  // open under one account (or as a guest) remain on screen once the
+  // account identity actually changes — otherwise it stays visible to
+  // whoever is looking at the page next, including after sign-out.
+  const prevSub = currentUser ? currentUser.sub : null;
+  const newUser = d.signedIn ? d.user : null;
+  const newSub = newUser ? newUser.sub : null;
+  const accountChanged = prevSub !== null && prevSub !== newSub;
+  currentUser = newUser;
+  if(accountChanged){
+    resetSummaryViewState();
+    setStatus(d.signedIn ? 'switched account — cleared previous summary' : 'signed out — cleared previous summary');
+  }
   refreshSummarySessionList();
   if(pendingSummaryLoad) loadSummarySessionById(pendingSummaryLoad);
 });
@@ -3838,13 +3880,7 @@ function loadSummarySession(item){
 }
 
 document.getElementById('btn-new-summary-session').addEventListener('click', ()=>{
-  currentSummarySessionId = 'summary_' + Date.now(); currentSummaryTitle = null;
-  pdfText=''; pdfFileName='';
-  uploadZone.classList.remove('has-file');
-  uploadZone.innerHTML = `Drop a PDF here, or click to choose a file.<input type="file" id="pdf-input" accept="application/pdf">`;
-  document.getElementById('pdf-input').addEventListener('change', (e)=>{ if(e.target.files.length) handlePdfFile(e.target.files[0]); });
-  btnSummarize.disabled = true;
-  outputWrap.classList.remove('show');
+  resetSummaryViewState();
   setStatus('new summary');
 });
 /* -------------------------------------------------------------- */
