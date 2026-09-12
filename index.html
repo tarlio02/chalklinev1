@@ -94,24 +94,32 @@
   #start-modal-skip:hover{ border-color:#2E7DBE; }
   #start-modal-note{ margin:14px 0 0 !important; font-size:12px !important; color:#9aa9b8 !important; }
 
-  /* Soft "Welcome to Chalkline" moment after skipping sign-in. */
+  /* Soft "Welcome to Chalkline" moment after skipping sign-in — its own
+     deep-blue gradient scene, not a translucent veil over the landing
+     page behind it. */
   #welcome-toast{
     position:fixed; inset:0; z-index:10001;
     display:none; align-items:center; justify-content:center;
     pointer-events:none;
-    background:rgba(243,249,254,0);
-    transition:background .5s ease;
+    background:linear-gradient(135deg, #0A1930 0%, #123A66 55%, #1C4E86 100%);
+    opacity:0;
+    transition:opacity .5s ease;
   }
-  #welcome-toast.show{ display:flex; background:rgba(243,249,254,0.88); }
-  #welcome-toast span{
+  #welcome-toast.show{ display:flex; opacity:1; }
+  #welcome-toast.fade-out{ opacity:0; }
+  #welcome-toast-text{
     font-family:'Caveat', -apple-system, cursive; font-weight:700;
-    font-size:44px; color:#1E2B3A;
-    opacity:0; transform:translateY(10px) scale(0.96);
-    transition:opacity .6s ease, transform .6s ease;
+    font-size:52px; color:#fff;
+    display:inline-flex;
   }
-  #welcome-toast.show span{ opacity:1; transform:translateY(0) scale(1); }
-  #welcome-toast.fade-out{ background:rgba(243,249,254,0); }
-  #welcome-toast.fade-out span{ opacity:0; transform:translateY(-6px) scale(1.02); }
+  /* Each letter fades/lifts in on its own delay (set inline in JS) so the
+     whole line looks hand-drawn one character at a time, not typed. */
+  #welcome-toast-text .wt-letter{
+    opacity:0; display:inline-block; white-space:pre;
+    transform:translateY(10px);
+    transition:opacity .4s ease, transform .4s ease;
+  }
+  #welcome-toast-text .wt-letter.in{ opacity:1; transform:translateY(0); }
 </style>
 </head>
 <body>
@@ -149,7 +157,7 @@
   </div>
 </div>
 
-<div id="welcome-toast"><span>Welcome to Chalkline</span></div>
+<div id="welcome-toast"><span id="welcome-toast-text"></span></div>
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
@@ -318,12 +326,30 @@ document.getElementById('start-modal-skip').addEventListener('click', ()=>{
 });
 
 // A brief, soft "Welcome to Chalkline" moment before dropping into the
-// app without signing in — fades/lifts in, holds a beat, fades back out,
+// app without signing in — its own full-screen deep-blue scene, with the
+// message drawn in one letter at a time, then a hold, then a fade out —
 // then runs the callback (navigating home) once it's fully gone.
 function showWelcomeToast(onDone){
   const el = document.getElementById('welcome-toast');
+  const textEl = document.getElementById('welcome-toast-text');
+  const message = 'Welcome to Chalkline';
+  textEl.innerHTML = '';
+  const letterEls = [];
+  for(const ch of message){
+    const span = document.createElement('span');
+    span.className = 'wt-letter';
+    span.textContent = ch === ' ' ? '\u00A0' : ch;
+    textEl.appendChild(span);
+    letterEls.push(span);
+  }
   el.classList.remove('fade-out');
   el.classList.add('show');
+  const letterDelayMs = 55; // gap between each letter drawing in
+  letterEls.forEach((span, i)=>{
+    setTimeout(()=> span.classList.add('in'), i * letterDelayMs);
+  });
+  const revealDurationMs = letterEls.length * letterDelayMs + 400; // + last letter's own transition
+  const holdAfterRevealMs = 750;
   setTimeout(()=>{
     el.classList.add('fade-out');
     setTimeout(()=>{
@@ -331,7 +357,7 @@ function showWelcomeToast(onDone){
       el.classList.remove('fade-out');
       if(onDone) onDone();
     }, 550); // matches the CSS fade-out transition duration
-  }, 1100); // how long the message holds fully visible before fading
+  }, revealDurationMs + holdAfterRevealMs);
 }
 
 function initShellGoogleSignIn(){
