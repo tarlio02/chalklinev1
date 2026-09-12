@@ -272,6 +272,16 @@ function watchShellSigninButton(elId){
 // can't hold the real Google button itself — see the origin note above).
 function openStartModal(){
   document.getElementById('start-modal-overlay').classList.add('open');
+  // Render the modal's Google button lazily, only once it's actually
+  // visible — rendering into a display:none container at page load is
+  // what was causing it to come out blank/broken, since Google's script
+  // can't measure a hidden element's size.
+  const modalBtnEl = document.getElementById('start-modal-google-btn');
+  if(!modalBtnEl.dataset.rendered && typeof google !== 'undefined' && google.accounts){
+    modalBtnEl.dataset.rendered = '1';
+    google.accounts.id.renderButton(modalBtnEl, { theme:'outline', size:'large', shape:'pill', width:260 });
+    watchShellSigninButton('start-modal-google-btn');
+  }
 }
 function closeStartModal(){
   document.getElementById('start-modal-overlay').classList.remove('open');
@@ -296,11 +306,8 @@ function initShellGoogleSignIn(){
   google.accounts.id.initialize({ client_id: SHELL_GOOGLE_CLIENT_ID, callback: handleShellCredential, auto_select: true, itp_support: true });
   google.accounts.id.renderButton(document.getElementById('shell-signin-btn'), { theme:'outline', size:'medium', shape:'pill' });
   watchShellSigninButton('shell-signin-btn');
-  // A second, independent rendering of the same button inside the "Start
-  // for free" modal — same client/callback, Google is fine with a button
-  // rendered into more than one container at once.
-  google.accounts.id.renderButton(document.getElementById('start-modal-google-btn'), { theme:'outline', size:'large', shape:'pill', width:260 });
-  watchShellSigninButton('start-modal-google-btn');
+  // The modal's button is NOT rendered here — see openStartModal() — since
+  // this container is still display:none at this point in the page load.
   if(!shellUser) google.accounts.id.prompt(); // only worth a silent attempt if we have no cached session already
 }
 initShellGoogleSignIn();
@@ -321,12 +328,13 @@ function signOutShell(){
   signinEl.innerHTML = '';
   const modalBtnEl = document.getElementById('start-modal-google-btn');
   modalBtnEl.dataset.fallback = '';
+  modalBtnEl.dataset.rendered = '';
   modalBtnEl.innerHTML = '';
   if(typeof google !== 'undefined' && google.accounts){
     google.accounts.id.renderButton(signinEl, { theme:'outline', size:'medium', shape:'pill' });
     watchShellSigninButton('shell-signin-btn');
-    google.accounts.id.renderButton(modalBtnEl, { theme:'outline', size:'large', shape:'pill', width:260 });
-    watchShellSigninButton('start-modal-google-btn');
+    // Modal button re-renders lazily next time openStartModal() runs,
+    // same reasoning as above — don't render it while still hidden.
   }
   broadcastAuthState();
 }
