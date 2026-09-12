@@ -169,13 +169,54 @@ function handleShellCredential(response){
   // the token and load/merge this person's saved sessions.
 }
 
+// Fallback shown if Google's own rendered button fails or vanishes (see
+// watchdog below) — a plain link that still triggers the real Google
+// prompt, so there's always SOMETHING clickable even when the official
+// button can't survive in this browser's cookie environment.
+function showShellSigninFallbackLink(){
+  const el = document.getElementById('shell-signin-btn');
+  if(!el || el.dataset.fallback === '1') return; // already showing it, don't stack duplicates
+  el.dataset.fallback = '1';
+  el.innerHTML = '<a href="#" id="shell-signin-fallback-link" style="font-size:14px;color:#1a56db;text-decoration:underline;">Sign in with Google</a>';
+  document.getElementById('shell-signin-fallback-link').addEventListener('click', (e)=>{
+    e.preventDefault();
+    if(typeof google !== 'undefined' && google.accounts) google.accounts.id.prompt();
+  });
+}
+
+// Google's rendered button can silently empty itself a moment after it
+// first appears — this happens on browsers/webviews that block or
+// partition third-party cookies (Safari ITP, many managed/enterprise
+// browsers), where Google's script detects it can't persist its auth
+// cookie and clears the button with no visible error. Watch the button's
+// container and swap in the fallback link the instant that happens,
+// instead of silently leaving the user with nothing to click.
+function watchShellSigninButton(){
+  const el = document.getElementById('shell-signin-btn');
+  if(!el) return;
+  const observer = new MutationObserver(()=>{
+    if(shellUser) return; // signed in — button is hidden on purpose, nothing to watch for
+    if(el.dataset.fallback === '1') return; // already on the fallback, leave it alone
+    if(el.children.length === 0){
+      // Give Google's script a brief moment in case it's just mid-render,
+      // then fall back only if it's genuinely still empty after that.
+      setTimeout(()=>{ if(!shellUser && el.children.length === 0) showShellSigninFallbackLink(); }, 800);
+    }
+  });
+  observer.observe(el, { childList:true });
+}
+
 function initShellGoogleSignIn(){
   if(typeof google === 'undefined' || !google.accounts){ setTimeout(initShellGoogleSignIn, 300); return; }
   // auto_select lets Google silently re-confirm a returning visitor who
   // still has an active Google session, refreshing the identity in the
   // background even if our own localStorage cache was ever cleared.
-  google.accounts.id.initialize({ client_id: SHELL_GOOGLE_CLIENT_ID, callback: handleShellCredential, auto_select: true });
+  // itp_support helps Safari's Intelligent Tracking Prevention (and
+  // similar cookie-partitioning browsers) keep the button working
+  // instead of it rendering once and then quietly disappearing.
+  google.accounts.id.initialize({ client_id: SHELL_GOOGLE_CLIENT_ID, callback: handleShellCredential, auto_select: true, itp_support: true });
   google.accounts.id.renderButton(document.getElementById('shell-signin-btn'), { theme:'outline', size:'medium', shape:'pill' });
+  watchShellSigninButton();
   if(!shellUser) google.accounts.id.prompt(); // only worth a silent attempt if we have no cached session already
 }
 initShellGoogleSignIn();
@@ -188,7 +229,13 @@ function signOutShell(){
   if(typeof google !== 'undefined' && google.accounts) google.accounts.id.disableAutoSelect();
   toggleShellAccountMenu(false);
   document.getElementById('shell-account-chip').style.display = 'none';
-  document.getElementById('shell-signin-btn').style.display = 'block';
+  const signinEl = document.getElementById('shell-signin-btn');
+  signinEl.style.display = 'block';
+  // Give the real Google button another chance on sign-out rather than
+  // staying stuck on the fallback link from a previous session.
+  signinEl.dataset.fallback = '';
+  signinEl.innerHTML = '';
+  if(typeof google !== 'undefined' && google.accounts) google.accounts.id.renderButton(signinEl, { theme:'outline', size:'medium', shape:'pill' });
   broadcastAuthState();
 }
 
