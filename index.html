@@ -12,9 +12,170 @@
 </head>
 <body>
 
+<iframe id="frame-landing"></iframe>
 <iframe id="frame-home"></iframe>
 <iframe id="frame-tutor"></iframe>
 <iframe id="frame-summary"></iframe>
+
+<script type="text/plain" id="src-landing"><!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chalkline — AI Study Tools</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&family=Caveat:wght@600;700&display=swap');
+
+:root{
+  --board-bg:#F3F9FE;
+  --ink:#1E2B3A;
+  --ochre:#2E7DBE;
+  --highlight:#D7ECFB;
+  --sage:#3E8FA6;
+  --brick:#3D6B93;
+  --panel-border:#D3E6F5;
+  --muted:#7C93A8;
+  --halo-blue:#6EA8FE;
+  --halo-blue-soft:#A5C8FF;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:'Source Serif 4', Georgia, serif;
+  color:var(--ink);
+  background:var(--board-bg);
+  min-height:100vh;
+  position:relative;
+  overflow-x:hidden;
+}
+
+.ambient-halo{
+  position:fixed; inset:0; z-index:0; overflow:hidden; pointer-events:none;
+}
+.ambient-halo::before,.ambient-halo::after{
+  content:''; position:absolute; width:60vmax;height:60vmax;
+  border-radius:50%; filter:blur(100px); opacity:0.26; mix-blend-mode:multiply;
+}
+.ambient-halo::before{
+  top:-22%; left:-18%;
+  background:radial-gradient(circle, var(--halo-blue) 0%, rgba(110,168,254,0) 70%);
+  animation:drift1 24s ease-in-out infinite;
+}
+.ambient-halo::after{
+  bottom:-25%; right:-15%;
+  background:radial-gradient(circle, var(--halo-blue-soft) 0%, rgba(165,200,255,0) 70%);
+  animation:drift2 28s ease-in-out infinite;
+}
+@keyframes drift1{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(10%,8%) scale(1.15);}}
+@keyframes drift2{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(-8%,-6%) scale(1.12);}}
+
+.wrap{ position:relative; z-index:1; max-width:1040px; margin:0 auto; padding:0 28px; }
+
+nav{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:26px 0 10px;
+}
+.brand{
+  font-family:'Caveat', cursive; font-weight:700; font-size:28px;
+  color:var(--ink); text-decoration:none; display:flex; align-items:center; gap:8px;
+}
+.brand .dot{ width:9px;height:9px;border-radius:50%; background:var(--ochre); display:inline-block; }
+.nav-links{ display:flex; gap:26px; font-family:'JetBrains Mono', monospace; font-size:13px; }
+.nav-links a{ color:var(--muted); text-decoration:none; }
+.nav-links a:hover{ color:var(--ink); }
+@media (max-width:680px){ .nav-links{ display:none; } }
+
+.go-app-btn{
+  font-family:'JetBrains Mono', monospace; font-size:12.5px;
+  color:var(--ink); text-decoration:none;
+  border:1px solid var(--panel-border); border-radius:999px;
+  padding:10px 20px; background:#fff;
+  transition:border-color .18s ease, transform .18s ease;
+}
+.go-app-btn:hover{ border-color:var(--ochre); transform:translateY(-1px); }
+
+.hero-card{
+  position:relative; z-index:1;
+  margin:56px 0 40px;
+  border-radius:26px;
+  padding:90px 40px;
+  text-align:center;
+  background:linear-gradient(120deg, var(--highlight) 0%, #EAF3FB 45%, #F6EFF9 100%);
+  overflow:hidden;
+}
+.hero-card::before{
+  content:''; position:absolute; inset:0;
+  background:radial-gradient(circle at 30% 20%, rgba(110,168,254,0.18), transparent 55%),
+             radial-gradient(circle at 80% 85%, rgba(62,143,166,0.16), transparent 55%);
+  pointer-events:none;
+}
+.hero-card h1{
+  position:relative; font-size:42px; line-height:1.22; font-weight:600;
+  margin:0 auto 20px; max-width:760px; letter-spacing:-0.01em;
+}
+.hero-card h1 .chalk{
+  font-family:'Caveat', cursive; font-weight:700; color:var(--ochre);
+}
+.hero-card p.sub{
+  position:relative; font-size:18px; color:#5c6f80; margin:0 0 34px;
+  font-family:'Source Serif 4', Georgia, serif;
+}
+.cta-btn{
+  position:relative; display:inline-block; text-decoration:none;
+  font-family:-apple-system,Segoe UI,sans-serif; font-weight:600; font-size:17px;
+  color:#fff; padding:16px 40px; border-radius:999px; border:none; cursor:pointer;
+  background:linear-gradient(90deg, var(--ochre), var(--sage));
+  box-shadow:0 10px 26px rgba(46,125,190,0.28);
+  transition:transform .18s ease, box-shadow .18s ease;
+}
+.cta-btn:hover{ transform:translateY(-2px); box-shadow:0 14px 32px rgba(46,125,190,0.34); }
+
+@media (max-width:680px){
+  .hero-card{ padding:60px 24px; border-radius:20px; }
+  .hero-card h1{ font-size:30px; }
+}
+
+footer{
+  border-top:1px solid var(--panel-border); padding:22px 0 40px;
+  font-family:'JetBrains Mono', monospace; font-size:11.5px; color:var(--muted);
+  display:flex; justify-content:center; gap:24px; flex-wrap:wrap; text-align:center;
+}
+footer a{ color:var(--muted); text-decoration:none; }
+footer a:hover{ color:var(--ink); }
+</style>
+</head>
+<body>
+
+<div class="ambient-halo"></div>
+
+<div class="wrap">
+  <nav>
+    <a class="brand" href="#" onclick="parent.postMessage({nav:'landing'},'*');return false;"><span class="dot"></span>Chalkline</a>
+    <div class="nav-links">
+      <a href="#" onclick="parent.postMessage({nav:'tutor'},'*');return false;">Live Tutor</a>
+      <a href="#" onclick="parent.postMessage({nav:'summary'},'*');return false;">Summary</a>
+      <a href="#" onclick="parent.postMessage({nav:'home'},'*');return false;">About</a>
+    </div>
+    <a class="go-app-btn" href="#" onclick="parent.postMessage({nav:'home'},'*');return false;">Go to App</a>
+  </nav>
+
+  <section class="hero-card">
+    <h1>Start with your notes, slides, <span class="chalk">or textbook.</span><br>Your first lesson is free.</h1>
+    <p class="sub">Try it on whatever's due tomorrow.</p>
+    <a class="cta-btn" href="#" onclick="parent.postMessage({nav:'home'},'*');return false;">Start for free</a>
+  </section>
+
+  <footer>
+    <a href="#" onclick="parent.postMessage({nav:'tutor'},'*');return false;">Live Tutor</a>
+    <a href="#" onclick="parent.postMessage({nav:'summary'},'*');return false;">Summary</a>
+    <a href="#" onclick="parent.postMessage({nav:'home'},'*');return false;">About</a>
+    <span>© Chalkline</span>
+  </footer>
+</div>
+
+</body>
+</html>
+<\/script>
 
 <script type="text/plain" id="src-home"><!DOCTYPE html>
 <html lang="en">
@@ -337,6 +498,33 @@ body{
 }
 .icon-btn:hover{background:#fff;}
 .top-right-cluster{display:flex;gap:10px;align-items:flex-start;}
+.login-pill{
+  position:absolute;
+  left:50%;
+  top:18px;
+  transform:translateX(-50%);
+  display:flex;
+  align-items:center;
+  gap:7px;
+  padding:9px 16px;
+  border-radius:999px;
+  border:none;
+  cursor:pointer;
+  background:rgba(255,255,255,0.9);
+  backdrop-filter:blur(6px);
+  box-shadow:0 1px 4px rgba(0,0,0,0.08), 0 0 0 4px rgba(15,55,145,0.35);
+  font-family:'JetBrains Mono', monospace;
+  font-size:12px;
+  color:var(--ink);
+  white-space:nowrap;
+  transition:background .15s ease;
+}
+.login-pill:hover{background:#fff;}
+@media (max-width:620px){
+  .login-pill span.pill-full{display:none;}
+  .login-pill span.pill-short{display:inline;}
+}
+.login-pill span.pill-short{display:none;}
 .topbar-btn-wrap{
   display:flex;
   flex-direction:column;
@@ -664,6 +852,9 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
       <span class="btn-label">Menu</span>
     </div>
   </div>
+  <button class="login-pill" id="btn-login-pill" title="Login to save your work">
+    🔒<span class="pill-full">Login to save your work</span><span class="pill-short">Login</span>
+  </button>
   <div class="top-right-cluster">
     <div class="status-chip" id="status-line">idle</div>
     <div class="topbar-btn-wrap">
@@ -2747,6 +2938,7 @@ function handleGoogleCredential(response){
   document.getElementById('account-signed-in').style.display = 'block';
   document.getElementById('account-avatar').src = claims.picture || '';
   document.getElementById('account-name').textContent = claims.name || claims.email || 'Signed in';
+  updateLoginPillVisibility();
   // TODO: once a backend exists, this is where you'd send
   // response.credential to it to verify the token and fetch/merge that
   // user's saved sessions instead of just relighting the local list.
@@ -2771,7 +2963,17 @@ document.getElementById('btn-sign-out').addEventListener('click', ()=>{
   document.getElementById('account-signed-in').style.display = 'none';
   document.getElementById('account-signed-out').style.display = 'block';
   refreshSessionList();
+  updateLoginPillVisibility();
 });
+
+// Top-of-canvas reminder pill: only shown while signed out, opens the
+// Account section of the side panel so the person can sign in with Google.
+function updateLoginPillVisibility(){
+  const pill = document.getElementById('btn-login-pill');
+  if(pill) pill.style.display = currentUser ? 'none' : 'flex';
+}
+document.getElementById('btn-login-pill').addEventListener('click', openPanel);
+updateLoginPillVisibility();
 // -----------------------------------------------------------------------
 
 function transcriptToHtmlSnapshot(){ return transcriptEl.innerHTML; }
@@ -3330,12 +3532,13 @@ function unwrap(id){
   return document.getElementById(id).textContent.replace(/<\\\/script/gi, '</script');
 }
 const frames = {
+  landing: document.getElementById('frame-landing'),
   home: document.getElementById('frame-home'),
   tutor: document.getElementById('frame-tutor'),
   summary: document.getElementById('frame-summary')
 };
-const loaded = { home:false, tutor:false, summary:false };
-let current = 'home';
+const loaded = { landing:false, home:false, tutor:false, summary:false };
+let current = 'landing';
 
 function ensureLoaded(page){
   if(loaded[page]) return;
@@ -3344,7 +3547,7 @@ function ensureLoaded(page){
 }
 
 function navTo(page, pushHistory){
-  if(!frames[page]) page = 'home';
+  if(!frames[page]) page = 'landing';
   ensureLoaded(page);
   Object.keys(frames).forEach(k => frames[k].classList.toggle('active', k === page));
   current = page;
@@ -3359,11 +3562,11 @@ window.addEventListener('message', (e)=>{
 });
 
 window.addEventListener('popstate', (e)=>{
-  const page = (e.state && e.state.page) || (location.hash ? location.hash.slice(1) : 'home');
+  const page = (e.state && e.state.page) || (location.hash ? location.hash.slice(1) : 'landing');
   navTo(page, false);
 });
 
-const initial = location.hash ? location.hash.slice(1) : 'home';
+const initial = location.hash ? location.hash.slice(1) : 'landing';
 history.replaceState({page: initial}, '', '#' + initial);
 navTo(initial, false);
 </script>
