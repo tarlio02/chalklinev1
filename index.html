@@ -716,7 +716,7 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
     <div class="p-section">
       <h2>Narrator voice</h2>
       <select class="topic-input" id="voice-select" style="height:auto;padding:9px 10px;"></select>
-      <div class="file-meta" style="margin-top:6px;">Auto-picks the highest-quality voice your browser/OS offers. Chrome and Edge on Windows/Mac usually have the best options.</div>
+      <div class="file-meta" style="margin-top:6px;">"Natural" voices are ElevenLabs (free-tier, richer sound). Browser voices are free and instant but more robotic. Falls back to browser voice automatically if the natural voice can't be reached.</div>
     </div>
     <div class="p-section">
       <h2>Source material</h2>
@@ -1960,6 +1960,15 @@ let currentSpeechToken = 0;
 let bestVoice = null;
 let voicesReady = false;
 
+// Free-tier ElevenLabs preset voices (their default public voice IDs).
+// These work out of the box on any ElevenLabs account's free tier.
+const ELEVEN_VOICES = [
+  { id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel' },
+  { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Bella' },
+  { id: 'pNInz6obpgDQGcFmaJgB', name: 'Adam' },
+  { id: 'ErXwobaYiN019PkySvjV', name: 'Antoni' },
+];
+
 function scoreVoice(v){
   let score = 0;
   const name = v.name || '';
@@ -2009,17 +2018,37 @@ function populateVoiceDropdown(){
   if(!sel) return;
   const voices = window.speechSynthesis.getVoices().filter(v => /^en/i.test(v.lang));
   const pool = voices.length ? voices : window.speechSynthesis.getVoices();
-  if(!pool.length) return;
   const currentVal = sel.value;
+  const hadAnyValue = sel.options.length > 0;
   sel.innerHTML = '';
-  pool.sort((a,b)=> scoreVoice(b)-scoreVoice(a)).forEach(v=>{
+
+  const naturalGroup = document.createElement('optgroup');
+  naturalGroup.label = 'Natural (ElevenLabs, free tier)';
+  ELEVEN_VOICES.forEach(v => {
     const opt = document.createElement('option');
-    opt.value = v.name;
-    opt.textContent = v.name + (v.localService ? '' : ' (network)');
-    sel.appendChild(opt);
+    opt.value = 'el:' + v.id;
+    opt.textContent = v.name;
+    naturalGroup.appendChild(opt);
   });
-  if(currentVal && pool.some(v=>v.name===currentVal)){
+  sel.appendChild(naturalGroup);
+
+  if(pool.length){
+    const browserGroup = document.createElement('optgroup');
+    browserGroup.label = 'Browser voices (free, instant)';
+    pool.sort((a,b)=> scoreVoice(b)-scoreVoice(a)).forEach(v=>{
+      const opt = document.createElement('option');
+      opt.value = v.name;
+      opt.textContent = v.name + (v.localService ? '' : ' (network)');
+      browserGroup.appendChild(opt);
+    });
+    sel.appendChild(browserGroup);
+  }
+
+  const allValues = Array.from(sel.options).map(o => o.value);
+  if(currentVal && allValues.includes(currentVal)){
     sel.value = currentVal;
+  } else if(!hadAnyValue){
+    sel.value = 'el:' + ELEVEN_VOICES[0].id; // default to a natural voice on first load
   } else if(bestVoice){
     sel.value = bestVoice.name;
   }
@@ -2065,8 +2094,18 @@ function renderCaption(fullText, chunkStartIndex, chunkText){
 }
 
 function speak(text){
+  const sel = document.getElementById('voice-select');
+  if(sel && sel.value && sel.value.startsWith('el:')){
+    speakElevenLabs(text, sel.value.slice(3));
+  } else {
+    speakBrowser(text);
+  }
+}
+
+function speakBrowser(text){
   if(!('speechSynthesis' in window)) return;
   window.speechSynthesis.cancel();
+  stopElevenLabsAudio();
   const myToken = ++currentSpeechToken;
   currentUtteranceText = text;
   const chunks = splitIntoSpeechChunks(text);
@@ -2099,6 +2138,85 @@ function speak(text){
     window.speechSynthesis.speak(utter);
   }
   speakChunk(0);
+}
+
+// ---------- ElevenLabs "natural voice" path ----------
+// Requires a /tts route on the Chalkline proxy worker that forwards to
+// ElevenLabs using a server-held API key (see setup notes). If that route
+// isn't set up yet, or the free-tier quota runs out, each chunk silently
+// falls back to the browser voice instead of going silent.
+let currentAudioEls = [];
+function stopElevenLabsAudio(){
+  currentAudioEls.forEach(a => { try{ a.pause(); a.src=''; }catch(e){} });
+  currentAudioEls = [];
+}
+
+async function fetchElevenLabsAudio(text, voiceId){
+  const response = await fetch(`${PROXY_URL}/tts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, voice_id: voiceId })
+  });
+  if(!response.ok) throw new Error('tts http ' + response.status);
+  const blob = await response.blob();
+  return URL.createObjectURL(blob);
+}
+
+function speakBrowserChunkFallback(chunkText, onDone){
+  if(!('speechSynthesis' in window)){ onDone(); return; }
+  const utter = new SpeechSynthesisUtterance(chunkText);
+  utter.rate = 0.96;
+  if(bestVoice) utter.voice = bestVoice;
+  utter.onstart = () => avatar.classList.add('speaking');
+  utter.onend = onDone;
+  utter.onerror = onDone;
+  window.speechSynthesis.speak(utter);
+}
+
+function speakElevenLabs(text, voiceId){
+  window.speechSynthesis.cancel();
+  stopElevenLabsAudio();
+  const myToken = ++currentSpeechToken;
+  currentUtteranceText = text;
+  const chunks = splitIntoSpeechChunks(text);
+  let searchPos = 0;
+  const chunkOffsets = chunks.map(c => {
+    const idx = text.indexOf(c, searchPos);
+    searchPos = idx >= 0 ? idx + c.length : searchPos;
+    return idx >= 0 ? idx : searchPos;
+  });
+
+  const audioCache = new Array(chunks.length).fill(null);
+  function ensureFetched(i){
+    if(i < 0 || i >= chunks.length) return null;
+    if(!audioCache[i]){
+      audioCache[i] = fetchElevenLabsAudio(chunks[i], voiceId).catch(err => {
+        console.error('ElevenLabs TTS failed for this line, falling back to browser voice:', err);
+        return null;
+      });
+    }
+    return audioCache[i];
+  }
+
+  async function playChunk(i){
+    if(myToken !== currentSpeechToken) return;
+    if(i >= chunks.length){ avatar.classList.remove('speaking'); return; }
+    renderCaption(text, chunkOffsets[i], chunks[i]);
+    ensureFetched(i+1); // prefetch the next line while this one plays, to avoid gaps
+    const url = await ensureFetched(i);
+    if(myToken !== currentSpeechToken) return;
+    if(!url){
+      speakBrowserChunkFallback(chunks[i], () => playChunk(i+1));
+      return;
+    }
+    const audioEl = new Audio(url);
+    currentAudioEls.push(audioEl);
+    audioEl.onplay = () => avatar.classList.add('speaking');
+    audioEl.onended = () => { if(myToken === currentSpeechToken) playChunk(i+1); };
+    audioEl.onerror = () => { if(myToken === currentSpeechToken) playChunk(i+1); };
+    audioEl.play().catch(() => { if(myToken === currentSpeechToken) playChunk(i+1); });
+  }
+  playChunk(0);
 }
 document.getElementById('btn-replay').addEventListener('click', ()=>{ if(currentUtteranceText) speak(currentUtteranceText); });
 
