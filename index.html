@@ -768,7 +768,7 @@ const RULE_LINE_SPACING = 40;
 
 // The multiplier that converts an author-specified "size" into the actual
 // world-unit font size used for handwriting. Readable but still compact.
-const HAND_SIZE_MULT = 1.18;
+const HAND_SIZE_MULT = 0.92;
 // Line height for a block of text at a given (already-multiplied) world
 // font size, snapped to a whole number of ruled-paper lines so every line
 // of handwriting sits on (or a fixed offset from) an actual rule line —
@@ -966,7 +966,7 @@ function commandScreenBBox(cmd){
     case 'text': {
       const fam = "'Kalam', 'Caveat', cursive";
       const weight = cmd.weight || 700;
-      const size = (cmd.size||26)*HAND_SIZE_MULT;
+      const size = (cmd.size||20)*HAND_SIZE_MULT;
       ctx.font = `${weight} ${sw(size)}px ${fam}`;
       const [sx,sy] = worldToScreen(cmd.x, cmd.y);
       if(cmd.maxWidth){
@@ -1099,7 +1099,7 @@ function renderCommand(cmd){
     case 'text': {
       const fam = "'Kalam', 'Caveat', cursive";
       const weight = cmd.weight || 700;
-      const size = (cmd.size||26)*HAND_SIZE_MULT;
+      const size = (cmd.size||20)*HAND_SIZE_MULT;
       ctx.font = `${weight} ${sw(size)}px ${fam}`;
       ctx.textBaseline = 'alphabetic';
       const [sx,sy] = worldToScreen(cmd.x, cmd.y);
@@ -1675,6 +1675,12 @@ function translateDiagramCmd(c, dx, dy){
 const DIAGRAM_MARGIN_TOP = RULE_LINE_SPACING;
 const DIAGRAM_MARGIN_BOTTOM = RULE_LINE_SPACING*2;
 const DIAGRAM_LEFT = 160;
+// Extra slack added to a diagram cluster's measured bounding box before
+// reserving space for it — line widths, arrowheads, and the rough
+// diagramLabel text-width estimate all extend a little past the raw
+// coordinates used to measure the box, so this keeps a real gap between
+// a diagram and the text immediately above/below it.
+const DIAGRAM_BBOX_PAD = 18;
 
 function enqueueCommandsAtCursor(commands){
     let placedAll = [];
@@ -1697,6 +1703,7 @@ function enqueueCommandsAtCursor(commands){
             maxX = Math.max(maxX, bb[2]); maxY = Math.max(maxY, bb[3]);
         });
         if(minX === Infinity){ pendingDiagram = []; return; } // nothing measurable
+        minY -= DIAGRAM_BBOX_PAD; maxY += DIAGRAM_BBOX_PAD;
 
         globalCursorY += DIAGRAM_MARGIN_TOP;
         const dx = DIAGRAM_LEFT - minX;
@@ -1740,7 +1747,7 @@ function enqueueCommandsAtCursor(commands){
         if (c.type === 'text') {
             c.x = 80; // Sit close to the left margin line
             c.maxWidth = 930; // Use nearly the full line width before wrapping
-            const size = (c.size || 26) * HAND_SIZE_MULT;
+            const size = (c.size || 20) * HAND_SIZE_MULT;
             const fam = "'Kalam', 'Caveat', cursive";
             tCtx.font = `${c.weight || 700} ${size}px ${fam}`;
             
@@ -1890,7 +1897,7 @@ function renderPartialCommand(cmd, t){
       const full = cmd.text || '';
       const fam = "'Kalam', 'Caveat', cursive";
       const weight = cmd.weight || 700;
-      const size = (cmd.size||26)*HAND_SIZE_MULT;
+      const size = (cmd.size||20)*HAND_SIZE_MULT;
       ctx.font = `${weight} ${sw(size)}px ${fam}`;
       const [sx,sy] = worldToScreen(cmd.x, cmd.y);
       if(cmd.maxWidth){
@@ -2376,7 +2383,7 @@ NEVER WRITE LaTeX/TeX MARKUP ON THE BOARD. There is no math typesetting engine �
 This rule applies to every "text" command, including headings, definitions, and worked equations — plain readable notation only, exactly like natural handwriting on a real whiteboard.
 
 Available command types:
-- {"type":"text","x":..,"y":..,"text":"...","size":26,"color":"ink|ochre|sage|brick|teal|violet|sky|coral","mono":false,"weight":700,"maxWidth":800,"heading":false,"diagramLabel":false} — set "diagramLabel":true when this text labels a part of a diagram rather than being paragraph prose (see diagram rules above); otherwise leave it false/omitted. Set "heading":true ONLY for a section/topic title (e.g. "2. The Friedman-Phelps Critique"). The app automatically underlines heading text and inserts a blank ruled line above it, so DO NOT manually add a blank line or a "---"/underscore divider before a heading yourself — just set "heading":true and let the app handle the spacing and underline. Use a larger "size" (e.g. 32-40) for headings too, but "heading":true is what actually triggers the underline and spacing, not the size alone.
+- {"type":"text","x":..,"y":..,"text":"...","size":20,"color":"ink|ochre|sage|brick|teal|violet|sky|coral","mono":false,"weight":700,"maxWidth":800,"heading":false,"diagramLabel":false} — keep body/paragraph text small and legible: use "size" around 18-20 for normal notes, and only 14-16 for a diagram's small "diagramLabel" part-labels. Set "diagramLabel":true when this text labels a part of a diagram rather than being paragraph prose (see diagram rules above); otherwise leave it false/omitted. Set "heading":true ONLY for a section/topic title (e.g. "2. The Friedman-Phelps Critique"). The app automatically underlines heading text and inserts a blank ruled line above it, so DO NOT manually add a blank line or a "---"/underscore divider before a heading yourself — just set "heading":true and let the app handle the spacing and underline. Use a somewhat larger "size" (e.g. 24-28, NOT 32+) for headings — keep everything compact rather than oversized, but "heading":true is what actually triggers the underline and spacing, not the size alone.
 - {"type":"halo","x":..,"y":..,"r":50,"color":"halo|ochre|sage|teal|violet|sky|coral"}
 - {"type":"line","x1":..,"y1":..,"x2":..,"y2":..,"color":"ink","width":2.5}
 - {"type":"arrow","x1":..,"y1":..,"x2":..,"y2":..,"color":"ochre","width":2.5}
@@ -2391,6 +2398,7 @@ Available command types:
 DRAWING ACTUAL PICTURES (cells, leaves, animals, organs, diagrams, maps, anything representational):
 - Build the picture out of several layered primitives rather than one shape: an outer outline ("path" or filled "circle"/"curve"), then inner structures on top (smaller filled "circle"/"path" shapes for a nucleus, mitochondria, veins, etc.), then label the parts with a short "arrow" pointing from the label to the structure plus a small "text" command (with "diagramLabel":true) for the label word — exactly like a real teacher labels a diagram they've just drawn.
 - Trace organic outlines ("path") the way you'd actually sketch them by hand: a handful of "M"/"C"/"Q" segments roughly following the real silhouette (e.g. a leaf is a pointed oval with a "Z" to close it, a cell is a wobbly rounded "path" rather than a perfect "circle", a dog is several overlapping "path"/"circle" shapes for the head, snout, ears, body, legs, tail). It does not need to be photorealistic — a clean, recognizable line-art sketch is the goal, the same level of detail a lecturer would actually draw on a whiteboard, not a single crude blob.
+- FOR SMOOTH CURVES: prefer "Q" (quadratic) and "C" (cubic) segments over "L" (straight-line) segments whenever a silhouette is meant to curve — a long run of short "L" segments renders as a jagged, faceted outline, while a handful of well-placed "Q"/"C" segments renders as one smooth stroke. Reserve "L" for parts that are genuinely straight or angular (a stem, a table edge, a right angle). For a "curve" command, give it enough points to describe the bend smoothly (roughly 5-10 for a gentle arc, more for an S-shape) rather than just 2-3 points, since too few points makes the curve look kinked instead of flowing.
 - Use "fill":true with a low "fillOpacity" (0.08–0.18) on the shapes that should read as solid regions, and leave fine detail (veins, membrane texture, fur lines) as unfilled "curve"/"path"/"line" strokes on top.
 - A diagram like this still occupies its own vertical slot on the board like a graph does. Give it a normal "text" heading above it (heading text, NOT diagramLabel) introducing what it is, then emit the whole diagram — every shape plus every "diagramLabel":true part-label — as one unbroken run in local coordinates (rule 4/5/6 above). The app positions and reserves space for the whole run as a single block, so it never overlaps the text before or after it.
 
