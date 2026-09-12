@@ -94,6 +94,16 @@ nav{
 }
 .go-app-btn:hover{ border-color:var(--ochre); transform:translateY(-1px); }
 
+.nav-right{ display:flex; align-items:center; gap:14px; }
+#google-signin-btn-landing{ line-height:0; }
+.account-chip{
+  display:flex; align-items:center; gap:8px;
+  font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--ink);
+  background:#fff; border:1px solid var(--panel-border); border-radius:999px;
+  padding:5px 14px 5px 5px;
+}
+.account-chip img{ width:24px; height:24px; border-radius:50%; }
+
 .hero-card{
   position:relative; z-index:1;
   margin:56px 0 40px;
@@ -152,11 +162,20 @@ footer a:hover{ color:var(--ink); }
   <nav>
     <a class="brand" href="#" onclick="parent.postMessage({nav:'landing'},'*');return false;"><span class="dot"></span>Chalkline</a>
     <div class="nav-links">
-      <a href="#" onclick="parent.postMessage({nav:'tutor'},'*');return false;">Live Tutor</a>
-      <a href="#" onclick="parent.postMessage({nav:'summary'},'*');return false;">Summary</a>
       <a href="#" onclick="parent.postMessage({nav:'home'},'*');return false;">About</a>
     </div>
-    <a class="go-app-btn" href="#" onclick="parent.postMessage({nav:'home'},'*');return false;">Go to App</a>
+    <div class="nav-right">
+      <div id="account-signed-out-landing">
+        <div id="google-signin-btn-landing"></div>
+      </div>
+      <div id="account-signed-in-landing" style="display:none;">
+        <div class="account-chip">
+          <img id="account-avatar-landing" alt="">
+          <span id="account-name-landing"></span>
+        </div>
+      </div>
+      <a class="go-app-btn" href="#" onclick="parent.postMessage({nav:'home'},'*');return false;">Go to App</a>
+    </div>
   </nav>
 
   <section class="hero-card">
@@ -166,12 +185,47 @@ footer a:hover{ color:var(--ink); }
   </section>
 
   <footer>
-    <a href="#" onclick="parent.postMessage({nav:'tutor'},'*');return false;">Live Tutor</a>
-    <a href="#" onclick="parent.postMessage({nav:'summary'},'*');return false;">Summary</a>
     <a href="#" onclick="parent.postMessage({nav:'home'},'*');return false;">About</a>
     <span>© Chalkline</span>
   </footer>
 </div>
+
+<script src="https://accounts.google.com/gsi/client" async defer><\/script>
+<script>
+// Same placeholder as the tutor page — replace with your real OAuth
+// Client ID from Google Cloud Console to enable sign-in.
+const GOOGLE_CLIENT_ID_LANDING = "YOUR-GOOGLE-CLIENT-ID.apps.googleusercontent.com";
+
+function decodeGoogleIdTokenLanding(jwt){
+  const payload = jwt.split('.')[1];
+  const json = decodeURIComponent(atob(payload.replace(/-/g,'+').replace(/_/g,'/')).split('').map(c=>
+    '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
+  ).join(''));
+  return JSON.parse(json);
+}
+
+function handleGoogleCredentialLanding(response){
+  const claims = decodeGoogleIdTokenLanding(response.credential);
+  document.getElementById('account-signed-out-landing').style.display = 'none';
+  document.getElementById('account-signed-in-landing').style.display = 'block';
+  document.getElementById('account-avatar-landing').src = claims.picture || '';
+  document.getElementById('account-name-landing').textContent = claims.name || claims.email || 'Signed in';
+  // TODO: once a backend exists, send response.credential there to verify
+  // the token and load/merge this person's saved sessions.
+}
+
+function initGoogleSignInLanding(){
+  if(typeof google === 'undefined' || !google.accounts){ setTimeout(initGoogleSignInLanding, 300); return; }
+  if(GOOGLE_CLIENT_ID_LANDING.startsWith('YOUR-')){
+    document.getElementById('google-signin-btn-landing').innerHTML =
+      '<a class="go-app-btn" href="#" style="cursor:default;" title="Add a Google OAuth Client ID to enable sign-in">Login</a>';
+    return;
+  }
+  google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID_LANDING, callback: handleGoogleCredentialLanding });
+  google.accounts.id.renderButton(document.getElementById('google-signin-btn-landing'), { theme:'outline', size:'medium', shape:'pill' });
+}
+initGoogleSignInLanding();
+<\/script>
 
 </body>
 </html>
