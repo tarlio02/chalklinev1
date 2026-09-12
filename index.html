@@ -1234,12 +1234,7 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
     </div>
     <div class="p-section">
       <h2>AI brain</h2>
-      <select class="topic-input" id="brain-select" style="height:auto;padding:9px 10px;">
-        <option value="gemini">Google Gemini</option>
-        <option value="groq">Groq (Llama)</option>
-        <option value="openrouter">OpenRouter (free models)</option>
-        <option value="cerebras">Cerebras (Llama)</option>
-      </select>
+      <div class="file-meta" style="margin-top:2px;">Chalkline automatically tries Groq first, then falls back to Gemini, then OpenRouter, until one responds — no manual switching needed.</div>
       <div class="file-meta" style="margin-top:6px;">Requests go through the Chalkline proxy — no key needed from you.</div>
     </div>
     <div class="p-section">
@@ -2981,16 +2976,20 @@ SPEECH/BOARD SYNC:
 - "speech" and "board" describe the SAME small piece of content — don't narrate something in "speech" that isn't also appearing on the board, and don't put board content that "speech" never refers to. Keep both scoped to the exact same single idea for this turn so what the student hears matches what they see appear at the same time.`;
 
 let conversationHistory = [];
-let aiBrain = 'gemini';
 const PROXY_URL = "https://api.takundamambudzi02.workers.dev";
-
-document.getElementById('brain-select').addEventListener('change', (e)=>{
-  aiBrain = e.target.value;
-});
 
 // Holds {mimeType, base64} for an image attached to the message currently
 // being sent — only read by callGemini() for that one turn, then cleared.
 let currentTurnImage = null;
+
+// AI backend selection is automatic: try Groq first (fastest/cheapest),
+// fall back to Gemini if Groq fails or is rate-limited, and OpenRouter's
+// free tier as the last resort if both are down. No manual switching.
+const AI_BACKEND_CHAIN = [
+  { name: 'Groq', call: () => callGroq() },
+  { name: 'Gemini', call: () => callGemini() },
+  { name: 'OpenRouter', call: () => callOpenRouter() }
+];
 
 async function callTutor(userMessage, imageAttachment){
   setStatus('thinking…');
@@ -3003,17 +3002,25 @@ async function callTutor(userMessage, imageAttachment){
   conversationHistory.push({role:'user', content: fullUserContent});
   currentTurnImage = imageAttachment || null;
 
-  let result;
-  if(aiBrain === 'groq') result = await callGroq();
-  else if(aiBrain === 'openrouter') result = await callOpenRouter();
-  else if(aiBrain === 'cerebras') result = await callCerebras();
-  else result = await callGemini();
+  let result = null;
+  for(const engine of AI_BACKEND_CHAIN){
+    setStatus(AI_BACKEND_CHAIN.indexOf(engine)===0 ? 'thinking…' : `thinking… (trying ${engine.name})`);
+    try{
+      result = await engine.call();
+    } catch(e){
+      console.error(`${engine.name} threw unexpectedly:`, e);
+      result = { ok:false, status:`${engine.name} error`, errorSpeech:`${engine.name} failed unexpectedly.` };
+    }
+    if(result.ok) break;
+    console.warn(`${engine.name} failed, falling back to the next AI backend:`, result.status);
+  }
   currentTurnImage = null;
 
   if(!result.ok){
     conversationHistory.pop();
     setStatus(result.status || 'error — see console');
-    return { speech: result.errorSpeech, board: [] };
+    console.error('All AI backends failed. Last error:', result.status, result.errorSpeech);
+    return { speech: "Sorry, the AI tutor isn't available right now. Please try again in a moment.", board: [] };
   }
 
   try{
