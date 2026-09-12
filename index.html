@@ -3161,9 +3161,35 @@ function renderCaption(fullText, chunkStartIndex, chunkText){
   captionText.innerHTML = `<span class="fading">${escapeHtml(fadedPart)}</span><span>${escapeHtml(freshPart)}</span>`;
 }
 
+// Cloudflare Workers AI voice (MeloTTS), proxied through the same worker
+// as the text models — used ONLY for speaking the tutor's explanations
+// aloud, never for generating lesson text/content itself. If the
+// Cloudflare call fails for any reason (rate limit, network, proxy not
+// deployed yet), speakChunk() below falls back to the browser's built-in
+// speechSynthesis so the tutor never goes silent.
+let currentAudioEl = null;
+
+async function fetchCloudflareVoice(text){
+  if(PROXY_URL.includes('YOUR-WORKER-SUBDOMAIN')) return null;
+  try{
+    const resp = await fetch(`${PROXY_URL}/tts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, lang: 'en' })
+    });
+    if(!resp.ok) return null;
+    const blob = await resp.blob();
+    if(blob.size === 0) return null;
+    return URL.createObjectURL(blob);
+  } catch(e){
+    console.warn('Cloudflare voice request failed, falling back to browser voice:', e);
+    return null;
+  }
+}
+
 function speak(text){
-  if(!('speechSynthesis' in window)) return;
-  window.speechSynthesis.cancel();
+  window.speechSynthesis && window.speechSynthesis.cancel();
+  if(currentAudioEl){ currentAudioEl.pause(); currentAudioEl = null; }
   const myToken = ++currentSpeechToken;
   currentUtteranceText = text;
   const chunks = splitIntoSpeechChunks(text);
@@ -3176,15 +3202,13 @@ function speak(text){
 
   const voice = getSelectedVoice();
 
-  function speakChunk(i){
-    if(myToken !== currentSpeechToken) return;
-    if(i >= chunks.length){ avatar.classList.remove('speaking'); return; }
+  function speakChunkBrowser(i){
+    if(!('speechSynthesis' in window)){ avatar.classList.remove('speaking'); return; }
     const utter = new SpeechSynthesisUtterance(chunks[i]);
     utter.rate = 0.96;
     utter.pitch = 1.0;
     utter.volume = 1.0; // Enforces maximum browser volume output
     if(voice) utter.voice = voice;
-    renderCaption(text, chunkOffsets[i], chunks[i]);
     utter.onstart = () => avatar.classList.add('speaking');
     utter.onend = () => {
       if(myToken !== currentSpeechToken) return;
@@ -3193,6 +3217,34 @@ function speak(text){
     };
     utter.onerror = () => { if(myToken === currentSpeechToken) speakChunk(i+1); };
     window.speechSynthesis.speak(utter);
+  }
+
+  async function speakChunk(i){
+    if(myToken !== currentSpeechToken) return;
+    if(i >= chunks.length){ avatar.classList.remove('speaking'); return; }
+    renderCaption(text, chunkOffsets[i], chunks[i]);
+
+    const audioUrl = await fetchCloudflareVoice(chunks[i]);
+    if(myToken !== currentSpeechToken) return;
+
+    if(audioUrl){
+      const audioEl = new Audio(audioUrl);
+      currentAudioEl = audioEl;
+      audioEl.onplay = () => avatar.classList.add('speaking');
+      audioEl.onended = () => {
+        URL.revokeObjectURL(audioUrl);
+        if(myToken !== currentSpeechToken) return;
+        const pause = /\?\s*$/.test(chunks[i]) ? 260 : 140;
+        setTimeout(()=> speakChunk(i+1), pause);
+      };
+      audioEl.onerror = () => {
+        URL.revokeObjectURL(audioUrl);
+        if(myToken === currentSpeechToken) speakChunkBrowser(i);
+      };
+      audioEl.play().catch(()=> speakChunkBrowser(i));
+    } else {
+      speakChunkBrowser(i);
+    }
   }
   speakChunk(0);
 }
