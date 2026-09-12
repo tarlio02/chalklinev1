@@ -245,18 +245,21 @@ footer{
 <title>Chalkline — AI Whiteboard Tutor</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"><\/script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"><\/script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"><\/script>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Kalam:wght@400;700&family=Noto+Sans+Symbols+2&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Kalam:wght@400;700&family=Noto+Sans+Symbols+2&family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
 
 :root{
   --board-bg:#FFFFFF;
-  --board-line:#E0D9C8;
-  --margin-line:#E08080;
   --ink:#1E2B3A;
   --ochre:#2E7DBE;
   --highlight:#D7ECFB;
   --sage:#3E8FA6;
   --brick:#3D6B93;
+  --teal:#0F8C82;
+  --violet:#7C5CBF;
+  --sky:#2AA9E0;
+  --coral:#E0665A;
   --panel:#FFFFFF;
   --panel-border:#D3E6F5;
   --muted:#7C93A8;
@@ -267,31 +270,168 @@ footer{
 *{box-sizing:border-box;}
 html,body{margin:0;height:100%;}
 body{
-  font-family:'Source Serif 4', Georgia, serif;
+  font-family:'Inter', -apple-system, 'Source Serif 4', Georgia, serif;
   color:var(--ink);
   height:100vh;
   overflow:hidden;
   background:var(--board-bg);
 }
 
-#board-wrap{
+/* =========================================================
+   NEW WHITEBOARD: vertical document-flow presentation layer
+   ========================================================= */
+#board-scroll{
   position:fixed;
   inset:0;
-  box-shadow: inset 0 0 35px rgba(0, 150, 255, 0.45), inset 0 0 70px rgba(0, 229, 255, 0.25);
-  border: 3px solid rgba(0, 180, 255, 0.6);
-  z-index: 2;
-  pointer-events: none;
+  overflow-y:auto;
+  overflow-x:hidden;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior-y:contain;
+  background:#fff;
+  z-index:2;
 }
-#board{
-  width:100%;
-  height:100%;
+#board-content{
+  max-width:760px;
+  margin:0 auto;
+  padding:96px 22px 260px;
+  display:flex;
+  flex-direction:column;
+  min-height:100%;
+}
+#board-content.empty::before{
+  content:'Ask a question, upload a PDF, or hit "Teach this" to start a lesson.';
   display:block;
-  cursor:grab;
-  pointer-events: auto;
-  touch-action: none;
+  margin-top:40vh;
+  text-align:center;
+  color:var(--muted);
+  font-size:15px;
+  font-family:'Inter',sans-serif;
 }
-#board.grabbing{cursor:grabbing;}
-#board.hoverable{cursor:pointer;}
+
+.board-block{
+  opacity:0;
+  transform:translateY(10px);
+  transition:opacity .45s ease, transform .45s ease;
+  margin:0 0 4px;
+}
+.board-block.in{opacity:1;transform:translateY(0);}
+
+.b-heading{
+  font-family:'Kalam', cursive;
+  font-weight:700;
+  font-size:30px;
+  line-height:1.3;
+  margin:30px 0 14px;
+  padding-bottom:8px;
+  border-bottom:2.5px solid currentColor;
+  display:inline-block;
+  word-wrap:break-word;
+  max-width:100%;
+}
+.b-heading:first-child{margin-top:0;}
+
+.b-text{
+  font-family:'Inter', -apple-system, sans-serif;
+  font-size:16.5px;
+  line-height:1.65;
+  margin:0 0 12px;
+  word-wrap:break-word;
+  max-width:100%;
+}
+.b-text.hand{
+  font-family:'Kalam', cursive;
+  font-size:19px;
+}
+
+.b-equation{
+  font-family:'Kalam', 'JetBrains Mono', monospace;
+  font-size:19px;
+  line-height:1.5;
+  background:#F7FBFF;
+  border:1px solid var(--panel-border);
+  border-left:3px solid var(--ochre);
+  border-radius:6px;
+  padding:10px 16px;
+  margin:6px 0 14px;
+  display:block;
+  white-space:pre-wrap;
+  word-break:break-word;
+}
+
+.b-diagram{
+  margin:14px auto 20px;
+  padding:14px;
+  background:#fff;
+  border:1px solid var(--panel-border);
+  border-radius:10px;
+  display:flex;
+  justify-content:center;
+  max-width:100%;
+}
+.b-diagram svg{ width:100%; height:auto; max-width:520px; display:block; }
+
+.b-plot{
+  margin:14px auto 20px;
+  padding:12px;
+  background:#fff;
+  border:1px solid var(--panel-border);
+  border-radius:10px;
+  max-width:100%;
+}
+.b-plot canvas{ width:100%; height:auto; display:block; }
+.b-plot .b-plot-title{
+  font-family:'Inter',sans-serif; font-weight:600; font-size:13px; color:var(--muted);
+  text-align:center; margin-bottom:6px; letter-spacing:.2px;
+}
+
+.b-figure{
+  margin:14px auto 22px;
+  max-width:100%;
+  text-align:center;
+}
+.b-figure img{
+  width:100%;
+  max-width:520px;
+  border-radius:8px;
+  border:1px solid var(--panel-border);
+  display:block;
+  margin:0 auto;
+}
+.b-figure figcaption{
+  font-family:'Inter',sans-serif;
+  font-size:12.5px;
+  color:var(--muted);
+  margin-top:7px;
+}
+
+#scroll-to-latest{
+  position:fixed;
+  right:22px;
+  bottom:140px;
+  z-index:19;
+  background:#fff;
+  border:1px solid var(--panel-border);
+  box-shadow:0 3px 12px rgba(0,0,0,0.1);
+  border-radius:20px;
+  padding:7px 14px;
+  font-family:'Inter',sans-serif;
+  font-size:12.5px;
+  font-weight:600;
+  color:var(--ochre);
+  cursor:pointer;
+  opacity:0;
+  pointer-events:none;
+  transform:translateY(6px);
+  transition:opacity .18s ease, transform .18s ease;
+}
+#scroll-to-latest.show{opacity:1;pointer-events:auto;transform:translateY(0);}
+
+@media (max-width:600px){
+  #board-content{padding:88px 16px 240px;}
+  .b-heading{font-size:24px !important;}
+  .b-text{font-size:15.5px;}
+  .b-text.hand{font-size:18px;}
+}
 
 .ambient-halo{
   position:fixed;
@@ -630,9 +770,10 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
 <body>
 
 <div class="ambient-halo"></div>
-<div id="board-wrap">
-  <canvas id="board"></canvas>
+<div id="board-scroll">
+  <div id="board-content" class="empty"></div>
 </div>
+<div id="scroll-to-latest">↓ Jump to latest</div>
 
 <div class="topbar">
   <div class="topbar-btn-wrap">
@@ -646,8 +787,8 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
   <div class="top-right-cluster">
     <div class="status-chip" id="status-line">idle</div>
     <div class="topbar-btn-wrap">
-      <button class="icon-btn" id="zoom-reset" title="Reset view">⤾</button>
-      <span class="btn-label">Reset view</span>
+      <button class="icon-btn" id="zoom-reset" title="Scroll to top">⤾</button>
+      <span class="btn-label">To top</span>
     </div>
     <div class="topbar-btn-wrap">
       <button class="icon-btn" id="btn-clear" title="Clear board">🗑</button>
@@ -747,1359 +888,522 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
 
 <script>
 /* =========================================================
-   INFINITE CANVAS: camera model & Auto-Stacking Layout
+   STUDDY-STYLE WHITEBOARD: vertical document-flow renderer
+   -----------------------------------------------------------
+   Replaces the old infinite-canvas / camera / auto-stacking
+   system. The AI still emits the exact same command schema
+   (text, halo, line, arrow, rect, circle, curve, path, axes,
+   plot, image, highlight) — this module just lays those
+   commands out as real DOM blocks that flow top-to-bottom in
+   a normal scrollable document, instead of painting them onto
+   a pannable/zoomable canvas at absolute world coordinates.
    ========================================================= */
 
-const canvas = document.getElementById('board');
-let ctx = canvas.getContext('2d');
-ctx.lineCap = 'round';
-ctx.lineJoin = 'round';
-let viewW = 0, viewH = 0;
-const camera = { x: 500, y: 300, scale: 1 };
+const boardScroll = document.getElementById('board-scroll');
+const boardContent = document.getElementById('board-content');
+const scrollLatestBtn = document.getElementById('scroll-to-latest');
 
-['700 40px Kalam','400 40px Kalam','700 40px Caveat','400 40px Caveat','400 40px "Noto Sans Symbols 2"'].forEach(f=>{
-  document.fonts.load(f).catch(()=>{});
-});
-
-const PAGE_W = 1000;
-const PAGE_H = Math.round(PAGE_W * Math.SQRT2);
-const RULE_LINE_SPACING = 40;
-
-const HAND_SIZE_MULT = 1.18;
-
-function lineHeightFor(sizeWorld){
-  const needed = sizeWorld * 1.25;
-  const mult = Math.max(1, Math.ceil(needed / RULE_LINE_SPACING));
-  return mult * RULE_LINE_SPACING;
-}
-
-let userIsScrolledAway = false;
-const TOP_MARGIN = 80;
+// Kept only for backward-compatibility with session save/load code
+// further down the file, which still reads/writes these names.
+const TOP_MARGIN = 0;
+let camera = { x: 500, y: 300, scale: 1 };
 let globalCursorY = TOP_MARGIN;
 let currentTopicLabel = 'Topic';
 
+let drawnCommands = [];      // full flat history of every command ever rendered (for session save)
+let drawQueue = [];          // pending render "descriptors" waiting to be revealed
+let drawing = false;
+let pacingScale = 1;         // stretches/compresses reveal speed to match narration length
+let userIsScrolledAway = false;
+
+const COLORS = {
+  chalk:'#1E2B3A', ink:'#1E2B3A', ochre:'#2E7DBE', sage:'#3E8FA6', brick:'#3D6B93',
+  teal:'#0F8C82', violet:'#7C5CBF', sky:'#2AA9E0', coral:'#E0665A',
+  halo:'#6EA8FE', highlight:'#D7ECFB'
+};
+function colorFor(name){ return COLORS[name] || COLORS.ink; }
+
+/* ---------- scroll tracking: never fight the user ---------- */
+function isNearBottom(){
+  const slack = 120;
+  return boardScroll.scrollHeight - boardScroll.scrollTop - boardScroll.clientHeight < slack;
+}
+function checkIfScrolledAway(){
+  userIsScrolledAway = !isNearBottom();
+  scrollLatestBtn.classList.toggle('show', userIsScrolledAway && boardContent.children.length > 0);
+}
+boardScroll.addEventListener('scroll', () => { checkIfScrolledAway(); }, { passive:true });
+scrollLatestBtn.addEventListener('click', () => {
+  userIsScrolledAway = false;
+  boardScroll.scrollTo({ top: boardScroll.scrollHeight, behavior:'smooth' });
+  scrollLatestBtn.classList.remove('show');
+});
+
+function scrollToBottomIfFollowing(smooth){
+  if(userIsScrolledAway) return;
+  boardScroll.scrollTo({ top: boardScroll.scrollHeight, behavior: smooth===false ? 'auto' : 'smooth' });
+}
+
+/* ---------- board lifecycle ---------- */
+function clearBoard(record=true){
+  if(record) drawnCommands = [];
+  boardContent.innerHTML = '';
+  boardContent.classList.add('empty');
+  pendingVectorGroup = [];
+}
 function resetRegionCursors(){
   globalCursorY = TOP_MARGIN;
   userIsScrolledAway = false;
-  
-  if (viewW > 0) {
-      camera.scale = Math.min(1.5, viewW / 1050);
-      camera.x = 500;
-  }
+  boardScroll.scrollTo({ top: 0, behavior:'auto' });
+  scrollLatestBtn.classList.remove('show');
 }
-
-function getMaxYWorld(){
-  return globalCursorY;
+// Rebuilds the entire board from a flat command history — used on session
+// load, and aliased as `redrawAll` since older code (session restore) still
+// calls that name.
+function rebuildBoard(commands){
+  boardContent.innerHTML = '';
+  pendingVectorGroup = [];
+  (commands || []).forEach(cmd => appendBlockForCommand(cmd, /*animate*/false));
+  flushVectorGroup(false);
+  boardContent.classList.toggle('empty', boardContent.children.length === 0);
+  requestAnimationFrame(() => boardScroll.scrollTo({ top: boardScroll.scrollHeight, behavior:'auto' }));
 }
+function redrawAll(){ rebuildBoard(drawnCommands); }
 
-let panToken = 0;
-function animateCameraPan(targetX, targetY, duration, onDone){
-  if(userIsScrolledAway) { if(onDone) onDone(); return; }
-  const myToken = ++panToken;
-  const startX = camera.x, startY = camera.y;
-  const dx = targetX - startX, dy = targetY - startY;
-  const start = performance.now();
-  let finished = false;
-  function finish(){ if(!finished){ finished = true; if(onDone) onDone(); } }
-  function ease(t){ return t<0.5 ? 4*t*t*t : 1-Math.pow(-2*t+2,3)/2; }
-  function frame(now){
-    if(myToken !== panToken || userIsScrolledAway){ finish(); return; }
-    const raw = Math.min(1, (now-start)/duration);
-    const t = ease(raw);
-    camera.x = startX + dx*t;
-    camera.y = startY + dy*t;
-    redrawAll();
-    if(raw < 1) requestAnimationFrame(frame); else { camera.x = targetX; camera.y = targetY; redrawAll(); finish(); }
-  }
-  requestAnimationFrame(frame);
-}
+/* ---------- geometry helpers for grouped vector diagrams ---------- */
+const VECTOR_TYPES = new Set(['line','arrow','rect','circle','curve','path','halo','highlight']);
+let pendingVectorGroup = [];
 
-function panCameraToCursor(targetY, onDone){
-  const idealScale = Math.min(1.5, viewW / 1050);
-  if (Math.abs(camera.scale - idealScale) > 0.01 && !userIsScrolledAway) {
-      camera.scale = idealScale;
-  }
-  animateCameraPan(500, targetY, 900, onDone);
-}
-
-function checkIfScrolledAway(){
-  const maxY = getMaxYWorld();
-  const bottomVisibleY = screenToWorld(0, viewH)[1];
-  userIsScrolledAway = (bottomVisibleY < maxY - 300);
-}
-
-function resizeCanvas(){
-  const rect = canvas.getBoundingClientRect();
-  const dpr = window.devicePixelRatio || 1;
-  canvas.width = rect.width * dpr;
-  canvas.height = rect.height * dpr;
-  ctx.setTransform(dpr,0,0,dpr,0,0);
-  viewW = rect.width; viewH = rect.height;
-  
-  if (!userIsScrolledAway && viewW > 0) {
-      camera.scale = Math.min(1.5, viewW / 1050);
-      camera.x = 500;
-  }
-  
-  redrawAll();
-}
-window.addEventListener('resize', resizeCanvas);
-
-window.addEventListener('orientationchange', () => {
-  setTimeout(resizeCanvas, 50);
-  setTimeout(resizeCanvas, 350);
-});
-if (screen.orientation && screen.orientation.addEventListener) {
-  screen.orientation.addEventListener('change', () => {
-    setTimeout(resizeCanvas, 50);
-    setTimeout(resizeCanvas, 350);
-  });
-}
-
-function worldToScreen(wx, wy){
-  return [(wx - camera.x) * camera.scale + viewW/2, (wy - camera.y) * camera.scale + viewH/2];
-}
-function screenToWorld(sx, sy){
-  return [(sx - viewW/2) / camera.scale + camera.x, (sy - viewH/2) / camera.scale + camera.y];
-}
-
-const INK = '#1E2B3A';
-const OCHRE = '#D96B27';
-const SAGE = '#2A8A5D';
-const BRICK = '#C0392B';
-const TEAL = '#008080';
-const VIOLET = '#6C3483';
-const SKY = '#2980B9';
-const CORAL = '#E67E22';
-const HALO = '#8FA6FF';
-const HILITE = '#FCE896';
-const COLORS = { chalk:INK, ink:INK, ochre:OCHRE, sage:SAGE, brick:BRICK, teal:TEAL, violet:VIOLET, sky:SKY, coral:CORAL, halo:HALO, highlight:HILITE };
-
-function hexToRgba(hex, alpha){
-  const h = hex.replace('#','');
-  const r = parseInt(h.substring(0,2),16), g = parseInt(h.substring(2,4),16), b = parseInt(h.substring(4,6),16);
-  return `rgba(${r},${g},${b},${alpha})`;
-}
-
-let drawnCommands = [];
-
-function drawBG(){
-  ctx.fillStyle = '#FAF8F3';
-  ctx.fillRect(0,0,viewW,viewH);
-}
-
-function drawPageGuides(){
-  const [leftMarginX] = worldToScreen(35, 0);
-  ctx.save();
-  ctx.strokeStyle = 'rgba(224, 128, 128, 0.45)';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.moveTo(leftMarginX, 0); ctx.lineTo(leftMarginX, viewH); ctx.stroke();
-  ctx.restore();
-}
-
-function drawRuleLines(){
-  const topWorldY = screenToWorld(0, 0)[1];
-  const bottomWorldY = screenToWorld(0, viewH)[1];
-  const firstLine = Math.floor(topWorldY / RULE_LINE_SPACING) * RULE_LINE_SPACING;
-  ctx.save();
-  ctx.strokeStyle = 'rgba(200, 190, 170, 0.4)';
-  ctx.lineWidth = 1;
-  for(let wy = firstLine; wy <= bottomWorldY; wy += RULE_LINE_SPACING){
-    const [, sy] = worldToScreen(0, wy);
-    ctx.beginPath(); ctx.moveTo(0, sy); ctx.lineTo(viewW, sy); ctx.stroke();
-  }
-  ctx.restore();
-}
-
-function clearBoard(record=true){
-  if(record) drawnCommands = [];
-  drawBG();
-  drawRuleLines();
-  drawPageGuides();
-}
-
-function redrawAll(){
-  drawBG();
-  drawRuleLines();
-  drawPageGuides();
-  drawnCommands.forEach(cmd => renderCommand(cmd));
-}
-
-function redrawAllExcept(skipCmd){
-  drawBG();
-  drawRuleLines();
-  drawPageGuides();
-  drawnCommands.forEach(cmd => { if(cmd !== skipCmd) renderCommand(cmd); });
-}
-
-function sw(n){ return n * camera.scale; }
-
-function wrapTextToLines(text, maxWidthPx, customCtx){
-  const words = (text||'').split(/\s+/).filter(Boolean);
-  const lines = [];
-  let cur = '';
-  const context = customCtx || ctx;
-  words.forEach(w => {
-    const test = cur ? cur + ' ' + w : w;
-    if(cur && context.measureText(test).width > maxWidthPx){
-      lines.push(cur);
-      cur = w;
-    } else {
-      cur = test;
-    }
-  });
-  if(cur) lines.push(cur);
-  return lines.length ? lines : [''];
-}
-
-function drawHeadingUnderline(sx, baselineY, widthPx, sizeWorld, color){
-  if(widthPx <= 0) return;
-  const y = baselineY + sw(sizeWorld*0.16);
-  const bow = sw(sizeWorld*0.03);
-  ctx.save();
-  ctx.strokeStyle = color;
-  ctx.lineWidth = sw(Math.max(1.5, sizeWorld*0.045));
-  ctx.beginPath();
-  ctx.moveTo(sx, y);
-  ctx.quadraticCurveTo(sx + widthPx/2, y + bow, sx + widthPx, y);
-  ctx.stroke();
-  ctx.restore();
-}
-
-function commandScreenBBox(cmd){
-  const PAD = 10;
-  function pad(x0,y0,x1,y1){
-    return [Math.min(x0,x1)-PAD, Math.min(y0,y1)-PAD, Math.max(x0,x1)+PAD, Math.max(y0,y1)+PAD];
-  }
+function pointsOfCommand(cmd, out){
   switch(cmd.type){
-    case 'text': {
-      const fam = "'Kalam', 'Caveat', 'Noto Sans Symbols 2', cursive";
-      const weight = cmd.weight || 700;
-      const size = (cmd.size||26)*HAND_SIZE_MULT;
-      ctx.font = `${weight} ${sw(size)}px ${fam}`;
-      const [sx,sy] = worldToScreen(cmd.x, cmd.y);
-      if(cmd.maxWidth){
-        const lines = wrapTextToLines(cmd.text||'', sw(cmd.maxWidth));
-        const lineHeight = sw(lineHeightFor(size));
-        const width = Math.max(0, ...lines.map(l=>ctx.measureText(l).width));
-        return pad(sx, sy - sw(size)*1.05, sx + width, sy + lineHeight*(lines.length-1) + sw(size)*0.25);
-      }
-      const width = ctx.measureText(cmd.text||'').width;
-      return pad(sx, sy - sw(size)*1.05, sx + width, sy + sw(size)*0.25);
-    }
-    case 'line': case 'arrow': {
-      const [x1,y1] = worldToScreen(cmd.x1,cmd.y1); const [x2,y2] = worldToScreen(cmd.x2,cmd.y2);
-      return pad(x1,y1,x2,y2);
-    }
-    case 'rect': case 'highlight': case 'highlight-marker': {
-      const [x,y] = worldToScreen(cmd.x,cmd.y);
-      return pad(x, y, x+sw(cmd.w), y+sw(cmd.h||(cmd.type==='rect'?0:40)));
-    }
-    case 'circle': {
-      const [x,y] = worldToScreen(cmd.x,cmd.y);
-      return pad(x-sw(cmd.rx), y-sw(cmd.ry), x+sw(cmd.rx), y+sw(cmd.ry));
-    }
-    case 'curve': {
-      const pts = (cmd.points||[]).map(p=>worldToScreen(p[0],p[1]));
-      if(!pts.length) return [0,0,0,0];
-      const xs = pts.map(p=>p[0]), ys = pts.map(p=>p[1]);
-      return pad(Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys));
-    }
-    case 'axes': case 'plot': case 'image': {
-      const [ox,oy] = worldToScreen(cmd.x,cmd.y);
-      const w = sw(cmd.w), h = sw(cmd.h);
-      return pad(ox, oy-h-sw(30), ox+w, oy+sw(cmd.type==='image' ? 50 : 20));
-    }
-    case 'halo': {
-      const [x,y] = worldToScreen(cmd.x,cmd.y); const r = sw(cmd.r||60);
-      return pad(x-r,y-r,x+r,y+r);
-    }
-    case 'path': {
-      const pts = flattenScreenSegsToPoints(worldPathToScreenSegments(cmd.segments||[]));
-      if(!pts.length) return [0,0,0,0];
-      const xs = pts.map(p=>p[0]), ys = pts.map(p=>p[1]);
-      return pad(Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys));
-    }
-    default: return [0,0,0,0];
+    case 'line': case 'arrow':
+      out.push([cmd.x1,cmd.y1],[cmd.x2,cmd.y2]); break;
+    case 'rect':
+      out.push([cmd.x,cmd.y],[cmd.x+(cmd.w||0),cmd.y+(cmd.h||0)]); break;
+    case 'circle':
+      out.push([cmd.x-(cmd.rx||0),cmd.y-(cmd.ry||0)],[cmd.x+(cmd.rx||0),cmd.y+(cmd.ry||0)]); break;
+    case 'curve':
+      (cmd.points||[]).forEach(p=>out.push(p)); break;
+    case 'path':
+      (cmd.segments||[]).forEach(seg=>{
+        for(let i=1;i<seg.length;i+=2){ out.push([seg[i], seg[i+1]]); }
+      }); break;
+    case 'halo':
+      out.push([cmd.x-(cmd.r||0),cmd.y-(cmd.r||0)],[cmd.x+(cmd.r||0),cmd.y+(cmd.r||0)]); break;
+    case 'highlight':
+      out.push([cmd.x,cmd.y],[cmd.x+(cmd.w||0),cmd.y+(cmd.h||0)]); break;
   }
 }
 
-function worldPathToScreenSegments(segments){
-  return (segments||[]).map(seg=>{
-    if(!seg || !seg.length) return null;
-    if(seg[0]==='Z' || seg[0]==='z') return ['Z'];
-    const out = [seg[0]];
-    for(let i=1;i<seg.length;i+=2){
-      const [sx,sy] = worldToScreen(seg[i], seg[i+1]);
-      out.push(sx, sy);
-    }
-    return out;
-  }).filter(Boolean);
-}
-
-function drawPathSegments(pctx, screenSegs){
-  pctx.beginPath();
-  screenSegs.forEach(seg=>{
-    const t = seg[0];
-    if(t==='M') pctx.moveTo(seg[1],seg[2]);
-    else if(t==='L') pctx.lineTo(seg[1],seg[2]);
-    else if(t==='Q') pctx.quadraticCurveTo(seg[1],seg[2],seg[3],seg[4]);
-    else if(t==='C') pctx.bezierCurveTo(seg[1],seg[2],seg[3],seg[4],seg[5],seg[6]);
-    else if(t==='Z') pctx.closePath();
-  });
-}
-
-function flattenScreenSegsToPoints(screenSegs){
-  const pts = [];
-  let cur = [0,0];
-  screenSegs.forEach(seg=>{
-    const t = seg[0];
-    if(t==='M'){ cur=[seg[1],seg[2]]; pts.push(cur); }
-    else if(t==='L'){ cur=[seg[1],seg[2]]; pts.push(cur); }
-    else if(t==='Q'){
-      const [x0,y0]=cur, cx=seg[1], cy=seg[2], x1=seg[3], y1=seg[4];
-      for(let i=1;i<=10;i++){ const tt=i/10, mt=1-tt;
-        pts.push([mt*mt*x0+2*mt*tt*cx+tt*tt*x1, mt*mt*y0+2*mt*tt*cy+tt*tt*y1]); }
-      cur=[x1,y1];
-    } else if(t==='C'){
-      const [x0,y0]=cur, c1x=seg[1],c1y=seg[2],c2x=seg[3],c2y=seg[4],x1=seg[5],y1=seg[6];
-      for(let i=1;i<=12;i++){ const tt=i/12, mt=1-tt;
-        pts.push([mt*mt*mt*x0+3*mt*mt*tt*c1x+3*mt*tt*tt*c2x+tt*tt*tt*x1, mt*mt*mt*y0+3*mt*mt*tt*c1y+3*mt*tt*tt*c2y+tt*tt*tt*y1]); }
-      cur=[x1,y1];
-    }
-  });
-  return pts;
-}
-
-function strokePolylinePartial(pts, t){
-  if(!pts.length) return [0,0];
-  if(pts.length===1) return pts[0];
-  const segLens=[]; let total=0;
-  for(let i=0;i<pts.length-1;i++){ const d=Math.hypot(pts[i+1][0]-pts[i][0], pts[i+1][1]-pts[i][1]); segLens.push(d); total+=d; }
-  const target = total*t;
-  ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
-  let acc=0, penX=pts[0][0], penY=pts[0][1];
-  for(let i=0;i<segLens.length;i++){
-    const segLen = segLens[i];
-    if(acc+segLen <= target){ ctx.lineTo(pts[i+1][0], pts[i+1][1]); acc+=segLen; penX=pts[i+1][0]; penY=pts[i+1][1]; }
-    else{
-      const frac = segLen>0 ? (target-acc)/segLen : 0;
-      penX = pts[i][0]+(pts[i+1][0]-pts[i][0])*frac;
-      penY = pts[i][1]+(pts[i+1][1]-pts[i][1])*frac;
-      ctx.lineTo(penX,penY);
-      break;
-    }
+function smoothPathD(points){
+  if(!points || points.length < 2) return '';
+  let d = `M ${points[0][0]} ${points[0][1]} `;
+  if(points.length === 2){ d += `L ${points[1][0]} ${points[1][1]} `; return d; }
+  for(let i=0;i<points.length-1;i++){
+    const p0 = points[i===0?0:i-1], p1 = points[i], p2 = points[i+1], p3 = points[i+2===points.length+1?i+1:Math.min(i+2,points.length-1)];
+    const cp1x = p1[0] + (p2[0]-p0[0])/6, cp1y = p1[1] + (p2[1]-p0[1])/6;
+    const cp2x = p2[0] - (p3[0]-p1[0])/6, cp2y = p2[1] - (p3[1]-p1[1])/6;
+    d += `C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2[0]} ${p2[1]} `;
   }
-  ctx.stroke();
-  return [penX,penY];
+  return d;
 }
 
-function roundRectPath(c, x, y, w, h, r){
-  c.beginPath();
-  c.moveTo(x+r, y);
-  c.arcTo(x+w, y, x+w, y+h, r);
-  c.arcTo(x+w, y+h, x, y+h, r);
-  c.arcTo(x, y+h, x, y, r);
-  c.arcTo(x, y, x+w, y, r);
-  c.closePath();
-}
-
-// Draws a fetched (Wikimedia) diagram/photo as a pasted-in card on the board,
-// with an optional handwritten caption and small attribution line. `revealT`
-// (0-1) lets the caller wipe it in left-to-right during the write-on animation.
-function drawImageCommand(ox, oy, w, h, cmd, revealT){
-  const top = oy - h;
-  ctx.save();
-  ctx.shadowColor = 'rgba(30,40,60,0.18)';
-  ctx.shadowBlur = sw(14);
-  ctx.shadowOffsetY = sw(4);
-  ctx.fillStyle = '#ffffff';
-  roundRectPath(ctx, ox, top, w, h, sw(10));
-  ctx.fill();
-  ctx.restore();
-
-  ctx.save();
-  roundRectPath(ctx, ox, top, w, h, sw(10));
-  ctx.clip();
-  const revealW = w * Math.max(0, Math.min(1, revealT));
-  ctx.beginPath();
-  ctx.rect(ox, top, revealW, h);
-  ctx.clip();
-  if(cmd._img && cmd._img.complete && cmd._img.naturalWidth){
-    const img = cmd._img;
-    const scale = Math.min(w/img.naturalWidth, h/img.naturalHeight);
-    const dw = img.naturalWidth*scale, dh = img.naturalHeight*scale;
-    const dx = ox + (w-dw)/2, dy = top + (h-dh)/2;
-    ctx.fillStyle = '#F4F7FA';
-    ctx.fillRect(ox, top, w, h);
-    ctx.drawImage(img, dx, dy, dw, dh);
-  } else {
-    ctx.fillStyle = '#EEF3F8';
-    ctx.fillRect(ox, top, w, h);
-  }
-  ctx.restore();
-
-  ctx.strokeStyle = 'rgba(30,40,60,0.15)';
-  ctx.lineWidth = sw(1.5);
-  roundRectPath(ctx, ox, top, w, h, sw(10));
-  ctx.stroke();
-
-  if(revealT >= 1){
-    if(cmd.caption){
-      ctx.fillStyle = INK;
-      ctx.font = `700 ${sw(19)}px 'Caveat', cursive`;
-      ctx.textAlign = 'center';
-      ctx.fillText(cmd.caption, ox + w/2, oy + sw(28));
-    }
-    if(cmd._attribution){
-      ctx.fillStyle = 'rgba(60,70,90,0.55)';
-      ctx.font = `400 ${sw(11)}px sans-serif`;
-      ctx.textAlign = 'right';
-      ctx.fillText(cmd._attribution, ox + w, oy + (cmd.caption ? sw(46) : sw(20)));
-    }
-  }
-  ctx.textAlign = 'left';
-}
-
-function renderCommand(cmd){
-  const color = COLORS[cmd.color] || INK;
-  ctx.strokeStyle = color; ctx.fillStyle = color;
-
+function svgElFor(cmd, defs){
+  const ns = 'http://www.w3.org/2000/svg';
+  const color = colorFor(cmd.color);
+  const width = cmd.width || 2.5;
   switch(cmd.type){
-    case 'text': {
-      const fam = "'Kalam', 'Caveat', 'Noto Sans Symbols 2', cursive";
-      const weight = cmd.weight || 700;
-      const size = (cmd.size||26)*HAND_SIZE_MULT;
-      ctx.font = `${weight} ${sw(size)}px ${fam}`;
-      ctx.textBaseline = 'alphabetic';
-      const [sx,sy] = worldToScreen(cmd.x, cmd.y);
-      if(cmd.maxWidth){
-        const lines = wrapTextToLines(cmd.text||'', sw(cmd.maxWidth));
-        const lineHeight = sw(lineHeightFor(size));
-        lines.forEach((line,i) => {
-          const ly = sy + i*lineHeight;
-          ctx.fillText(line, sx, ly);
-          if(cmd.heading) drawHeadingUnderline(sx, ly, ctx.measureText(line).width, size, color);
-        });
-      } else {
-        ctx.fillText(cmd.text, sx, sy);
-        if(cmd.heading) drawHeadingUnderline(sx, sy, ctx.measureText(cmd.text||'').width, size, color);
-      }
-      break;
-    }
     case 'line': {
-      ctx.lineWidth = sw(cmd.width || 2.5);
-      const [x1,y1] = worldToScreen(cmd.x1, cmd.y1); const [x2,y2] = worldToScreen(cmd.x2, cmd.y2);
-      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
-      break;
+      const el = document.createElementNS(ns,'line');
+      el.setAttribute('x1',cmd.x1); el.setAttribute('y1',cmd.y1);
+      el.setAttribute('x2',cmd.x2); el.setAttribute('y2',cmd.y2);
+      el.setAttribute('stroke',color); el.setAttribute('stroke-width',width);
+      el.setAttribute('stroke-linecap','round');
+      return el;
     }
     case 'arrow': {
-      ctx.lineWidth = sw(cmd.width || 2.5);
-      const [x1,y1] = worldToScreen(cmd.x1, cmd.y1); const [x2,y2] = worldToScreen(cmd.x2, cmd.y2);
-      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
-      const angle = Math.atan2(y2-y1, x2-x1); const headLen = sw(cmd.headSize || 12);
-      ctx.beginPath(); ctx.moveTo(x2, y2);
-      ctx.lineTo(x2 - headLen*Math.cos(angle - Math.PI/7), y2 - headLen*Math.sin(angle - Math.PI/7));
-      ctx.lineTo(x2 - headLen*Math.cos(angle + Math.PI/7), y2 - headLen*Math.sin(angle + Math.PI/7));
-      ctx.closePath(); ctx.fill();
-      break;
+      const g = document.createElementNS(ns,'g');
+      const el = document.createElementNS(ns,'line');
+      el.setAttribute('x1',cmd.x1); el.setAttribute('y1',cmd.y1);
+      el.setAttribute('x2',cmd.x2); el.setAttribute('y2',cmd.y2);
+      el.setAttribute('stroke',color); el.setAttribute('stroke-width',width);
+      el.setAttribute('stroke-linecap','round');
+      g.appendChild(el);
+      const angle = Math.atan2(cmd.y2-cmd.y1, cmd.x2-cmd.x1);
+      const headLen = Math.max(8, width*4);
+      const hx1 = cmd.x2 - headLen*Math.cos(angle-Math.PI/7), hy1 = cmd.y2 - headLen*Math.sin(angle-Math.PI/7);
+      const hx2 = cmd.x2 - headLen*Math.cos(angle+Math.PI/7), hy2 = cmd.y2 - headLen*Math.sin(angle+Math.PI/7);
+      const head = document.createElementNS(ns,'polygon');
+      head.setAttribute('points', `${cmd.x2},${cmd.y2} ${hx1},${hy1} ${hx2},${hy2}`);
+      head.setAttribute('fill', color);
+      g.appendChild(head);
+      return g;
     }
     case 'rect': {
-      ctx.lineWidth = sw(cmd.width || 2.5);
-      const [x,y] = worldToScreen(cmd.x, cmd.y); const w = sw(cmd.w), h = sw(cmd.h);
-      if(cmd.fill){ ctx.globalAlpha = 0.10; ctx.fillRect(x,y,w,h); ctx.globalAlpha = 1; }
-      ctx.strokeRect(x,y,w,h);
-      break;
+      const el = document.createElementNS(ns,'rect');
+      el.setAttribute('x',cmd.x); el.setAttribute('y',cmd.y);
+      el.setAttribute('width',cmd.w||0); el.setAttribute('height',cmd.h||0);
+      el.setAttribute('rx',4);
+      el.setAttribute('stroke',color); el.setAttribute('stroke-width',width);
+      el.setAttribute('fill', cmd.fill ? color : 'none');
+      if(cmd.fill) el.setAttribute('fill-opacity','0.12');
+      return el;
     }
     case 'circle': {
-      ctx.lineWidth = sw(cmd.width || 2.5);
-      const [x,y] = worldToScreen(cmd.x, cmd.y);
-      ctx.beginPath(); ctx.ellipse(x, y, sw(cmd.rx), sw(cmd.ry), 0, 0, Math.PI*2);
-      if(cmd.fill){ ctx.globalAlpha = 0.10; ctx.fill(); ctx.globalAlpha = 1; }
-      ctx.stroke();
-      break;
+      const el = document.createElementNS(ns,'ellipse');
+      el.setAttribute('cx',cmd.x); el.setAttribute('cy',cmd.y);
+      el.setAttribute('rx',cmd.rx||0); el.setAttribute('ry',cmd.ry||0);
+      el.setAttribute('stroke',color); el.setAttribute('stroke-width',width);
+      el.setAttribute('fill', cmd.fill ? color : 'none');
+      if(cmd.fill) el.setAttribute('fill-opacity','0.12');
+      return el;
     }
     case 'curve': {
-      ctx.lineWidth = sw(cmd.width || 2.5);
-      const pts = cmd.points.map(p => worldToScreen(p[0], p[1]));
-      if(cmd.fill && pts.length>2){
-        ctx.save();
-        ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]);
-        for(let i=1;i<pts.length-1;i++){
-          const midX=(pts[i][0]+pts[i+1][0])/2, midY=(pts[i][1]+pts[i+1][1])/2;
-          ctx.quadraticCurveTo(pts[i][0],pts[i][1],midX,midY);
-        }
-        const last = pts[pts.length-1]; ctx.lineTo(last[0],last[1]); ctx.closePath();
-        ctx.globalAlpha = cmd.fillOpacity!=null ? cmd.fillOpacity : 0.12;
-        ctx.fillStyle = COLORS[cmd.fillColor] || color;
-        ctx.fill();
-        ctx.restore();
-      }
-      strokeSmoothCurve(pts);
-      break;
+      const el = document.createElementNS(ns,'path');
+      let d = smoothPathD(cmd.points||[]);
+      if(cmd.fill) d += 'Z';
+      el.setAttribute('d', d);
+      el.setAttribute('stroke',color); el.setAttribute('stroke-width',width);
+      el.setAttribute('fill', cmd.fill ? colorFor(cmd.fillColor||cmd.color) : 'none');
+      if(cmd.fill) el.setAttribute('fill-opacity', cmd.fillOpacity ?? 0.12);
+      el.setAttribute('stroke-linejoin','round'); el.setAttribute('stroke-linecap','round');
+      return el;
     }
     case 'path': {
-      ctx.lineWidth = sw(cmd.width || 2.5);
-      const screenSegs = worldPathToScreenSegments(cmd.segments||[]);
-      drawPathSegments(ctx, screenSegs);
-      if(cmd.fill){
-        ctx.save();
-        ctx.globalAlpha = cmd.fillOpacity!=null ? cmd.fillOpacity : 0.12;
-        ctx.fillStyle = COLORS[cmd.fillColor] || color;
-        ctx.fill();
-        ctx.restore();
-      }
-      ctx.stroke();
-      break;
-    }
-    case 'axes': {
-      const [ox,oy] = worldToScreen(cmd.x, cmd.y); const w = sw(cmd.w), h = sw(cmd.h);
-      drawAxesGrid(ox, oy, w, h, cmd);
-      ctx.lineWidth = sw(2);
-      ctx.strokeStyle = color; ctx.fillStyle = color;
-      ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox, oy - h); ctx.moveTo(ox, oy); ctx.lineTo(ox + w, oy); ctx.stroke();
-      drawArrowhead(ox, oy - h, -Math.PI/2, color);
-      drawArrowhead(ox + w, oy, 0, color);
-      drawAxesTicksAndLabels(ox, oy, w, h, cmd, color);
-      break;
-    }
-    case 'plot': {
-      const [ox,oy] = worldToScreen(cmd.x, cmd.y); const w = sw(cmd.w), h = sw(cmd.h);
-      drawAxesGrid(ox, oy, w, h, cmd);
-      ctx.lineWidth = sw(2.5);
-      ctx.strokeStyle = color; ctx.fillStyle = color;
-      ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox, oy - h); ctx.moveTo(ox, oy); ctx.lineTo(ox + w, oy); ctx.stroke();
-      drawArrowhead(ox, oy - h, -Math.PI/2, color);
-      drawArrowhead(ox + w, oy, 0, color);
-      drawAxesTicksAndLabels(ox, oy, w, h, cmd, color);
-      const [scaleX, scaleY] = plotScalers(ox, oy, w, h, cmd);
-      // Clip a little padding beyond the axes box: curve data can fall
-      // outside the declared xRange/yRange (e.g. a shifted demand line
-      // whose price exceeds the axis top), and without a clip those
-      // segments draw straight through whatever is above/below the plot.
-      const clipPad = sw(24);
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(ox - clipPad, oy - h - clipPad, w + clipPad*2, h + clipPad*2);
-      ctx.clip();
-      (cmd.curves || []).forEach(curve => {
-        const pts = (curve.points || []).map(p => [scaleX(p[0]), scaleY(p[1])]);
-        if(pts.length < 2) return;
-        const curveColor = COLORS[curve.color] || color;
-        ctx.save();
-        ctx.shadowColor = hexToRgba(curveColor, 0.35);
-        ctx.shadowBlur = sw(4);
-        ctx.shadowOffsetY = sw(1.5);
-        ctx.strokeStyle = curveColor;
-        ctx.lineWidth = sw(curve.width || 3.25);
-        strokeSmoothCurve(pts);
-        ctx.restore();
-        ctx.fillStyle = curveColor;
-        pts.forEach(p => {
-          // Only draw point markers/labels for points actually within the
-          // clipped area — a marker anchored far outside the box would
-          // otherwise still try to render its label out in open space.
-          if(p[0] < ox - clipPad || p[0] > ox + w + clipPad || p[1] < oy - h - clipPad || p[1] > oy + clipPad) return;
-          ctx.beginPath(); ctx.arc(p[0], p[1], sw(2.75), 0, Math.PI*2); ctx.fill();
-        });
-        if(curve.label){
-          const [lx,ly] = pts[pts.length-1];
-          if(lx >= ox - clipPad && lx <= ox + w + clipPad && ly >= oy - h - clipPad && ly <= oy + clipPad){
-            ctx.fillStyle = curveColor;
-            ctx.font = `700 ${sw(18)}px 'Caveat', cursive`;
-            ctx.textAlign = 'left';
-            ctx.fillText(curve.label, lx+sw(8), ly+sw(4));
-          }
-        }
+      const el = document.createElementNS(ns,'path');
+      let d = '';
+      (cmd.segments||[]).forEach(seg=>{
+        const [op, ...rest] = seg;
+        d += op + ' ' + rest.join(' ') + ' ';
       });
-      ctx.restore();
-      break;
-    }
-    case 'image': {
-      const [ox,oy] = worldToScreen(cmd.x, cmd.y); const w = sw(cmd.w), h = sw(cmd.h);
-      drawImageCommand(ox, oy, w, h, cmd, 1);
-      break;
-    }
-    case 'highlight': {
-      ctx.globalAlpha = 0.18; ctx.fillStyle = color;
-      const [x,y] = worldToScreen(cmd.x, cmd.y);
-      ctx.fillRect(x, y, sw(cmd.w), sw(cmd.h || 26));
-      ctx.globalAlpha = 1;
-      break;
+      el.setAttribute('d', d.trim());
+      el.setAttribute('stroke',color); el.setAttribute('stroke-width',width);
+      el.setAttribute('fill', cmd.fill ? colorFor(cmd.fillColor||cmd.color) : 'none');
+      if(cmd.fill) el.setAttribute('fill-opacity', cmd.fillOpacity ?? 0.12);
+      el.setAttribute('stroke-linejoin','round'); el.setAttribute('stroke-linecap','round');
+      return el;
     }
     case 'halo': {
-      const [x,y] = worldToScreen(cmd.x, cmd.y);
-      const r = sw(cmd.r || 60);
-      const glow = COLORS[cmd.color] || HALO;
-      const grad = ctx.createRadialGradient(x,y,0,x,y,r);
-      grad.addColorStop(0, hexToRgba(glow, 0.40));
-      grad.addColorStop(1, hexToRgba(glow, 0));
-      ctx.fillStyle = grad;
-      ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
-      break;
+      const el = document.createElementNS(ns,'circle');
+      el.setAttribute('cx',cmd.x); el.setAttribute('cy',cmd.y); el.setAttribute('r',cmd.r||40);
+      el.setAttribute('fill',colorFor(cmd.color||'halo'));
+      el.setAttribute('opacity','0.22');
+      return el;
+    }
+    case 'highlight': {
+      const el = document.createElementNS(ns,'rect');
+      el.setAttribute('x',cmd.x); el.setAttribute('y',cmd.y-(cmd.h||26));
+      el.setAttribute('width',cmd.w||0); el.setAttribute('height',cmd.h||26);
+      el.setAttribute('rx',4);
+      el.setAttribute('fill',colorFor(cmd.color||'highlight'));
+      el.setAttribute('opacity','0.45');
+      return el;
     }
   }
-}
-
-function drawArrowhead(x, y, angle, color, size){
-  const headLen = sw(size || 9);
-  ctx.fillStyle = color;
-  ctx.beginPath(); ctx.moveTo(x, y);
-  ctx.lineTo(x - headLen*Math.cos(angle - Math.PI/7), y - headLen*Math.sin(angle - Math.PI/7));
-  ctx.lineTo(x - headLen*Math.cos(angle + Math.PI/7), y - headLen*Math.sin(angle + Math.PI/7));
-  ctx.closePath(); ctx.fill();
-}
-
-function drawAxesGrid(ox, oy, w, h, cmd){
-  if(cmd.grid === false) return;
-  const n = cmd.gridLines || 5;
-  ctx.save();
-  ctx.strokeStyle = 'rgba(38,36,31,0.14)';
-  ctx.lineWidth = 1;
-  ctx.setLineDash([sw(3), sw(4)]);
-  for(let i=1;i<=n;i++){
-    const gx = ox + (w*i/n);
-    ctx.beginPath(); ctx.moveTo(gx, oy); ctx.lineTo(gx, oy-h); ctx.stroke();
-    const gy = oy - (h*i/n);
-    ctx.beginPath(); ctx.moveTo(ox, gy); ctx.lineTo(ox+w, gy); ctx.stroke();
-  }
-  ctx.setLineDash([]);
-  ctx.restore();
-}
-
-function drawAxesTicksAndLabels(ox, oy, w, h, cmd, color){
-  ctx.save();
-  ctx.font = `${sw(14)}px 'Caveat', cursive`;
-  ctx.fillStyle = color;
-  if(Array.isArray(cmd.xTicks)){
-    const n = cmd.xTicks.length;
-    cmd.xTicks.forEach((label, i) => {
-      const tx = ox + w*(i+1)/(n+1);
-      ctx.strokeStyle = color; ctx.lineWidth = sw(1.5);
-      ctx.beginPath(); ctx.moveTo(tx, oy-sw(4)); ctx.lineTo(tx, oy+sw(4)); ctx.stroke();
-      ctx.textAlign = 'center';
-      ctx.fillText(String(label), tx, oy+sw(18));
-    });
-  }
-  if(Array.isArray(cmd.yTicks)){
-    const n = cmd.yTicks.length;
-    cmd.yTicks.forEach((label, i) => {
-      const ty = oy - h*(i+1)/(n+1);
-      ctx.strokeStyle = color; ctx.lineWidth = sw(1.5);
-      ctx.beginPath(); ctx.moveTo(ox-sw(4), ty); ctx.lineTo(ox+sw(4), ty); ctx.stroke();
-      ctx.textAlign = 'right';
-      ctx.fillText(String(label), ox-sw(8), ty+sw(4));
-    });
-  }
-  ctx.textAlign = 'left';
-  ctx.font = `${sw(16)}px 'Caveat', cursive`;
-  if(cmd.xlabel){ ctx.textAlign = 'right'; ctx.fillText(cmd.xlabel, ox+w, oy+sw(30)); }
-  if(cmd.ylabel){ ctx.save(); ctx.translate(ox-sw(28), oy-h); ctx.textAlign = 'left'; ctx.fillText(cmd.ylabel,0,0); ctx.restore(); }
-  if(cmd.title){ ctx.textAlign = 'center'; ctx.font = `700 ${sw(20)}px 'Caveat', cursive`; ctx.fillText(cmd.title, ox+w/2, oy-h-sw(16)); }
-  ctx.restore();
-}
-
-function strokeSmoothCurve(pts){
-  ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
-  for(let i=1;i<pts.length-1;i++){
-    const midX = (pts[i][0]+pts[i+1][0])/2, midY = (pts[i][1]+pts[i+1][1])/2;
-    ctx.quadraticCurveTo(pts[i][0], pts[i][1], midX, midY);
-  }
-  const last = pts[pts.length-1];
-  ctx.lineTo(last[0], last[1]);
-  ctx.stroke();
-}
-
-function strokeSmoothCurvePartial(pts, t){
-  const totalSegs = pts.length-1;
-  const segFloat = t*totalSegs;
-  const segIdx = Math.min(totalSegs-1, Math.floor(segFloat));
-  const segT = segFloat-segIdx;
-  ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
-  for(let i=1;i<=segIdx;i++){
-    const nextI = Math.min(i+1, pts.length-1);
-    const midX = (pts[i][0]+pts[nextI][0])/2, midY = (pts[i][1]+pts[nextI][1])/2;
-    ctx.quadraticCurveTo(pts[i][0], pts[i][1], midX, midY);
-  }
-  let penX = pts[segIdx][0], penY = pts[segIdx][1];
-  if(pts[segIdx+1]){
-    penX = pts[segIdx][0]+(pts[segIdx+1][0]-pts[segIdx][0])*segT;
-    penY = pts[segIdx][1]+(pts[segIdx+1][1]-pts[segIdx][1])*segT;
-    ctx.lineTo(penX, penY);
-  }
-  ctx.stroke();
-  return [penX, penY];
-}
-
-function plotScalers(ox, oy, w, h, cmd){
-  const [xMin,xMax] = cmd.xRange || [0, 10];
-  const [yMin,yMax] = cmd.yRange || [0, 10];
-  const xSpan = (xMax-xMin) || 1, ySpan = (yMax-yMin) || 1;
-  const scaleX = v => ox + ((v-xMin)/xSpan)*w;
-  const scaleY = v => oy - ((v-yMin)/ySpan)*h;
-  return [scaleX, scaleY];
-}
-
-/* ---------- PAN / ZOOM (mouse) ---------- */
-// Stops the user from dragging/scrolling past the very top of the page —
-// without this, camera.y is unbounded and panning up keeps revealing more
-// and more blank canvas above the first line, forever.
-const TOP_SCROLL_SLACK_PX = 130; // how much blank space above the first line is tolerable
-function clampCameraY(){
-  const minY = TOP_MARGIN - TOP_SCROLL_SLACK_PX / camera.scale;
-  if(camera.y < minY) camera.y = minY;
-}
-
-let isPanning = false, panStart=null, camStart=null;
-canvas.addEventListener('mousedown', (e)=>{ 
-  panToken++; isPanning=true; canvas.classList.add('grabbing'); 
-  panStart=[e.clientX,e.clientY]; camStart={x:camera.x,y:camera.y}; 
-  if(typeof stopHoverReplay==='function') stopHoverReplay(); 
-});
-window.addEventListener('mousemove', (e)=>{
-  if(!isPanning) return;
-  camera.y = camStart.y - (e.clientY - panStart[1]) / camera.scale;
-  clampCameraY();
-  checkIfScrolledAway();
-  redrawAll();
-});
-window.addEventListener('mouseup', ()=>{ isPanning=false; canvas.classList.remove('grabbing'); });
-
-/* ---------- PAN / ZOOM (touch) ---------- */
-let touchMode = null;
-let pinchStartDist = 0, pinchStartScale = 1, pinchWorldMid = null;
-function touchDist(t0,t1){ return Math.hypot(t1.clientX-t0.clientX, t1.clientY-t0.clientY); }
-function touchMid(t0,t1){ return { x:(t0.clientX+t1.clientX)/2, y:(t0.clientY+t1.clientY)/2 }; }
-canvas.addEventListener('touchstart', (e)=>{
-  panToken++; stopHoverReplay();
-  if(e.touches.length === 1){
-    touchMode = 'pan';
-    panStart = [e.touches[0].clientX, e.touches[0].clientY];
-    camStart = { x:camera.x, y:camera.y };
-  } else if(e.touches.length === 2){
-    touchMode = 'pinch';
-    pinchStartDist = touchDist(e.touches[0], e.touches[1]);
-    pinchStartScale = camera.scale;
-    const mid = touchMid(e.touches[0], e.touches[1]);
-    const rect = canvas.getBoundingClientRect();
-    pinchWorldMid = screenToWorld(mid.x-rect.left, mid.y-rect.top);
-  }
-}, {passive:true});
-canvas.addEventListener('touchmove', (e)=>{
-  if(touchMode === 'pan' && e.touches.length === 1){
-    e.preventDefault();
-    camera.y = camStart.y - (e.touches[0].clientY - panStart[1]) / camera.scale;
-    clampCameraY();
-    checkIfScrolledAway();
-    redrawAll();
-  } else if(touchMode === 'pinch' && e.touches.length === 2){
-    e.preventDefault();
-    // Zoom is disabled — a two-finger gesture still pans (using the
-    // midpoint) but never changes camera.scale.
-    const rect = canvas.getBoundingClientRect();
-    const mid = touchMid(e.touches[0], e.touches[1]);
-    const [nx,ny] = screenToWorld(mid.x-rect.left, mid.y-rect.top);
-    camera.x += (pinchWorldMid[0]-nx); camera.y += (pinchWorldMid[1]-ny);
-    clampCameraY();
-    checkIfScrolledAway();
-    redrawAll();
-  }
-}, {passive:false});
-canvas.addEventListener('touchend', (e)=>{
-  if(e.touches.length === 0){ touchMode = null; checkIfScrolledAway(); }
-  else if(e.touches.length === 1){
-    touchMode = 'pan';
-    panStart = [e.touches[0].clientX, e.touches[0].clientY];
-    camStart = { x:camera.x, y:camera.y };
-  }
-});
-canvas.addEventListener('touchcancel', ()=>{ touchMode = null; checkIfScrolledAway(); });
-
-/* ---------- HOVER-TO-REPLAY ---------- */
-const hoverAnim = { cmd:null, raf:null };
-
-function stopHoverReplay(){
-  if(hoverAnim.raf) cancelAnimationFrame(hoverAnim.raf);
-  hoverAnim.raf = null;
-  if(hoverAnim.cmd){ hoverAnim.cmd = null; redrawAll(); }
-}
-
-function startHoverReplay(cmd){
-  if(hoverAnim.cmd === cmd) return;
-  if(hoverAnim.raf) cancelAnimationFrame(hoverAnim.raf);
-  hoverAnim.cmd = cmd;
-  const duration = estimateDuration(cmd);
-  const start = performance.now();
-  function frame(now){
-    if(hoverAnim.cmd !== cmd) return;
-    const t = Math.min(1, (now-start)/duration);
-    redrawAllExcept(cmd);
-    renderPartialCommand(cmd, t);
-    if(t < 1){ hoverAnim.raf = requestAnimationFrame(frame); }
-    else { hoverAnim.raf = null; redrawAll(); }
-  }
-  hoverAnim.raf = requestAnimationFrame(frame);
-}
-
-canvas.addEventListener('mousemove', (e)=>{
-  if(isPanning || drawing) return;
-  const rect = canvas.getBoundingClientRect();
-  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
-  let hit = null;
-  for(let i = drawnCommands.length - 1; i >= 0; i--){
-    const cmd = drawnCommands[i];
-    if(cmd.type === 'highlight' || cmd.type === 'halo') continue;
-    const [x0,y0,x1,y1] = commandScreenBBox(cmd);
-    if(mx>=x0 && mx<=x1 && my>=y0 && my<=y1){ hit = cmd; break; }
-  }
-  canvas.classList.toggle('hoverable', !!hit);
-  if(hit) startHoverReplay(hit); else stopHoverReplay();
-});
-canvas.addEventListener('mouseleave', stopHoverReplay);
-canvas.addEventListener('wheel', (e)=>{
-  e.preventDefault();
-  panToken++;
-  stopHoverReplay();
-  // Zoom is disabled — even with ctrl/cmd held, wheel just scrolls
-  // vertically; camera.scale never changes here.
-  camera.y += e.deltaY / camera.scale;
-  clampCameraY();
-  checkIfScrolledAway();
-  redrawAll();
-}, {passive:false});
-document.getElementById('zoom-reset').addEventListener('click', ()=>{ 
-  panToken++; camera.x=500; camera.scale=Math.min(1.5, viewW / 1050); 
-  userIsScrolledAway=false; 
-  panCameraToCursor(globalCursorY - 300, null);
-  redrawAll(); 
-});
-document.getElementById('btn-clear').addEventListener('click', ()=>{ panToken++; drawQueue=[]; camera.x=500;camera.y=300;camera.scale=1; resetRegionCursors(); clearBoard(); });
-
-/* =========================================================
-   EXPORT PDF
-   ========================================================= */
-function worldContentBounds(){
-  const savedCam = { ...camera }, savedW = viewW, savedH = viewH;
-  camera.scale = 1; camera.x = viewW/2; camera.y = viewH/2;
-  let minX=0, minY=0, maxX=PAGE_W, maxY=1;
-  drawnCommands.forEach(cmd=>{
-    const [x0,y0,x1,y1] = commandScreenBBox(cmd);
-    minX=Math.min(minX,x0); minY=Math.min(minY,y0);
-    maxX=Math.max(maxX,x1); maxY=Math.max(maxY,y1);
-  });
-  Object.assign(camera, savedCam); viewW = savedW; viewH = savedH;
-  return { minX, minY, maxX, maxY };
-}
-
-async function exportBoardAsPDF(){
-  if(!window.jspdf){ setStatus('pdf export unavailable — see console'); console.error('jsPDF did not load.'); return; }
-  if(drawnCommands.length===0){ setStatus('nothing drawn yet'); return; }
-  if(drawing || drawQueue.length){ setStatus('wait for current drawing to finish'); return; }
-
-  setStatus('exporting pdf…');
-  stopHoverReplay();
-  const savedCam = { ...camera }, savedW = viewW, savedH = viewH, savedCtx = ctx;
-
-  try{
-    const { minX, minY, maxY } = worldContentBounds();
-    const pageWorldW = PAGE_W;
-    const pageWorldH = PAGE_H;
-    const numPages = Math.max(1, Math.ceil((maxY - minY) / pageWorldH));
-    const PX_PER_WORLD_UNIT = 1.6;
-    const pxW = Math.round(pageWorldW * PX_PER_WORLD_UNIT);
-    const pxH = Math.round(pageWorldH * PX_PER_WORLD_UNIT);
-
-    const off = document.createElement('canvas');
-    off.width = pxW; off.height = pxH;
-    const offCtx = off.getContext('2d');
-    offCtx.lineCap = 'round'; offCtx.lineJoin = 'round';
-
-    const { jsPDF } = window.jspdf;
-    let doc = null;
-
-    for(let i=0; i<numPages; i++){
-      ctx = offCtx;
-      viewW = pxW; viewH = pxH;
-      camera.scale = PX_PER_WORLD_UNIT;
-      camera.x = minX + pageWorldW/2;
-      camera.y = (minY + i*pageWorldH) + pageWorldH/2;
-
-      drawBG();
-      drawRuleLines();
-      drawPageGuides();
-      drawnCommands.forEach(cmd => renderCommand(cmd));
-
-      const dataUrl = off.toDataURL('image/png');
-      if(i===0){
-        doc = new jsPDF({ unit:'pt', format:[pageWorldW, pageWorldH], orientation: pageWorldW>=pageWorldH?'landscape':'portrait' });
-      } else {
-        doc.addPage([pageWorldW, pageWorldH], pageWorldW>=pageWorldH?'landscape':'portrait');
-      }
-      doc.addImage(dataUrl, 'PNG', 0, 0, pageWorldW, pageWorldH);
-    }
-
-    const name = (currentSessionTitle || (pdfFileName ? pdfFileName.replace(/\.pdf$/i,'') : 'chalkline-lesson')).replace(/[^\w\-]+/g,'_');
-    doc.save(`${name}.pdf`);
-    setStatus(`saved ${numPages}-page pdf`);
-  } catch(err){
-    console.error('PDF export failed:', err);
-    setStatus('pdf export failed — see console');
-  } finally {
-    ctx = savedCtx;
-    Object.assign(camera, savedCam);
-    viewW = savedW; viewH = savedH;
-    redrawAll();
-  }
-}
-document.getElementById('btn-export-pdf').addEventListener('click', exportBoardAsPDF);
-
-/* =========================================================
-   LIVE PEN & DRAWING ANIMATION
-   ========================================================= */
-let drawQueue = [], drawing = false;
-let pacingScale = 1; // stretches/compresses handwriting speed to match narration length
-
-function drawPen(x, y, angle){
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(angle + Math.PI/4);
-  ctx.fillStyle = '#2A2A2A';
-  const s = 14;
-  ctx.beginPath();
-  ctx.moveTo(0,0); ctx.lineTo(s*0.35,s*0.35); ctx.lineTo(s*1.7,s*1.7-s*0.5); ctx.lineTo(s*1.35,s*2.0-s*0.5);
-  ctx.closePath(); ctx.fill();
-  ctx.fillStyle = '#B8722E';
-  ctx.beginPath(); ctx.arc(s*0.45,s*0.45,3.2,0,Math.PI*2); ctx.fill();
-  ctx.restore();
-}
-
-function enqueueCommandsAtCursor(commands){
-    const isFirstContentEver = (globalCursorY <= TOP_MARGIN + 0.5) && drawnCommands.length === 0;
-    let placedAll = [];
-
-    commands.sort((a,b) => {
-        let ay = a.y ?? a.y1 ?? (a.points?.[0]?.[1]) ?? (a.segments?.[0] ? a.segments[0][a.segments[0].length-1] : undefined) ?? 0;
-        let by = b.y ?? b.y1 ?? (b.points?.[0]?.[1]) ?? (b.segments?.[0] ? b.segments[0][b.segments[0].length-1] : undefined) ?? 0;
-        if (a.type === 'plot' || a.type === 'axes') ay = a.y - (a.h || 400);
-        if (b.type === 'plot' || b.type === 'axes') by = b.y - (b.h || 400);
-        return ay - by;
-    });
-
-    const testCanvas = document.createElement('canvas');
-    const tCtx = testCanvas.getContext('2d');
-
-    commands.forEach(cmd => {
-        let c = { ...cmd };
-        
-        if (c.type === 'text') {
-            c.x = 45; 
-            c.maxWidth = 940; 
-            const size = (c.size || 26) * HAND_SIZE_MULT;
-            const fam = "'Kalam', 'Caveat', 'Noto Sans Symbols 2', cursive";
-            tCtx.font = `${c.weight || 700} ${size}px ${fam}`;
-            
-            const words = (c.text || '').split(/\s+/).filter(Boolean);
-            let lines = 1; let cur = '';
-            words.forEach(w => {
-                const test = cur ? cur + ' ' + w : w;
-                if(tCtx.measureText(test).width > c.maxWidth){ lines++; cur = w; }
-                else { cur = test; }
-            });
-            
-            const lh = lineHeightFor(size);
-
-            if(globalCursorY > TOP_MARGIN){
-                // Always leave a little breathing room between one written
-                // block and the next; headings get an extra-large gap so a
-                // new topic visually separates from what came before.
-                globalCursorY += c.heading ? RULE_LINE_SPACING * 2.5 : RULE_LINE_SPACING * 0.85;
-            }
-
-            c.y = globalCursorY + lh;
-            placedAll.push(c);
-            globalCursorY += lines * lh;
-
-        } else if (c.type === 'plot' || c.type === 'axes') {
-            c.x = 100;
-            c.w = 800;
-            c.h = 400;
-            
-            globalCursorY += RULE_LINE_SPACING;
-            c.y = globalCursorY + c.h;
-            placedAll.push(c);
-            globalCursorY = c.y + RULE_LINE_SPACING*2;
-
-        } else if (c.type === 'image') {
-            // c.w/c.h are pre-computed by resolveImageCommands() from the
-            // real image's aspect ratio before this ever runs; fall back to
-            // a sane default if that step didn't run for some reason.
-            c.x = 150;
-            c.w = c.w || 700;
-            c.h = c.h || 420;
-            const captionSpace = c.caption ? RULE_LINE_SPACING * 1.4 : RULE_LINE_SPACING * 0.6;
-
-            globalCursorY += RULE_LINE_SPACING;
-            c.y = globalCursorY + c.h;
-            placedAll.push(c);
-            globalCursorY = c.y + captionSpace + RULE_LINE_SPACING;
-
-        } else if (c.type === 'halo' || c.type === 'highlight') {
-            if (placedAll.length > 0) {
-               let prev = placedAll[placedAll.length-1];
-               if (prev.type === 'text') {
-                   c.x = prev.x + 40; c.y = prev.y - 10;
-                   placedAll.unshift(c); 
-               }
-            }
-        }
-    });
-
-    let panTargetY;
-    if(isFirstContentEver){
-        // Fresh page, nothing written yet: bring the very top of the page
-        // near the top of the viewport so writing visibly starts like a
-        // blank notebook page, instead of jumping ahead to frame the end
-        // of this (often long) first response and starting mid-screen.
-        const desiredTopScreenY = 130;
-        panTargetY = TOP_MARGIN - (desiredTopScreenY - viewH/2) / camera.scale;
-    } else {
-        panTargetY = globalCursorY - 300;
-    }
-    if (panTargetY < TOP_MARGIN) panTargetY = TOP_MARGIN;
-
-    redrawAll();
-    
-    if(!userIsScrolledAway){
-        panCameraToCursor(panTargetY, () => enqueueCommands(placedAll));
-    } else {
-        enqueueCommands(placedAll);
-    }
-}
-
-function enqueueCommands(commands){
-  drawQueue.push(...commands);
-  if(!drawing) processQueue();
-}
-
-function commandWorldAnchor(cmd){
-  if(cmd.type === 'plot' || cmd.type === 'axes' || cmd.type === 'image') {
-      return [cmd.x + (cmd.w||0)/2, cmd.y - (cmd.h||0)/2];
-  }
-  if('x' in cmd && 'y' in cmd) return [cmd.x, cmd.y];
-  if('x1' in cmd && 'y1' in cmd) return [(cmd.x1+cmd.x2)/2, (cmd.y1+cmd.y2)/2];
-  if(Array.isArray(cmd.points) && cmd.points.length) return cmd.points[Math.floor(cmd.points.length/2)];
   return null;
 }
 
-function processQueue(){
-  if(drawQueue.length===0){ drawing=false; redrawAll(); return; }
-  drawing=true;
-  const cmd = drawQueue.shift();
-  const anchor = commandWorldAnchor(cmd);
-  
-  if(anchor && !userIsScrolledAway){
-    const [sx, sy] = worldToScreen(anchor[0], anchor[1]);
-    const margin = 80;
-    if(sx < margin || sx > viewW-margin || sy < margin || sy > viewH-margin){
-      animateCameraPan(500, anchor[1], 260, null);
+function flushVectorGroup(animate){
+  if(pendingVectorGroup.length === 0) return;
+  const group = pendingVectorGroup;
+  pendingVectorGroup = [];
+
+  const pts = [];
+  group.forEach(cmd => pointsOfCommand(cmd, pts));
+  if(pts.length === 0) return;
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  pts.forEach(([x,y])=>{ if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y; });
+  const pad = 24;
+  minX-=pad; minY-=pad; maxX+=pad; maxY+=pad;
+  const w = Math.max(40, maxX-minX), h = Math.max(40, maxY-minY);
+
+  const wrap = document.createElement('div');
+  wrap.className = 'board-block b-diagram';
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns,'svg');
+  svg.setAttribute('viewBox', `${minX} ${minY} ${w} ${h}`);
+  svg.setAttribute('preserveAspectRatio','xMidYMid meet');
+  group.forEach(cmd => { const el = svgElFor(cmd); if(el) svg.appendChild(el); });
+  wrap.appendChild(svg);
+  boardContent.appendChild(wrap);
+  revealBlock(wrap, animate);
+}
+
+/* ---------- text wrapping is handled natively by the browser now;
+   this only decides which visual "voice" a text command gets ---------- */
+function looksLikeEquationOrList(cmd){
+  if(cmd.mono) return true;
+  const t = cmd.text || '';
+  return /\.{3,}/.test(t) || /[=≈≤≥]/.test(t) && t.length < 90 && !/[.!?]$/.test(t.trim());
+}
+
+function renderTextBlock(cmd){
+  if(cmd.heading){
+    const el = document.createElement('div');
+    el.className = 'board-block b-heading';
+    el.style.color = colorFor(cmd.color || 'ink');
+    if(cmd.size) el.style.fontSize = Math.min(34, Math.max(20, cmd.size)) + 'px';
+    el.textContent = cmd.text || '';
+    boardContent.appendChild(el);
+    return el;
+  }
+  if(looksLikeEquationOrList(cmd)){
+    const el = document.createElement('div');
+    el.className = 'board-block b-equation';
+    el.style.color = colorFor(cmd.color || 'ink');
+    if(cmd.size) el.style.fontSize = Math.min(22, Math.max(15, cmd.size*0.7)) + 'px';
+    el.textContent = cmd.text || '';
+    boardContent.appendChild(el);
+    return el;
+  }
+  const el = document.createElement('p');
+  el.className = 'board-block b-text';
+  el.style.color = colorFor(cmd.color || 'ink');
+  if(cmd.weight >= 700) el.style.fontWeight = '600';
+  el.textContent = cmd.text || '';
+  boardContent.appendChild(el);
+  return el;
+}
+
+/* ---------- static (non-animated) canvas-based plot/axes rendering ----------
+   Each plot/axes command gets its OWN small canvas, sized to the block —
+   this is NOT the old infinite/world canvas, just a self-contained chart. */
+function plotScale(range, pxSize, margin){
+  const [lo,hi] = range;
+  return (v) => margin + ( (v-lo) / (hi-lo || 1) ) * (pxSize - margin*2);
+}
+
+function drawAxesOnCtx(ctx, W, H, cmd){
+  const margin = 46;
+  const xRange = cmd.xRange || [0,10];
+  const yRange = cmd.yRange || [0,10];
+  const sx = plotScale(xRange, W, margin);
+  const syRaw = plotScale(yRange, H, margin);
+  const sy = (v) => H - syRaw(v); // flip Y
+
+  ctx.clearRect(0,0,W,H);
+  ctx.font = '12px Inter, sans-serif';
+  ctx.fillStyle = '#8CA0B3';
+  ctx.strokeStyle = '#E3ECF3';
+  ctx.lineWidth = 1;
+
+  if(cmd.grid !== false){
+    const xTicks = cmd.xTicks || null;
+    const yTicks = cmd.yTicks || null;
+    const nX = xTicks ? xTicks.length : 6;
+    const nY = yTicks ? yTicks.length : 5;
+    for(let i=0;i<nX;i++){
+      const v = xRange[0] + (xRange[1]-xRange[0]) * (i/(nX-1));
+      const x = sx(v);
+      ctx.beginPath(); ctx.moveTo(x, margin*0.4); ctx.lineTo(x, H-margin*0.6); ctx.stroke();
+      const label = xTicks ? xTicks[i] : v.toFixed(1);
+      ctx.textAlign = 'center';
+      ctx.fillText(String(label), x, H-margin*0.6+16);
+    }
+    for(let i=0;i<nY;i++){
+      const v = yRange[0] + (yRange[1]-yRange[0]) * (i/(nY-1));
+      const y = sy(v);
+      ctx.beginPath(); ctx.moveTo(margin*0.6, y); ctx.lineTo(W-margin*0.4, y); ctx.stroke();
+      const label = yTicks ? yTicks[i] : v.toFixed(1);
+      ctx.textAlign = 'right';
+      ctx.fillText(String(label), margin*0.6-8, y+4);
     }
   }
-  
-  animateCommand(cmd, ()=>{ drawnCommands.push(cmd); processQueue(); });
-}
 
-function animateCommand(cmd, onDone){
-  const duration = estimateDuration(cmd);
-  const start = performance.now();
-  function frame(now){
-    const t = Math.min(1,(now-start)/duration);
-    redrawAll();
-    renderPartialCommand(cmd, t);
-    if(t<1) requestAnimationFrame(frame); else onDone();
+  ctx.strokeStyle = '#1E2B3A';
+  ctx.lineWidth = 1.6;
+  ctx.beginPath(); ctx.moveTo(margin*0.6, H-margin*0.6); ctx.lineTo(W-margin*0.4, H-margin*0.6); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(margin*0.6, margin*0.4); ctx.lineTo(margin*0.6, H-margin*0.6); ctx.stroke();
+
+  ctx.fillStyle = '#1E2B3A';
+  ctx.font = '600 12.5px Inter, sans-serif';
+  if(cmd.xlabel){ ctx.textAlign='center'; ctx.fillText(cmd.xlabel, W/2, H-6); }
+  if(cmd.ylabel){
+    ctx.save(); ctx.translate(14, H/2); ctx.rotate(-Math.PI/2); ctx.textAlign='center';
+    ctx.fillText(cmd.ylabel, 0, 0); ctx.restore();
   }
-  requestAnimationFrame(frame);
+  return { sx, sy, margin };
 }
 
+function renderPlotBlock(cmd){
+  const wrap = document.createElement('div');
+  wrap.className = 'board-block b-plot';
+  if(cmd.title){
+    const t = document.createElement('div');
+    t.className = 'b-plot-title';
+    t.textContent = cmd.title;
+    wrap.appendChild(t);
+  }
+  const canvas = document.createElement('canvas');
+  const cssW = 680, cssH = Math.round(cssW * ((cmd.h||400)/(cmd.w||800)));
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  canvas.width = cssW*dpr; canvas.height = cssH*dpr;
+  canvas.style.width = '100%';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr,dpr);
+
+  const { sx, sy } = drawAxesOnCtx(ctx, cssW, cssH, cmd);
+
+  (cmd.curves||[]).forEach(curve=>{
+    const pts = (curve.points||[]).map(([x,y]) => [sx(x), sy(y)]);
+    if(pts.length < 2) return;
+    ctx.strokeStyle = colorFor(curve.color || 'ochre');
+    ctx.lineWidth = curve.width || 2.5;
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    ctx.beginPath();
+    const d = smoothPathD(pts);
+    const p2d = new Path2D(d);
+    ctx.stroke(p2d);
+  });
+
+  // simple legend
+  const labeled = (cmd.curves||[]).filter(c=>c.label);
+  if(labeled.length){
+    ctx.font = '12px Inter, sans-serif';
+    let ly = 16;
+    labeled.forEach(c=>{
+      ctx.fillStyle = colorFor(c.color||'ochre');
+      ctx.fillRect(cssW-140, ly-9, 12, 3);
+      ctx.fillStyle = '#3a4a5a';
+      ctx.textAlign = 'left';
+      ctx.fillText(c.label, cssW-122, ly-3);
+      ly += 18;
+    });
+  }
+
+  wrap.appendChild(canvas);
+  boardContent.appendChild(wrap);
+  return wrap;
+}
+
+/* ---------- image (real photo/diagram fetched from Wikimedia) ---------- */
+function renderImageBlock(cmd){
+  const fig = document.createElement('figure');
+  fig.className = 'board-block b-figure';
+  const img = document.createElement('img');
+  img.src = (cmd._img && cmd._img.src) || cmd.url || '';
+  img.alt = cmd.alt || cmd.caption || cmd.query || '';
+  const ratio = (cmd.w && cmd.h) ? (cmd.h/cmd.w) : 0.6;
+  img.style.aspectRatio = `${cmd.w||640} / ${cmd.h||Math.round((cmd.w||640)*ratio)}`;
+  fig.appendChild(img);
+  if(cmd.caption){
+    const cap = document.createElement('figcaption');
+    cap.textContent = cmd.caption;
+    fig.appendChild(cap);
+  }
+  boardContent.appendChild(fig);
+  return fig;
+}
+
+/* ---------- dispatch ---------- */
+function appendBlockForCommand(cmd, animate){
+  if(VECTOR_TYPES.has(cmd.type)){
+    pendingVectorGroup.push(cmd);
+    return null;
+  }
+  // any non-vector command flushes a pending diagram group first, so
+  // shapes never get visually interleaved with unrelated text/plots
+  flushVectorGroup(animate);
+
+  let el = null;
+  if(cmd.type === 'text') el = renderTextBlock(cmd);
+  else if(cmd.type === 'plot' || cmd.type === 'axes') el = renderPlotBlock(cmd);
+  else if(cmd.type === 'image') el = renderImageBlock(cmd);
+  if(el) revealBlock(el, animate);
+  boardContent.classList.remove('empty');
+  return el;
+}
+
+function revealBlock(el, animate){
+  if(animate === false){ el.classList.add('in'); return; }
+  requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('in')));
+}
+
+/* ---------- pacing: how long to sit on a block before revealing the next
+   one, so the writing pace roughly tracks the narration pace ---------- */
 function estimateDuration(cmd){
   const base = (()=>{
     switch(cmd.type){
-      case 'text': return Math.min(2200, Math.max(500,(cmd.text||'').length*50));
-      case 'line': case 'arrow': return 380;
-      case 'curve': return 700;
-      case 'rect': return 550;
-      case 'circle': return 550;
-      case 'axes': return 550;
-      case 'plot': return 600 + ((cmd.curves||[]).length)*550;
-      case 'image': return 900;
-      case 'highlight': return 250;
-      case 'halo': return 450;
-      case 'path': return Math.min(2600, Math.max(600, (cmd.segments||[]).length*220));
-      default: return 300;
+      case 'text': return Math.min(2200, Math.max(500,(cmd.text||'').length*45));
+      case 'line': case 'arrow': return 260;
+      case 'curve': return 420;
+      case 'rect': return 320;
+      case 'circle': return 320;
+      case 'axes': return 400;
+      case 'plot': return 500 + ((cmd.curves||[]).length)*350;
+      case 'image': return 700;
+      case 'highlight': return 180;
+      case 'halo': return 260;
+      case 'path': return Math.min(1800, Math.max(400, (cmd.segments||[]).length*160));
+      default: return 250;
     }
   })();
   return base * pacingScale;
 }
 
-// Roughly how long the browser's TTS will take to say a given piece of text,
-// including the little pauses speak() inserts between chunks. Used to stretch
-// or compress the handwriting animation so the pen finishes writing at
-// roughly the same moment the voice finishes speaking.
-function estimateSpeechDuration(text){
-  if(!text) return 0;
-  const rate = (currentUtteranceRate || 0.96);
-  const charsPerSec = 13.5 * rate;
-  const chunks = splitIntoSpeechChunks(text);
-  let total = 0;
-  chunks.forEach(c=>{
-    total += Math.max(400, (c.length / charsPerSec) * 1000);
-    total += /\?\s*$/.test(c) ? 260 : 140;
-  });
-  return total;
+/* ---------- queue: reveal commands one at a time in reading order ---------- */
+function enqueueCommands(commands){
+  drawQueue.push(...commands);
+  if(!drawing) processQueue();
+}
+function processQueue(){
+  if(drawQueue.length === 0){ drawing = false; return; }
+  drawing = true;
+  const cmd = drawQueue.shift();
+  drawnCommands.push(cmd);
+  appendBlockForCommand(cmd, true);
+  scrollToBottomIfFollowing();
+  const wait = VECTOR_TYPES.has(cmd.type) ? 60 : estimateDuration(cmd);
+  setTimeout(processQueue, Math.max(40, wait));
 }
 
-function renderPartialCommand(cmd, t){
-  const color = COLORS[cmd.color] || INK;
-  ctx.strokeStyle = color; ctx.fillStyle = color;
-  switch(cmd.type){
-    case 'text': {
-      const full = cmd.text || '';
-      const fam = "'Kalam', 'Caveat', 'Noto Sans Symbols 2', cursive";
-      const weight = cmd.weight || 700;
-      const size = (cmd.size||26)*HAND_SIZE_MULT;
-      ctx.font = `${weight} ${sw(size)}px ${fam}`;
-      const [sx,sy] = worldToScreen(cmd.x, cmd.y);
-      if(cmd.maxWidth){
-        const lines = wrapTextToLines(full, sw(cmd.maxWidth));
-        const lineHeight = sw(lineHeightFor(size));
-        let charsLeft = Math.max(1, Math.round(full.length*t));
-        let lastX = sx, lastY = sy;
-        for(let i=0;i<lines.length;i++){
-          const line = lines[i];
-          const take = Math.max(0, Math.min(line.length, charsLeft));
-          const partial = line.slice(0, take);
-          const ly = sy + i*lineHeight;
-          ctx.fillText(partial, sx, ly);
-          if(cmd.heading && take >= line.length) drawHeadingUnderline(sx, ly, ctx.measureText(line).width, size, color);
-          lastX = sx + ctx.measureText(partial).width;
-          lastY = ly;
-          charsLeft -= take + 1;
-          if(charsLeft <= 0) break;
-        }
-        drawPen(lastX, lastY, -Math.PI/2);
-      } else {
-        const nChars = Math.max(1, Math.round(full.length*t));
-        const partial = full.slice(0,nChars);
-        ctx.fillText(partial, sx, sy);
-        const w = ctx.measureText(partial).width;
-        if(cmd.heading && nChars >= full.length) drawHeadingUnderline(sx, sy, w, size, color);
-        drawPen(sx+w, sy, -Math.PI/2);
-      }
-      break;
+// Entry point called by runTeachingTurn() with the AI's `board` array.
+// Kept the original name so the AI-call / teaching-turn code above didn't
+// need to change at all.
+function enqueueCommandsAtCursor(commands){
+  boardContent.classList.remove('empty');
+  enqueueCommands(commands);
+}
+
+/* ---------- export the lesson as a PDF (DOM-based, not canvas-based) ---------- */
+async function exportBoardAsPDF(){
+  if(!window.jspdf || !window.html2canvas){ setStatus('pdf export unavailable — see console'); console.error('jsPDF/html2canvas did not load.'); return; }
+  if(drawnCommands.length === 0){ setStatus('nothing drawn yet'); return; }
+  if(drawing || drawQueue.length){ setStatus('wait for current drawing to finish'); return; }
+
+  setStatus('exporting pdf…');
+  try{
+    const { jsPDF } = window.jspdf;
+    const target = boardContent;
+    const canvas = await window.html2canvas(target, { scale: 2, backgroundColor:'#ffffff', useCORS:true });
+    const imgData = canvas.toDataURL('image/png');
+    const pageW = 612; // 8.5in @72dpi
+    const imgW = pageW;
+    const imgH = canvas.height * (imgW / canvas.width);
+    const pageH = 792; // 11in
+    const doc = new jsPDF({ unit:'pt', format:[pageW, pageH] });
+    let heightLeft = imgH, position = 0, first = true;
+    while(heightLeft > 0){
+      if(!first) doc.addPage([pageW, pageH]);
+      doc.addImage(imgData, 'PNG', 0, position, imgW, imgH);
+      heightLeft -= pageH;
+      position -= pageH;
+      first = false;
     }
-    case 'line': case 'arrow': {
-      ctx.lineWidth = sw(cmd.width||2.5);
-      const [x1,y1]=worldToScreen(cmd.x1,cmd.y1); const [x2,y2]=worldToScreen(cmd.x2,cmd.y2);
-      const cx=x1+(x2-x1)*t, cy=y1+(y2-y1)*t;
-      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(cx,cy); ctx.stroke();
-      if(cmd.type==='arrow' && t>=0.98){
-        const angle=Math.atan2(y2-y1,x2-x1); const headLen=sw(cmd.headSize||12);
-        ctx.beginPath(); ctx.moveTo(x2,y2);
-        ctx.lineTo(x2-headLen*Math.cos(angle-Math.PI/7), y2-headLen*Math.sin(angle-Math.PI/7));
-        ctx.lineTo(x2-headLen*Math.cos(angle+Math.PI/7), y2-headLen*Math.sin(angle+Math.PI/7));
-        ctx.closePath(); ctx.fill();
-      }
-      drawPen(cx,cy,Math.atan2(y2-y1,x2-x1));
-      break;
-    }
-    case 'curve': {
-      ctx.lineWidth = sw(cmd.width||2.5);
-      const pts = cmd.points.map(p=>worldToScreen(p[0],p[1]));
-      if(cmd.fill && t>=0.999 && pts.length>2){
-        ctx.save();
-        ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]);
-        for(let i=1;i<pts.length-1;i++){
-          const midX=(pts[i][0]+pts[i+1][0])/2, midY=(pts[i][1]+pts[i+1][1])/2;
-          ctx.quadraticCurveTo(pts[i][0],pts[i][1],midX,midY);
-        }
-        const last = pts[pts.length-1]; ctx.lineTo(last[0],last[1]); ctx.closePath();
-        ctx.globalAlpha = cmd.fillOpacity!=null ? cmd.fillOpacity : 0.12;
-        ctx.fillStyle = COLORS[cmd.fillColor] || color;
-        ctx.fill();
-        ctx.restore();
-      }
-      const [penX,penY] = strokeSmoothCurvePartial(pts, t);
-      drawPen(penX,penY,0);
-      break;
-    }
-    case 'path': {
-      ctx.lineWidth = sw(cmd.width||2.5);
-      const screenSegs = worldPathToScreenSegments(cmd.segments||[]);
-      const pts = flattenScreenSegsToPoints(screenSegs);
-      if(cmd.fill && t>=0.999){
-        drawPathSegments(ctx, screenSegs);
-        ctx.save();
-        ctx.globalAlpha = cmd.fillOpacity!=null ? cmd.fillOpacity : 0.12;
-        ctx.fillStyle = COLORS[cmd.fillColor] || color;
-        ctx.fill();
-        ctx.restore();
-      }
-      const [penX,penY] = strokePolylinePartial(pts, t);
-      drawPen(penX,penY,0);
-      break;
-    }
-    case 'rect': {
-      ctx.lineWidth = sw(cmd.width||2.5);
-      const [x,y]=worldToScreen(cmd.x,cmd.y); const w=sw(cmd.w), h=sw(cmd.h);
-      const perim=2*(w+h), drawn=perim*t;
-      ctx.beginPath(); let remaining=drawn, px=x, py=y; ctx.moveTo(px,py);
-      const segs=[[w,0],[0,h],[-w,0],[0,-h]];
-      for(const [dx,dy] of segs){
-        const len=Math.hypot(dx,dy), use=Math.min(len,remaining), frac=use/len;
-        px+=dx*frac; py+=dy*frac; ctx.lineTo(px,py); remaining-=use;
-        if(remaining<=0) break;
-      }
-      ctx.stroke(); drawPen(px,py,0);
-      break;
-    }
-    case 'circle': {
-      ctx.lineWidth = sw(cmd.width||2.5);
-      const [x,y]=worldToScreen(cmd.x,cmd.y); const rx=sw(cmd.rx), ry=sw(cmd.ry);
-      ctx.beginPath(); ctx.ellipse(x,y,rx,ry,0,-Math.PI/2,-Math.PI/2+t*Math.PI*2); ctx.stroke();
-      const ang=-Math.PI/2+t*Math.PI*2;
-      drawPen(x+rx*Math.cos(ang), y+ry*Math.sin(ang), ang+Math.PI/2);
-      break;
-    }
-    case 'axes': {
-      const [ox,oy]=worldToScreen(cmd.x,cmd.y); const w=sw(cmd.w), h=sw(cmd.h);
-      if(t>=0.99) drawAxesGrid(ox, oy, w, h, cmd);
-      ctx.lineWidth = sw(2);
-      const total=w+h, drawn=total*t;
-      ctx.beginPath(); ctx.moveTo(ox,oy);
-      const yLen=Math.min(h,drawn); ctx.lineTo(ox,oy-yLen);
-      let penX=ox, penY=oy-yLen;
-      if(drawn>h){ ctx.moveTo(ox,oy); const xLen=Math.min(w,drawn-h); ctx.lineTo(ox+xLen,oy); penX=ox+xLen; penY=oy; }
-      ctx.stroke();
-      if(t>=0.99){
-        drawArrowhead(ox, oy-h, -Math.PI/2, color);
-        drawArrowhead(ox+w, oy, 0, color);
-        drawAxesTicksAndLabels(ox, oy, w, h, cmd, color);
-      }
-      drawPen(penX,penY,0);
-      break;
-    }
-    case 'plot': {
-      const [ox,oy]=worldToScreen(cmd.x,cmd.y); const w=sw(cmd.w), h=sw(cmd.h);
-      const curves = cmd.curves || [];
-      const axesFrac = curves.length ? 0.3 : 1;
-      const axesT = Math.min(1, t/axesFrac);
-      if(axesT>=0.99) drawAxesGrid(ox, oy, w, h, cmd);
-      ctx.lineWidth = sw(2); ctx.strokeStyle = color; ctx.fillStyle = color;
-      const axTotal=w+h, axDrawn=axTotal*axesT;
-      ctx.beginPath(); ctx.moveTo(ox,oy);
-      const yLen=Math.min(h,axDrawn); ctx.lineTo(ox,oy-yLen);
-      let penX=ox, penY=oy-yLen;
-      if(axDrawn>h){ ctx.moveTo(ox,oy); const xLen=Math.min(w,axDrawn-h); ctx.lineTo(ox+xLen,oy); penX=ox+xLen; penY=oy; }
-      ctx.stroke();
-      if(axesT>=0.99){
-        drawArrowhead(ox, oy-h, -Math.PI/2, color);
-        drawArrowhead(ox+w, oy, 0, color);
-        drawAxesTicksAndLabels(ox, oy, w, h, cmd, color);
-      }
-      if(curves.length){
-        const [scaleX, scaleY] = plotScalers(ox, oy, w, h, cmd);
-        const perCurve = (1-axesFrac)/curves.length;
-        const clipPad = sw(24);
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(ox - clipPad, oy - h - clipPad, w + clipPad*2, h + clipPad*2);
-        ctx.clip();
-        curves.forEach((curve, i) => {
-          const curveT = Math.max(0, Math.min(1, (t-axesFrac-i*perCurve)/perCurve));
-          if(curveT<=0) return;
-          const pts = (curve.points||[]).map(p=>[scaleX(p[0]), scaleY(p[1])]);
-          if(pts.length<2) return;
-          ctx.strokeStyle = COLORS[curve.color] || color;
-          ctx.lineWidth = sw(curve.width||2.75);
-          const [cx,cy] = strokeSmoothCurvePartial(pts, curveT);
-          if(curveT>=1){
-            const labelInBounds = cx >= ox - clipPad && cx <= ox + w + clipPad && cy >= oy - h - clipPad && cy <= oy + clipPad;
-            if(curve.label && labelInBounds){
-              ctx.fillStyle = COLORS[curve.color] || color;
-              ctx.font = `${sw(16)}px 'Caveat', cursive`;
-              ctx.textAlign = 'left';
-              ctx.fillText(curve.label, cx+sw(8), cy+sw(4));
-            }
-          } else { penX=cx; penY=cy; }
-        });
-        ctx.restore();
-      }
-      drawPen(penX,penY,0);
-      break;
-    }
-    case 'image': {
-      const [ox,oy]=worldToScreen(cmd.x,cmd.y); const w=sw(cmd.w), h=sw(cmd.h);
-      drawImageCommand(ox, oy, w, h, cmd, t);
-      drawPen(ox + w*Math.min(1,t), oy - h/2, 0);
-      break;
-    }
-    case 'highlight': {
-      ctx.globalAlpha = 0.18*t;
-      const [x,y]=worldToScreen(cmd.x,cmd.y);
-      ctx.fillRect(x,y,sw(cmd.w)*t, sw(cmd.h||26));
-      ctx.globalAlpha=1;
-      break;
-    }
-    case 'halo': {
-      const [x,y] = worldToScreen(cmd.x, cmd.y);
-      const r = sw(cmd.r || 60);
-      const glow = COLORS[cmd.color] || HALO;
-      const grad = ctx.createRadialGradient(x,y,0,x,y,r);
-      grad.addColorStop(0, hexToRgba(glow, 0.40*t));
-      grad.addColorStop(1, hexToRgba(glow, 0));
-      ctx.fillStyle = grad;
-      ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
-      break;
-    }
+    const name = (currentSessionTitle || (typeof pdfFileName !== 'undefined' && pdfFileName ? pdfFileName.replace(/\.pdf$/i,'') : 'chalkline-lesson')).replace(/[^\w\-]+/g,'_');
+    doc.save(`${name}.pdf`);
+    setStatus('saved pdf');
+  } catch(err){
+    console.error('PDF export failed:', err);
+    setStatus('pdf export failed — see console');
   }
 }
-
-/* =========================================================
-   VOICE
-   ========================================================= */
-const avatar = document.getElementById('avatar');
-const captionText = document.getElementById('caption-text');
-let currentUtteranceText = '';
-let currentUtteranceRate = 0.96;
-let currentSpeechToken = 0;
-
-let bestVoice = null;
-let voicesReady = false;
-
-// Free-tier ElevenLabs preset voices (their default public voice IDs).
-// These work out of the box on any ElevenLabs account's free tier.
-const ELEVEN_VOICES = [
-  { id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel' },
-  { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Bella' },
-  { id: 'pNInz6obpgDQGcFmaJgB', name: 'Adam' },
-  { id: 'ErXwobaYiN019PkySvjV', name: 'Antoni' },
-  { id: 'AZnzlk1XvdvUeBnXmlld', name: 'Domi' },
-  { id: 'MF3mGyEYCl7XYWbV9V6O', name: 'Elli' },
-  { id: 'TxGEqnHWrfWFTfGW9XjX', name: 'Josh' },
-  { id: 'VR6AewLTigWG4xSOukaG', name: 'Arnold' },
-  { id: 'yoZ06aMxZJJ28mfd3POQ', name: 'Sam' },
-];
-
-// Free-tier Google Cloud TTS voices (Neural2/WaveNet — 1M free chars/month).
-// voiceName encodes the language, e.g. "en-US-Neural2-C".
-const GOOGLE_VOICES = [
-  { id: 'en-US-Neural2-C', name: 'Google — Ava (US, female)' },
-  { id: 'en-US-Neural2-D', name: 'Google — Miles (US, male)' },
-  { id: 'en-US-Neural2-F', name: 'Google — Iris (US, female)' },
-  { id: 'en-US-Neural2-J', name: 'Google — Reed (US, male)' },
-  { id: 'en-GB-Neural2-A', name: 'Google — Willow (UK, female)' },
-  { id: 'en-GB-Neural2-B', name: 'Google — Arthur (UK, male)' },
-];
-
+document.getElementById('btn-export-pdf').addEventListener('click', exportBoardAsPDF);
+document.getElementById('btn-clear').addEventListener('click', ()=>{ drawQueue=[]; resetRegionCursors(); clearBoard(); });
+document.getElementById('zoom-reset').addEventListener('click', ()=>{
+  userIsScrolledAway = false;
+  boardScroll.scrollTo({ top:0, behavior:'smooth' });
+});
 function scoreVoice(v){
   let score = 0;
   const name = v.name || '';
@@ -3136,7 +2440,7 @@ document.getElementById('voice-select').addEventListener('change', ()=>{
   if(currentUtteranceText) speak(currentUtteranceText);
 });
 
-resizeCanvas();
+checkIfScrolledAway();
 setStatus('idle');
 refreshSessionList();
 <\/script>
