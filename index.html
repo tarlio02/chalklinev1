@@ -392,7 +392,7 @@ nav{
 @media (max-width:680px){ .tools{ grid-template-columns:1fr; } .hero h1{ font-size:38px; } }
 
 .tool-card{
-  display:block; text-decoration:none; color:inherit;
+  display:block; text-decoration:none; color:inherit; cursor:pointer;
   background:#fff; border:1px solid var(--panel-border); border-radius:14px;
   padding:30px 28px 26px; position:relative; overflow:hidden;
   transition:border-color .18s ease, transform .18s ease, box-shadow .18s ease;
@@ -424,21 +424,15 @@ nav{
 
 .tool-card h2 span{ position:relative; }
 
-.card-history{ margin-top:16px; padding-top:14px; border-top:1px solid var(--panel-border); }
-.card-history .h-label{
-  font-family:'JetBrains Mono', monospace; font-size:10.5px; letter-spacing:0.3px;
-  color:var(--muted); display:block; margin-bottom:8px;
+.card-link-btn{
+  display:inline-flex; align-items:center; gap:6px;
+  margin-top:16px; padding-top:14px; border-top:1px solid var(--panel-border);
+  font-family:'JetBrains Mono', monospace; font-size:11.5px; color:var(--muted);
+  text-decoration:none; width:100%;
+  transition:color .15s ease;
 }
-.card-history-list{ display:flex; flex-direction:column; gap:5px; }
-.card-history-item{
-  display:flex; justify-content:space-between; align-items:center; gap:8px;
-  font-size:12.5px; color:#4a4738; padding:5px 0;
-}
-.card-history-item .h-name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.card-history-item .h-date{
-  font-family:'JetBrains Mono', monospace; font-size:9.5px; color:var(--muted); flex-shrink:0;
-}
-.card-history-empty{ font-size:12px; color:var(--muted); font-style:italic; }
+.card-link-btn:hover{ color:var(--ink); }
+.card-link-btn svg{ width:11px; height:11px; }
 
 .strip{
   border-top:1px solid var(--panel-border); padding:40px 0 70px;
@@ -478,30 +472,30 @@ footer{
   </section>
 
   <section class="tools">
-    <a class="tool-card tutor" href="#" onclick="parent.postMessage({nav:'tutor'},'*');return false;">
+    <div class="tool-card tutor" onclick="parent.postMessage({nav:'tutor'},'*');">
       <div class="mark">✏️</div>
       <h2>Live Tutor</h2>
       <p>An AI tutor that teaches on a real whiteboard — writing, diagrams, and worked examples, paced one idea at a time, with check-ins along the way.</p>
       <span class="go">Start a lesson
         <svg viewBox="0 0 16 16" fill="none"><path d="M2 8h11M9 3.5 13.5 8 9 12.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </span>
-      <div class="card-history" onclick="event.stopPropagation();">
-        <span class="h-label">PREVIOUS TUTORIALS</span>
-        <div class="card-history-list" id="tutor-history-list"><div class="card-history-empty">Sign in to see your saved tutorials.</div></div>
-      </div>
-    </a>
-    <a class="tool-card summary" href="#" onclick="parent.postMessage({nav:'summary'},'*');return false;">
+      <a class="card-link-btn" href="#" onclick="event.stopPropagation();parent.postMessage({nav:'tutor-history'},'*');return false;">
+        Previous tutorials
+        <svg viewBox="0 0 16 16" fill="none"><path d="M2 8h11M9 3.5 13.5 8 9 12.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
+    </div>
+    <div class="tool-card summary" onclick="parent.postMessage({nav:'summary'},'*');">
       <div class="mark">📄</div>
       <h2>Summary</h2>
       <p>Upload a chapter, slide deck, or set of notes as a PDF, and get a clear, structured summary of what actually matters — ready to read or save.</p>
       <span class="go">Summarize a PDF
         <svg viewBox="0 0 16 16" fill="none"><path d="M2 8h11M9 3.5 13.5 8 9 12.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </span>
-      <div class="card-history" onclick="event.stopPropagation();">
-        <span class="h-label">PREVIOUS SUMMARIES</span>
-        <div class="card-history-list" id="summary-history-list"><div class="card-history-empty">Sign in to see your saved summaries.</div></div>
-      </div>
-    </a>
+      <a class="card-link-btn" href="#" onclick="event.stopPropagation();parent.postMessage({nav:'summary-history'},'*');return false;">
+        Previous summaries
+        <svg viewBox="0 0 16 16" fill="none"><path d="M2 8h11M9 3.5 13.5 8 9 12.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
+    </div>
   </section>
 
   <section class="strip">
@@ -522,56 +516,6 @@ footer{
     <span>AI whiteboard tutor &amp; notes summarizer</span>
   </footer>
 </div>
-
-<script>
-// Same account-scoped storage convention as the tutor/summary pages:
-// 'session:<sub|local>:<id>' for tutorials, 'summary:<sub|local>:<id>'
-// for summaries. Listens for the shell's auth broadcast, then reads
-// window.storage directly (swap for a real backend call once one
-// exists, same as the note on the tutor page's persistSession).
-let homeUser = null;
-
-function escapeHtmlHome(str){ const d=document.createElement('div'); d.textContent=str; return d.innerHTML; }
-
-async function loadHistoryInto(listId, keyPrefix, emptyMsg, navTarget){
-  const listEl = document.getElementById(listId);
-  if(!homeUser){ listEl.innerHTML = `<div class="card-history-empty">Sign in to see your saved ${emptyMsg}.</div>`; return; }
-  try{
-    const result = await window.storage.list(keyPrefix, false);
-    const keys = (result && result.keys) ? result.keys : [];
-    if(keys.length===0){ listEl.innerHTML = `<div class="card-history-empty">No saved ${emptyMsg} yet.</div>`; return; }
-    const items = [];
-    for(const key of keys){
-      try{ const rec = await window.storage.get(key, false); if(rec) items.push(JSON.parse(rec.value)); } catch(e){}
-    }
-    items.sort((a,b)=>(b.savedAt||0)-(a.savedAt||0));
-    listEl.innerHTML = '';
-    items.slice(0,4).forEach(item=>{
-      const div = document.createElement('div'); div.className='card-history-item';
-      const date = new Date(item.savedAt);
-      div.innerHTML = `<span class="h-name">${escapeHtmlHome(item.title||'Untitled')}</span><span class="h-date">${date.toLocaleDateString()}</span>`;
-      div.style.cursor = 'pointer';
-      div.addEventListener('click', ()=> parent.postMessage({nav:navTarget}, '*'));
-      listEl.appendChild(div);
-    });
-  } catch(err){ console.error('Loading history failed:', err); listEl.innerHTML = `<div class="card-history-empty">Could not load saved ${emptyMsg}.</div>`; }
-}
-
-function refreshHomeHistory(){
-  const prefix = homeUser ? homeUser.sub : 'local';
-  loadHistoryInto('tutor-history-list', 'session:' + prefix + ':', 'tutorials', 'tutor');
-  loadHistoryInto('summary-history-list', 'summary:' + prefix + ':', 'summaries', 'summary');
-}
-
-window.addEventListener('message', (e)=>{
-  const d = e.data;
-  if(!d || !d.chalklineAuth) return;
-  homeUser = d.signedIn ? d.user : null;
-  refreshHomeHistory();
-});
-
-refreshHomeHistory();
-<\/script>
 
 </body>
 </html>
