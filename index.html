@@ -55,6 +55,19 @@
 // and srcdoc documents report origin=null — Google's script rejects
 // those requests outright (Error 400: invalid_request, origin=null).
 const SHELL_GOOGLE_CLIENT_ID = "676487295279-j4qka36obo55unl3vds7ja2v24uoq6dm.apps.googleusercontent.com";
+
+// "Stay signed in": we cache the decoded profile from the ID token in
+// localStorage (this top-level page has a real origin, so localStorage
+// works fine here). On every fresh page load we restore it immediately,
+// before Google's script has even finished loading, so a returning
+// visitor doesn't have to sign in again just because they closed the
+// tab or came back the next day. This only restores the *display*
+// identity (name/email/picture/sub) that was already being decoded
+// client-side with no backend verification — same trust level as
+// before, just remembered across visits instead of forgotten on reload.
+// Once a real backend exists, swap this for a proper refresh-token /
+// session-cookie flow and verify server-side instead.
+const SHELL_AUTH_STORAGE_KEY = 'chalkline_shell_user';
 let shellUser = null;
 
 function decodeShellIdToken(jwt){
@@ -70,13 +83,32 @@ function broadcastAuthState(){
   Object.values(frames).forEach(f => { try{ f.contentWindow.postMessage(msg, '*'); }catch(e){} });
 }
 
-function handleShellCredential(response){
-  shellUser = decodeShellIdToken(response.credential);
+function showSignedInChip(user){
   document.getElementById('shell-signin-btn').style.display = 'none';
   const chip = document.getElementById('shell-account-chip');
   chip.style.display = 'flex';
-  document.getElementById('shell-account-avatar').src = shellUser.picture || '';
-  document.getElementById('shell-account-avatar').title = shellUser.name || shellUser.email || 'Signed in';
+  document.getElementById('shell-account-avatar').src = user.picture || '';
+  document.getElementById('shell-account-avatar').title = user.name || user.email || 'Signed in';
+}
+
+function restoreShellSession(){
+  try{
+    const raw = localStorage.getItem(SHELL_AUTH_STORAGE_KEY);
+    if(!raw) return;
+    shellUser = JSON.parse(raw);
+    showSignedInChip(shellUser);
+    // Frames haven't loaded yet at this point in the page lifecycle —
+    // ensureLoaded() posts the current shellUser to each frame the
+    // first time it's opened, so there's nothing to broadcast to yet.
+  } catch(e){ console.error('Could not restore saved sign-in:', e); localStorage.removeItem(SHELL_AUTH_STORAGE_KEY); }
+}
+restoreShellSession();
+
+function handleShellCredential(response){
+  shellUser = decodeShellIdToken(response.credential);
+  try{ localStorage.setItem(SHELL_AUTH_STORAGE_KEY, JSON.stringify(shellUser)); }
+  catch(e){ console.error('Could not persist sign-in:', e); }
+  showSignedInChip(shellUser);
   broadcastAuthState();
   // TODO: once a backend exists, send response.credential there to verify
   // the token and load/merge this person's saved sessions.
@@ -84,8 +116,12 @@ function handleShellCredential(response){
 
 function initShellGoogleSignIn(){
   if(typeof google === 'undefined' || !google.accounts){ setTimeout(initShellGoogleSignIn, 300); return; }
-  google.accounts.id.initialize({ client_id: SHELL_GOOGLE_CLIENT_ID, callback: handleShellCredential });
+  // auto_select lets Google silently re-confirm a returning visitor who
+  // still has an active Google session, refreshing the identity in the
+  // background even if our own localStorage cache was ever cleared.
+  google.accounts.id.initialize({ client_id: SHELL_GOOGLE_CLIENT_ID, callback: handleShellCredential, auto_select: true });
   google.accounts.id.renderButton(document.getElementById('shell-signin-btn'), { theme:'outline', size:'medium', shape:'pill' });
+  if(!shellUser) google.accounts.id.prompt(); // only worth a silent attempt if we have no cached session already
 }
 initShellGoogleSignIn();
 
@@ -93,6 +129,7 @@ document.getElementById('shell-sign-out').addEventListener('click', signOutShell
 
 function signOutShell(){
   shellUser = null;
+  localStorage.removeItem(SHELL_AUTH_STORAGE_KEY);
   if(typeof google !== 'undefined' && google.accounts) google.accounts.id.disableAutoSelect();
   document.getElementById('shell-account-chip').style.display = 'none';
   document.getElementById('shell-signin-btn').style.display = 'block';
@@ -113,6 +150,7 @@ window.addEventListener('message', (e)=>{
 });
 
 </script>
+
 
 <script type="text/plain" id="src-landing"><!DOCTYPE html>
 <html lang="en">
