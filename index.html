@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Chalkline — AI Study Tools</title>
 <style>
   html,body{ margin:0; padding:0; height:100%; overflow:hidden; background:#F3F9FE; font-family:-apple-system,Segoe UI,sans-serif; }
@@ -44,7 +44,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Chalkline — AI Study Tools</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&family=Caveat:wght@600;700&display=swap');
@@ -62,7 +62,7 @@
   --halo-blue-soft:#A5C8FF;
 }
 *{box-sizing:border-box;}
-html,body{margin:0;padding:0;}
+html,body{margin:0;padding:0; overscroll-behavior-y:none;}
 body{
   font-family:'Source Serif 4', Georgia, serif;
   color:var(--ink);
@@ -70,6 +70,7 @@ body{
   min-height:100vh;
   position:relative;
   overflow-x:hidden;
+  overscroll-behavior-y:none;
 }
 
 .ambient-halo{
@@ -1478,8 +1479,8 @@ canvas.addEventListener('touchmove', (e)=>{
     redrawAll();
   } else if(touchMode === 'pinch' && e.touches.length === 2){
     e.preventDefault();
-    const dist = touchDist(e.touches[0], e.touches[1]);
-    camera.scale = Math.min(3, Math.max(0.2, pinchStartScale * (dist/Math.max(1,pinchStartDist))));
+    // Zoom is disabled — a two-finger gesture still pans (using the
+    // midpoint) but never changes camera.scale.
     const rect = canvas.getBoundingClientRect();
     const mid = touchMid(e.touches[0], e.touches[1]);
     const [nx,ny] = screenToWorld(mid.x-rect.left, mid.y-rect.top);
@@ -1543,16 +1544,9 @@ canvas.addEventListener('wheel', (e)=>{
   e.preventDefault();
   panToken++;
   stopHoverReplay();
-  const rect = canvas.getBoundingClientRect();
-  const mx = e.clientX-rect.left, my = e.clientY-rect.top;
-  if(e.ctrlKey){
-    const [wx,wy] = screenToWorld(mx,my);
-    camera.scale = Math.min(3, Math.max(0.2, camera.scale * (e.deltaY>0?0.9:1.1)));
-    const [nx,ny] = screenToWorld(mx,my);
-    camera.x += (wx-nx); camera.y += (wy-ny);
-  } else {
-    camera.y += e.deltaY / camera.scale;
-  }
+  // Zoom is disabled — even with ctrl/cmd held, wheel just scrolls
+  // vertically; camera.scale never changes here.
+  camera.y += e.deltaY / camera.scale;
   checkIfScrolledAway();
   redrawAll();
 }, {passive:false});
@@ -2488,7 +2482,13 @@ REPRESENTATIONAL DIAGRAMS AND PICTURES (cells, leaves, animals, organs, maps, hi
 PACING RULES:
 - Teach in SUBSTANTIAL, CONTINUOUS chunks: a full turn should read like several minutes of real lecture — cover a complete idea in depth (its definition, why it matters, a worked example, and its key sub-points), not one lonely sentence. Write MUCH more per turn than feels natural for a "small step" — aim for a long, dense block of "board" content (many "text" commands in a row covering multiple paragraphs, sub-points, and worked equations) so the notes keep growing continuously down the page, the way a real lecturer fills page after page without pausing every few seconds.
 - Only stop and check in with a question once you've actually finished teaching a full coherent topic or sub-topic — not after a single definition or step. Do not artificially cut a turn short.
-- Keep going onto the NEXT related idea in the same turn if it naturally continues the same topic, rather than stopping just because you covered "one thing" already.`;
+- Keep going onto the NEXT related idea in the same turn if it naturally continues the same topic, rather than stopping just because you covered "one thing" already.
+
+"speech" AND "board" MUST STAY IN LOCKSTEP — THIS IS CRITICAL:
+- "speech" is what the teacher is SAYING OUT LOUD *while writing exactly this content on the board*, not a separate, richer, more detailed narration. Never let "speech" cover ideas, examples, sub-points, or elaboration that never actually appear as "text" on the board — if you say it, you must also write a corresponding line for it, and vice versa.
+- Build "speech" by walking through your "text" commands in order and speaking each one's content in natural spoken phrasing (numbers/symbols read aloud, not a verbatim character-for-character read, but the same substance, same amount of material, same order) — not a freer lecture that wanders beyond what's written.
+- Do NOT pad "speech" with extra spoken-only framing, verbal asides, or additional worked detail "for context" that has no matching board content. If a full turn's worth of board content would only take a short time to say, "speech" should also be that short — length of "speech" tracks length of "board", it does not run ahead of it.
+- If you want to say more, write more on the board first — add the corresponding "text"/"image"/"plot" commands for it, THEN speak it. Never the reverse.`;
 
 let conversationHistory = [];
 let aiBrain = 'auto';
@@ -2737,7 +2737,7 @@ async function runTeachingTurn(userMessage, displayText){
     if(result.speech){
       const naturalDuration = result.board.reduce((sum, cmd) => sum + estimateDuration({...cmd}) / pacingScale, 0);
       const speechDuration = estimateSpeechDuration(result.speech);
-      pacingScale = naturalDuration > 0 ? clamp(speechDuration / naturalDuration, 0.5, 2.75) : 1;
+      pacingScale = naturalDuration > 0 ? clamp(speechDuration / naturalDuration, 0.5, 3.5) : 1;
     } else {
       pacingScale = 1;
     }
@@ -3014,7 +3014,7 @@ refreshSessionList();
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Chalkline — Summary</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"><\/script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"><\/script>
