@@ -224,7 +224,7 @@ footer{
 @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Kalam:wght@400;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 :root{
-  --board-bg:#FAF8F3;
+  --board-bg:#EAF4FD;
   --board-line:#E0D9C8;
   --margin-line:#E08080;
   --ink:#1E2B3A;
@@ -245,7 +245,7 @@ body{
   color:var(--ink);
   height:100vh;
   overflow:hidden;
-  background:var(--board-bg);
+  background:linear-gradient(160deg, #EAF4FD 0%, #FFFFFF 65%);
 }
 
 #board-wrap{
@@ -897,51 +897,25 @@ function hexToRgba(hex, alpha){
 let drawnCommands = [];
 
 function drawBG(){
-  ctx.fillStyle = '#FAF8F3';
+  const grad = ctx.createLinearGradient(0, 0, viewW, viewH);
+  grad.addColorStop(0, '#EAF4FD');
+  grad.addColorStop(1, '#FFFFFF');
+  ctx.fillStyle = grad;
   ctx.fillRect(0,0,viewW,viewH);
-}
-
-function drawPageGuides(){
-  const [leftMarginX] = worldToScreen(70, 0);
-  ctx.save();
-  ctx.strokeStyle = 'rgba(224, 128, 128, 0.45)';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.moveTo(leftMarginX, 0); ctx.lineTo(leftMarginX, viewH); ctx.stroke();
-  ctx.restore();
-}
-
-function drawRuleLines(){
-  const topWorldY = screenToWorld(0, 0)[1];
-  const bottomWorldY = screenToWorld(0, viewH)[1];
-  const firstLine = Math.floor(topWorldY / RULE_LINE_SPACING) * RULE_LINE_SPACING;
-  ctx.save();
-  ctx.strokeStyle = 'rgba(200, 190, 170, 0.4)';
-  ctx.lineWidth = 1;
-  for(let wy = firstLine; wy <= bottomWorldY; wy += RULE_LINE_SPACING){
-    const [, sy] = worldToScreen(0, wy);
-    ctx.beginPath(); ctx.moveTo(0, sy); ctx.lineTo(viewW, sy); ctx.stroke();
-  }
-  ctx.restore();
 }
 
 function clearBoard(record=true){
   if(record) drawnCommands = [];
   drawBG();
-  drawRuleLines();
-  drawPageGuides();
 }
 
 function redrawAll(){
   drawBG();
-  drawRuleLines();
-  drawPageGuides();
   drawnCommands.forEach(cmd => renderCommand(cmd));
 }
 
 function redrawAllExcept(skipCmd){
   drawBG();
-  drawRuleLines();
-  drawPageGuides();
   drawnCommands.forEach(cmd => { if(cmd !== skipCmd) renderCommand(cmd); });
 }
 
@@ -1565,8 +1539,6 @@ async function exportBoardAsPDF(){
       camera.y = (minY + i*pageWorldH) + pageWorldH/2;
 
       drawBG();
-      drawRuleLines();
-      drawPageGuides();
       drawnCommands.forEach(cmd => renderCommand(cmd));
 
       const dataUrl = off.toDataURL('image/png');
