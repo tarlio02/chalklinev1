@@ -8,14 +8,110 @@
   html,body{ margin:0; padding:0; height:100%; overflow:hidden; background:#F3F9FE; font-family:-apple-system,Segoe UI,sans-serif; }
   iframe{ position:fixed; inset:0; width:100%; height:100%; border:none; display:none; background:#F3F9FE; }
   iframe.active{ display:block; }
+
+  /* Real Google Sign-In must live in the top-level page — a srcdoc
+     iframe reports location.origin as "null", and Google's Identity
+     script refuses to authenticate from a null origin. */
+  #shell-auth{
+    position:fixed; top:16px; right:20px; z-index:9999;
+    display:flex; align-items:center; gap:8px;
+    font-family:-apple-system,Segoe UI,sans-serif;
+  }
+  #shell-account-chip{
+    display:none; align-items:center; gap:8px;
+    background:#fff; border:1px solid #D3E6F5; border-radius:999px;
+    padding:5px 14px 5px 5px; font-size:12.5px; color:#1E2B3A;
+    box-shadow:0 1px 4px rgba(0,0,0,0.08);
+  }
+  #shell-account-chip img{ width:24px; height:24px; border-radius:50%; }
+  #shell-account-chip button{
+    border:none; background:none; color:#7C93A8; cursor:pointer; font-size:11.5px;
+    padding:0 2px;
+  }
 </style>
 </head>
 <body>
+
+<div id="shell-auth">
+  <div id="shell-signin-btn"></div>
+  <div id="shell-account-chip">
+    <img id="shell-account-avatar" alt="">
+    <span id="shell-account-name"></span>
+    <button id="shell-sign-out" title="Sign out">✕</button>
+  </div>
+</div>
 
 <iframe id="frame-landing"></iframe>
 <iframe id="frame-home"></iframe>
 <iframe id="frame-tutor"></iframe>
 <iframe id="frame-summary"></iframe>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+// Google Sign-In lives here, at the top level, because this is the only
+// document with a real, non-null origin (https://tarlio02.github.io).
+// The individual "pages" below are rendered into iframes via .srcdoc,
+// and srcdoc documents report origin=null — Google's script rejects
+// those requests outright (Error 400: invalid_request, origin=null).
+const SHELL_GOOGLE_CLIENT_ID = "676487295279-j4qka36obo55unl3vds7ja2v24uoq6dm.apps.googleusercontent.com";
+let shellUser = null;
+
+function decodeShellIdToken(jwt){
+  const payload = jwt.split('.')[1];
+  const json = decodeURIComponent(atob(payload.replace(/-/g,'+').replace(/_/g,'/')).split('').map(c=>
+    '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
+  ).join(''));
+  return JSON.parse(json);
+}
+
+function broadcastAuthState(){
+  const msg = { chalklineAuth: true, signedIn: !!shellUser, user: shellUser };
+  Object.values(frames).forEach(f => { try{ f.contentWindow.postMessage(msg, '*'); }catch(e){} });
+}
+
+function handleShellCredential(response){
+  shellUser = decodeShellIdToken(response.credential);
+  document.getElementById('shell-signin-btn').style.display = 'none';
+  const chip = document.getElementById('shell-account-chip');
+  chip.style.display = 'flex';
+  document.getElementById('shell-account-avatar').src = shellUser.picture || '';
+  document.getElementById('shell-account-name').textContent = shellUser.name || shellUser.email || 'Signed in';
+  broadcastAuthState();
+  // TODO: once a backend exists, send response.credential there to verify
+  // the token and load/merge this person's saved sessions.
+}
+
+function initShellGoogleSignIn(){
+  if(typeof google === 'undefined' || !google.accounts){ setTimeout(initShellGoogleSignIn, 300); return; }
+  google.accounts.id.initialize({ client_id: SHELL_GOOGLE_CLIENT_ID, callback: handleShellCredential });
+  google.accounts.id.renderButton(document.getElementById('shell-signin-btn'), { theme:'outline', size:'medium', shape:'pill' });
+}
+initShellGoogleSignIn();
+
+document.getElementById('shell-sign-out').addEventListener('click', signOutShell);
+
+function signOutShell(){
+  shellUser = null;
+  if(typeof google !== 'undefined' && google.accounts) google.accounts.id.disableAutoSelect();
+  document.getElementById('shell-account-chip').style.display = 'none';
+  document.getElementById('shell-signin-btn').style.display = 'block';
+  broadcastAuthState();
+}
+
+// Pages inside the iframes can't run Google's script themselves (see
+// note above), so they ask the shell to act on their behalf.
+window.addEventListener('message', (e)=>{
+  const d = e.data;
+  if(!d) return;
+  if(d.requestLogin && typeof google !== 'undefined' && google.accounts){
+    google.accounts.id.prompt();
+  }
+  if(d.requestSignOut){
+    signOutShell();
+  }
+});
+
+</script>
 
 <script type="text/plain" id="src-landing"><!DOCTYPE html>
 <html lang="en">
@@ -165,9 +261,6 @@ footer a:hover{ color:var(--ink); }
       <a href="#" onclick="parent.postMessage({nav:'home'},'*');return false;">About</a>
     </div>
     <div class="nav-right">
-      <div id="account-signed-out-landing">
-        <div id="google-signin-btn-landing"></div>
-      </div>
       <div id="account-signed-in-landing" style="display:none;">
         <div class="account-chip">
           <img id="account-avatar-landing" alt="">
@@ -190,41 +283,24 @@ footer a:hover{ color:var(--ink); }
   </footer>
 </div>
 
-<script src="https://accounts.google.com/gsi/client" async defer><\/script>
 <script>
-// Same placeholder as the tutor page — replace with your real OAuth
-// Client ID from Google Cloud Console to enable sign-in.
-const GOOGLE_CLIENT_ID_LANDING = "676487295279-j4qka36obo55unl3vds7ja2v24uoq6dm.apps.googleusercontent.com";
-
-function decodeGoogleIdTokenLanding(jwt){
-  const payload = jwt.split('.')[1];
-  const json = decodeURIComponent(atob(payload.replace(/-/g,'+').replace(/_/g,'/')).split('').map(c=>
-    '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
-  ).join(''));
-  return JSON.parse(json);
-}
-
-function handleGoogleCredentialLanding(response){
-  const claims = decodeGoogleIdTokenLanding(response.credential);
-  document.getElementById('account-signed-out-landing').style.display = 'none';
-  document.getElementById('account-signed-in-landing').style.display = 'block';
-  document.getElementById('account-avatar-landing').src = claims.picture || '';
-  document.getElementById('account-name-landing').textContent = claims.name || claims.email || 'Signed in';
-  // TODO: once a backend exists, send response.credential there to verify
-  // the token and load/merge this person's saved sessions.
-}
-
-function initGoogleSignInLanding(){
-  if(typeof google === 'undefined' || !google.accounts){ setTimeout(initGoogleSignInLanding, 300); return; }
-  if(GOOGLE_CLIENT_ID_LANDING.startsWith('YOUR-')){
-    document.getElementById('google-signin-btn-landing').innerHTML =
-      '<a class="go-app-btn" href="#" style="cursor:default;" title="Add a Google OAuth Client ID to enable sign-in">Login</a>';
-    return;
+// Google Sign-In itself runs one level up, in the top-level shell page —
+// a srcdoc iframe (which is what this page is) reports its origin as
+// "null", and Google's script refuses to authenticate from a null
+// origin. This page just listens for the shell to tell it the current
+// sign-in state and reflects it in the UI.
+window.addEventListener('message', (e)=>{
+  const d = e.data;
+  if(!d || !d.chalklineAuth) return;
+  const out = document.getElementById('account-signed-in-landing');
+  if(d.signedIn && d.user){
+    out.style.display = 'block';
+    document.getElementById('account-avatar-landing').src = d.user.picture || '';
+    document.getElementById('account-name-landing').textContent = d.user.name || d.user.email || 'Signed in';
+  } else {
+    out.style.display = 'none';
   }
-  google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID_LANDING, callback: handleGoogleCredentialLanding });
-  google.accounts.id.renderButton(document.getElementById('google-signin-btn-landing'), { theme:'outline', size:'medium', shape:'pill' });
-}
-initGoogleSignInLanding();
+});
 <\/script>
 
 </body>
@@ -2957,10 +3033,12 @@ let currentSessionId = 'session_' + Date.now();
 let currentSessionTitle = null;
 
 // --- Google sign-in --------------------------------------------------
-// Replace with your own OAuth Client ID from Google Cloud Console
-// (APIs & Services > Credentials > Create OAuth client ID > Web
-// application). No client secret is needed for this sign-in-only flow.
-const GOOGLE_CLIENT_ID = "676487295279-j4qka36obo55unl3vds7ja2v24uoq6dm.apps.googleusercontent.com";
+// The real Google Identity script runs one level up, in the top-level
+// shell page — this tutor page is loaded via iframe .srcdoc, and a
+// srcdoc document reports its origin as "null", which Google's script
+// refuses to authenticate from (Error 400: invalid_request, origin=
+// null). So this page doesn't call Google's API directly: it asks the
+// shell to sign in/out, and reflects whatever state the shell reports.
 
 let currentUser = null; // {sub, email, name, picture} once signed in
 
@@ -2972,63 +3050,46 @@ function sessionKeyPrefix(){
   return 'session:' + (currentUser ? currentUser.sub : 'local') + ':';
 }
 
-// Decodes a Google ID token's payload WITHOUT verifying its signature.
-// Fine for reading a name/email/picture to show in the UI client-side;
-// a real backend must independently verify the token (Google's
-// tokeninfo endpoint or a JWT library with Google's public keys)
-// before trusting it to look up or write anyone's saved data.
-function decodeGoogleIdToken(jwt){
-  const payload = jwt.split('.')[1];
-  const json = decodeURIComponent(atob(payload.replace(/-/g,'+').replace(/_/g,'/')).split('').map(c=>
-    '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
-  ).join(''));
-  return JSON.parse(json);
-}
-
-function handleGoogleCredential(response){
-  const claims = decodeGoogleIdToken(response.credential);
-  currentUser = { sub: claims.sub, email: claims.email, name: claims.name, picture: claims.picture };
-  document.getElementById('account-signed-out').style.display = 'none';
-  document.getElementById('account-signed-in').style.display = 'block';
-  document.getElementById('account-avatar').src = claims.picture || '';
-  document.getElementById('account-name').textContent = claims.name || claims.email || 'Signed in';
+function applyAuthState(signedIn, user){
+  currentUser = signedIn ? user : null;
+  document.getElementById('account-signed-out').style.display = signedIn ? 'none' : 'block';
+  document.getElementById('account-signed-in').style.display = signedIn ? 'block' : 'none';
+  if(signedIn){
+    document.getElementById('account-avatar').src = user.picture || '';
+    document.getElementById('account-name').textContent = user.name || user.email || 'Signed in';
+  }
   updateLoginPillVisibility();
-  // TODO: once a backend exists, this is where you'd send
-  // response.credential to it to verify the token and fetch/merge that
+  // TODO: once a backend exists, this is where you'd fetch/merge that
   // user's saved sessions instead of just relighting the local list.
   refreshSessionList();
 }
 
-function initGoogleSignIn(){
-  if(typeof google === 'undefined' || !google.accounts){ setTimeout(initGoogleSignIn, 300); return; }
-  if(GOOGLE_CLIENT_ID.startsWith('YOUR-')){
-    document.getElementById('google-signin-btn').innerHTML =
-      '<div class="file-meta">Add a Google OAuth Client ID (GOOGLE_CLIENT_ID) to enable sign-in.</div>';
-    return;
-  }
-  google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: handleGoogleCredential });
-  google.accounts.id.renderButton(document.getElementById('google-signin-btn'), { theme:'outline', size:'medium', shape:'pill' });
-}
-initGoogleSignIn();
-
-document.getElementById('btn-sign-out').addEventListener('click', ()=>{
-  currentUser = null;
-  if(typeof google !== 'undefined' && google.accounts) google.accounts.id.disableAutoSelect();
-  document.getElementById('account-signed-in').style.display = 'none';
-  document.getElementById('account-signed-out').style.display = 'block';
-  refreshSessionList();
-  updateLoginPillVisibility();
+window.addEventListener('message', (e)=>{
+  const d = e.data;
+  if(!d || !d.chalklineAuth) return;
+  applyAuthState(!!d.signedIn, d.user);
 });
 
-// Top-of-canvas reminder pill: only shown while signed out, opens the
-// Account section of the side panel so the person can sign in with Google.
+document.getElementById('google-signin-btn').innerHTML =
+  '<a class="link-btn" href="#" onclick="parent.postMessage({requestLogin:true},\'*\');return false;">Sign in with Google</a>';
+
+document.getElementById('btn-sign-out').addEventListener('click', ()=>{
+  parent.postMessage({ requestSignOut: true }, '*');
+});
+
+// Top-of-canvas reminder pill: only shown while signed out. Since the
+// real Google button lives in the shell (top-right, above every page),
+// clicking this just asks the shell to trigger its sign-in prompt.
 function updateLoginPillVisibility(){
   const pill = document.getElementById('btn-login-pill');
   if(pill) pill.style.display = currentUser ? 'none' : 'flex';
 }
-document.getElementById('btn-login-pill').addEventListener('click', openPanel);
+document.getElementById('btn-login-pill').addEventListener('click', ()=>{
+  parent.postMessage({ requestLogin: true }, '*');
+});
 updateLoginPillVisibility();
 // -----------------------------------------------------------------------
+
 
 function transcriptToHtmlSnapshot(){ return transcriptEl.innerHTML; }
 
