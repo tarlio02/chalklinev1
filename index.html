@@ -1429,25 +1429,59 @@ function resizeCanvas(){
   ctx.setTransform(dpr,0,0,dpr,0,0);
   viewW = rect.width; viewH = rect.height;
   
-  if (!userIsScrolledAway && viewW > 0) {
+  // Horizontal position (left-gutter anchoring) and zoom level aren't
+  // something the user "scrolls away" from — userIsScrolledAway only
+  // tracks whether they've panned vertically away from the pen. So keep
+  // recalculating scale/x on every resize (including mid-lesson rotations),
+  // and only gate the vertical recenter-to-top behind userIsScrolledAway.
+  if (viewW > 0) {
       camera.scale = Math.min(1.5, viewW / 1050);
       camera.x = idealCameraX(camera.scale);
-      camera.y = idealCameraY(camera.scale);
+      if (!userIsScrolledAway) {
+          camera.y = idealCameraY(camera.scale);
+      }
   }
   
   redrawAll();
 }
 window.addEventListener('resize', resizeCanvas);
 
+// Mobile Safari (and other mobile browsers) can take noticeably longer than
+// 350ms to finish reflowing the visual viewport after a rotation — the
+// address bar/chrome animates in/out, and getBoundingClientRect() can keep
+// reporting the pre-rotation size for a little while. A couple of fixed
+// retries isn't always enough, so on top of those we also (a) listen to
+// visualViewport's own resize event, which fires as the real viewport
+// settles rather than on a guessed timer, and (b) poll briefly until the
+// reported size actually stops changing before giving up.
+function resizeCanvasWhenStable(maxWaitMs){
+  const deadline = performance.now() + maxWaitMs;
+  let lastW = -1, lastH = -1, stableFrames = 0;
+  function tick(){
+    const rect = canvas.getBoundingClientRect();
+    if (Math.abs(rect.width-lastW) < 0.5 && Math.abs(rect.height-lastH) < 0.5) {
+      stableFrames++;
+    } else {
+      stableFrames = 0;
+      lastW = rect.width; lastH = rect.height;
+    }
+    resizeCanvas();
+    if (stableFrames >= 3 || performance.now() > deadline) return;
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
 window.addEventListener('orientationchange', () => {
-  setTimeout(resizeCanvas, 50);
-  setTimeout(resizeCanvas, 350);
+  resizeCanvasWhenStable(1000);
 });
 if (screen.orientation && screen.orientation.addEventListener) {
   screen.orientation.addEventListener('change', () => {
-    setTimeout(resizeCanvas, 50);
-    setTimeout(resizeCanvas, 350);
+    resizeCanvasWhenStable(1000);
   });
+}
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', () => resizeCanvasWhenStable(1000));
 }
 
 function worldToScreen(wx, wy){
@@ -3687,6 +3721,12 @@ document.getElementById('voice-select').addEventListener('change', ()=>{
 });
 
 resizeCanvas();
+// Mobile browsers (portrait especially) can still be settling viewport
+// chrome/address-bar height right after load, so the very first
+// getBoundingClientRect() here may be stale. Re-run once layout settles,
+// same fix already applied for orientationchange.
+setTimeout(resizeCanvas, 50);
+setTimeout(resizeCanvas, 350);
 setStatus('idle');
 refreshSessionList();
 <\/script>
