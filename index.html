@@ -8,28 +8,9 @@
   html,body{ margin:0; padding:0; height:100%; overflow:hidden; background:#F3F9FE; font-family:-apple-system,Segoe UI,sans-serif; }
   iframe{ position:fixed; inset:0; width:100%; height:100%; border:none; display:none; background:#F3F9FE; }
   iframe.active{ display:block; }
-
-  #back-btn{
-    position:fixed; top:16px; left:16px; z-index:99999;
-    display:none; align-items:center; gap:6px;
-    background:rgba(255,255,255,0.92); backdrop-filter:blur(6px);
-    border:1px solid #D3E6F5; border-radius:20px;
-    padding:8px 14px 8px 10px; cursor:pointer;
-    font-size:13.5px; color:#1E2B3A; font-weight:600;
-    box-shadow:0 2px 10px rgba(30,60,90,0.08);
-    transition:background .15s ease, transform .15s ease;
-  }
-  #back-btn:hover{ background:#fff; transform:translateX(-1px); }
-  #back-btn svg{ width:15px; height:15px; }
-  #back-btn.show{ display:inline-flex; }
 </style>
 </head>
 <body>
-
-<button id="back-btn" onclick="navTo('home', true)">
-  <svg viewBox="0 0 16 16" fill="none"><path d="M14 8H3M7.5 3.5 3 8l4.5 4.5" stroke="#1E2B3A" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-  Back
-</button>
 
 <iframe id="frame-home"></iframe>
 <iframe id="frame-tutor"></iframe>
@@ -335,6 +316,12 @@ body{
   z-index:20;
 }
 .topbar > *{pointer-events:auto;}
+.topbar-left-stack{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:10px;
+}
 .icon-btn{
   width:40px;height:40px;
   border-radius:50%;
@@ -429,6 +416,32 @@ body{
   animation:ripple 1.6s ease-out infinite;
 }
 @keyframes ripple{0%{transform:scale(0.85);opacity:0.6;}100%{transform:scale(1.25);opacity:0;}}
+
+.tutor-live{
+  font-family:'JetBrains Mono', monospace;
+  font-size:11px;
+  font-weight:700;
+  letter-spacing:0.2px;
+  color:#1f9d55;
+  background:rgba(255,255,255,0.85);
+  padding:5px 10px;
+  border-radius:14px;
+  display:flex;align-items:center;gap:6px;
+  animation:tutor-live-pulse 1.8s ease-in-out infinite;
+}
+.tutor-live::before{
+  content:'';
+  width:7px;height:7px;border-radius:50%;
+  background:#1f9d55;
+  animation:tutor-dot-pulse 1.8s ease-in-out infinite;
+}
+@keyframes tutor-live-pulse{0%,100%{opacity:1;}50%{opacity:0.6;}}
+@keyframes tutor-dot-pulse{
+  0%{box-shadow:0 0 0 0 rgba(31,157,85,0.55);}
+  70%{box-shadow:0 0 0 8px rgba(31,157,85,0);}
+  100%{box-shadow:0 0 0 0 rgba(31,157,85,0);}
+}
+
 .cluster-btn-wrap{
   display:flex;
   flex-direction:column;
@@ -445,15 +458,17 @@ body{
 }
 .cluster-btn:hover{background:#faf8f2;}
 
-.mic-zone{
+.bottom-bar{
   position:fixed;
-  right:22px;bottom:70px;
+  left:50%;
+  bottom:70px;
+  transform:translateX(-50%);
   z-index:20;
   display:flex;
-  flex-direction:column;
   align-items:center;
-  gap:4px;
+  gap:10px;
 }
+
 .mic-btn{
   width:56px;height:56px;border-radius:50%;
   border:none;
@@ -469,11 +484,6 @@ body{
 @keyframes mic-pulse{0%,100%{box-shadow:0 0 0 0 rgba(168,75,57,.45);}50%{box-shadow:0 0 0 10px rgba(168,75,57,0);}}
 
 .ask-zone{
-  position:fixed;
-  left:50%;
-  bottom:70px;
-  transform:translateX(-50%);
-  z-index:20;
   display:flex;
   gap:8px;
   align-items:center;
@@ -620,13 +630,15 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
 </div>
 
 <div class="topbar">
-  <div class="topbar-btn-wrap">
-    <a class="icon-btn" href="#" title="Back to Chalkline" style="text-decoration:none;display:flex;align-items:center;justify-content:center;" onclick="parent.postMessage({nav:'home'},'*');return false;">🏠</a>
-    <span class="btn-label">Home</span>
-  </div>
-  <div class="topbar-btn-wrap">
-    <button class="icon-btn" id="btn-menu" title="Menu">☰</button>
-    <span class="btn-label">Menu</span>
+  <div class="topbar-left-stack">
+    <div class="topbar-btn-wrap">
+      <a class="icon-btn" href="#" title="Back to Chalkline" style="text-decoration:none;display:flex;align-items:center;justify-content:center;" onclick="parent.postMessage({nav:'home'},'*');return false;">🏠</a>
+      <span class="btn-label">Home</span>
+    </div>
+    <div class="topbar-btn-wrap">
+      <button class="icon-btn" id="btn-menu" title="Menu">☰</button>
+      <span class="btn-label">Menu</span>
+    </div>
   </div>
   <div class="top-right-cluster">
     <div class="status-chip" id="status-line">idle</div>
@@ -654,10 +666,11 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
 </div>
 
 <div class="avatar-cluster">
-  <div class="cluster-btn-wrap">
-    <div class="avatar" id="avatar">🧑‍🏫</div>
-    <span class="btn-label">Tutor</span>
-  </div>
+  <div class="avatar" id="avatar">🧑‍🏫</div>
+  <span class="tutor-live">Tutor is live</span>
+</div>
+
+<div class="bottom-bar">
   <div class="cluster-btn-wrap">
     <button class="cluster-btn" id="btn-toggle-transcript" title="Show transcript">💬</button>
     <span class="btn-label">Transcript</span>
@@ -666,16 +679,16 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
     <button class="cluster-btn" id="btn-replay" title="Replay narration">🔊</button>
     <span class="btn-label">Replay</span>
   </div>
-</div>
 
-<div class="ask-zone">
-  <input type="text" id="ask-input" placeholder="Ask a follow-up…">
-  <button id="btn-ask" title="Send">➤</button>
-</div>
+  <div class="ask-zone">
+    <input type="text" id="ask-input" placeholder="Ask a follow-up…">
+    <button id="btn-ask" title="Send">➤</button>
+  </div>
 
-<div class="mic-zone">
-  <button class="mic-btn" id="btn-mic" title="Talk to your tutor">🎙</button>
-  <span class="btn-label">Talk</span>
+  <div class="cluster-btn-wrap">
+    <button class="mic-btn" id="btn-mic" title="Talk to your tutor">🎙</button>
+    <span class="btn-label">Talk</span>
+  </div>
 </div>
 
 <!-- SIDE PANEL -->
@@ -3150,7 +3163,6 @@ const frames = {
   summary: document.getElementById('frame-summary')
 };
 const loaded = { home:false, tutor:false, summary:false };
-const backBtn = document.getElementById('back-btn');
 let current = 'home';
 
 function ensureLoaded(page){
@@ -3163,7 +3175,6 @@ function navTo(page, pushHistory){
   if(!frames[page]) page = 'home';
   ensureLoaded(page);
   Object.keys(frames).forEach(k => frames[k].classList.toggle('active', k === page));
-  backBtn.classList.toggle('show', page !== 'home');
   current = page;
   if(pushHistory !== false){
     history.pushState({page}, '', '#' + page);
