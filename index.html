@@ -365,6 +365,42 @@ body{
   box-shadow:0 0 0 3px rgba(110,168,254,0.25);
 }
 
+/* ---------- floating pointer: a little chalk-tip arrow that moves to and
+   points at whatever the tutor is currently talking about, in sync with
+   speech. Fixed-position so it tracks correctly whether the board scrolled
+   because the tutor moved it or because the user did. ---------- */
+#tutor-pointer{
+  position:fixed;
+  left:0; top:0;
+  width:0; height:0;
+  border-top:7px solid transparent;
+  border-bottom:7px solid transparent;
+  border-left:11px solid var(--accent, #6EA8FE);
+  filter:drop-shadow(0 1px 3px rgba(30,60,100,.35));
+  opacity:0;
+  pointer-events:none;
+  z-index:60;
+  transition: top .38s cubic-bezier(.4,0,.2,1), left .38s cubic-bezier(.4,0,.2,1), opacity .25s ease;
+}
+#tutor-pointer.active{ opacity:1; }
+#tutor-pointer::before{
+  content:'';
+  position:absolute;
+  left:-25px; top:-9px;
+  width:12px; height:12px;
+  border-radius:50%;
+  background:var(--accent, #6EA8FE);
+  opacity:.35;
+  animation:tutor-pointer-pulse 1.15s ease-in-out infinite;
+}
+@keyframes tutor-pointer-pulse{
+  0%,100%{ transform:scale(.8); opacity:.35; }
+  50%{ transform:scale(1.4); opacity:.08; }
+}
+@media (prefers-reduced-motion: reduce){
+  #tutor-pointer::before{ animation:none; }
+}
+
 .b-heading{
   font-family:'Kalam', cursive;
   font-weight:700;
@@ -851,6 +887,7 @@ h1, h2, .brand{ font-family:'Caveat',cursive !important; }
 <div id="board-scroll">
   <div id="board-content" class="empty"></div>
 </div>
+<div id="tutor-pointer" aria-hidden="true"></div>
 <div id="scroll-to-latest">↓ Jump to latest</div>
 
 <div class="topbar">
@@ -980,6 +1017,7 @@ h1, h2, .brand{ font-family:'Caveat',cursive !important; }
 const boardScroll = document.getElementById('board-scroll');
 const boardContent = document.getElementById('board-content');
 const scrollLatestBtn = document.getElementById('scroll-to-latest');
+const tutorPointer = document.getElementById('tutor-pointer');
 
 // Kept only for backward-compatibility with session save/load code
 // further down the file, which still reads/writes these names.
@@ -1027,7 +1065,7 @@ function checkIfScrolledAway(){
   userIsScrolledAway = !isNearBottom();
   scrollLatestBtn.classList.toggle('show', userIsScrolledAway && boardContent.children.length > 0);
 }
-boardScroll.addEventListener('scroll', () => { checkIfScrolledAway(); }, { passive:true });
+boardScroll.addEventListener('scroll', () => { checkIfScrolledAway(); updateTutorPointerPosition(); }, { passive:true });
 scrollLatestBtn.addEventListener('click', () => {
   userIsScrolledAway = false;
   boardScroll.scrollTo({ top: boardScroll.scrollHeight, behavior:'smooth' });
@@ -1061,6 +1099,39 @@ function focusBoardElement(element){
   if(elementComfortablyVisible(element)) return;
   element.scrollIntoView({ behavior:'smooth', block:'center' });
 }
+
+/* ---------- the floating pointer itself ----------
+   Tracks whichever element is the PRIMARY current focus (the first ref in
+   the active breakpoint) and keeps its tip against that element's left
+   edge, vertically centered on whatever portion of it is actually visible
+   — so it stays sensible even while a smooth scroll is still animating,
+   and hides itself gracefully if its target is fully off-screen. */
+let tutorPointerTargetId = null;
+
+function updateTutorPointerPosition(){
+  if(!tutorPointerTargetId){ tutorPointer.classList.remove('active'); return; }
+  const el = boardElementMap.get(tutorPointerTargetId);
+  if(!el || !el.isConnected){ tutorPointer.classList.remove('active'); return; }
+  const rect = el.getBoundingClientRect();
+  const visTop = Math.max(rect.top, 0);
+  const visBottom = Math.min(rect.bottom, window.innerHeight);
+  if(visBottom - visTop < 4){ tutorPointer.classList.remove('active'); return; }
+  const y = (visTop + visBottom) / 2;
+  const x = Math.max(rect.left - 16, 6);
+  tutorPointer.style.left = x + 'px';
+  tutorPointer.style.top = y + 'px';
+  tutorPointer.classList.add('active');
+}
+
+function setTutorPointerTarget(id){
+  tutorPointerTargetId = id || null;
+  // Run now and again next frame — the target's position may still be
+  // settling (e.g. right after it was first drawn, before layout/reflow).
+  updateTutorPointerPosition();
+  requestAnimationFrame(updateTutorPointerPosition);
+}
+
+window.addEventListener('resize', updateTutorPointerPosition);
 
 // A ref is either:
 //   - a number: an index into THIS turn's `board` array (a just-drawn item)
@@ -1112,6 +1183,10 @@ function setActiveFocusElements(resolved, myToken){
     if(!scrolled){ focusBoardElement(el); scrolled = true; }
   });
   currentlyFocusedIds = newIds;
+  // The pointer always tracks the PRIMARY reference — the first one in this
+  // breakpoint — so it settles on one clear target even when a sentence
+  // names two things at once (e.g. "compare the curve with the equation").
+  setTutorPointerTarget(resolved.length ? resolved[0].id : null);
 }
 
 function clearBoardFocus(){
@@ -1122,6 +1197,7 @@ function clearBoardFocus(){
   currentlyFocusedIds.clear();
   lastAppliedBreakpointCharStart = -1;
   cancelPendingFocusTimers();
+  setTutorPointerTarget(null);
 }
 
 // Resolves a breakpoint's refs into elements, retrying briefly if a
