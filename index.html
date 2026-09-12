@@ -249,7 +249,7 @@ footer{
 @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Kalam:wght@400;700&family=Noto+Sans+Symbols+2&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 :root{
-  --board-bg:#FAF8F3;
+  --board-bg:#FFFFFF;
   --board-line:#E0D9C8;
   --margin-line:#E08080;
   --ink:#1E2B3A;
@@ -262,6 +262,7 @@ footer{
   --muted:#7C93A8;
   --halo-blue:#0099FF;
   --halo-blue-soft:#00E5FF;
+  --btn-glow:0 0 0 1.5px rgba(20,90,255,0.55), 0 0 10px 2px rgba(20,90,255,0.45), 0 0 22px 4px rgba(0,140,255,0.30);
 }
 *{box-sizing:border-box;}
 html,body{margin:0;height:100%;}
@@ -345,7 +346,7 @@ body{
   border:none;
   background:rgba(255,255,255,0.85);
   backdrop-filter:blur(6px);
-  box-shadow:0 1px 4px rgba(0,0,0,0.08);
+  box-shadow:0 1px 4px rgba(0,0,0,0.08), var(--btn-glow);
   display:flex;align-items:center;justify-content:center;
   cursor:pointer;
   font-size:16px;
@@ -445,7 +446,7 @@ body{
   background:#fff;
   display:flex;align-items:center;justify-content:center;
   cursor:pointer;font-size:15px;color:var(--ink);
-  box-shadow:0 1px 4px rgba(0,0,0,0.06);
+  box-shadow:0 1px 4px rgba(0,0,0,0.06), var(--btn-glow);
 }
 .cluster-btn:hover{background:#faf8f2;}
 
@@ -466,11 +467,11 @@ body{
   font-size:20px;
   display:flex;align-items:center;justify-content:center;
   cursor:pointer;
-  box-shadow:0 3px 10px rgba(168,75,57,0.35);
+  box-shadow:0 3px 10px rgba(168,75,57,0.35), var(--btn-glow);
 }
 .mic-btn.live{animation:mic-pulse 1.3s ease-in-out infinite;}
 .mic-btn.unsupported{background:#c9c4b5;box-shadow:none;cursor:not-allowed;}
-@keyframes mic-pulse{0%,100%{box-shadow:0 0 0 0 rgba(168,75,57,.45);}50%{box-shadow:0 0 0 10px rgba(168,75,57,0);}}
+@keyframes mic-pulse{0%,100%{box-shadow:0 0 0 0 rgba(168,75,57,.45), var(--btn-glow);}50%{box-shadow:0 0 0 10px rgba(168,75,57,0), var(--btn-glow);}}
 
 .ask-zone{
   position:fixed;
@@ -485,7 +486,7 @@ body{
   border:1px solid var(--panel-border);
   border-radius:30px;
   padding:6px 6px 6px 14px;
-  box-shadow:0 3px 14px rgba(0,0,0,0.08);
+  box-shadow:0 3px 14px rgba(0,0,0,0.08), var(--btn-glow);
   width:min(520px, 44vw);
 }
 .ask-zone input[type="text"]{
@@ -500,6 +501,7 @@ body{
   background: transparent; color: var(--muted); font-size: 18px; 
   border:none; cursor:pointer; width:36px; height:36px; 
   display:flex; align-items:center; justify-content:center; border-radius:50%; flex-shrink:0;
+  box-shadow: var(--btn-glow);
 }
 #btn-attach:hover { background: #f0f4f8; color: var(--ink); }
 
@@ -509,6 +511,7 @@ body{
   cursor:pointer;font-size:14px;
   display:flex;align-items:center;justify-content:center;
   flex-shrink:0;
+  box-shadow: var(--btn-glow);
 }
 .ask-zone button#btn-ask:hover{background:var(--ochre);}
 
@@ -583,6 +586,7 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
   flex:1;font-family:'Source Serif 4', serif;font-size:13px;
   border:1px solid var(--ink);background:transparent;color:var(--ink);
   padding:8px 10px;border-radius:5px;cursor:pointer;
+  box-shadow: var(--btn-glow);
 }
 .p-btn.primary{background:var(--ink);color:#fff;}
 .p-btn:hover{background:var(--ochre);border-color:var(--ochre);color:#fff;}
@@ -717,7 +721,7 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
     <div class="p-section">
       <h2>Narrator voice</h2>
       <select class="topic-input" id="voice-select" style="height:auto;padding:9px 10px;"></select>
-      <div class="file-meta" style="margin-top:6px;">"Natural" voices are ElevenLabs (free-tier, richer sound). Browser voices are free and instant but more robotic. Falls back to browser voice automatically if the natural voice can't be reached.</div>
+      <div class="file-meta" style="margin-top:6px;">"Natural" voices are ElevenLabs or Google Cloud (free tiers, richer sound). Browser voices are free and instant but more robotic. Falls back to browser voice automatically if a natural voice can't be reached.</div>
     </div>
     <div class="p-section">
       <h2>Source material</h2>
@@ -2078,6 +2082,22 @@ const ELEVEN_VOICES = [
   { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Bella' },
   { id: 'pNInz6obpgDQGcFmaJgB', name: 'Adam' },
   { id: 'ErXwobaYiN019PkySvjV', name: 'Antoni' },
+  { id: 'AZnzlk1XvdvUeBnXmlld', name: 'Domi' },
+  { id: 'MF3mGyEYCl7XYWbV9V6O', name: 'Elli' },
+  { id: 'TxGEqnHWrfWFTfGW9XjX', name: 'Josh' },
+  { id: 'VR6AewLTigWG4xSOukaG', name: 'Arnold' },
+  { id: 'yoZ06aMxZJJ28mfd3POQ', name: 'Sam' },
+];
+
+// Free-tier Google Cloud TTS voices (Neural2/WaveNet — 1M free chars/month).
+// voiceName encodes the language, e.g. "en-US-Neural2-C".
+const GOOGLE_VOICES = [
+  { id: 'en-US-Neural2-C', name: 'Google — Ava (US, female)' },
+  { id: 'en-US-Neural2-D', name: 'Google — Miles (US, male)' },
+  { id: 'en-US-Neural2-F', name: 'Google — Iris (US, female)' },
+  { id: 'en-US-Neural2-J', name: 'Google — Reed (US, male)' },
+  { id: 'en-GB-Neural2-A', name: 'Google — Willow (UK, female)' },
+  { id: 'en-GB-Neural2-B', name: 'Google — Arthur (UK, male)' },
 ];
 
 function scoreVoice(v){
@@ -2142,6 +2162,16 @@ function populateVoiceDropdown(){
     naturalGroup.appendChild(opt);
   });
   sel.appendChild(naturalGroup);
+
+  const googleGroup = document.createElement('optgroup');
+  googleGroup.label = 'Natural (Google Cloud, free tier)';
+  GOOGLE_VOICES.forEach(v => {
+    const opt = document.createElement('option');
+    opt.value = 'gc:' + v.id;
+    opt.textContent = v.name;
+    googleGroup.appendChild(opt);
+  });
+  sel.appendChild(googleGroup);
 
   if(pool.length){
     const browserGroup = document.createElement('optgroup');
@@ -2208,6 +2238,8 @@ function speak(text){
   const sel = document.getElementById('voice-select');
   if(sel && sel.value && sel.value.startsWith('el:')){
     speakElevenLabs(text, sel.value.slice(3));
+  } else if(sel && sel.value && sel.value.startsWith('gc:')){
+    speakGoogleTTS(text, sel.value.slice(3));
   } else {
     speakBrowser(text);
   }
@@ -2263,7 +2295,7 @@ function stopElevenLabsAudio(){
 }
 
 async function fetchElevenLabsAudio(text, voiceId){
-  const response = await fetch(`${PROXY_URL}/tts`, {
+  const response = await fetch(`${PROXY_URL}/elevenlabs-tts`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text, voice_id: voiceId })
@@ -2310,6 +2342,77 @@ function speakElevenLabs(text, voiceId){
     if(!audioCache[i]){
       audioCache[i] = fetchElevenLabsAudio(chunks[i], voiceId).catch(err => {
         console.error('ElevenLabs TTS failed for this line, falling back to browser voice:', err);
+        if(typeof setStatus === 'function') setStatus('natural voice unavailable — using browser voice (' + err.message + ')');
+        return null;
+      });
+    }
+    return audioCache[i];
+  }
+
+  async function playChunk(i){
+    if(myToken !== currentSpeechToken) return;
+    if(i >= chunks.length){ avatar.classList.remove('speaking'); return; }
+    renderCaption(text, chunkOffsets[i], chunks[i]);
+    ensureFetched(i+1); // prefetch the next line while this one plays, to avoid gaps
+    const url = await ensureFetched(i);
+    if(myToken !== currentSpeechToken) return;
+    if(!url){
+      speakBrowserChunkFallback(chunks[i], () => playChunk(i+1));
+      return;
+    }
+    const audioEl = new Audio(url);
+    currentAudioEls.push(audioEl);
+    audioEl.onplay = () => avatar.classList.add('speaking');
+    audioEl.onended = () => { if(myToken === currentSpeechToken) playChunk(i+1); };
+    audioEl.onerror = () => { if(myToken === currentSpeechToken) playChunk(i+1); };
+    audioEl.play().catch(() => { if(myToken === currentSpeechToken) playChunk(i+1); });
+  }
+  playChunk(0);
+}
+
+// ---------- Google Cloud TTS "natural voice" path ----------
+// Requires a /tts route on the Chalkline proxy worker that forwards to
+// Google Cloud Text-to-Speech using a server-held API key. Free tier is
+// generous (1M chars/month for Neural2 voices). Falls back to the browser
+// voice per-chunk if a request fails, same as the ElevenLabs path.
+async function fetchGoogleTTSAudio(text, voiceName){
+  const response = await fetch(`${PROXY_URL}/tts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, voiceName })
+  });
+  if(!response.ok){
+    let detail = 'http ' + response.status;
+    try{
+      const body = await response.clone().json();
+      if(body && body.error && body.error.message) detail = body.error.message;
+    }catch(e){ /* not JSON, keep the status-code detail */ }
+    throw new Error(detail);
+  }
+  const data = await response.json();
+  if(!data.audioContent) throw new Error('no audioContent in response');
+  return 'data:audio/mp3;base64,' + data.audioContent;
+}
+
+function speakGoogleTTS(text, voiceName){
+  window.speechSynthesis.cancel();
+  stopElevenLabsAudio(); // also clears any in-flight Google audio elements — shared array
+  const myToken = ++currentSpeechToken;
+  currentUtteranceText = text;
+  const chunks = splitIntoSpeechChunks(text);
+  let searchPos = 0;
+  const chunkOffsets = chunks.map(c => {
+    const idx = text.indexOf(c, searchPos);
+    searchPos = idx >= 0 ? idx + c.length : searchPos;
+    return idx >= 0 ? idx : searchPos;
+  });
+
+  const audioCache = new Array(chunks.length).fill(null);
+  function ensureFetched(i){
+    if(i < 0 || i >= chunks.length) return null;
+    if(!audioCache[i]){
+      audioCache[i] = fetchGoogleTTSAudio(chunks[i], voiceName).catch(err => {
+        console.error('Google TTS failed for this line, falling back to browser voice:', err);
         if(typeof setStatus === 'function') setStatus('natural voice unavailable — using browser voice (' + err.message + ')');
         return null;
       });
@@ -3117,8 +3220,9 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
   font-family:'Source Serif 4', serif; font-size:15.5px; font-weight:600;
   background:var(--ink); color:#fff; border:none; border-radius:9px;
   padding:11px 22px; cursor:pointer;
+  box-shadow:0 0 0 1.5px rgba(20,90,255,0.55), 0 0 10px 2px rgba(20,90,255,0.45), 0 0 22px 4px rgba(0,140,255,0.30);
 }
-.btn-primary:disabled{ background:#cfc9b4; cursor:not-allowed; }
+.btn-primary:disabled{ background:#cfc9b4; cursor:not-allowed; box-shadow:none; }
 .btn-primary:not(:disabled):hover{ background:#3a372e; }
 .status-line{ font-family:'JetBrains Mono', monospace; font-size:11.5px; color:var(--muted); margin-top:10px; min-height:14px; }
 
@@ -3130,7 +3234,8 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 .output-actions{ display:flex; gap:10px; }
 .icon-link{
   font-family:'JetBrains Mono', monospace; font-size:11.5px; color:var(--ochre);
-  text-decoration:none; cursor:pointer; background:none; border:none; padding:0;
+  text-decoration:none; cursor:pointer; background:none; border:none; padding:2px 8px; border-radius:6px;
+  box-shadow:0 0 0 1.5px rgba(20,90,255,0.5), 0 0 8px 2px rgba(20,90,255,0.35);
 }
 .icon-link:hover{ text-decoration:underline; }
 
