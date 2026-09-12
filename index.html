@@ -1213,6 +1213,45 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
 </div>
 
 <script>
+/* ---------------------------------------------------------------
+   window.storage shim: the real window.storage API only exists
+   inside the Claude.ai artifact preview sandbox — on a real
+   deployed site (like this one, on GitHub Pages) it doesn't exist
+   at all, so every call used to throw and autosave failed silently.
+   This shim gives the same get/set/list/delete interface, backed
+   by localStorage, so saving actually works once deployed. Swap
+   this out for real fetch() calls to your own backend later if you
+   want saves to sync across devices instead of staying per-browser.
+   ------------------------------------------------------------- */
+if(!window.storage || !window.storage.__isRealBackend){
+  const STORAGE_NS = 'chalkline:';
+  window.storage = {
+    __isRealBackend: false,
+    async get(key){
+      const raw = localStorage.getItem(STORAGE_NS + key);
+      return raw === null ? null : { key, value: raw, shared: false };
+    },
+    async set(key, value){
+      try{ localStorage.setItem(STORAGE_NS + key, value); return { key, value, shared: false }; }
+      catch(e){ console.error('localStorage set failed:', e); return null; }
+    },
+    async delete(key){
+      const existed = localStorage.getItem(STORAGE_NS + key) !== null;
+      localStorage.removeItem(STORAGE_NS + key);
+      return { key, deleted: existed, shared: false };
+    },
+    async list(prefix){
+      const keys = [];
+      const full = STORAGE_NS + (prefix || '');
+      for(let i=0;i<localStorage.length;i++){
+        const k = localStorage.key(i);
+        if(k && k.startsWith(full)) keys.push(k.slice(STORAGE_NS.length));
+      }
+      return { keys, prefix, shared: false };
+    }
+  };
+}
+
 /* =========================================================
    INFINITE CANVAS: camera model & Auto-Stacking Layout
    ========================================================= */
@@ -3661,6 +3700,45 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 </div>
 
 <script>
+/* ---------------------------------------------------------------
+   window.storage shim: the real window.storage API only exists
+   inside the Claude.ai artifact preview sandbox — on a real
+   deployed site (like this one, on GitHub Pages) it doesn't exist
+   at all, so every call used to throw and autosave failed silently.
+   This shim gives the same get/set/list/delete interface, backed
+   by localStorage, so saving actually works once deployed. Swap
+   this out for real fetch() calls to your own backend later if you
+   want saves to sync across devices instead of staying per-browser.
+   ------------------------------------------------------------- */
+if(!window.storage || !window.storage.__isRealBackend){
+  const STORAGE_NS = 'chalkline:';
+  window.storage = {
+    __isRealBackend: false,
+    async get(key){
+      const raw = localStorage.getItem(STORAGE_NS + key);
+      return raw === null ? null : { key, value: raw, shared: false };
+    },
+    async set(key, value){
+      try{ localStorage.setItem(STORAGE_NS + key, value); return { key, value, shared: false }; }
+      catch(e){ console.error('localStorage set failed:', e); return null; }
+    },
+    async delete(key){
+      const existed = localStorage.getItem(STORAGE_NS + key) !== null;
+      localStorage.removeItem(STORAGE_NS + key);
+      return { key, deleted: existed, shared: false };
+    },
+    async list(prefix){
+      const keys = [];
+      const full = STORAGE_NS + (prefix || '');
+      for(let i=0;i<localStorage.length;i++){
+        const k = localStorage.key(i);
+        if(k && k.startsWith(full)) keys.push(k.slice(STORAGE_NS.length));
+      }
+      return { keys, prefix, shared: false };
+    }
+  };
+}
+
 const pdfjsAvailable = typeof pdfjsLib !== 'undefined';
 if(pdfjsAvailable){
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -4071,6 +4149,45 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 </div>
 
 <script>
+/* ---------------------------------------------------------------
+   window.storage shim: the real window.storage API only exists
+   inside the Claude.ai artifact preview sandbox — on a real
+   deployed site (like this one, on GitHub Pages) it doesn't exist
+   at all, so every call used to throw and autosave failed silently.
+   This shim gives the same get/set/list/delete interface, backed
+   by localStorage, so saving actually works once deployed. Swap
+   this out for real fetch() calls to your own backend later if you
+   want saves to sync across devices instead of staying per-browser.
+   ------------------------------------------------------------- */
+if(!window.storage || !window.storage.__isRealBackend){
+  const STORAGE_NS = 'chalkline:';
+  window.storage = {
+    __isRealBackend: false,
+    async get(key){
+      const raw = localStorage.getItem(STORAGE_NS + key);
+      return raw === null ? null : { key, value: raw, shared: false };
+    },
+    async set(key, value){
+      try{ localStorage.setItem(STORAGE_NS + key, value); return { key, value, shared: false }; }
+      catch(e){ console.error('localStorage set failed:', e); return null; }
+    },
+    async delete(key){
+      const existed = localStorage.getItem(STORAGE_NS + key) !== null;
+      localStorage.removeItem(STORAGE_NS + key);
+      return { key, deleted: existed, shared: false };
+    },
+    async list(prefix){
+      const keys = [];
+      const full = STORAGE_NS + (prefix || '');
+      for(let i=0;i<localStorage.length;i++){
+        const k = localStorage.key(i);
+        if(k && k.startsWith(full)) keys.push(k.slice(STORAGE_NS.length));
+      }
+      return { keys, prefix, shared: false };
+    }
+  };
+}
+
 let thUser = null;
 
 function escapeHtmlTH(str){ const d=document.createElement('div'); d.textContent=str; return d.innerHTML; }
@@ -4286,6 +4403,45 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 </div>
 
 <script>
+/* ---------------------------------------------------------------
+   window.storage shim: the real window.storage API only exists
+   inside the Claude.ai artifact preview sandbox — on a real
+   deployed site (like this one, on GitHub Pages) it doesn't exist
+   at all, so every call used to throw and autosave failed silently.
+   This shim gives the same get/set/list/delete interface, backed
+   by localStorage, so saving actually works once deployed. Swap
+   this out for real fetch() calls to your own backend later if you
+   want saves to sync across devices instead of staying per-browser.
+   ------------------------------------------------------------- */
+if(!window.storage || !window.storage.__isRealBackend){
+  const STORAGE_NS = 'chalkline:';
+  window.storage = {
+    __isRealBackend: false,
+    async get(key){
+      const raw = localStorage.getItem(STORAGE_NS + key);
+      return raw === null ? null : { key, value: raw, shared: false };
+    },
+    async set(key, value){
+      try{ localStorage.setItem(STORAGE_NS + key, value); return { key, value, shared: false }; }
+      catch(e){ console.error('localStorage set failed:', e); return null; }
+    },
+    async delete(key){
+      const existed = localStorage.getItem(STORAGE_NS + key) !== null;
+      localStorage.removeItem(STORAGE_NS + key);
+      return { key, deleted: existed, shared: false };
+    },
+    async list(prefix){
+      const keys = [];
+      const full = STORAGE_NS + (prefix || '');
+      for(let i=0;i<localStorage.length;i++){
+        const k = localStorage.key(i);
+        if(k && k.startsWith(full)) keys.push(k.slice(STORAGE_NS.length));
+      }
+      return { keys, prefix, shared: false };
+    }
+  };
+}
+
 let shUser = null;
 
 function escapeHtmlSH(str){ const d=document.createElement('div'); d.textContent=str; return d.innerHTML; }
