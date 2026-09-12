@@ -1432,6 +1432,7 @@ function resizeCanvas(){
   if (!userIsScrolledAway && viewW > 0) {
       camera.scale = Math.min(1.5, viewW / 1050);
       camera.x = idealCameraX(camera.scale);
+      camera.y = idealCameraY(camera.scale);
   }
   
   redrawAll();
