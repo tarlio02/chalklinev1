@@ -18,9 +18,9 @@
     font-family:-apple-system,Segoe UI,sans-serif;
   }
   #shell-account-chip{
-    display:none; align-items:center; gap:8px;
+    display:none; align-items:center; gap:6px;
     background:#fff; border:1px solid #D3E6F5; border-radius:999px;
-    padding:5px 14px 5px 5px; font-size:12.5px; color:#1E2B3A;
+    padding:4px 8px 4px 4px; font-size:12.5px; color:#1E2B3A;
     box-shadow:0 1px 4px rgba(0,0,0,0.08);
   }
   #shell-account-chip img{ width:24px; height:24px; border-radius:50%; }
@@ -35,8 +35,7 @@
 <div id="shell-auth">
   <div id="shell-signin-btn"></div>
   <div id="shell-account-chip">
-    <img id="shell-account-avatar" alt="">
-    <span id="shell-account-name"></span>
+    <img id="shell-account-avatar" alt="" title="">
     <button id="shell-sign-out" title="Sign out">✕</button>
   </div>
 </div>
@@ -75,7 +74,7 @@ function handleShellCredential(response){
   const chip = document.getElementById('shell-account-chip');
   chip.style.display = 'flex';
   document.getElementById('shell-account-avatar').src = shellUser.picture || '';
-  document.getElementById('shell-account-name').textContent = shellUser.name || shellUser.email || 'Signed in';
+  document.getElementById('shell-account-avatar').title = shellUser.name || shellUser.email || 'Signed in';
   broadcastAuthState();
   // TODO: once a backend exists, send response.credential there to verify
   // the token and load/merge this person's saved sessions.
