@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Chalkline — AI Study Tools</title>
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&display=swap');
   html,body{ margin:0; padding:0; height:100%; overflow:hidden; background:#F3F9FE; font-family:-apple-system,Segoe UI,sans-serif; }
   /* Scoped to .shell-page specifically (not a bare "iframe" tag selector):
      a bare tag selector here would also catch any other <iframe> that
@@ -92,6 +93,25 @@
   }
   #start-modal-skip:hover{ border-color:#2E7DBE; }
   #start-modal-note{ margin:14px 0 0 !important; font-size:12px !important; color:#9aa9b8 !important; }
+
+  /* Soft "Welcome to Chalkline" moment after skipping sign-in. */
+  #welcome-toast{
+    position:fixed; inset:0; z-index:10001;
+    display:none; align-items:center; justify-content:center;
+    pointer-events:none;
+    background:rgba(243,249,254,0);
+    transition:background .5s ease;
+  }
+  #welcome-toast.show{ display:flex; background:rgba(243,249,254,0.88); }
+  #welcome-toast span{
+    font-family:'Caveat', -apple-system, cursive; font-weight:700;
+    font-size:44px; color:#1E2B3A;
+    opacity:0; transform:translateY(10px) scale(0.96);
+    transition:opacity .6s ease, transform .6s ease;
+  }
+  #welcome-toast.show span{ opacity:1; transform:translateY(0) scale(1); }
+  #welcome-toast.fade-out{ background:rgba(243,249,254,0); }
+  #welcome-toast.fade-out span{ opacity:0; transform:translateY(-6px) scale(1.02); }
 </style>
 </head>
 <body>
@@ -128,6 +148,8 @@
     <p id="start-modal-note">Your content won't be saved if you skip signing in.</p>
   </div>
 </div>
+
+<div id="welcome-toast"><span>Welcome to Chalkline</span></div>
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
@@ -292,8 +314,25 @@ document.getElementById('start-modal-overlay').addEventListener('click', (e)=>{
 });
 document.getElementById('start-modal-skip').addEventListener('click', ()=>{
   closeStartModal();
-  navTo('home');
+  showWelcomeToast(()=> navTo('home'));
 });
+
+// A brief, soft "Welcome to Chalkline" moment before dropping into the
+// app without signing in — fades/lifts in, holds a beat, fades back out,
+// then runs the callback (navigating home) once it's fully gone.
+function showWelcomeToast(onDone){
+  const el = document.getElementById('welcome-toast');
+  el.classList.remove('fade-out');
+  el.classList.add('show');
+  setTimeout(()=>{
+    el.classList.add('fade-out');
+    setTimeout(()=>{
+      el.classList.remove('show');
+      el.classList.remove('fade-out');
+      if(onDone) onDone();
+    }, 550); // matches the CSS fade-out transition duration
+  }, 1100); // how long the message holds fully visible before fading
+}
 
 function initShellGoogleSignIn(){
   if(typeof google === 'undefined' || !google.accounts){ setTimeout(initShellGoogleSignIn, 300); return; }
