@@ -484,16 +484,37 @@ body{
 @keyframes mic-pulse{0%,100%{box-shadow:0 0 0 0 rgba(168,75,57,.45), 0 0 0 4px rgba(15,55,145,0.35);}50%{box-shadow:0 0 0 10px rgba(168,75,57,0), 0 0 0 4px rgba(15,55,145,0.35);}}
 
 .ask-zone{
+  position:relative;
   display:flex;
   gap:8px;
   align-items:center;
   background:#fff;
   border:1px solid var(--panel-border);
   border-radius:30px;
-  padding:6px 6px 6px 18px;
+  padding:6px 6px 6px 10px;
   box-shadow:0 3px 14px rgba(0,0,0,0.08);
   width:min(520px, 44vw);
 }
+.ask-icon-btn{
+  width:30px;height:30px;border-radius:50%;
+  border:none; background:transparent; color:var(--muted);
+  cursor:pointer; font-size:15px;
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;
+}
+.ask-icon-btn:hover{ background:rgba(0,0,0,0.05); color:var(--ink); }
+.attach-chip{
+  position:absolute; left:14px; bottom:calc(100% + 8px);
+  display:flex; align-items:center; gap:6px;
+  background:#fff; border:1px solid var(--panel-border); border-radius:14px;
+  padding:5px 8px 5px 10px;
+  font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--ink);
+  box-shadow:0 2px 8px rgba(0,0,0,0.08);
+  max-width:260px;
+}
+.attach-chip-name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:170px; }
+.attach-chip-remove{ border:none; background:transparent; cursor:pointer; font-size:14px; color:var(--muted); line-height:1; padding:0 2px; }
+.attach-chip-remove:hover{ color:var(--brick); }
 .ask-zone input{
   flex:1;
   border:none;outline:none;
@@ -682,6 +703,9 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
   </div>
 
   <div class="ask-zone">
+    <div class="attach-chip" id="attach-chip" style="display:none;"></div>
+    <button class="ask-icon-btn" id="btn-attach" title="Attach a file">📎</button>
+    <input type="file" id="attach-input" accept="image/*,.pdf,.txt,.md" style="display:none;">
     <input type="text" id="ask-input" placeholder="Ask a follow-up…">
     <button id="btn-ask" title="Send">➤</button>
   </div>
@@ -2420,7 +2444,11 @@ document.getElementById('brain-select').addEventListener('change', (e)=>{
   aiBrain = e.target.value;
 });
 
-async function callTutor(userMessage){
+// Holds {mimeType, base64} for an image attached to the message currently
+// being sent — only read by callGemini() for that one turn, then cleared.
+let currentTurnImage = null;
+
+async function callTutor(userMessage, imageAttachment){
   setStatus('thinking…');
   const contextParts = [];
   if(pdfText && conversationHistory.length===0){
@@ -2429,12 +2457,14 @@ async function callTutor(userMessage){
   contextParts.push(userMessage);
   const fullUserContent = contextParts.join('\n\n---\n\n');
   conversationHistory.push({role:'user', content: fullUserContent});
+  currentTurnImage = imageAttachment || null;
 
   let result;
   if(aiBrain === 'groq') result = await callGroq();
   else if(aiBrain === 'openrouter') result = await callOpenRouter();
   else if(aiBrain === 'cerebras') result = await callCerebras();
   else result = await callGemini();
+  currentTurnImage = null;
 
   if(!result.ok){
     conversationHistory.pop();
@@ -2585,10 +2615,16 @@ async function callGemini(){
   if(PROXY_URL.includes('YOUR-WORKER-SUBDOMAIN')){
     return { ok:false, status:'proxy not configured', errorSpeech:"The AI proxy hasn't been set up yet." };
   }
-  const geminiContents = conversationHistory.map(m => ({
-    role: m.role === 'assistant' ? 'model' : 'user',
-    parts: [{ text: m.content }]
-  }));
+  const geminiContents = conversationHistory.map((m,idx) => {
+    const parts = [{ text: m.content }];
+    // Only the newest user turn can carry real image bytes — earlier
+    // turns keep just the "[Attached image: ...]" text note already
+    // folded into their content.
+    if(idx === conversationHistory.length-1 && currentTurnImage){
+      parts.push({ inline_data: { mime_type: currentTurnImage.mimeType, data: currentTurnImage.base64 } });
+    }
+    return { role: m.role === 'assistant' ? 'model' : 'user', parts };
+  });
 
   let response, data;
   try{
@@ -2629,7 +2665,7 @@ async function callGemini(){
   return { ok:true, raw: raw.trim() };
 }
 
-async function runTeachingTurn(userMessage, displayText){
+async function runTeachingTurn(userMessage, displayText, imageAttachment){
   addTranscriptMsg('user', displayText !== undefined ? displayText : userMessage);
   // Guarantee the handwriting webfonts are fully loaded BEFORE any text is
   // measured for layout. Without this, the very first turn's line-wrap
@@ -2639,7 +2675,7 @@ async function runTeachingTurn(userMessage, displayText){
   // so the reserved vertical space is wrong and the next block overlaps
   // the one before it. Awaiting here costs nothing once fonts are cached.
   await document.fonts.ready;
-  const result = await callTutor(userMessage);
+  const result = await callTutor(userMessage, imageAttachment);
   // Match the board animation's total length to how long the speech for
   // this turn will take, so the pen finishes writing roughly when the
   // voice finishes talking instead of racing ahead or trailing behind.
@@ -2782,10 +2818,81 @@ document.getElementById('btn-quiz').addEventListener('click', ()=>{
   runTeachingTurn(prompt);
   closePanel();
 });
+// Attachment picked from the ask-follow-up box's paperclip button. Cleared
+// after being sent (or removed via the chip's × button).
+let pendingAttachment = null; // {kind:'pdf'|'image'|'text', name, text?, mimeType?, base64?}
+
+function renderAttachChip(){
+  const chip = document.getElementById('attach-chip');
+  if(!pendingAttachment){ chip.style.display = 'none'; chip.innerHTML = ''; return; }
+  const icon = pendingAttachment.kind === 'image' ? '🖼' : '📄';
+  chip.style.display = 'flex';
+  chip.innerHTML = `<span>${icon}</span><span class="attach-chip-name">${escapeHtml(pendingAttachment.name)}</span><button type="button" class="attach-chip-remove" id="attach-chip-remove" title="Remove attachment">×</button>`;
+  document.getElementById('attach-chip-remove').addEventListener('click', ()=>{ pendingAttachment = null; renderAttachChip(); });
+}
+
+async function handleAttachFile(file){
+  try{
+    if(file.type === 'application/pdf'){
+      if(!pdfjsAvailable){ setStatus('pdf engine unavailable — try reloading'); return; }
+      setStatus('reading attachment…');
+      const buf = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({data: buf}).promise;
+      let text = '';
+      const maxPages = Math.min(pdf.numPages, 20);
+      for(let i=1;i<=maxPages;i++){
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        text += `\n\n[Page ${i}]\n` + content.items.map(it=>it.str).join(' ');
+      }
+      pendingAttachment = { kind:'pdf', name:file.name, text: text.slice(0,20000) };
+    } else if(file.type.startsWith('image/')){
+      setStatus('reading attachment…');
+      const dataUrl = await new Promise((res,rej)=>{
+        const r = new FileReader();
+        r.onload = () => res(r.result);
+        r.onerror = () => rej(new Error('read failed'));
+        r.readAsDataURL(file);
+      });
+      pendingAttachment = { kind:'image', name:file.name, mimeType:file.type, base64: dataUrl.split(',')[1] };
+    } else {
+      setStatus('reading attachment…');
+      const text = await file.text();
+      pendingAttachment = { kind:'text', name:file.name, text: text.slice(0,20000) };
+    }
+    setStatus('attachment ready');
+    renderAttachChip();
+  } catch(err){
+    console.error('Attachment read failed:', err);
+    setStatus('could not read attachment — see console');
+  }
+}
+
+document.getElementById('btn-attach').addEventListener('click', ()=> document.getElementById('attach-input').click());
+document.getElementById('attach-input').addEventListener('change', (e)=>{
+  if(e.target.files.length) handleAttachFile(e.target.files[0]);
+  e.target.value = ''; // allow re-picking the same file later
+});
+
 function handleAsk(text){
-  if(!text || !text.trim()) return;
-  runTeachingTurn(text.trim());
+  const typed = (text || '').trim();
+  if(!typed && !pendingAttachment) return;
+
+  let message = typed;
+  let imageAttachment = null;
+  if(pendingAttachment){
+    if(pendingAttachment.kind === 'image'){
+      message = (message ? message + '\n\n' : '') + `[Attached image: ${pendingAttachment.name}]`;
+      imageAttachment = { mimeType: pendingAttachment.mimeType, base64: pendingAttachment.base64 };
+    } else {
+      message = (message ? message + '\n\n' : '') + `[Attached file: ${pendingAttachment.name}]\n${pendingAttachment.text}`;
+    }
+  }
+
+  runTeachingTurn(message, typed || `Attached: ${pendingAttachment.name}`, imageAttachment);
   document.getElementById('ask-input').value = '';
+  pendingAttachment = null;
+  renderAttachChip();
 }
 document.getElementById('btn-ask').addEventListener('click', ()=> handleAsk(document.getElementById('ask-input').value));
 document.getElementById('ask-input').addEventListener('keydown', (e)=>{ if(e.key==='Enter') handleAsk(e.target.value); });
