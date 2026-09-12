@@ -3496,8 +3496,11 @@ let currentUser = null; // {sub, email, name, picture} once signed in
 // still finds the same saved work — PROVIDED persistSession/
 // refreshSessionList are pointed at a real backend keyed by this same
 // prefix instead of window.storage (see note on persistSession below).
+// There is deliberately no signed-out ('local') bucket: persistSession
+// and refreshSessionList both refuse to touch storage at all unless
+// currentUser is set, so guest work is never written anywhere durable.
 function sessionKeyPrefix(){
-  return 'session:' + (currentUser ? currentUser.sub : 'local') + ':';
+  return 'session:' + currentUser.sub + ':';
 }
 
 function resetTutorBoardState(){
@@ -3587,6 +3590,12 @@ async function saveSession(promptForName){
 }
 
 async function persistSession(){
+  // Guest (signed-out) work must never survive as durable, sharable
+  // storage — otherwise closing and reopening the site (or a different
+  // visitor on the same browser) would still see it, even though no
+  // account owns it. Only persist once someone is actually signed in;
+  // signed-out use stays purely in-memory for the current page life.
+  if(!currentUser) return;
   // Prefer an explicit title the person set (via Save > name it), then
   // fall back to what was actually discussed with the AI — the first
   // "teach this" topic, captured in currentTopicLabel — before falling
@@ -3648,6 +3657,14 @@ async function refreshSessionList(){
   const myReq = ++sessionListReq;
   const listEl = document.getElementById('session-list');
   const labelEl = document.getElementById('session-toggle-label');
+  if(!currentUser){
+    // Nothing is ever saved while signed out (see persistSession), so
+    // there is nothing real to list — and we must not fall back to a
+    // shared 'local' bucket that could show a previous guest's work.
+    listEl.innerHTML = '<div class="empty-hint">Sign in to save sessions and see them here.</div>';
+    if(labelEl) labelEl.textContent = 'Saved sessions';
+    return;
+  }
   try{
     const result = await window.storage.list(sessionKeyPrefix(), false);
     if(myReq !== sessionListReq) return; // superseded by a newer auth state
@@ -4099,7 +4116,7 @@ let currentSummarySessionId = 'summary_' + Date.now();
 let currentSummaryTitle = null;
 
 function summarySessionKeyPrefix(){
-  return 'summary:' + (currentUser ? currentUser.sub : 'local') + ':';
+  return 'summary:' + currentUser.sub + ':';
 }
 
 function resetSummaryViewState(){
@@ -4154,6 +4171,11 @@ async function loadSummarySessionById(id){
 }
 
 async function persistSummarySession(html){
+  // Guest (signed-out) summaries must never be written to durable,
+  // sharable storage — otherwise closing and reopening the site, or a
+  // different visitor on the same browser, would still see them. Only
+  // persist once someone is actually signed in.
+  if(!currentUser) return;
   const payload = {
     id: currentSummarySessionId,
     title: currentSummaryTitle || (pdfFileName ? pdfFileName.replace(/\.pdf$/i,'') : 'Untitled summary'),
@@ -4565,7 +4587,7 @@ let thUser = null;
 function escapeHtmlTH(str){ const d=document.createElement('div'); d.textContent=str; return d.innerHTML; }
 
 function sessionKeyPrefixTH(){
-  return 'session:' + (thUser ? thUser.sub : 'local') + ':';
+  return 'session:' + thUser.sub + ':';
 }
 
 window.addEventListener('message', (e)=>{
@@ -4601,14 +4623,20 @@ function folderStyleFor(subj){
 async function refreshTutorHistory(){
   const myReq = ++sessionListReqTH;
   const content = document.getElementById('th-content');
+  if(!thUser){
+    // Nothing is ever saved while signed out (persistSession refuses to
+    // write without an account), so there's nothing real to list here —
+    // and we must not query a shared 'local' bucket that could surface
+    // a previous guest's leftover sessions.
+    content.innerHTML = '<div class="signin-note">Sign in to save tutorials to your account and see them here.</div>';
+    return;
+  }
   try{
     const result = await window.storage.list(sessionKeyPrefixTH(), false);
     if(myReq !== sessionListReqTH) return; // a newer auth state has since started its own refresh
     const keys = (result && result.keys) ? result.keys : [];
     if(keys.length===0){
-      content.innerHTML = thUser
-        ? '<div class="empty-state">No saved tutorials yet — start a lesson and it will show up here.</div>'
-        : '<div class="signin-note">Sign in to save tutorials to your account and see them here. Lessons saved on this browser without signing in will show up once you do.</div>';
+      content.innerHTML = '<div class="empty-state">No saved tutorials yet — start a lesson and it will show up here.</div>';
       return;
     }
     const items = [];
@@ -4859,7 +4887,7 @@ let shUser = null;
 function escapeHtmlSH(str){ const d=document.createElement('div'); d.textContent=str; return d.innerHTML; }
 
 function summaryKeyPrefixSH(){
-  return 'summary:' + (shUser ? shUser.sub : 'local') + ':';
+  return 'summary:' + shUser.sub + ':';
 }
 
 window.addEventListener('message', (e)=>{
@@ -4873,14 +4901,19 @@ let summaryHistoryReqSH = 0;
 async function refreshSummaryHistory(){
   const myReq = ++summaryHistoryReqSH;
   const content = document.getElementById('sh-content');
+  if(!shUser){
+    // Nothing is ever saved while signed out, so there's nothing real
+    // to list — and we must not query a shared 'local' bucket that
+    // could surface a previous guest's leftover summaries.
+    content.innerHTML = '<div class="signin-note">Sign in to save summaries to your account and see them here.</div>';
+    return;
+  }
   try{
     const result = await window.storage.list(summaryKeyPrefixSH(), false);
     if(myReq !== summaryHistoryReqSH) return; // superseded by a newer auth state
     const keys = (result && result.keys) ? result.keys : [];
     if(keys.length===0){
-      content.innerHTML = shUser
-        ? '<div class="empty-state">No saved summaries yet — summarize a PDF and it will show up here.</div>'
-        : '<div class="signin-note">Sign in to save summaries to your account and see them here. Summaries saved on this browser without signing in will show up once you do.</div>';
+      content.innerHTML = '<div class="empty-state">No saved summaries yet — summarize a PDF and it will show up here.</div>';
       return;
     }
     const items = [];
