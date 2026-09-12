@@ -1329,6 +1329,18 @@ const PAGE_TOP_GUTTER_PX = 32;
 function idealCameraX(scale){ return (viewW/2 - PAGE_LEFT_GUTTER_PX) / scale; }
 function idealCameraY(scale){ return TOP_MARGIN + (viewH/2 - PAGE_TOP_GUTTER_PX) / scale; }
 
+// The board should never let the user scroll/pan/zoom-drag past the very
+// top of page 1 — only downward scrolling (toward later writing) is
+// allowed manually. This is the camera.y value at which world-y 0 (the
+// true top edge of the page, above even the first rule line) sits right
+// at the top gutter; camera.y is clamped to never go below it, since a
+// smaller camera.y is what reveals space above the page.
+function minCameraY(scale){ return (viewH/2 - PAGE_TOP_GUTTER_PX) / scale; }
+function clampCameraToTop(){
+  const minY = minCameraY(camera.scale);
+  if(camera.y < minY) camera.y = minY;
+}
+
 // Kick off loading the handwriting webfonts immediately at page load
 // (rather than waiting for the first canvas draw to implicitly trigger
 // it), so by the time the first AI response comes back over the network
@@ -1440,6 +1452,7 @@ function resizeCanvas(){
       if (!userIsScrolledAway) {
           camera.y = idealCameraY(camera.scale);
       }
+      clampCameraToTop();
   }
   
   redrawAll();
@@ -1972,6 +1985,7 @@ canvas.addEventListener('mousedown', (e)=>{
 window.addEventListener('mousemove', (e)=>{
   if(!isPanning) return;
   camera.y = camStart.y - (e.clientY - panStart[1]) / camera.scale;
+  clampCameraToTop();
   checkIfScrolledAway();
   redrawAll();
 });
@@ -2009,6 +2023,7 @@ canvas.addEventListener('touchmove', (e)=>{
   if(touchMode === 'pan' && e.touches.length === 1){
     e.preventDefault();
     camera.y = camStart.y - (e.touches[0].clientY - panStart[1]) / camera.scale;
+    clampCameraToTop();
     checkIfScrolledAway();
     redrawAll();
   } else if(touchMode === 'pinch' && e.touches.length === 2){
@@ -2019,6 +2034,7 @@ canvas.addEventListener('touchmove', (e)=>{
     const mid = touchMid(e.touches[0], e.touches[1]);
     const [nx,ny] = screenToWorld(mid.x-rect.left, mid.y-rect.top);
     camera.x += (pinchWorldMid[0]-nx); camera.y += (pinchWorldMid[1]-ny);
+    clampCameraToTop();
     checkIfScrolledAway();
     redrawAll();
   }
@@ -2093,6 +2109,7 @@ canvas.addEventListener('wheel', (e)=>{
   } else {
     camera.y += e.deltaY / camera.scale;
   }
+  clampCameraToTop();
   checkIfScrolledAway();
   redrawAll();
 }, {passive:false});
