@@ -59,6 +59,39 @@
     font-family:inherit;
   }
   #shell-account-menu button:hover{ background:#FBEDE9; }
+
+  /* "Start for free" sign-in-or-skip prompt. Lives in the top-level shell
+     (not the landing iframe) so the real Google button — which can only
+     render in a document with a real origin — can sit inside it. */
+  #start-modal-overlay{
+    position:fixed; inset:0; z-index:10000;
+    display:none; align-items:center; justify-content:center;
+    background:rgba(20,32,44,0.45);
+    padding:20px;
+    font-family:-apple-system,Segoe UI,sans-serif;
+  }
+  #start-modal-overlay.open{ display:flex; }
+  #start-modal-card{
+    background:#fff; border-radius:20px; padding:34px 28px 28px;
+    max-width:360px; width:100%; text-align:center;
+    box-shadow:0 20px 60px rgba(0,0,0,0.25);
+    position:relative;
+  }
+  #start-modal-close{
+    position:absolute; top:14px; right:14px;
+    border:none; background:none; font-size:15px; color:#7C93A8; cursor:pointer;
+    padding:4px;
+  }
+  #start-modal-card h2{ margin:0 0 10px; font-size:20px; color:#1E2B3A; }
+  #start-modal-card p{ margin:0 0 22px; font-size:14px; color:#5c6f80; line-height:1.5; }
+  #start-modal-google-btn{ display:flex; justify-content:center; margin-bottom:14px; min-height:44px; }
+  #start-modal-skip{
+    display:block; width:100%; padding:12px; border-radius:999px;
+    border:1px solid #D3E6F5; background:#fff; color:#1E2B3A; font-size:14px; cursor:pointer;
+    font-family:inherit;
+  }
+  #start-modal-skip:hover{ border-color:#2E7DBE; }
+  #start-modal-note{ margin:14px 0 0 !important; font-size:12px !important; color:#9aa9b8 !important; }
 </style>
 </head>
 <body>
@@ -84,6 +117,17 @@
 <iframe id="frame-summary" class="shell-page"></iframe>
 <iframe id="frame-tutor-history" class="shell-page"></iframe>
 <iframe id="frame-summary-history" class="shell-page"></iframe>
+
+<div id="start-modal-overlay">
+  <div id="start-modal-card">
+    <button type="button" id="start-modal-close" aria-label="Close">✕</button>
+    <h2>Save your progress?</h2>
+    <p>Sign in with Google so your lessons and saved sessions are tied to your account — or jump straight in without one.</p>
+    <div id="start-modal-google-btn"></div>
+    <button type="button" id="start-modal-skip">Continue without signing in</button>
+    <p id="start-modal-note">Your content won't be saved if you skip signing in.</p>
+  </div>
+</div>
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
@@ -170,6 +214,13 @@ function handleShellCredential(response){
   catch(e){ console.error('Could not persist sign-in:', e); }
   showSignedInChip(shellUser);
   broadcastAuthState();
+  // If this credential came from the "Start for free" modal, finish that
+  // flow now: close the modal and take the person into the app.
+  const modal = document.getElementById('start-modal-overlay');
+  if(modal.classList.contains('open')){
+    closeStartModal();
+    navTo('home');
+  }
   // TODO: once a backend exists, send response.credential there to verify
   // the token and load/merge this person's saved sessions.
 }
@@ -177,13 +228,15 @@ function handleShellCredential(response){
 // Fallback shown if Google's own rendered button fails or vanishes (see
 // watchdog below) — a plain link that still triggers the real Google
 // prompt, so there's always SOMETHING clickable even when the official
-// button can't survive in this browser's cookie environment.
-function showShellSigninFallbackLink(){
-  const el = document.getElementById('shell-signin-btn');
+// button can't survive in this browser's cookie environment. Used for
+// both the persistent top-right button and the one inside the start modal.
+function showShellSigninFallbackLink(elId){
+  const el = document.getElementById(elId);
   if(!el || el.dataset.fallback === '1') return; // already showing it, don't stack duplicates
   el.dataset.fallback = '1';
-  el.innerHTML = '<a href="#" id="shell-signin-fallback-link" style="font-size:14px;color:#1a56db;text-decoration:underline;">Sign in with Google</a>';
-  document.getElementById('shell-signin-fallback-link').addEventListener('click', (e)=>{
+  const linkId = elId + '-fallback-link';
+  el.innerHTML = '<a href="#" id="'+linkId+'" style="font-size:14px;color:#1a56db;text-decoration:underline;">Sign in with Google</a>';
+  document.getElementById(linkId).addEventListener('click', (e)=>{
     e.preventDefault();
     if(typeof google !== 'undefined' && google.accounts) google.accounts.id.prompt();
   });
@@ -195,8 +248,8 @@ function showShellSigninFallbackLink(){
 // times the iframe stays in the DOM while its internal content collapses
 // to near-zero size — a plain childList observer misses that second case.
 // Polling the actual rendered size catches both.
-function watchShellSigninButton(){
-  const el = document.getElementById('shell-signin-btn');
+function watchShellSigninButton(elId){
+  const el = document.getElementById(elId);
   if(!el) return;
   let checks = 0;
   const maxChecks = 10; // ~7 seconds of polling covers the delayed-failure case seen in testing
@@ -207,13 +260,30 @@ function watchShellSigninButton(){
     const rect = el.getBoundingClientRect();
     const collapsed = rect.width < 20 || rect.height < 10;
     if(collapsed){
-      showShellSigninFallbackLink();
+      showShellSigninFallbackLink(elId);
       clearInterval(poll);
       return;
     }
     if(checks >= maxChecks) clearInterval(poll);
   }, 700);
 }
+
+// "Start for free" sign-in-or-skip modal, opened by the landing page (it
+// can't hold the real Google button itself — see the origin note above).
+function openStartModal(){
+  document.getElementById('start-modal-overlay').classList.add('open');
+}
+function closeStartModal(){
+  document.getElementById('start-modal-overlay').classList.remove('open');
+}
+document.getElementById('start-modal-close').addEventListener('click', closeStartModal);
+document.getElementById('start-modal-overlay').addEventListener('click', (e)=>{
+  if(e.target.id === 'start-modal-overlay') closeStartModal(); // click on the scrim, not the card
+});
+document.getElementById('start-modal-skip').addEventListener('click', ()=>{
+  closeStartModal();
+  navTo('home');
+});
 
 function initShellGoogleSignIn(){
   if(typeof google === 'undefined' || !google.accounts){ setTimeout(initShellGoogleSignIn, 300); return; }
@@ -225,7 +295,12 @@ function initShellGoogleSignIn(){
   // instead of it rendering once and then quietly disappearing.
   google.accounts.id.initialize({ client_id: SHELL_GOOGLE_CLIENT_ID, callback: handleShellCredential, auto_select: true, itp_support: true });
   google.accounts.id.renderButton(document.getElementById('shell-signin-btn'), { theme:'outline', size:'medium', shape:'pill' });
-  watchShellSigninButton();
+  watchShellSigninButton('shell-signin-btn');
+  // A second, independent rendering of the same button inside the "Start
+  // for free" modal — same client/callback, Google is fine with a button
+  // rendered into more than one container at once.
+  google.accounts.id.renderButton(document.getElementById('start-modal-google-btn'), { theme:'outline', size:'large', shape:'pill', width:260 });
+  watchShellSigninButton('start-modal-google-btn');
   if(!shellUser) google.accounts.id.prompt(); // only worth a silent attempt if we have no cached session already
 }
 initShellGoogleSignIn();
@@ -244,7 +319,15 @@ function signOutShell(){
   // staying stuck on the fallback link from a previous session.
   signinEl.dataset.fallback = '';
   signinEl.innerHTML = '';
-  if(typeof google !== 'undefined' && google.accounts) google.accounts.id.renderButton(signinEl, { theme:'outline', size:'medium', shape:'pill' });
+  const modalBtnEl = document.getElementById('start-modal-google-btn');
+  modalBtnEl.dataset.fallback = '';
+  modalBtnEl.innerHTML = '';
+  if(typeof google !== 'undefined' && google.accounts){
+    google.accounts.id.renderButton(signinEl, { theme:'outline', size:'medium', shape:'pill' });
+    watchShellSigninButton('shell-signin-btn');
+    google.accounts.id.renderButton(modalBtnEl, { theme:'outline', size:'large', shape:'pill', width:260 });
+    watchShellSigninButton('start-modal-google-btn');
+  }
   broadcastAuthState();
 }
 
@@ -253,6 +336,7 @@ function signOutShell(){
 window.addEventListener('message', (e)=>{
   const d = e.data;
   if(!d) return;
+  if(d.showStartModal){ openStartModal(); }
   if(d.requestLogin && typeof google !== 'undefined' && google.accounts){
     google.accounts.id.prompt();
   }
@@ -384,8 +468,19 @@ nav{
   background:linear-gradient(90deg, var(--ochre), var(--sage));
   box-shadow:0 10px 26px rgba(46,125,190,0.28);
   transition:transform .18s ease, box-shadow .18s ease;
+  animation: ctaBounce 4.2s ease-in-out infinite;
 }
-.cta-btn:hover{ transform:translateY(-2px); box-shadow:0 14px 32px rgba(46,125,190,0.34); }
+.cta-btn:hover{ transform:translateY(-2px); box-shadow:0 14px 32px rgba(46,125,190,0.34); animation-play-state:paused; }
+/* A quiet idle period, then a quick double-bounce near the end of each
+   cycle — this reads as an occasional friendly nudge to tap, not a
+   constantly-jittering button, which would get annoying fast. */
+@keyframes ctaBounce{
+  0%, 78%, 100%{ transform:translateY(0); }
+  83%{ transform:translateY(-11px); }
+  87%{ transform:translateY(0); }
+  91%{ transform:translateY(-6px); }
+  95%{ transform:translateY(0); }
+}
 
 @media (max-width:680px){
   .hero-card{ padding:60px 24px; border-radius:20px; }
@@ -425,7 +520,7 @@ footer a:hover{ color:var(--ink); }
   <section class="hero-card">
     <h1>Start with your notes, slides, <span class="chalk">or textbook.</span><br>Your first lesson is free.</h1>
     <p class="sub">Try it on whatever's due tomorrow.</p>
-    <a class="cta-btn" href="#" onclick="parent.postMessage({nav:'home'},'*');return false;">Start for free</a>
+    <a class="cta-btn" href="#" onclick="parent.postMessage({showStartModal:true},'*');return false;">Start for free</a>
   </section>
 
   <footer>
