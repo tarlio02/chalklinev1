@@ -44,6 +44,7 @@
 <iframe id="frame-home"></iframe>
 <iframe id="frame-tutor"></iframe>
 <iframe id="frame-summary"></iframe>
+<iframe id="frame-tutor-history"></iframe>
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
@@ -907,6 +908,54 @@ body{
 }
 .overlay.open{opacity:1;pointer-events:auto;}
 
+.subject-modal{
+  position:fixed; inset:0; z-index:50;
+  display:flex; align-items:center; justify-content:center;
+  opacity:0; pointer-events:none;
+  transition:opacity .2s ease;
+}
+.subject-modal.open{ opacity:1; pointer-events:auto; }
+.subject-modal .sm-scrim{
+  position:absolute; inset:0; background:rgba(20,18,12,0.45); backdrop-filter:blur(2px);
+}
+.subject-modal .sm-card{
+  position:relative; z-index:1;
+  width:min(420px, calc(100vw - 48px));
+  background:#fff; border-radius:18px;
+  box-shadow:0 24px 60px rgba(0,0,0,0.25);
+  padding:34px 30px 28px;
+  font-family:'Source Serif 4', Georgia, serif;
+  color:var(--ink);
+  transform:translateY(8px) scale(0.98);
+  transition:transform .22s cubic-bezier(.2,.8,.2,1);
+}
+.subject-modal.open .sm-card{ transform:translateY(0) scale(1); }
+.subject-modal .sm-eyebrow{
+  font-family:'JetBrains Mono', monospace; font-size:10.5px; letter-spacing:0.4px;
+  color:var(--ochre); margin:0 0 10px;
+}
+.subject-modal h2{ font-size:22px; margin:0 0 8px; font-weight:600; }
+.subject-modal p{ font-size:14px; color:var(--muted); line-height:1.5; margin:0 0 20px; }
+.subject-modal input{
+  width:100%; font-family:'Source Serif 4', serif; font-size:16px;
+  border:1.5px solid var(--panel-border); border-radius:10px;
+  padding:12px 14px; color:var(--ink); outline:none;
+  transition:border-color .15s ease;
+}
+.subject-modal input:focus{ border-color:var(--ochre); }
+.subject-modal .sm-actions{ display:flex; justify-content:flex-end; gap:10px; margin-top:20px; }
+.subject-modal .sm-skip{
+  font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--muted);
+  background:none; border:none; cursor:pointer; padding:10px 4px;
+}
+.subject-modal .sm-skip:hover{ color:var(--ink); }
+.subject-modal .sm-go{
+  font-family:'Source Serif 4', serif; font-size:15px; font-weight:600;
+  background:var(--ink); color:#fff; border:none; border-radius:9px;
+  padding:11px 22px; cursor:pointer;
+}
+.subject-modal .sm-go:hover{ background:#0f1c2c; }
+
 .side-panel{
   position:fixed;
   top:0;left:0;bottom:0;
@@ -1087,6 +1136,20 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
 
 <!-- SIDE PANEL -->
 <div class="overlay" id="overlay"></div>
+
+<div class="subject-modal" id="subject-modal">
+  <div class="sm-scrim"></div>
+  <div class="sm-card">
+    <p class="sm-eyebrow">BEFORE WE START</p>
+    <h2>What are we studying?</h2>
+    <p>Give this lesson a subject or course name — it'll help you find it again under Previous tutorials.</p>
+    <input type="text" id="subject-input" placeholder="e.g. Managerial Accounting, STA2020…" autocomplete="off">
+    <div class="sm-actions">
+      <button class="sm-skip" id="btn-subject-skip">Skip for now</button>
+      <button class="sm-go" id="btn-subject-go">Start lesson</button>
+    </div>
+  </div>
+</div>
 <div class="side-panel" id="side-panel">
   <div class="panel-head">
     <h1>Chalk<em>line</em></h1>
@@ -1197,6 +1260,7 @@ const TOP_MARGIN = 80; // must be a whole multiple of RULE_LINE_SPACING so the
                         // to a rule line, same as every line after it
 let globalCursorY = TOP_MARGIN;
 let currentTopicLabel = 'Topic';
+let currentSubject = '';
 
 function resetRegionCursors(){
   globalCursorY = TOP_MARGIN;
@@ -3078,6 +3142,49 @@ async function runTeachingTurn(userMessage, displayText, imageAttachment){
 let currentSessionId = 'session_' + Date.now();
 let currentSessionTitle = null;
 
+/* ------------------- subject prompt (new lessons only) -------------- */
+const subjectModal = document.getElementById('subject-modal');
+const subjectInput = document.getElementById('subject-input');
+
+function openSubjectModal(){
+  subjectInput.value = '';
+  subjectModal.classList.add('open');
+  setTimeout(()=> subjectInput.focus(), 50);
+}
+function closeSubjectModal(){ subjectModal.classList.remove('open'); }
+
+function confirmSubject(){
+  const val = subjectInput.value.trim();
+  if(val) currentSubject = val;
+  closeSubjectModal();
+}
+document.getElementById('btn-subject-go').addEventListener('click', confirmSubject);
+document.getElementById('btn-subject-skip').addEventListener('click', closeSubjectModal);
+subjectInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); confirmSubject(); } });
+
+// Ask for a subject the first time this tab lands on a brand-new,
+// never-saved lesson. If the shell tells us (via postMessage) to open
+// a specific saved session instead — e.g. from the Previous Tutorials
+// page — wait briefly for that message and load it rather than
+// prompting for a new subject.
+let pendingSessionLoad = false;
+window.addEventListener('message', (e)=>{
+  const d = e.data;
+  if(d && d.loadSessionId){
+    pendingSessionLoad = true;
+    loadSessionById(d.loadSessionId);
+  }
+});
+setTimeout(()=>{ if(!pendingSessionLoad) openSubjectModal(); }, 180);
+
+async function loadSessionById(id){
+  try{
+    const rec = await window.storage.get(sessionKeyPrefix() + id, false);
+    if(rec) loadSession(JSON.parse(rec.value));
+  } catch(e){ console.error('Could not load requested session:', e); openSubjectModal(); }
+}
+/* ---------------------------------------------------------------------- */
+
 // --- Google sign-in --------------------------------------------------
 // The real Google Identity script runs one level up, in the top-level
 // shell page — this tutor page is loaded via iframe .srcdoc, and a
@@ -3156,6 +3263,7 @@ async function persistSession(){
   const payload = {
     id: currentSessionId,
     title: currentSessionTitle || (pdfFileName ? pdfFileName.replace(/\.pdf$/i,'') : 'Untitled session'),
+    subject: currentSubject || 'Unsorted',
     savedAt: Date.now(),
     pdfFileName, pdfText: pdfText ? pdfText.slice(0,15000) : '',
     conversationHistory, drawnCommands, camera,
@@ -3203,6 +3311,7 @@ function resetUploadZoneUI(){
 
 function loadSession(item){
   currentSessionId = item.id; currentSessionTitle = item.title;
+  currentSubject = item.subject && item.subject!=='Unsorted' ? item.subject : '';
   pdfFileName = item.pdfFileName || ''; pdfText = item.pdfText || '';
   conversationHistory = item.conversationHistory || [];
   drawnCommands = item.drawnCommands || [];
@@ -3225,7 +3334,7 @@ function loadSession(item){
 
 document.getElementById('btn-save').addEventListener('click', ()=> saveSession(true));
 document.getElementById('btn-new-session').addEventListener('click', ()=>{
-  currentSessionId = 'session_' + Date.now(); currentSessionTitle = null;
+  currentSessionId = 'session_' + Date.now(); currentSessionTitle = null; currentSubject = '';
   pdfText=''; pdfFileName='';
   conversationHistory=[]; drawQueue=[]; drawnCommands=[];
   camera.x=500; camera.scale=1;
@@ -3234,6 +3343,7 @@ document.getElementById('btn-new-session').addEventListener('click', ()=>{
   transcriptEl.innerHTML = '<div class="empty-note">Your lecture transcript and quiz questions will appear here as we go.</div>';
   resetUploadZoneUI();
   setStatus('new session');
+  openSubjectModal();
 });
 
 /* =========================================================
@@ -3786,6 +3896,245 @@ document.getElementById('btn-download').addEventListener('click', ()=>{
 </html>
 </script>
 
+<script type="text/plain" id="src-tutor-history"><!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chalkline — Previous Tutorials</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&family=Caveat:wght@600;700&display=swap');
+
+:root{
+  --board-bg:#F3F9FE;
+  --ink:#1E2B3A;
+  --ochre:#2E7DBE;
+  --highlight:#D7ECFB;
+  --sage:#3E8FA6;
+  --brick:#3D6B93;
+  --panel-border:#D3E6F5;
+  --muted:#7C93A8;
+  --halo-blue:#6EA8FE;
+  --halo-blue-soft:#A5C8FF;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:'Source Serif 4', Georgia, serif;
+  color:var(--ink); background:var(--board-bg);
+  min-height:100vh; position:relative;
+}
+.ambient-halo{ position:fixed; inset:0; z-index:0; overflow:hidden; pointer-events:none; }
+.ambient-halo::before,.ambient-halo::after{
+  content:''; position:absolute; width:58vmax;height:58vmax;
+  border-radius:50%; filter:blur(100px); opacity:0.22; mix-blend-mode:multiply;
+}
+.ambient-halo::before{ top:-24%; left:-16%; background:radial-gradient(circle, var(--halo-blue) 0%, rgba(110,168,254,0) 70%); animation:d1 24s ease-in-out infinite; }
+.ambient-halo::after{ bottom:-26%; right:-14%; background:radial-gradient(circle, var(--halo-blue-soft) 0%, rgba(165,200,255,0) 70%); animation:d2 28s ease-in-out infinite; }
+@keyframes d1{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(9%,7%) scale(1.13);}}
+@keyframes d2{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(-7%,-6%) scale(1.1);}}
+
+.wrap{ position:relative; z-index:1; max-width:820px; margin:0 auto; padding:0 28px 80px; }
+
+nav{ display:flex; align-items:center; justify-content:space-between; padding:26px 0 10px; }
+.brand{ font-family:'Caveat', cursive; font-weight:700; font-size:28px; color:var(--ink); text-decoration:none; display:flex; align-items:center; gap:8px; }
+.brand .dot{ width:9px;height:9px;border-radius:50%; background:var(--ochre); display:inline-block; }
+.nav-links{ display:flex; gap:26px; font-family:'JetBrains Mono', monospace; font-size:13px; }
+.nav-links a{ color:var(--muted); text-decoration:none; }
+.nav-links a:hover{ color:var(--ink); }
+.nav-links a.active{ color:var(--ink); border-bottom:1.5px solid var(--ochre); padding-bottom:2px; }
+
+.page-head{ padding:34px 0 26px; display:flex; align-items:flex-start; justify-content:space-between; gap:20px; flex-wrap:wrap; }
+.page-head h1{ font-size:32px; margin:0 0 10px; font-weight:600; }
+.page-head p{ font-size:16px; color:#5c5847; margin:0; max-width:480px; line-height:1.55; }
+.btn-primary{
+  font-family:'Source Serif 4', serif; font-size:14.5px; font-weight:600;
+  background:var(--ink); color:#fff; border:none; border-radius:9px;
+  padding:11px 20px; cursor:pointer; white-space:nowrap;
+}
+.btn-primary:hover{ background:#0f1c2c; }
+
+.signin-note{
+  background:#fff; border:1px solid var(--panel-border); border-radius:14px;
+  padding:26px 28px; font-size:14.5px; color:var(--muted); margin-top:10px;
+}
+
+.folder{
+  background:#fff; border:1px solid var(--panel-border); border-radius:14px;
+  margin-bottom:16px; overflow:hidden;
+}
+.folder-head{
+  display:flex; align-items:center; gap:12px; padding:18px 22px; cursor:pointer;
+  user-select:none;
+}
+.folder-head:hover{ background:#FAFCFF; }
+.folder-icon{
+  width:34px; height:34px; border-radius:9px; background:var(--highlight);
+  display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0;
+}
+.folder-title{ font-size:17px; font-weight:600; flex:1; min-width:0; }
+.folder-count{
+  font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--muted);
+  background:var(--board-bg); padding:3px 9px; border-radius:999px; flex-shrink:0;
+}
+.folder-chevron{
+  color:var(--muted); flex-shrink:0; transition:transform .18s ease;
+}
+.folder.open .folder-chevron{ transform:rotate(90deg); }
+.folder-body{
+  max-height:0; overflow:hidden; transition:max-height .25s ease;
+  border-top:1px solid transparent;
+}
+.folder.open .folder-body{ border-top-color:var(--panel-border); }
+
+.tutorial-row{
+  display:flex; align-items:center; gap:14px;
+  padding:14px 22px; cursor:pointer;
+  border-bottom:1px solid var(--panel-border);
+  transition:background .15s ease;
+}
+.tutorial-row:last-child{ border-bottom:none; }
+.tutorial-row:hover{ background:#FAFCFF; }
+.tutorial-row .t-name{ font-size:14.5px; font-weight:600; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.tutorial-row .t-topic{ font-size:12.5px; color:var(--muted); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.tutorial-row .t-date{ font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--muted); flex-shrink:0; }
+
+.empty-hint{ font-family:'JetBrains Mono', monospace; font-size:11.5px; color:var(--muted); margin-top:8px; }
+.empty-state{
+  background:#fff; border:1px dashed var(--panel-border); border-radius:14px;
+  padding:44px 28px; text-align:center; color:var(--muted); font-size:14.5px;
+}
+</style>
+</head>
+<body>
+
+<div class="ambient-halo"></div>
+
+<div class="wrap">
+  <nav>
+    <a class="brand" href="#" onclick="parent.postMessage({nav:'home'},'*');return false;"><span class="dot"></span>Chalkline</a>
+    <div class="nav-links">
+      <a href="#" onclick="parent.postMessage({nav:'tutor'},'*');return false;">Tutor</a>
+      <a href="#" onclick="parent.postMessage({nav:'summary'},'*');return false;">Summary</a>
+    </div>
+  </nav>
+
+  <div class="page-head">
+    <div>
+      <h1>Previous tutorials</h1>
+      <p>Your saved whiteboard lessons, grouped by subject or course.</p>
+    </div>
+    <button class="btn-primary" onclick="parent.postMessage({nav:'tutor'},'*');">New lesson</button>
+  </div>
+
+  <div id="th-content">
+    <div class="empty-hint">Loading…</div>
+  </div>
+</div>
+
+<script>
+let thUser = null;
+
+function escapeHtmlTH(str){ const d=document.createElement('div'); d.textContent=str; return d.innerHTML; }
+
+function sessionKeyPrefixTH(){
+  return 'session:' + (thUser ? thUser.sub : 'local') + ':';
+}
+
+window.addEventListener('message', (e)=>{
+  const d = e.data;
+  if(!d || !d.chalklineAuth) return;
+  thUser = d.signedIn ? d.user : null;
+  refreshTutorHistory();
+});
+
+async function refreshTutorHistory(){
+  const content = document.getElementById('th-content');
+  try{
+    const result = await window.storage.list(sessionKeyPrefixTH(), false);
+    const keys = (result && result.keys) ? result.keys : [];
+    if(keys.length===0){
+      content.innerHTML = thUser
+        ? '<div class="empty-state">No saved tutorials yet — start a lesson and it will show up here.</div>'
+        : '<div class="signin-note">Sign in to save tutorials to your account and see them here. Lessons saved on this browser without signing in will show up once you do.</div>';
+      return;
+    }
+    const items = [];
+    for(const key of keys){
+      try{ const rec = await window.storage.get(key, false); if(rec) items.push(JSON.parse(rec.value)); } catch(e){}
+    }
+    items.sort((a,b)=>(b.savedAt||0)-(a.savedAt||0));
+
+    const groups = {};
+    items.forEach(item=>{
+      const subj = item.subject || 'Unsorted';
+      if(!groups[subj]) groups[subj] = [];
+      groups[subj].push(item);
+    });
+    const subjects = Object.keys(groups).sort((a,b)=>{
+      if(a==='Unsorted') return 1;
+      if(b==='Unsorted') return -1;
+      return (groups[b][0].savedAt||0) - (groups[a][0].savedAt||0);
+    });
+
+    content.innerHTML = '';
+    subjects.forEach((subj, idx)=>{
+      const folder = document.createElement('div');
+      folder.className = 'folder' + (idx===0 ? ' open' : '');
+      const head = document.createElement('div');
+      head.className = 'folder-head';
+      head.innerHTML = `
+        <div class="folder-icon">📘</div>
+        <div class="folder-title">${escapeHtmlTH(subj)}</div>
+        <div class="folder-count">${groups[subj].length} lesson${groups[subj].length===1?'':'s'}</div>
+        <div class="folder-chevron"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M6 3.5 11 8l-5 4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      `;
+      head.addEventListener('click', ()=> folder.classList.toggle('open'));
+      const body = document.createElement('div');
+      body.className = 'folder-body';
+      groups[subj].forEach(item=>{
+        const row = document.createElement('div');
+        row.className = 'tutorial-row';
+        const date = new Date(item.savedAt);
+        row.innerHTML = `
+          <span class="t-name">${escapeHtmlTH(item.title||'Untitled')}</span>
+          <span class="t-topic">${escapeHtmlTH(item.currentTopicLabel||'')}</span>
+          <span class="t-date">${date.toLocaleDateString()}</span>
+        `;
+        row.addEventListener('click', ()=> parent.postMessage({nav:'tutor', loadSessionId:item.id}, '*'));
+        body.appendChild(row);
+      });
+      folder.appendChild(head);
+      folder.appendChild(body);
+      content.appendChild(folder);
+
+      // set an actual pixel max-height so the CSS transition can open it
+      requestAnimationFrame(()=>{
+        if(folder.classList.contains('open')) body.style.maxHeight = body.scrollHeight + 'px';
+      });
+    });
+
+    // re-measure open folders on any toggle
+    content.querySelectorAll('.folder-head').forEach(head=>{
+      head.addEventListener('click', ()=>{
+        const folder = head.parentElement;
+        const body = folder.querySelector('.folder-body');
+        body.style.maxHeight = folder.classList.contains('open') ? body.scrollHeight + 'px' : '';
+      });
+    });
+  } catch(err){
+    console.error('Loading tutorials failed:', err);
+    content.innerHTML = '<div class="empty-hint">Could not load saved tutorials.</div>';
+  }
+}
+
+refreshTutorHistory();
+<\/script>
+
+</body>
+</html>
+</script>
+
 <script>
 function unwrap(id){
   return document.getElementById(id).textContent.replace(/<\\\/script/gi, '</script');
@@ -3794,30 +4143,49 @@ const frames = {
   landing: document.getElementById('frame-landing'),
   home: document.getElementById('frame-home'),
   tutor: document.getElementById('frame-tutor'),
-  summary: document.getElementById('frame-summary')
+  summary: document.getElementById('frame-summary'),
+  'tutor-history': document.getElementById('frame-tutor-history')
 };
-const loaded = { landing:false, home:false, tutor:false, summary:false };
+const loaded = { landing:false, home:false, tutor:false, summary:false, 'tutor-history':false };
 let current = 'landing';
 
 function ensureLoaded(page){
   if(loaded[page]) return;
   frames[page].srcdoc = unwrap('src-' + page);
   loaded[page] = true;
+  // A fresh frame doesn't know the sign-in state yet — broadcastAuthState
+  // only fires on sign-in/out events, not on frame load — so tell this
+  // one directly once it's parsed and listening.
+  setTimeout(()=>{
+    try{ frames[page].contentWindow.postMessage({ chalklineAuth:true, signedIn: !!shellUser, user: shellUser }, '*'); }catch(e){}
+  }, 60);
 }
 
-function navTo(page, pushHistory){
+function navTo(page, pushHistory, navPayload){
   if(!frames[page]) page = 'landing';
+  const wasLoaded = loaded[page];
   ensureLoaded(page);
   Object.keys(frames).forEach(k => frames[k].classList.toggle('active', k === page));
   current = page;
   if(pushHistory !== false){
     history.pushState({page}, '', '#' + page);
   }
+  // Forward any extra nav payload (e.g. which saved session to open)
+  // into the target frame. A just-created srcdoc iframe needs a beat
+  // to parse and attach its own message listener before it can hear
+  // this, so give it one on first load; an already-loaded frame can
+  // be told immediately.
+  if(navPayload){
+    const send = ()=>{ try{ frames[page].contentWindow.postMessage(navPayload, '*'); }catch(e){} };
+    // Slightly after the auth broadcast (60ms) so the target frame
+    // already knows sign-in state before it looks up the session key.
+    wasLoaded ? send() : setTimeout(send, 110);
+  }
 }
 
 window.addEventListener('message', (e)=>{
   const d = e.data;
-  if(d && d.nav) navTo(d.nav, true);
+  if(d && d.nav) navTo(d.nav, true, d.loadSessionId ? { loadSessionId: d.loadSessionId } : null);
 });
 
 window.addEventListener('popstate', (e)=>{
