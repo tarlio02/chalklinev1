@@ -220,6 +220,7 @@ footer{
 <title>Chalkline — AI Whiteboard Tutor</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"><\/script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"><\/script>
+<script src="https://accounts.google.com/gsi/client" async defer><\/script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Kalam:wght@400;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
@@ -581,6 +582,7 @@ body{
   color:var(--ochre);background:none;border:none;cursor:pointer;
 }
 .link-btn:hover{text-decoration:underline;}
+.account-row{display:flex;align-items:center;gap:8px;}
 
 .upload-zone{
   border:1.5px dashed #d8d2bd;border-radius:6px;padding:14px;
@@ -724,6 +726,20 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
     <button class="panel-close" id="btn-panel-close">✕</button>
   </div>
   <div class="panel-body">
+    <div class="p-section">
+      <h2>Account</h2>
+      <div id="account-signed-out">
+        <div id="google-signin-btn"></div>
+        <div class="file-meta" style="margin-top:6px;">Sign in so saved sessions are tied to your account, not just this browser.</div>
+      </div>
+      <div id="account-signed-in" style="display:none;">
+        <div class="account-row">
+          <img id="account-avatar" alt="" width="28" height="28" style="border-radius:50%;">
+          <span id="account-name" style="font-size:13px;"></span>
+          <button class="link-btn" id="btn-sign-out" style="margin-left:auto;">sign out</button>
+        </div>
+      </div>
+    </div>
     <div class="p-section">
       <h2>Saved sessions <button class="link-btn" id="btn-new-session">new</button></h2>
       <div class="session-list" id="session-list"><div class="empty-note">No saved sessions yet.</div></div>
@@ -2695,6 +2711,69 @@ async function runTeachingTurn(userMessage, displayText, imageAttachment){
 let currentSessionId = 'session_' + Date.now();
 let currentSessionTitle = null;
 
+// --- Google sign-in --------------------------------------------------
+// Replace with your own OAuth Client ID from Google Cloud Console
+// (APIs & Services > Credentials > Create OAuth client ID > Web
+// application). No client secret is needed for this sign-in-only flow.
+const GOOGLE_CLIENT_ID = "YOUR-GOOGLE-CLIENT-ID.apps.googleusercontent.com";
+
+let currentUser = null; // {sub, email, name, picture} once signed in
+
+// Sessions are namespaced by account so switching browsers/devices
+// still finds the same saved work — PROVIDED persistSession/
+// refreshSessionList are pointed at a real backend keyed by this same
+// prefix instead of window.storage (see note on persistSession below).
+function sessionKeyPrefix(){
+  return 'session:' + (currentUser ? currentUser.sub : 'local') + ':';
+}
+
+// Decodes a Google ID token's payload WITHOUT verifying its signature.
+// Fine for reading a name/email/picture to show in the UI client-side;
+// a real backend must independently verify the token (Google's
+// tokeninfo endpoint or a JWT library with Google's public keys)
+// before trusting it to look up or write anyone's saved data.
+function decodeGoogleIdToken(jwt){
+  const payload = jwt.split('.')[1];
+  const json = decodeURIComponent(atob(payload.replace(/-/g,'+').replace(/_/g,'/')).split('').map(c=>
+    '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
+  ).join(''));
+  return JSON.parse(json);
+}
+
+function handleGoogleCredential(response){
+  const claims = decodeGoogleIdToken(response.credential);
+  currentUser = { sub: claims.sub, email: claims.email, name: claims.name, picture: claims.picture };
+  document.getElementById('account-signed-out').style.display = 'none';
+  document.getElementById('account-signed-in').style.display = 'block';
+  document.getElementById('account-avatar').src = claims.picture || '';
+  document.getElementById('account-name').textContent = claims.name || claims.email || 'Signed in';
+  // TODO: once a backend exists, this is where you'd send
+  // response.credential to it to verify the token and fetch/merge that
+  // user's saved sessions instead of just relighting the local list.
+  refreshSessionList();
+}
+
+function initGoogleSignIn(){
+  if(typeof google === 'undefined' || !google.accounts){ setTimeout(initGoogleSignIn, 300); return; }
+  if(GOOGLE_CLIENT_ID.startsWith('YOUR-')){
+    document.getElementById('google-signin-btn').innerHTML =
+      '<div class="file-meta">Add a Google OAuth Client ID (GOOGLE_CLIENT_ID) to enable sign-in.</div>';
+    return;
+  }
+  google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: handleGoogleCredential });
+  google.accounts.id.renderButton(document.getElementById('google-signin-btn'), { theme:'outline', size:'medium', shape:'pill' });
+}
+initGoogleSignIn();
+
+document.getElementById('btn-sign-out').addEventListener('click', ()=>{
+  currentUser = null;
+  if(typeof google !== 'undefined' && google.accounts) google.accounts.id.disableAutoSelect();
+  document.getElementById('account-signed-in').style.display = 'none';
+  document.getElementById('account-signed-out').style.display = 'block';
+  refreshSessionList();
+});
+// -----------------------------------------------------------------------
+
 function transcriptToHtmlSnapshot(){ return transcriptEl.innerHTML; }
 
 async function saveSession(promptForName){
@@ -2720,7 +2799,12 @@ async function persistSession(){
     globalCursorY, currentTopicLabel,
     transcriptHtml: transcriptToHtmlSnapshot()
   };
-  await window.storage.set('session:' + currentSessionId, JSON.stringify(payload), false);
+  // NOTE: window.storage only exists inside a Claude.ai artifact preview.
+  // On your own deployed domain this call will fail, signed in or not —
+  // swap it for a fetch() to a real backend endpoint (e.g. a route on
+  // your Cloudflare Worker backed by KV or D1), sending currentUser's
+  // verified identity so sessions are actually saved per-account.
+  await window.storage.set(sessionKeyPrefix() + currentSessionId, JSON.stringify(payload), false);
   refreshSessionList();
 }
 
@@ -2729,7 +2813,7 @@ function autoSaveSession(){ if(conversationHistory.length>0) persistSession().ca
 async function refreshSessionList(){
   const listEl = document.getElementById('session-list');
   try{
-    const result = await window.storage.list('session:', false);
+    const result = await window.storage.list(sessionKeyPrefix(), false);
     const keys = (result && result.keys) ? result.keys : [];
     if(keys.length===0){ listEl.innerHTML = '<div class="empty-note">No saved sessions yet.</div>'; return; }
     const items = [];
