@@ -2268,7 +2268,14 @@ async function fetchElevenLabsAudio(text, voiceId){
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text, voice_id: voiceId })
   });
-  if(!response.ok) throw new Error('tts http ' + response.status);
+  if(!response.ok){
+    let detail = 'http ' + response.status;
+    try{
+      const body = await response.clone().json();
+      if(body && body.error && body.error.message) detail = body.error.message;
+    }catch(e){ /* not JSON, keep the status-code detail */ }
+    throw new Error(detail);
+  }
   const blob = await response.blob();
   return URL.createObjectURL(blob);
 }
@@ -2303,6 +2310,7 @@ function speakElevenLabs(text, voiceId){
     if(!audioCache[i]){
       audioCache[i] = fetchElevenLabsAudio(chunks[i], voiceId).catch(err => {
         console.error('ElevenLabs TTS failed for this line, falling back to browser voice:', err);
+        if(typeof setStatus === 'function') setStatus('natural voice unavailable — using browser voice (' + err.message + ')');
         return null;
       });
     }
