@@ -1138,7 +1138,7 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
 <div class="topbar">
   <div class="topbar-left-stack">
     <div class="topbar-btn-wrap">
-      <a class="icon-btn" href="#" title="Back to Chalkline" style="text-decoration:none;display:flex;align-items:center;justify-content:center;" onclick="flushSaveOnExit();parent.postMessage({nav:'home'},'*');return false;">🏠</a>
+      <a class="icon-btn" href="#" title="Back to Chalkline" style="text-decoration:none;display:flex;align-items:center;justify-content:center;" onclick="handleHomeClick();return false;">🏠</a>
       <span class="btn-label">Home</span>
     </div>
     <div class="topbar-btn-wrap">
@@ -1220,6 +1220,20 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
     <div class="sm-actions">
       <button class="sm-skip" id="btn-subject-skip">Skip for now</button>
       <button class="sm-go" id="btn-subject-go">Start lesson</button>
+    </div>
+  </div>
+</div>
+
+<div class="subject-modal" id="leave-modal">
+  <div class="sm-scrim"></div>
+  <div class="sm-card">
+    <p class="sm-eyebrow">BEFORE YOU GO</p>
+    <h2>Save this lesson?</h2>
+    <p>You're about to leave this lesson. Give it a name so it's easy to find again, or just keep going.</p>
+    <input type="text" id="leave-name-input" placeholder="e.g. Price elasticity of demand" autocomplete="off">
+    <div class="sm-actions">
+      <button class="sm-skip" id="btn-leave-continue">Continue lesson</button>
+      <button class="sm-go" id="btn-leave-save">Save &amp; go home</button>
     </div>
   </div>
 </div>
@@ -3406,6 +3420,43 @@ subjectInput.addEventListener('input', ()=>{
   subjectChipRow.querySelectorAll('.sm-chip').forEach(c=>{
     c.classList.toggle('selected', c.textContent === subjectInput.value);
   });
+});
+
+/* ------------------- leave-lesson prompt (Home button) -------------- */
+const leaveModal = document.getElementById('leave-modal');
+const leaveNameInput = document.getElementById('leave-name-input');
+
+function goHomeNow(){
+  parent.postMessage({ nav:'home' }, '*');
+}
+
+// Clicking Home mid-lesson shouldn't silently save (or silently lose)
+// whatever's on the board — ask. Nothing to ask about if the board is
+// still blank (no conversation yet), so just leave in that case.
+function handleHomeClick(){
+  if(conversationHistory.length === 0){
+    goHomeNow();
+    return;
+  }
+  const fallback = (currentTopicLabel && currentTopicLabel !== 'Topic')
+    ? currentTopicLabel
+    : (currentSessionTitle || (pdfFileName ? pdfFileName.replace(/\.pdf$/i,'') : ''));
+  leaveNameInput.value = currentSessionTitle || fallback || '';
+  leaveModal.classList.add('open');
+  setTimeout(()=> leaveNameInput.focus(), 50);
+}
+function closeLeaveModal(){ leaveModal.classList.remove('open'); }
+
+document.getElementById('btn-leave-continue').addEventListener('click', closeLeaveModal);
+document.getElementById('btn-leave-save').addEventListener('click', async ()=>{
+  const name = leaveNameInput.value.trim();
+  if(name) currentSessionTitle = name;
+  try{ await persistSession(); } catch(e){ console.error('Save on leave failed:', e); }
+  closeLeaveModal();
+  goHomeNow();
+});
+leaveNameInput.addEventListener('keydown', (e)=>{
+  if(e.key==='Enter'){ e.preventDefault(); document.getElementById('btn-leave-save').click(); }
 });
 
 // Ask for a subject the first time this tab lands on a brand-new,
