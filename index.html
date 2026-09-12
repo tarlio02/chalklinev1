@@ -1047,6 +1047,20 @@ body{
   color:var(--ochre);background:none;border:none;cursor:pointer;
 }
 .link-btn:hover{text-decoration:underline;}
+.session-toggle{
+  display:flex;align-items:center;justify-content:space-between;
+  width:100%;padding:8px 10px;margin-bottom:8px;
+  border:1px solid var(--panel-border);border-radius:8px;
+  background:var(--highlight);cursor:pointer;
+  font-family:'Source Serif 4', Georgia, serif;font-size:13px;font-weight:600;
+  color:var(--ink);text-align:left;
+}
+.session-toggle:hover{border-color:var(--ochre);}
+.session-toggle .st-chevron{
+  font-size:10px;color:var(--muted);transition:transform 0.15s ease;
+  flex-shrink:0;margin-left:8px;
+}
+.session-toggle.open .st-chevron{transform:rotate(90deg);}
 .account-row{display:flex;align-items:center;gap:8px;}
 
 .upload-zone{
@@ -1075,7 +1089,8 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
 .p-btn.primary{background:var(--ink);color:#fff;}
 .p-btn:hover{background:var(--ochre);border-color:var(--ochre);color:#fff;}
 
-.session-list{max-height:130px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;}
+.session-list{max-height:130px;overflow-y:auto;display:none;flex-direction:column;gap:6px;}
+.session-list.open{display:flex;}
 .session-item{
   display:flex;justify-content:space-between;align-items:center;
   padding:7px 9px;border:1px solid var(--panel-border);border-radius:5px;
@@ -1230,6 +1245,10 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
     </div>
     <div class="p-section">
       <h2>Saved sessions <button class="link-btn" id="btn-new-session">new</button></h2>
+      <button type="button" class="session-toggle" id="btn-session-toggle">
+        <span id="session-toggle-label">Sessions</span>
+        <span class="st-chevron">▶</span>
+      </button>
       <div class="session-list" id="session-list"><div class="empty-note">No saved sessions yet.</div></div>
     </div>
     <div class="p-section">
@@ -3577,11 +3596,11 @@ async function deleteSession(id, ev){
 async function refreshSessionList(){
   const myReq = ++sessionListReq;
   const listEl = document.getElementById('session-list');
+  const labelEl = document.getElementById('session-toggle-label');
   try{
     const result = await window.storage.list(sessionKeyPrefix(), false);
     if(myReq !== sessionListReq) return; // superseded by a newer auth state
     const keys = (result && result.keys) ? result.keys : [];
-    if(keys.length===0){ listEl.innerHTML = '<div class="empty-note">No saved sessions yet.</div>'; return; }
     const items = [];
     for(const key of keys){
       try{ const rec = await window.storage.get(key, false); if(rec) items.push(JSON.parse(rec.value)); } catch(e){}
@@ -3594,6 +3613,7 @@ async function refreshSessionList(){
     const filtered = currentSubject
       ? items.filter(item => (item.subject || 'Unsorted') === currentSubject)
       : items.filter(item => !item.subject || item.subject === 'Unsorted');
+    labelEl.textContent = (currentSubject || 'Sessions') + (filtered.length ? ` (${filtered.length})` : '');
     if(filtered.length===0){
       listEl.innerHTML = `<div class="empty-note">No saved sessions yet${currentSubject ? ' in ' + escapeHtml(currentSubject) : ''}.</div>`;
       return;
@@ -3610,6 +3630,12 @@ async function refreshSessionList(){
     });
   } catch(err){ console.error('Listing sessions failed:', err); listEl.innerHTML = '<div class="empty-note">Could not load saved sessions.</div>'; }
 }
+
+const sessionToggleBtn = document.getElementById('btn-session-toggle');
+sessionToggleBtn.addEventListener('click', ()=>{
+  sessionToggleBtn.classList.toggle('open');
+  document.getElementById('session-list').classList.toggle('open');
+});
 
 function resetUploadZoneUI(){
   uploadZone.classList.remove('has-file');
