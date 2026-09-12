@@ -18,16 +18,35 @@
     font-family:-apple-system,Segoe UI,sans-serif;
   }
   #shell-account-chip{
-    display:none; align-items:center; gap:6px;
+    display:none; position:relative;
+  }
+  #shell-account-btn{
+    display:flex; align-items:center; gap:6px;
     background:#fff; border:1px solid #D3E6F5; border-radius:999px;
-    padding:4px 8px 4px 4px; font-size:12.5px; color:#1E2B3A;
+    padding:4px 12px 4px 4px; font-size:12.5px; color:#1E2B3A;
     box-shadow:0 1px 4px rgba(0,0,0,0.08);
+    cursor:pointer; font-family:inherit;
   }
-  #shell-account-chip img{ width:24px; height:24px; border-radius:50%; }
-  #shell-account-chip button{
-    border:none; background:none; color:#7C93A8; cursor:pointer; font-size:11.5px;
-    padding:0 2px;
+  #shell-account-btn:hover{ background:#F7FBFF; }
+  #shell-account-btn img{ width:24px; height:24px; border-radius:50%; }
+  #shell-account-btn .shell-chevron{ font-size:9px; color:#7C93A8; }
+  #shell-account-menu{
+    display:none; position:absolute; top:calc(100% + 8px); right:0;
+    background:#fff; border:1px solid #D3E6F5; border-radius:12px;
+    box-shadow:0 4px 16px rgba(0,0,0,0.12);
+    min-width:180px; padding:10px 0; font-size:13px;
   }
+  #shell-account-menu.open{ display:block; }
+  #shell-account-menu .shell-menu-name{
+    padding:6px 14px 10px; font-weight:600; color:#1E2B3A;
+    border-bottom:1px solid #EEF3F8; margin-bottom:6px; word-break:break-word;
+  }
+  #shell-account-menu button{
+    display:block; width:100%; text-align:left; border:none; background:none;
+    color:#C0392B; cursor:pointer; font-size:13px; padding:8px 14px;
+    font-family:inherit;
+  }
+  #shell-account-menu button:hover{ background:#FBEDE9; }
 </style>
 </head>
 <body>
@@ -35,8 +54,15 @@
 <div id="shell-auth">
   <div id="shell-signin-btn"></div>
   <div id="shell-account-chip">
-    <img id="shell-account-avatar" alt="" title="">
-    <button id="shell-sign-out" title="Sign out">✕</button>
+    <button type="button" id="shell-account-btn" title="Account">
+      <img id="shell-account-avatar" alt="" title="">
+      <span id="shell-account-name-short"></span>
+      <span class="shell-chevron">▼</span>
+    </button>
+    <div id="shell-account-menu">
+      <div class="shell-menu-name" id="shell-menu-name"></div>
+      <button type="button" id="shell-sign-out">Sign out</button>
+    </div>
   </div>
 </div>
 
@@ -87,9 +113,31 @@ function showSignedInChip(user){
   document.getElementById('shell-signin-btn').style.display = 'none';
   const chip = document.getElementById('shell-account-chip');
   chip.style.display = 'flex';
-  document.getElementById('shell-account-avatar').src = user.picture || '';
-  document.getElementById('shell-account-avatar').title = user.name || user.email || 'Signed in';
+  const fullName = user.name || user.email || 'Signed in';
+  const avatar = document.getElementById('shell-account-avatar');
+  avatar.src = user.picture || '';
+  avatar.title = fullName;
+  // Short first-name-only label next to the avatar so the button stays
+  // compact; the full name still shows in the dropdown when opened.
+  document.getElementById('shell-account-name-short').textContent = (user.given_name || fullName.split(' ')[0] || '');
+  document.getElementById('shell-menu-name').textContent = fullName;
 }
+
+function toggleShellAccountMenu(forceOpen){
+  const menu = document.getElementById('shell-account-menu');
+  const shouldOpen = forceOpen !== undefined ? forceOpen : !menu.classList.contains('open');
+  menu.classList.toggle('open', shouldOpen);
+}
+
+document.getElementById('shell-account-btn').addEventListener('click', (e)=>{
+  e.stopPropagation();
+  toggleShellAccountMenu();
+});
+// Clicking anywhere outside the menu closes it.
+document.addEventListener('click', (e)=>{
+  const chip = document.getElementById('shell-account-chip');
+  if(!chip.contains(e.target)) toggleShellAccountMenu(false);
+});
 
 function restoreShellSession(){
   try{
@@ -131,6 +179,7 @@ function signOutShell(){
   shellUser = null;
   localStorage.removeItem(SHELL_AUTH_STORAGE_KEY);
   if(typeof google !== 'undefined' && google.accounts) google.accounts.id.disableAutoSelect();
+  toggleShellAccountMenu(false);
   document.getElementById('shell-account-chip').style.display = 'none';
   document.getElementById('shell-signin-btn').style.display = 'block';
   broadcastAuthState();
@@ -1142,6 +1191,10 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
       <span class="btn-label">Home</span>
     </div>
     <div class="topbar-btn-wrap">
+      <button class="icon-btn" id="btn-export-pdf" title="Export board as PDF">📄</button>
+      <span class="btn-label">Export PDF</span>
+    </div>
+    <div class="topbar-btn-wrap">
       <button class="icon-btn" id="btn-menu" title="Menu">☰</button>
       <span class="btn-label">Menu</span>
     </div>
@@ -1158,14 +1211,6 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
     <div class="topbar-btn-wrap">
       <button class="icon-btn" id="btn-clear" title="Clear board">🗑</button>
       <span class="btn-label">Clear</span>
-    </div>
-    <div class="topbar-btn-wrap">
-      <button class="icon-btn" id="btn-save" title="Save session">⬇</button>
-      <span class="btn-label">Save</span>
-    </div>
-    <div class="topbar-btn-wrap">
-      <button class="icon-btn" id="btn-export-pdf" title="Export board as PDF">📄</button>
-      <span class="btn-label">Export PDF</span>
     </div>
   </div>
 </div>
@@ -3540,22 +3585,6 @@ updateLoginPillVisibility();
 
 function transcriptToHtmlSnapshot(){ return transcriptEl.innerHTML; }
 
-async function saveSession(promptForName){
-  try{
-    let title = currentSessionTitle;
-    if(promptForName || !title){
-      const fallback = (currentTopicLabel && currentTopicLabel !== 'Topic')
-        ? currentTopicLabel
-        : (pdfFileName ? pdfFileName.replace(/\.pdf$/i,'') : 'Untitled session');
-      title = prompt('Name this session:', title || fallback);
-      if(title===null) return;
-      currentSessionTitle = title || fallback;
-    }
-    await persistSession();
-    setStatus('session saved');
-  } catch(err){ console.error('Save failed:', err); setStatus('save failed — see console'); }
-}
-
 async function persistSession(){
   // Guest (signed-out) work must never survive as durable, sharable
   // storage — otherwise closing and reopening the site (or a different
@@ -3704,7 +3733,9 @@ function loadSession(item){
   refreshSessionList();
 }
 
-document.getElementById('btn-save').addEventListener('click', ()=> saveSession(true));
+// Manual save is gone from the UI — sessions autosave (autoSaveSession/
+// flushSaveOnExit) whenever there's actual conversation content, so
+// nothing is lost without it.
 document.getElementById('btn-new-session').addEventListener('click', ()=>{
   resetTutorBoardState();
   setStatus('new session');
