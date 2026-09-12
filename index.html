@@ -4957,8 +4957,23 @@ function ensureLoaded(page){
   }, 60);
 }
 
+// Pages that represent an active "session" (a live lesson or summary in
+// progress) shouldn't just be re-shown stale when you navigate back to
+// them — their in-iframe JS state (currentSessionId, loaded messages,
+// etc.) would still be sitting there from before. If you're arriving
+// WITHOUT a specific saved item to resume (no loadSessionId/loadSummaryId),
+// treat it as "start a new one" and force the iframe to reload from
+// scratch. Arriving WITH a loadSessionId/loadSummaryId means the user
+// picked a specific saved item from history, so that one is left alone —
+// its own message handler (d.loadSessionId) resets its state anyway.
+const FRESH_ON_ENTRY = { tutor:true, summary:true };
+
 function navTo(page, pushHistory, navPayload){
   if(!frames[page]) page = 'landing';
+  if(FRESH_ON_ENTRY[page] && !navPayload){
+    frames[page].srcdoc = '';
+    loaded[page] = false;
+  }
   const wasLoaded = loaded[page];
   ensureLoaded(page);
   Object.keys(frames).forEach(k => frames[k].classList.toggle('active', k === page));
