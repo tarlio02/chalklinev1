@@ -6,8 +6,15 @@
 <title>Chalkline — AI Study Tools</title>
 <style>
   html,body{ margin:0; padding:0; height:100%; overflow:hidden; background:#F3F9FE; font-family:-apple-system,Segoe UI,sans-serif; }
-  iframe{ position:fixed; inset:0; width:100%; height:100%; border:none; display:none; background:#F3F9FE; }
-  iframe.active{ display:block; }
+  iframe{ position:fixed; inset:0; width:100%; height:100%; border:none; background:#F3F9FE; }
+  iframe{
+    opacity:0; visibility:hidden; pointer-events:none;
+    transition:opacity 0.22s ease;
+  }
+  iframe.active{ opacity:1; visibility:visible; pointer-events:auto; z-index:2; }
+  /* The outgoing page stays visible (z-index below the incoming one)
+     just long enough to crossfade out, instead of vanishing instantly. */
+  iframe.leaving{ opacity:0; visibility:visible; pointer-events:none; z-index:1; }
 
   /* Real Google Sign-In must live in the top-level page — a srcdoc
      iframe reports location.origin as "null", and Google's Identity
@@ -1204,14 +1211,6 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
   </button>
   <div class="top-right-cluster">
     <div class="status-chip" id="status-line">idle</div>
-    <div class="topbar-btn-wrap">
-      <button class="icon-btn" id="zoom-reset" title="Reset view">⤾</button>
-      <span class="btn-label">Reset view</span>
-    </div>
-    <div class="topbar-btn-wrap">
-      <button class="icon-btn" id="btn-clear" title="Clear board">🗑</button>
-      <span class="btn-label">Clear</span>
-    </div>
   </div>
 </div>
 
@@ -2181,13 +2180,9 @@ canvas.addEventListener('wheel', (e)=>{
   checkIfScrolledAway();
   redrawAll();
 }, {passive:false});
-document.getElementById('zoom-reset').addEventListener('click', ()=>{ 
-  panToken++; camera.scale=Math.min(1.5, viewW / 1050); camera.x=idealCameraX(camera.scale);
-  userIsScrolledAway=false; 
-  panCameraToCursor(globalCursorY - 300, null);
-  redrawAll(); 
-});
-document.getElementById('btn-clear').addEventListener('click', ()=>{ panToken++; drawQueue=[]; camera.scale=1; camera.x=idealCameraX(1); camera.y=idealCameraY(1); resetRegionCursors(); clearBoard(); });
+// Reset-view and Clear-board buttons were removed from the toolbar
+// (they were being covered by the account menu) — clearBoard() itself
+// is still used internally (e.g. resetTutorBoardState on New session).
 
 /* =========================================================
    EXPORT PDF
@@ -5002,7 +4997,19 @@ function navTo(page, pushHistory, navPayload){
     loaded[page] = false;
   }
   const wasLoaded = loaded[page];
+  const previous = current;
   ensureLoaded(page);
+
+  // Crossfade: the page we're leaving keeps rendering (at a lower
+  // z-index) while it fades out, instead of disappearing the instant
+  // the new page appears — that's what made switches feel like a hard
+  // cut rather than a transition.
+  if(previous && previous !== page && frames[previous]){
+    const leavingFrame = frames[previous];
+    leavingFrame.classList.remove('active');
+    leavingFrame.classList.add('leaving');
+    setTimeout(()=>{ leavingFrame.classList.remove('leaving'); }, 240);
+  }
   Object.keys(frames).forEach(k => frames[k].classList.toggle('active', k === page));
   current = page;
   if(pushHistory !== false){
