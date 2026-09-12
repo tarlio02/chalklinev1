@@ -3723,10 +3723,12 @@ document.getElementById('voice-select').addEventListener('change', ()=>{
 resizeCanvas();
 // Mobile browsers (portrait especially) can still be settling viewport
 // chrome/address-bar height right after load, so the very first
-// getBoundingClientRect() here may be stale. Re-run once layout settles,
-// same fix already applied for orientationchange.
-setTimeout(resizeCanvas, 50);
-setTimeout(resizeCanvas, 350);
+// getBoundingClientRect() here may be stale. A couple of fixed-delay
+// retries isn't always enough — the same reason orientationchange uses
+// the polling "wait until size stops changing" version instead of fixed
+// timeouts — so use that same stabilizing function here too, rather than
+// locking in a stale size if settling runs past a hardcoded delay.
+resizeCanvasWhenStable(1000);
 setStatus('idle');
 refreshSessionList();
 <\/script>
