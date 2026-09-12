@@ -1000,10 +1000,10 @@ function commandScreenBBox(cmd){
       const xs = pts.map(p=>p[0]), ys = pts.map(p=>p[1]);
       return pad(Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys));
     }
-    case 'axes': case 'plot': {
+    case 'axes': case 'plot': case 'image': {
       const [ox,oy] = worldToScreen(cmd.x,cmd.y);
       const w = sw(cmd.w), h = sw(cmd.h);
-      return pad(ox, oy-h-sw(30), ox+w, oy+sw(20));
+      return pad(ox, oy-h-sw(30), ox+w, oy+sw(cmd.type==='image' ? 50 : 20));
     }
     case 'halo': {
       const [x,y] = worldToScreen(cmd.x,cmd.y); const r = sw(cmd.r||60);
@@ -1087,6 +1087,73 @@ function strokePolylinePartial(pts, t){
   }
   ctx.stroke();
   return [penX,penY];
+}
+
+function roundRectPath(c, x, y, w, h, r){
+  c.beginPath();
+  c.moveTo(x+r, y);
+  c.arcTo(x+w, y, x+w, y+h, r);
+  c.arcTo(x+w, y+h, x, y+h, r);
+  c.arcTo(x, y+h, x, y, r);
+  c.arcTo(x, y, x+w, y, r);
+  c.closePath();
+}
+
+// Draws a fetched (Wikimedia) diagram/photo as a pasted-in card on the board,
+// with an optional handwritten caption and small attribution line. `revealT`
+// (0-1) lets the caller wipe it in left-to-right during the write-on animation.
+function drawImageCommand(ox, oy, w, h, cmd, revealT){
+  const top = oy - h;
+  ctx.save();
+  ctx.shadowColor = 'rgba(30,40,60,0.18)';
+  ctx.shadowBlur = sw(14);
+  ctx.shadowOffsetY = sw(4);
+  ctx.fillStyle = '#ffffff';
+  roundRectPath(ctx, ox, top, w, h, sw(10));
+  ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  roundRectPath(ctx, ox, top, w, h, sw(10));
+  ctx.clip();
+  const revealW = w * Math.max(0, Math.min(1, revealT));
+  ctx.beginPath();
+  ctx.rect(ox, top, revealW, h);
+  ctx.clip();
+  if(cmd._img && cmd._img.complete && cmd._img.naturalWidth){
+    const img = cmd._img;
+    const scale = Math.min(w/img.naturalWidth, h/img.naturalHeight);
+    const dw = img.naturalWidth*scale, dh = img.naturalHeight*scale;
+    const dx = ox + (w-dw)/2, dy = top + (h-dh)/2;
+    ctx.fillStyle = '#F4F7FA';
+    ctx.fillRect(ox, top, w, h);
+    ctx.drawImage(img, dx, dy, dw, dh);
+  } else {
+    ctx.fillStyle = '#EEF3F8';
+    ctx.fillRect(ox, top, w, h);
+  }
+  ctx.restore();
+
+  ctx.strokeStyle = 'rgba(30,40,60,0.15)';
+  ctx.lineWidth = sw(1.5);
+  roundRectPath(ctx, ox, top, w, h, sw(10));
+  ctx.stroke();
+
+  if(revealT >= 1){
+    if(cmd.caption){
+      ctx.fillStyle = INK;
+      ctx.font = `700 ${sw(19)}px 'Caveat', cursive`;
+      ctx.textAlign = 'center';
+      ctx.fillText(cmd.caption, ox + w/2, oy + sw(28));
+    }
+    if(cmd._attribution){
+      ctx.fillStyle = 'rgba(60,70,90,0.55)';
+      ctx.font = `400 ${sw(11)}px sans-serif`;
+      ctx.textAlign = 'right';
+      ctx.fillText(cmd._attribution, ox + w, oy + (cmd.caption ? sw(46) : sw(20)));
+    }
+  }
+  ctx.textAlign = 'left';
 }
 
 function renderCommand(cmd){
@@ -1241,6 +1308,11 @@ function renderCommand(cmd){
         }
       });
       ctx.restore();
+      break;
+    }
+    case 'image': {
+      const [ox,oy] = worldToScreen(cmd.x, cmd.y); const w = sw(cmd.w), h = sw(cmd.h);
+      drawImageCommand(ox, oy, w, h, cmd, 1);
       break;
     }
     case 'highlight': {
@@ -1645,6 +1717,20 @@ function enqueueCommandsAtCursor(commands){
             placedAll.push(c);
             globalCursorY = c.y + RULE_LINE_SPACING*2;
 
+        } else if (c.type === 'image') {
+            // c.w/c.h are pre-computed by resolveImageCommands() from the
+            // real image's aspect ratio before this ever runs; fall back to
+            // a sane default if that step didn't run for some reason.
+            c.x = 150;
+            c.w = c.w || 700;
+            c.h = c.h || 420;
+            const captionSpace = c.caption ? RULE_LINE_SPACING * 1.4 : RULE_LINE_SPACING * 0.6;
+
+            globalCursorY += RULE_LINE_SPACING;
+            c.y = globalCursorY + c.h;
+            placedAll.push(c);
+            globalCursorY = c.y + captionSpace + RULE_LINE_SPACING;
+
         } else if (c.type === 'halo' || c.type === 'highlight') {
             if (placedAll.length > 0) {
                let prev = placedAll[placedAll.length-1];
@@ -1674,7 +1760,7 @@ function enqueueCommands(commands){
 }
 
 function commandWorldAnchor(cmd){
-  if(cmd.type === 'plot' || cmd.type === 'axes') {
+  if(cmd.type === 'plot' || cmd.type === 'axes' || cmd.type === 'image') {
       return [cmd.x + (cmd.w||0)/2, cmd.y - (cmd.h||0)/2];
   }
   if('x' in cmd && 'y' in cmd) return [cmd.x, cmd.y];
@@ -1722,6 +1808,7 @@ function estimateDuration(cmd){
       case 'circle': return 550;
       case 'axes': return 550;
       case 'plot': return 600 + ((cmd.curves||[]).length)*550;
+      case 'image': return 900;
       case 'highlight': return 250;
       case 'halo': return 450;
       case 'path': return Math.min(2600, Math.max(600, (cmd.segments||[]).length*220));
@@ -1925,6 +2012,12 @@ function renderPartialCommand(cmd, t){
         ctx.restore();
       }
       drawPen(penX,penY,0);
+      break;
+    }
+    case 'image': {
+      const [ox,oy]=worldToScreen(cmd.x,cmd.y); const w=sw(cmd.w), h=sw(cmd.h);
+      drawImageCommand(ox, oy, w, h, cmd, t);
+      drawPen(ox + w*Math.min(1,t), oy - h/2, 0);
       break;
     }
     case 'highlight': {
@@ -2343,8 +2436,8 @@ Colors available: "ink" (navy blue), "ochre" (amber/orange keyword emphasis), "s
 
 CRITICAL LAYOUT RULES - THE APP WILL OVERRIDE YOUR COORDINATES:
 1. DO NOT try to position text next to a graph. Everything is strictly stacked vertically in a single column by the engine.
-2. ONLY use "text" commands for paragraph explanations. DO NOT use "text" commands to title or label graphs.
-3. FOR GRAPHS, use ONLY the "plot" command. Put the title, xlabel, and ylabel INSIDE the plot command properties. DO NOT use separate text commands near it.
+2. ONLY use "text" commands for paragraph explanations. DO NOT use "text" commands to title or label graphs or images.
+3. FOR GRAPHS, use ONLY the "plot" command. FOR ANY REAL DIAGRAM/PHOTO, use ONLY the "image" command. Put the title/caption INSIDE that command's own properties. DO NOT use separate text commands near it.
 
 TEXT ON THE BOARD MUST USE REAL SYMBOLS, NOT SPELLED-OUT WORDS: π, θ, β, α, γ, Δ, Σ, ∫, √, ∞, ≤, ≥, ≈, ×, ÷, →, ², ³, ₁, ₂, etc. directly inside "text" strings. Use "mono":true for alignment if drawing equations.
 
@@ -2370,6 +2463,7 @@ Available command types:
 - {"type":"path","segments":[["M",x,y],["L",x,y],["Q",cx,cy,x,y],["C",c1x,c1y,c2x,c2y,x,y],["Z"]],"color":"sage","width":2.5,"fill":false,"fillColor":"sage","fillOpacity":0.12} — a general freeform outline, like an SVG path: "M" moves the pen (start a new sub-shape), "L" a straight segment, "Q" a quadratic curve (one control point), "C" a cubic curve (two control points), "Z" closes the current outline back to its last "M". THIS is the tool for drawing actual recognizable pictures — a cell and its organelles, a leaf, an animal, an organ, a map — by tracing the outline as a sequence of segments the way you'd sketch it by hand, then optionally filling it.
 - {"type":"axes","x":..,"y":..,"w":..,"h":..,"xlabel":"...","ylabel":"...","title":"...","grid":true,"xTicks":[...],"yTicks":[...]}
 - {"type":"plot","x":..,"y":..,"w":..,"h":..,"xRange":[0,10],"yRange":[0,10],"xlabel":"...","ylabel":"...","title":"...","grid":true,"xTicks":["0","2","4","6","8","10"],"yTicks":["0","5","10"],"curves":[{"points":[[dataX,dataY],...],"color":"brick","width":2.75,"label":"SRPC"}]}
+- {"type":"image","query":"specific, image-searchable description, e.g. 'human heart anatomy diagram' or 'map of Europe 1914'","caption":"short caption shown under the image (optional)","alt":"brief plain-text description used only if no image can be found (optional)"} — fetches a REAL photo/diagram from Wikimedia Commons and places it on the board like a pasted-in textbook figure. ALWAYS use this instead of hand-drawing with "path"/"circle"/"curve" for anything representational: anatomy, organisms, cells, maps, historical figures/events, real objects, landmarks, flags, instruments, machinery, artwork, etc. Make "query" specific and literal (what you'd type into an image search), not a vague topic name. Reserve "path"/"circle"/"curve" ONLY for abstract conceptual sketches that could never correspond to a real photographable/diagrammable thing (e.g. an invented illustrative shape for a made-up example). Math/economics/statistics graphs still ALWAYS use "plot", never "image".
 - {"type":"highlight","x":..,"y":..,"w":..,"h":26,"color":"ochre"}
 
 LISTS OF LINE ITEMS (financial statements, ledgers, tables of labeled values, any "Label ... $ amount" style list):
@@ -2380,11 +2474,12 @@ LISTS OF LINE ITEMS (financial statements, ledgers, tables of labeled values, an
 - A sub-total or total line ("Total Current Assets", "Total Liabilities", etc.) is also its own single "text" command, typically in "ochre" or "brick" for emphasis, on its own row, with a small blank gap above it to set it apart from the items it sums.
 - This rule applies any time you're writing a structured list of named values — balance sheets, income statements, cash-flow statements, price lists, comparison tables — not just accounting examples.
 
-DRAWING ACTUAL PICTURES (cells, leaves, animals, organs, diagrams, maps, anything representational):
-- Build the picture out of several layered primitives rather than one shape: an outer outline ("path" or filled "circle"/"curve"), then inner structures on top (smaller filled "circle"/"path" shapes for a nucleus, mitochondria, veins, etc.), then label the parts with a short "arrow" pointing from the label to the structure plus a small "text" command for the label word — exactly like a real teacher labels a diagram they've just drawn.
-- Trace organic outlines ("path") the way you'd actually sketch them by hand: a handful of "M"/"C"/"Q" segments roughly following the real silhouette (e.g. a leaf is a pointed oval with a "Z" to close it, a cell is a wobbly rounded "path" rather than a perfect "circle", a dog is several overlapping "path"/"circle" shapes for the head, snout, ears, body, legs, tail). It does not need to be photorealistic — a clean, recognizable line-art sketch is the goal, the same level of detail a lecturer would actually draw on a whiteboard, not a single crude blob.
-- Use "fill":true with a low "fillOpacity" (0.08–0.18) on the shapes that should read as solid regions, and leave fine detail (veins, membrane texture, fur lines) as unfilled "curve"/"path"/"line" strokes on top.
-- A diagram like this still occupies its own vertical slot on the board like a graph does — draw it as one coherent cluster of shape commands around a shared local coordinate area (e.g. all within roughly a 300×300 world-unit box) rather than scattering pieces across the whole page, and give it a normal "text" heading above it introducing what it is.
+REPRESENTATIONAL DIAGRAMS AND PICTURES (cells, leaves, animals, organs, maps, historical figures, real objects, anything you'd normally look up rather than invent):
+- ALWAYS use an "image" command for these. Do NOT hand-draw them out of "path"/"circle"/"curve" primitives — a real photo or textbook diagram is always better than a hand sketch, so prefer fetching one every time a topic calls for this kind of visual.
+- Write a specific, literal "query" (what you'd actually type into an image search) — e.g. "mitochondria structure diagram", "Amazon rainforest canopy", "Isaac Newton portrait" — not a vague single word.
+- Give it a short "caption" naming what it shows, exactly like you'd caption a figure in a textbook.
+- The "image" command occupies its own vertical slot on the board like a "plot" does — give it a normal "text" heading above it introducing what it is, just like you would for a graph.
+- Only fall back to hand-drawn "path"/"circle"/"curve" primitives for a genuinely invented/abstract illustrative shape that has no real-world counterpart to photograph (rare) — never for anything that corresponds to a real object, organism, place, or person.
 
 PACING RULES:
 - Teach in SUBSTANTIAL, CONTINUOUS chunks: a full turn should read like several minutes of real lecture — cover a complete idea in depth (its definition, why it matters, a worked example, and its key sub-points), not one lonely sentence. Write MUCH more per turn than feels natural for a "small step" — aim for a long, dense block of "board" content (many "text" commands in a row covering multiple paragraphs, sub-points, and worked equations) so the notes keep growing continuously down the page, the way a real lecturer fills page after page without pausing every few seconds.
@@ -2630,6 +2725,7 @@ async function runTeachingTurn(userMessage, displayText){
   await document.fonts.ready;
   const result = await callTutor(userMessage);
   if(result.board && result.board.length){
+    result.board = await resolveImageCommands(result.board);
     // Match the pace of the pen to the pace of the voice: estimate how long
     // this turn's speech will take, compare it to how long the handwriting
     // would naturally take, and scale the writing speed so both roughly
@@ -2649,6 +2745,79 @@ async function runTeachingTurn(userMessage, displayText){
 }
 
 function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
+
+// ---------- Fetching real diagrams/photos from Wikimedia Commons ----------
+// Wikimedia's API is CORS-open (via origin=*) so this calls it directly from
+// the browser — no proxy/API key needed. We prefer a real photo/diagram over
+// hand-drawing anything representational (anatomy, maps, historical figures,
+// real objects); math/graphs/geometric constructions still get drawn.
+const IMAGE_BOARD_WIDTH = 640;
+const IMAGE_MIN_HEIGHT = 260;
+const IMAGE_MAX_HEIGHT = 620;
+
+async function searchWikimediaImage(query){
+  const searchUrl = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent('filetype:bitmap|drawing ' + query)}&gsrnamespace=6&gsrlimit=6&prop=imageinfo&iiprop=url|size|extmetadata&format=json&origin=*`;
+  const res = await fetch(searchUrl);
+  if(!res.ok) throw new Error('Wikimedia search failed: ' + res.status);
+  const data = await res.json();
+  const pages = data && data.query && data.query.pages;
+  if(!pages) return null;
+  const candidates = Object.values(pages)
+    .map(p => p.imageinfo && p.imageinfo[0])
+    .filter(info => info && info.url && /\.(png|jpe?g|gif|svg)$/i.test(info.url) && info.width >= 200);
+  if(!candidates.length) return null;
+  candidates.sort((a,b) => (b.width||0) - (a.width||0));
+  const best = candidates[0];
+  let credit = 'Wikimedia Commons';
+  try{
+    const artist = best.extmetadata && best.extmetadata.Artist && best.extmetadata.Artist.value;
+    if(artist) credit = 'Wikimedia Commons — ' + artist.replace(/<[^>]+>/g, '').trim();
+  }catch(e){}
+  return { url: best.url, width: best.width, height: best.height, credit };
+}
+
+function preloadImage(url){
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('image failed to load'));
+    img.src = url;
+  });
+}
+
+// Turns each {type:'image', query, caption?, alt?} command into either a
+// ready-to-draw image command (with its real aspect ratio and a preloaded
+// <img>) or, if nothing usable was found, a plain text fallback so the
+// board still makes sense instead of silently dropping the topic.
+async function resolveImageCommands(commands){
+  const resolved = [];
+  for(const original of commands){
+    if(original.type !== 'image'){ resolved.push(original); continue; }
+    const cmd = { ...original };
+    try{
+      const found = await searchWikimediaImage(cmd.query || cmd.caption || cmd.alt || '');
+      if(!found) throw new Error('no results');
+      const img = await preloadImage(found.url);
+      const aspect = found.height / found.width;
+      cmd.w = IMAGE_BOARD_WIDTH;
+      cmd.h = clamp(Math.round(IMAGE_BOARD_WIDTH * aspect), IMAGE_MIN_HEIGHT, IMAGE_MAX_HEIGHT);
+      cmd._img = img;
+      cmd._attribution = found.credit;
+      resolved.push(cmd);
+    }catch(err){
+      console.warn('Image fetch failed for query "' + cmd.query + '":', err);
+      resolved.push({
+        type: 'text',
+        text: '[' + (cmd.alt || cmd.caption || ('Diagram: ' + (cmd.query || ''))) + ']',
+        size: 22,
+        color: 'ink',
+        weight: 400
+      });
+    }
+  }
+  return resolved;
+}
 
 /* =========================================================
    SESSION PERSISTENCE
