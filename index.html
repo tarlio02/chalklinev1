@@ -1266,11 +1266,6 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
       <div class="session-list" id="session-list"><div class="empty-note">No saved sessions yet.</div></div>
     </div>
     <div class="p-section">
-      <h2>Narrator voice</h2>
-      <select class="topic-input" id="voice-select" style="height:auto;padding:9px 10px;"></select>
-      <div class="file-meta" style="margin-top:6px;">Auto-picks the highest-quality voice your browser/OS offers. Chrome and Edge on Windows/Mac usually have the best options.</div>
-    </div>
-    <div class="p-section">
       <h2>Source material</h2>
       <div class="upload-zone" id="upload-zone">
         Drop a PDF, or click to import a chapter, slide deck or notes.
@@ -2786,7 +2781,6 @@ function pickBestVoice(){
 function refreshVoiceList(){
   bestVoice = pickBestVoice();
   voicesReady = !!bestVoice;
-  populateVoiceDropdown();
 }
 
 if('speechSynthesis' in window){
@@ -2800,34 +2794,7 @@ if('speechSynthesis' in window){
   }, 250);
 }
 
-function populateVoiceDropdown(){
-  const sel = document.getElementById('voice-select');
-  if(!sel) return;
-  const voices = window.speechSynthesis.getVoices().filter(v => /^en/i.test(v.lang));
-  const pool = voices.length ? voices : window.speechSynthesis.getVoices();
-  if(!pool.length) return;
-  const currentVal = sel.value;
-  sel.innerHTML = '';
-  pool.sort((a,b)=> scoreVoice(b)-scoreVoice(a)).forEach(v=>{
-    const opt = document.createElement('option');
-    opt.value = v.name;
-    opt.textContent = v.name + (v.localService ? '' : ' (network)');
-    sel.appendChild(opt);
-  });
-  if(currentVal && pool.some(v=>v.name===currentVal)){
-    sel.value = currentVal;
-  } else if(bestVoice){
-    sel.value = bestVoice.name;
-  }
-}
-
 function getSelectedVoice(){
-  const sel = document.getElementById('voice-select');
-  const voices = window.speechSynthesis.getVoices();
-  if(sel && sel.value){
-    const chosen = voices.find(v => v.name === sel.value);
-    if(chosen) return chosen;
-  }
   return bestVoice;
 }
 
@@ -3855,10 +3822,6 @@ document.getElementById('ask-input').addEventListener('keydown', (e)=>{ if(e.key
 /* =========================================================
    INIT
    ========================================================= */
-document.getElementById('voice-select').addEventListener('change', ()=>{
-  if(currentUtteranceText) speak(currentUtteranceText);
-});
-
 resizeCanvas();
 // Mobile browsers (portrait especially) can still be settling viewport
 // chrome/address-bar height right after load, so the very first
