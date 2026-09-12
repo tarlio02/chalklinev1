@@ -1315,6 +1315,20 @@ ctx.lineJoin = 'round';
 let viewW = 0, viewH = 0;
 const camera = { x: 500, y: 300, scale: 1 };
 
+// The board is a fixed-width "page" (PAGE_W world units) that used to
+// always sit horizontally centered on screen. That's fine on a narrow
+// phone (the page roughly fills the width anyway), but on a wide
+// tablet/laptop the scale caps out at 1.5x while the viewport keeps
+// growing, so the page ends up floating in the middle with large empty
+// margins on both sides and the AI's writing starts well away from the
+// actual top-left of the screen. These anchor the page's top-left
+// corner to a small, fixed on-screen gutter instead, so text starts
+// right near the real top-left edge of the screen on every device.
+const PAGE_LEFT_GUTTER_PX = 24;
+const PAGE_TOP_GUTTER_PX = 32;
+function idealCameraX(scale){ return (viewW/2 - PAGE_LEFT_GUTTER_PX) / scale; }
+function idealCameraY(scale){ return TOP_MARGIN + (viewH/2 - PAGE_TOP_GUTTER_PX) / scale; }
+
 // Kick off loading the handwriting webfonts immediately at page load
 // (rather than waiting for the first canvas draw to implicitly trigger
 // it), so by the time the first AI response comes back over the network
@@ -1360,7 +1374,8 @@ function resetRegionCursors(){
   
   if (viewW > 0) {
       camera.scale = Math.min(1.5, viewW / 1050);
-      camera.x = 500;
+      camera.x = idealCameraX(camera.scale);
+      camera.y = idealCameraY(camera.scale);
   }
 }
 
@@ -1395,8 +1410,9 @@ function panCameraToCursor(targetY, onDone){
   if (Math.abs(camera.scale - idealScale) > 0.01 && !userIsScrolledAway) {
       camera.scale = idealScale;
   }
-  // Force X to stay precisely centered on 500
-  animateCameraPan(500, targetY, 900, onDone);
+  // Keep X anchored to the page's left-gutter position (not dead center)
+  // while following the pen vertically.
+  animateCameraPan(idealCameraX(camera.scale), targetY, 900, onDone);
 }
 
 function checkIfScrolledAway(){
@@ -1415,7 +1431,7 @@ function resizeCanvas(){
   
   if (!userIsScrolledAway && viewW > 0) {
       camera.scale = Math.min(1.5, viewW / 1050);
-      camera.x = 500;
+      camera.x = idealCameraX(camera.scale);
   }
   
   redrawAll();
@@ -1530,7 +1546,7 @@ function commandScreenBBox(cmd){
     case 'text': {
       const fam = "'Kalam', 'Caveat', cursive";
       const weight = cmd.weight || 700;
-      const size = (cmd.size||20)*HAND_SIZE_MULT;
+      const size = (cmd.size||26)*HAND_SIZE_MULT;
       ctx.font = `${weight} ${sw(size)}px ${fam}`;
       const [sx,sy] = worldToScreen(cmd.x, cmd.y);
       if(cmd.maxWidth){
@@ -1663,7 +1679,7 @@ function renderCommand(cmd){
     case 'text': {
       const fam = "'Kalam', 'Caveat', cursive";
       const weight = cmd.weight || 700;
-      const size = (cmd.size||20)*HAND_SIZE_MULT;
+      const size = (cmd.size||26)*HAND_SIZE_MULT;
       ctx.font = `${weight} ${sw(size)}px ${fam}`;
       ctx.textBaseline = 'alphabetic';
       const [sx,sy] = worldToScreen(cmd.x, cmd.y);
@@ -2046,12 +2062,12 @@ canvas.addEventListener('wheel', (e)=>{
   redrawAll();
 }, {passive:false});
 document.getElementById('zoom-reset').addEventListener('click', ()=>{ 
-  panToken++; camera.x=500; camera.scale=Math.min(1.5, viewW / 1050); 
+  panToken++; camera.scale=Math.min(1.5, viewW / 1050); camera.x=idealCameraX(camera.scale);
   userIsScrolledAway=false; 
   panCameraToCursor(globalCursorY - 300, null);
   redrawAll(); 
 });
-document.getElementById('btn-clear').addEventListener('click', ()=>{ panToken++; drawQueue=[]; camera.x=500;camera.y=300;camera.scale=1; resetRegionCursors(); clearBoard(); });
+document.getElementById('btn-clear').addEventListener('click', ()=>{ panToken++; drawQueue=[]; camera.scale=1; camera.x=idealCameraX(1); camera.y=idealCameraY(1); resetRegionCursors(); clearBoard(); });
 
 /* =========================================================
    EXPORT PDF
@@ -2206,7 +2222,7 @@ function diagramLocalBBox(c){
             return [c.x-r, c.y-r, c.x+r, c.y+r];
         }
         case 'text': { // diagramLabel — rough estimate is fine, it's a small word
-            const size = c.size || 18;
+            const size = c.size || 20;
             const approxW = (c.text||'').length * size * 0.55;
             return [c.x, c.y - size, c.x + approxW, c.y + size*0.3];
         }
@@ -2311,7 +2327,7 @@ function enqueueCommandsAtCursor(commands){
         if (c.type === 'text') {
             c.x = 80; // Sit close to the left margin line
             c.maxWidth = 930; // Use nearly the full line width before wrapping
-            const size = (c.size || 20) * HAND_SIZE_MULT;
+            const size = (c.size || 26) * HAND_SIZE_MULT;
             const fam = "'Kalam', 'Caveat', cursive";
             tCtx.font = `${c.weight || 700} ${size}px ${fam}`;
             
@@ -2461,7 +2477,7 @@ function renderPartialCommand(cmd, t){
       const full = cmd.text || '';
       const fam = "'Kalam', 'Caveat', cursive";
       const weight = cmd.weight || 700;
-      const size = (cmd.size||20)*HAND_SIZE_MULT;
+      const size = (cmd.size||26)*HAND_SIZE_MULT;
       ctx.font = `${weight} ${sw(size)}px ${fam}`;
       const [sx,sy] = worldToScreen(cmd.x, cmd.y);
       if(cmd.maxWidth){
@@ -2947,7 +2963,7 @@ NEVER WRITE LaTeX/TeX MARKUP ON THE BOARD. There is no math typesetting engine �
 This rule applies to every "text" command, including headings, definitions, and worked equations — plain readable notation only, exactly like natural handwriting on a real whiteboard.
 
 Available command types:
-- {"type":"text","x":..,"y":..,"text":"...","size":20,"color":"ink|ochre|sage|brick|teal|violet|sky|coral","mono":false,"weight":700,"maxWidth":800,"heading":false,"diagramLabel":false} — keep body/paragraph text small and legible: use "size" around 18-20 for normal notes, and only 14-16 for a diagram's small "diagramLabel" part-labels. Set "diagramLabel":true when this text labels a part of a diagram rather than being paragraph prose (see diagram rules above); otherwise leave it false/omitted. Set "heading":true ONLY for a section/topic title (e.g. "2. The Friedman-Phelps Critique"). The app automatically underlines heading text and inserts a blank ruled line above it, so DO NOT manually add a blank line or a "---"/underscore divider before a heading yourself — just set "heading":true and let the app handle the spacing and underline. Use a somewhat larger "size" (e.g. 24-28, NOT 32+) for headings — keep everything compact rather than oversized, but "heading":true is what actually triggers the underline and spacing, not the size alone.
+- {"type":"text","x":..,"y":..,"text":"...","size":26,"color":"ink|ochre|sage|brick|teal|violet|sky|coral","mono":false,"weight":700,"maxWidth":800,"heading":false,"diagramLabel":false} — keep body/paragraph text bold and easy to read from a distance: use "size" around 24-28 for normal notes, and 18-20 for a diagram's small "diagramLabel" part-labels. Set "diagramLabel":true when this text labels a part of a diagram rather than being paragraph prose (see diagram rules above); otherwise leave it false/omitted. Set "heading":true ONLY for a section/topic title (e.g. "2. The Friedman-Phelps Critique"). The app automatically underlines heading text and inserts a blank ruled line above it, so DO NOT manually add a blank line or a "---"/underscore divider before a heading yourself — just set "heading":true and let the app handle the spacing and underline. Use a noticeably larger "size" (e.g. 32-36, NOT 40+) for headings — keep everything compact rather than oversized, but "heading":true is what actually triggers the underline and spacing, not the size alone.
 - {"type":"halo","x":..,"y":..,"r":50,"color":"halo|ochre|sage|teal|violet|sky|coral"}
 - {"type":"line","x1":..,"y1":..,"x2":..,"y2":..,"color":"ink","width":2.5}
 - {"type":"arrow","x1":..,"y1":..,"x2":..,"y2":..,"color":"ochre","width":2.5}
@@ -3814,6 +3830,10 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
   </nav>
 
   <div class="page-head">
+    <a href="#" class="icon-link" style="display:inline-flex;align-items:center;gap:4px;margin-bottom:14px;" onclick="parent.postMessage({nav:'home'},'*');return false;">
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M10 12.5 5 8l5-4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Back to home
+    </a>
     <h1>Summarize your notes</h1>
     <p>Upload a PDF — a chapter, slide deck, or your own notes — and get back a clear, structured summary of what's actually in it.</p>
   </div>
