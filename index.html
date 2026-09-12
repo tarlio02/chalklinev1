@@ -351,11 +351,32 @@ body{
   border:1px solid var(--panel-border);
   border-left:3px solid var(--ochre);
   border-radius:6px;
-  padding:10px 16px;
+  padding:14px 18px;
   margin:6px 0 14px;
   display:block;
-  white-space:pre-wrap;
   word-break:break-word;
+}
+.eq-text{
+  white-space:pre-wrap;
+}
+
+/* handwritten inline fraction: real stacked numerator/denominator instead
+   of flat "a/b" text, drawn to look like it was written with a pen. */
+.frac{
+  display:inline-flex;
+  flex-direction:column;
+  align-items:center;
+  vertical-align:middle;
+  margin:0 3px;
+  line-height:1.05;
+  transform:translateY(0.05em);
+}
+.frac-num{
+  padding:0 3px 2px;
+  border-bottom:1.6px solid currentColor;
+}
+.frac-den{
+  padding:2px 3px 0;
 }
 
 .b-diagram{
@@ -1137,6 +1158,52 @@ function looksLikeEquationOrList(cmd){
   return /\.{3,}/.test(t) || /[=≈≤≥]/.test(t) && t.length < 90 && !/[.!?]$/.test(t.trim());
 }
 
+/* ---------- handwriting variance: deterministic per-line "hand" so the
+   same content always looks the same, but different lines don't look
+   machine-uniform — alternates between two handwriting typefaces and
+   applies a tiny natural tilt, the way a real pen wobbles line to line. */
+const HAND_FONTS = ["'Kalam', cursive", "'Caveat', cursive"];
+function hashStr(s){
+  let h = 0;
+  for(let i=0;i<s.length;i++){ h = (h*31 + s.charCodeAt(i)) | 0; }
+  return Math.abs(h);
+}
+function applyHandwriting(el, text, maxTilt){
+  const h = hashStr(text || '');
+  el.style.fontFamily = HAND_FONTS[h % HAND_FONTS.length];
+  const tilt = ((h % 100) / 100 - 0.5) * 2 * maxTilt;
+  el.style.display = 'inline-block';
+  el.style.transform = `rotate(${tilt.toFixed(2)}deg)`;
+}
+
+/* ---------- inline fraction rendering ----------
+   Turns "a/b" style math fragments inside an equation string into a real
+   stacked numerator/denominator (like actual handwritten math), instead of
+   a flat "a/b". Still no LaTeX — this only recognises the plain notation
+   the tutor already writes (dy/dx, (x+h)/2, 1/2, Δy/Δx, etc). */
+const FRAC_PAREN = "\\((?:[^()]*|\\([^()]*\\))*\\)";
+const FRAC_ATOM = "[A-Za-zΔΣ√πθβαγ0-9²³\\u2080-\\u2089]+";
+const FRAC_RE = new RegExp(`(${FRAC_PAREN}|${FRAC_ATOM})\\/(${FRAC_PAREN}|${FRAC_ATOM})`, 'g');
+function stripOuterParens(s){ return /^\(.*\)$/.test(s) ? s.slice(1,-1) : s; }
+
+function buildEquationFragment(text){
+  const frag = document.createDocumentFragment();
+  let lastIndex = 0, m;
+  FRAC_RE.lastIndex = 0;
+  while((m = FRAC_RE.exec(text))){
+    if(m.index > lastIndex) frag.appendChild(document.createTextNode(text.slice(lastIndex, m.index)));
+    const fracEl = document.createElement('span');
+    fracEl.className = 'frac';
+    const num = document.createElement('span'); num.className = 'frac-num'; num.textContent = stripOuterParens(m[1]);
+    const den = document.createElement('span'); den.className = 'frac-den'; den.textContent = stripOuterParens(m[2]);
+    fracEl.appendChild(num); fracEl.appendChild(den);
+    frag.appendChild(fracEl);
+    lastIndex = FRAC_RE.lastIndex;
+  }
+  if(lastIndex < text.length) frag.appendChild(document.createTextNode(text.slice(lastIndex)));
+  return frag;
+}
+
 function renderTextBlock(cmd){
   if(cmd.heading){
     const el = document.createElement('div');
@@ -1144,15 +1211,20 @@ function renderTextBlock(cmd){
     el.style.color = colorFor(cmd.color || 'ink');
     if(cmd.size) el.style.fontSize = Math.min(34, Math.max(20, cmd.size)) + 'px';
     el.textContent = cmd.text || '';
+    applyHandwriting(el, cmd.text, 0.6);
     boardContent.appendChild(el);
     return el;
   }
   if(looksLikeEquationOrList(cmd)){
     const el = document.createElement('div');
     el.className = 'board-block b-equation';
-    el.style.color = colorFor(cmd.color || 'ink');
-    if(cmd.size) el.style.fontSize = Math.min(22, Math.max(15, cmd.size*0.7)) + 'px';
-    el.textContent = cmd.text || '';
+    const inner = document.createElement('span');
+    inner.className = 'eq-text';
+    inner.style.color = colorFor(cmd.color || 'ink');
+    if(cmd.size) inner.style.fontSize = Math.min(22, Math.max(15, cmd.size*0.7)) + 'px';
+    inner.appendChild(buildEquationFragment(cmd.text || ''));
+    applyHandwriting(inner, cmd.text, 1.0);
+    el.appendChild(inner);
     boardContent.appendChild(el);
     return el;
   }
