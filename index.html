@@ -2,31 +2,26 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Chalkline — AI Study Tools</title>
 <style>
   html,body{ margin:0; padding:0; height:100%; overflow:hidden; background:#F3F9FE; font-family:-apple-system,Segoe UI,sans-serif; }
-  iframe{
-    position:fixed; inset:0; width:100%; height:100%; border:none; background:#F3F9FE;
-    opacity:0; visibility:hidden; pointer-events:none;
-    transition:opacity .22s ease;
-  }
-  iframe.active{ opacity:1; visibility:visible; pointer-events:auto; }
+  iframe{ position:fixed; inset:0; width:100%; height:100%; border:none; display:none; background:#F3F9FE; }
+  iframe.active{ display:block; }
 
   #back-btn{
     position:fixed; top:16px; left:16px; z-index:99999;
-    display:inline-flex; align-items:center; gap:6px;
+    display:none; align-items:center; gap:6px;
     background:rgba(255,255,255,0.92); backdrop-filter:blur(6px);
     border:1px solid #D3E6F5; border-radius:20px;
     padding:8px 14px 8px 10px; cursor:pointer;
     font-size:13.5px; color:#1E2B3A; font-weight:600;
     box-shadow:0 2px 10px rgba(30,60,90,0.08);
-    opacity:0; visibility:hidden; transform:translateY(-4px) scale(.97);
-    transition:opacity .18s ease, transform .18s ease, background .15s ease;
+    transition:background .15s ease, transform .15s ease;
   }
   #back-btn:hover{ background:#fff; transform:translateX(-1px); }
   #back-btn svg{ width:15px; height:15px; }
-  #back-btn.show{ opacity:1; visibility:visible; transform:translateY(0) scale(1); pointer-events:auto; }
+  #back-btn.show{ display:inline-flex; }
 </style>
 </head>
 <body>
@@ -44,7 +39,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Chalkline — AI Study Tools</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&family=Caveat:wght@600;700&display=swap');
@@ -62,7 +57,7 @@
   --halo-blue-soft:#A5C8FF;
 }
 *{box-sizing:border-box;}
-html,body{margin:0;padding:0; overscroll-behavior-y:none;}
+html,body{margin:0;padding:0;}
 body{
   font-family:'Source Serif 4', Georgia, serif;
   color:var(--ink);
@@ -70,7 +65,6 @@ body{
   min-height:100vh;
   position:relative;
   overflow-x:hidden;
-  overscroll-behavior-y:none;
 }
 
 .ambient-halo{
@@ -176,14 +170,6 @@ footer{
   font-family:'JetBrains Mono', monospace; font-size:11.5px; color:var(--muted);
   display:flex; justify-content:space-between;
 }
-
-/* --- handwritten look --- */
-@import url('https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Caveat:wght@600;700&display=swap');
-body, p, li, a, span, div, h1, h2, h3, h4, h5, h6, button, label, input, textarea, nav, footer{
-  font-family:'Patrick Hand','Caveat',cursive !important;
-  letter-spacing:0.2px;
-}
-h1, h2, .brand, .hero h1 .chalk{ font-family:'Caveat',cursive !important; }
 </style>
 </head>
 <body>
@@ -253,291 +239,54 @@ h1, h2, .brand, .hero h1 .chalk{ font-family:'Caveat',cursive !important; }
 <title>Chalkline — AI Whiteboard Tutor</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"><\/script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"><\/script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"><\/script>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Kalam:wght@400;700&family=Noto+Sans+Symbols+2&family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Kalam:wght@400;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 :root{
-  --board-bg:#FFFFFF;
+  --board-bg:#FAF8F3;
+  --board-line:#E0D9C8;
+  --margin-line:#E08080;
   --ink:#1E2B3A;
   --ochre:#2E7DBE;
   --highlight:#D7ECFB;
   --sage:#3E8FA6;
   --brick:#3D6B93;
-  --teal:#0F8C82;
-  --violet:#7C5CBF;
-  --sky:#2AA9E0;
-  --coral:#E0665A;
   --panel:#FFFFFF;
   --panel-border:#D3E6F5;
   --muted:#7C93A8;
   --halo-blue:#0099FF;
   --halo-blue-soft:#00E5FF;
-  --btn-glow:0 0 0 1.5px rgba(20,90,255,0.55), 0 0 10px 2px rgba(20,90,255,0.45), 0 0 22px 4px rgba(0,140,255,0.30);
 }
 *{box-sizing:border-box;}
 html,body{margin:0;height:100%;}
 body{
-  font-family:'Inter', -apple-system, 'Source Serif 4', Georgia, serif;
+  font-family:'Source Serif 4', Georgia, serif;
   color:var(--ink);
   height:100vh;
   overflow:hidden;
   background:var(--board-bg);
 }
 
-/* =========================================================
-   NEW WHITEBOARD: vertical document-flow presentation layer
-   ========================================================= */
-#board-scroll{
+#board-wrap{
   position:fixed;
   inset:0;
-  overflow-y:auto;
-  overflow-x:hidden;
-  -webkit-overflow-scrolling:touch;
-  overscroll-behavior-y:contain;
-  background:#fff;
-  z-index:2;
+  box-shadow: inset 0 0 35px rgba(0, 150, 255, 0.45), inset 0 0 70px rgba(0, 229, 255, 0.25);
+  border: 3px solid rgba(0, 180, 255, 0.6);
+  z-index: 2;
+  pointer-events: none;
 }
-#board-content{
-  max-width:760px;
-  margin:0 auto;
-  padding:96px 22px 260px;
-  display:flex;
-  flex-direction:column;
-  min-height:100%;
-}
-#board-content.empty::before{
-  content:'Ask a question, upload a PDF, or hit "Teach this" to start a lesson.';
-  display:block;
-  margin-top:40vh;
-  text-align:center;
-  color:var(--muted);
-  font-size:15px;
-  font-family:'Inter',sans-serif;
-}
-
-.board-block{
-  opacity:0;
-  transform:translateY(10px);
-  transition:opacity .45s ease, transform .45s ease;
-  margin:0 0 4px;
-}
-.board-block.in{opacity:1;transform:translateY(0);}
-
-/* ---------- "teacher pointing at the board" highlight ----------
-   Subtle by default; a little more present for diagrams/plots/equations
-   since those benefit most from a clear "this is what I'm talking about". */
-.board-block.tutor-focus{
-  position:relative;
-  border-radius:8px;
-  transition:transform .3s ease, filter .3s ease, box-shadow .3s ease, background .3s ease;
-  background:rgba(215,236,251,0.45);
-  box-shadow:0 0 0 6px rgba(215,236,251,0.45);
-}
-.board-block.tutor-focus.b-text,
-.board-block.tutor-focus.b-equation,
-.board-block.tutor-focus.b-heading{
-  filter:none;
-}
-.board-block.tutor-focus.b-diagram,
-.board-block.tutor-focus.b-plot,
-.board-block.tutor-focus.b-figure{
-  transform:scale(1.015);
-  box-shadow:0 0 0 8px rgba(215,236,251,0.5), 0 6px 22px rgba(30,60,100,0.10);
-}
-.board-block.tutor-focus::before{
-  content:'';
-  position:absolute;
-  left:-14px; top:6px; bottom:6px;
-  width:3px;
-  border-radius:2px;
-  background:var(--accent, #6EA8FE);
-  opacity:.85;
-}
-/* Tiny, unobtrusive "tutor is explaining this" tick — a dot, not a banner. */
-.board-block.tutor-focus::after{
-  content:'';
-  position:absolute;
-  right:-10px; top:-10px;
-  width:8px; height:8px;
-  border-radius:50%;
-  background:var(--accent, #6EA8FE);
-  box-shadow:0 0 0 3px rgba(110,168,254,0.25);
-}
-
-/* ---------- floating pointer: a little chalk-tip arrow that moves to and
-   points at whatever the tutor is currently talking about, in sync with
-   speech. Fixed-position so it tracks correctly whether the board scrolled
-   because the tutor moved it or because the user did. ---------- */
-#tutor-pointer{
-  position:fixed;
-  left:0; top:0;
-  width:0; height:0;
-  border-top:7px solid transparent;
-  border-bottom:7px solid transparent;
-  border-left:11px solid var(--accent, #6EA8FE);
-  filter:drop-shadow(0 1px 3px rgba(30,60,100,.35));
-  opacity:0;
-  pointer-events:none;
-  z-index:60;
-  transition: top .38s cubic-bezier(.4,0,.2,1), left .38s cubic-bezier(.4,0,.2,1), opacity .25s ease;
-}
-#tutor-pointer.active{ opacity:1; }
-#tutor-pointer::before{
-  content:'';
-  position:absolute;
-  left:-25px; top:-9px;
-  width:12px; height:12px;
-  border-radius:50%;
-  background:var(--accent, #6EA8FE);
-  opacity:.35;
-  animation:tutor-pointer-pulse 1.15s ease-in-out infinite;
-}
-@keyframes tutor-pointer-pulse{
-  0%,100%{ transform:scale(.8); opacity:.35; }
-  50%{ transform:scale(1.4); opacity:.08; }
-}
-@media (prefers-reduced-motion: reduce){
-  #tutor-pointer::before{ animation:none; }
-}
-
-.b-heading{
-  font-family:'Kalam', cursive;
-  font-weight:700;
-  font-size:30px;
-  line-height:1.3;
-  margin:30px 0 14px;
-  padding-bottom:8px;
-  border-bottom:2.5px solid currentColor;
-  display:inline-block;
-  word-wrap:break-word;
-  max-width:100%;
-}
-.b-heading:first-child{margin-top:0;}
-
-.b-text{
-  font-family:'Inter', -apple-system, sans-serif;
-  font-size:16.5px;
-  line-height:1.65;
-  margin:0 0 12px;
-  word-wrap:break-word;
-  max-width:100%;
-}
-.b-text.hand{
-  font-family:'Kalam', cursive;
-  font-size:19px;
-}
-
-.b-equation{
-  font-family:'Kalam', 'JetBrains Mono', monospace;
-  font-size:19px;
-  line-height:1.5;
-  background:#F7FBFF;
-  border:1px solid var(--panel-border);
-  border-left:3px solid var(--ochre);
-  border-radius:6px;
-  padding:14px 18px;
-  margin:6px 0 14px;
-  display:block;
-  word-break:break-word;
-}
-.eq-text{
-  white-space:pre-wrap;
-}
-
-/* handwritten inline fraction: real stacked numerator/denominator instead
-   of flat "a/b" text, drawn to look like it was written with a pen. */
-.frac{
-  display:inline-flex;
-  flex-direction:column;
-  align-items:center;
-  vertical-align:middle;
-  margin:0 3px;
-  line-height:1.05;
-  transform:translateY(0.05em);
-}
-.frac-num{
-  padding:0 3px 2px;
-  border-bottom:1.6px solid currentColor;
-}
-.frac-den{
-  padding:2px 3px 0;
-}
-
-.b-diagram{
-  margin:14px auto 20px;
-  padding:14px;
-  background:#fff;
-  border:1px solid var(--panel-border);
-  border-radius:10px;
-  display:flex;
-  justify-content:center;
-  max-width:100%;
-}
-.b-diagram svg{ width:100%; height:auto; max-width:520px; display:block; }
-
-.b-plot{
-  margin:14px auto 20px;
-  padding:12px;
-  background:#fff;
-  border:1px solid var(--panel-border);
-  border-radius:10px;
-  max-width:100%;
-}
-.b-plot canvas{ width:100%; height:auto; display:block; }
-.b-plot .b-plot-title{
-  font-family:'Inter',sans-serif; font-weight:600; font-size:13px; color:var(--muted);
-  text-align:center; margin-bottom:6px; letter-spacing:.2px;
-}
-
-.b-figure{
-  margin:14px auto 22px;
-  max-width:100%;
-  text-align:center;
-}
-.b-figure img{
+#board{
   width:100%;
-  max-width:520px;
-  border-radius:8px;
-  border:1px solid var(--panel-border);
+  height:100%;
   display:block;
-  margin:0 auto;
+  cursor:grab;
+  pointer-events: auto;
+  touch-action: none; /* we handle all pan/zoom gestures ourselves, so stop
+                          the browser from also trying to scroll/zoom the
+                          page in response to the same finger drag */
 }
-.b-figure figcaption{
-  font-family:'Inter',sans-serif;
-  font-size:12.5px;
-  color:var(--muted);
-  margin-top:7px;
-}
-
-#scroll-to-latest{
-  position:fixed;
-  right:22px;
-  bottom:140px;
-  z-index:19;
-  background:#fff;
-  border:1px solid var(--panel-border);
-  box-shadow:0 3px 12px rgba(0,0,0,0.1);
-  border-radius:20px;
-  padding:7px 14px;
-  font-family:'Inter',sans-serif;
-  font-size:12.5px;
-  font-weight:600;
-  color:var(--ochre);
-  cursor:pointer;
-  opacity:0;
-  pointer-events:none;
-  transform:translateY(6px);
-  transition:opacity .18s ease, transform .18s ease;
-}
-#scroll-to-latest.show{opacity:1;pointer-events:auto;transform:translateY(0);}
-
-@media (max-width:600px){
-  #board-content{padding:88px 16px 240px;}
-  .b-heading{font-size:24px !important;}
-  .b-text{font-size:15.5px;}
-  .b-text.hand{font-size:18px;}
-}
+#board.grabbing{cursor:grabbing;}
+#board.hoverable{cursor:pointer;}
 
 .ambient-halo{
   position:fixed;
@@ -592,7 +341,7 @@ body{
   border:none;
   background:rgba(255,255,255,0.85);
   backdrop-filter:blur(6px);
-  box-shadow:0 1px 4px rgba(0,0,0,0.08), var(--btn-glow);
+  box-shadow:0 1px 4px rgba(0,0,0,0.08);
   display:flex;align-items:center;justify-content:center;
   cursor:pointer;
   font-size:16px;
@@ -692,7 +441,7 @@ body{
   background:#fff;
   display:flex;align-items:center;justify-content:center;
   cursor:pointer;font-size:15px;color:var(--ink);
-  box-shadow:0 1px 4px rgba(0,0,0,0.06), var(--btn-glow);
+  box-shadow:0 1px 4px rgba(0,0,0,0.06);
 }
 .cluster-btn:hover{background:#faf8f2;}
 
@@ -713,11 +462,11 @@ body{
   font-size:20px;
   display:flex;align-items:center;justify-content:center;
   cursor:pointer;
-  box-shadow:0 3px 10px rgba(168,75,57,0.35), var(--btn-glow);
+  box-shadow:0 3px 10px rgba(168,75,57,0.35);
 }
 .mic-btn.live{animation:mic-pulse 1.3s ease-in-out infinite;}
 .mic-btn.unsupported{background:#c9c4b5;box-shadow:none;cursor:not-allowed;}
-@keyframes mic-pulse{0%,100%{box-shadow:0 0 0 0 rgba(168,75,57,.45), var(--btn-glow);}50%{box-shadow:0 0 0 10px rgba(168,75,57,0), var(--btn-glow);}}
+@keyframes mic-pulse{0%,100%{box-shadow:0 0 0 0 rgba(168,75,57,.45);}50%{box-shadow:0 0 0 10px rgba(168,75,57,0);}}
 
 .ask-zone{
   position:fixed;
@@ -731,11 +480,11 @@ body{
   background:#fff;
   border:1px solid var(--panel-border);
   border-radius:30px;
-  padding:6px 6px 6px 14px;
-  box-shadow:0 3px 14px rgba(0,0,0,0.08), var(--btn-glow);
+  padding:6px 6px 6px 18px;
+  box-shadow:0 3px 14px rgba(0,0,0,0.08);
   width:min(520px, 44vw);
 }
-.ask-zone input[type="text"]{
+.ask-zone input{
   flex:1;
   border:none;outline:none;
   font-family:'Source Serif 4', serif;
@@ -743,23 +492,14 @@ body{
   padding:8px 0;
   background:transparent;
 }
-#btn-attach { 
-  background: transparent; color: var(--muted); font-size: 18px; 
-  border:none; cursor:pointer; width:36px; height:36px; 
-  display:flex; align-items:center; justify-content:center; border-radius:50%; flex-shrink:0;
-  box-shadow: var(--btn-glow);
-}
-#btn-attach:hover { background: #f0f4f8; color: var(--ink); }
-
-.ask-zone button#btn-ask{
+.ask-zone button{
   width:36px;height:36px;border-radius:50%;
   border:none;background:var(--ink);color:#fff;
   cursor:pointer;font-size:14px;
   display:flex;align-items:center;justify-content:center;
   flex-shrink:0;
-  box-shadow: var(--btn-glow);
 }
-.ask-zone button#btn-ask:hover{background:var(--ochre);}
+.ask-zone button:hover{background:var(--ochre);}
 
 .overlay{
   position:fixed;inset:0;
@@ -832,7 +572,6 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
   flex:1;font-family:'Source Serif 4', serif;font-size:13px;
   border:1px solid var(--ink);background:transparent;color:var(--ink);
   padding:8px 10px;border-radius:5px;cursor:pointer;
-  box-shadow: var(--btn-glow);
 }
 .p-btn.primary{background:var(--ink);color:#fff;}
 .p-btn:hover{background:var(--ochre);border-color:var(--ochre);color:#fff;}
@@ -871,24 +610,14 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
 
 ::-webkit-scrollbar{width:7px;}
 ::-webkit-scrollbar-thumb{background:#e4ddc8;border-radius:4px;}
-
-/* --- handwritten look --- */
-@import url('https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Kalam:wght@400;700&family=Caveat:wght@600;700&display=swap');
-body, p, li, a, span, div, h1, h2, h3, h4, h5, h6, button, label, input, textarea, nav, footer{
-  font-family:'Patrick Hand','Kalam',cursive !important;
-  letter-spacing:0.2px;
-}
-h1, h2, .brand{ font-family:'Caveat',cursive !important; }
 </style>
 </head>
 <body>
 
 <div class="ambient-halo"></div>
-<div id="board-scroll">
-  <div id="board-content" class="empty"></div>
+<div id="board-wrap">
+  <canvas id="board"></canvas>
 </div>
-<div id="tutor-pointer" aria-hidden="true"></div>
-<div id="scroll-to-latest">↓ Jump to latest</div>
 
 <div class="topbar">
   <div class="topbar-btn-wrap">
@@ -902,8 +631,8 @@ h1, h2, .brand{ font-family:'Caveat',cursive !important; }
   <div class="top-right-cluster">
     <div class="status-chip" id="status-line">idle</div>
     <div class="topbar-btn-wrap">
-      <button class="icon-btn" id="zoom-reset" title="Scroll to top">⤾</button>
-      <span class="btn-label">To top</span>
+      <button class="icon-btn" id="zoom-reset" title="Reset view">⤾</button>
+      <span class="btn-label">Reset view</span>
     </div>
     <div class="topbar-btn-wrap">
       <button class="icon-btn" id="btn-clear" title="Clear board">🗑</button>
@@ -940,8 +669,6 @@ h1, h2, .brand{ font-family:'Caveat',cursive !important; }
 </div>
 
 <div class="ask-zone">
-  <button id="btn-attach" title="Attach Document">📎</button>
-  <input type="file" id="ask-file-input" accept="application/pdf" style="display:none;">
   <input type="text" id="ask-input" placeholder="Ask a follow-up…">
   <button id="btn-ask" title="Send">➤</button>
 </div>
@@ -966,18 +693,17 @@ h1, h2, .brand{ font-family:'Caveat',cursive !important; }
     <div class="p-section">
       <h2>AI brain</h2>
       <select class="topic-input" id="brain-select" style="height:auto;padding:9px 10px;">
-        <option value="auto" selected>Auto (Groq → Gemini → OpenRouter)</option>
-        <option value="groq">Groq (Llama)</option>
         <option value="gemini">Google Gemini</option>
+        <option value="groq">Groq (Llama)</option>
         <option value="openrouter">OpenRouter (free models)</option>
         <option value="cerebras">Cerebras (Llama)</option>
       </select>
-      <div class="file-meta" style="margin-top:6px;">Requests go through the Chalkline proxy — automatically selects the best available provider.</div>
+      <div class="file-meta" style="margin-top:6px;">Requests go through the Chalkline proxy — no key needed from you.</div>
     </div>
     <div class="p-section">
       <h2>Narrator voice</h2>
       <select class="topic-input" id="voice-select" style="height:auto;padding:9px 10px;"></select>
-      <div class="file-meta" style="margin-top:6px;">Uses your browser's built-in text-to-speech voices — free and instant, no server round-trip.</div>
+      <div class="file-meta" style="margin-top:6px;">Auto-picks the highest-quality voice your browser/OS offers. Chrome and Edge on Windows/Mac usually have the best options.</div>
     </div>
     <div class="p-section">
       <h2>Source material</h2>
@@ -1003,842 +729,1381 @@ h1, h2, .brand{ font-family:'Caveat',cursive !important; }
 
 <script>
 /* =========================================================
-   STUDDY-STYLE WHITEBOARD: vertical document-flow renderer
-   -----------------------------------------------------------
-   Replaces the old infinite-canvas / camera / auto-stacking
-   system. The AI still emits the exact same command schema
-   (text, halo, line, arrow, rect, circle, curve, path, axes,
-   plot, image, highlight) — this module just lays those
-   commands out as real DOM blocks that flow top-to-bottom in
-   a normal scrollable document, instead of painting them onto
-   a pannable/zoomable canvas at absolute world coordinates.
+   INFINITE CANVAS: camera model & Auto-Stacking Layout
    ========================================================= */
 
-const boardScroll = document.getElementById('board-scroll');
-const boardContent = document.getElementById('board-content');
-const scrollLatestBtn = document.getElementById('scroll-to-latest');
-const tutorPointer = document.getElementById('tutor-pointer');
+const canvas = document.getElementById('board');
+let ctx = canvas.getContext('2d');
+ctx.lineCap = 'round';
+ctx.lineJoin = 'round';
+let viewW = 0, viewH = 0;
+const camera = { x: 500, y: 300, scale: 1 };
 
-// Kept only for backward-compatibility with session save/load code
-// further down the file, which still reads/writes these names.
-const TOP_MARGIN = 0;
-let camera = { x: 500, y: 300, scale: 1 };
+// Kick off loading the handwriting webfonts immediately at page load
+// (rather than waiting for the first canvas draw to implicitly trigger
+// it), so by the time the first AI response comes back over the network
+// the fonts are already cached and text-measurement metrics are accurate
+// from turn one. See the matching `await document.fonts.ready` in
+// runTeachingTurn for why this matters.
+['700 40px Kalam','400 40px Kalam','700 40px Caveat','400 40px Caveat'].forEach(f=>{
+  document.fonts.load(f).catch(()=>{});
+});
+
+const PAGE_W = 1000;
+const PAGE_H = Math.round(PAGE_W * Math.SQRT2);
+const RULE_LINE_SPACING = 40;
+
+// The multiplier that converts an author-specified "size" into the actual
+// world-unit font size used for handwriting. Readable but still compact.
+const HAND_SIZE_MULT = 1.18;
+// Line height for a block of text at a given (already-multiplied) world
+// font size, snapped to a whole number of ruled-paper lines so every line
+// of handwriting sits on (or a fixed offset from) an actual rule line —
+// exactly like writing on real notebook paper — while still guaranteeing
+// enough vertical room that taller/bigger text never overlaps the line
+// below it. The 1.25 safety factor (rather than a razor-thin 1.0) absorbs
+// normal font-metric variance (ascenders/descenders, cursive flourishes)
+// so text never visually touches the rule line above or below it.
+function lineHeightFor(sizeWorld){
+  const needed = sizeWorld * 1.25;
+  const mult = Math.max(1, Math.ceil(needed / RULE_LINE_SPACING));
+  return mult * RULE_LINE_SPACING;
+}
+
+let userIsScrolledAway = false;
+const TOP_MARGIN = 80; // must be a whole multiple of RULE_LINE_SPACING so the
+                        // very first line of writing starts baseline-aligned
+                        // to a rule line, same as every line after it
 let globalCursorY = TOP_MARGIN;
 let currentTopicLabel = 'Topic';
 
-let drawnCommands = [];      // full flat history of every command ever rendered (for session save)
-let drawQueue = [];          // pending render "descriptors" waiting to be revealed
-let drawing = false;
-let pacingScale = 1;         // stretches/compresses reveal speed to match narration length
-let userIsScrolledAway = false;
-
-/* ---------- tutor "pointing at the board" system ----------
-   Every board command gets a stable id the moment it's first created (see
-   nextBlockId/appendBlockForCommand/flushVectorGroup below). boardElementMap
-   maps that id -> its live DOM element, so the narration can look an element
-   back up at any point later — after scrolling, after a session reload,
-   after the board has been rebuilt from drawnCommands, doesn't matter. */
-let blockIdCounter = 0;
-function nextBlockId(){ return 'board-block-' + (blockIdCounter++); }
-const boardElementMap = new Map();     // stable id -> DOM element
-let lastAppendedBlockId = null;        // used as the "infer the most recent item" fallback
-
-let currentTurnBoardCommands = [];     // this turn's `board` array (post image/placeholder resolution)
-let currentTurnBreakpoints = null;     // [{charStart, refs}] aligned to this turn's `speech` string, or null
-let currentlyFocusedIds = new Set();   // ids currently wearing .tutor-focus
-let pendingFocusTimers = [];           // setTimeout handles for "wait for it to be drawn" retries
-let lastAppliedBreakpointCharStart = -1;
-
-const COLORS = {
-  chalk:'#1E2B3A', ink:'#1E2B3A', ochre:'#2E7DBE', sage:'#3E8FA6', brick:'#3D6B93',
-  teal:'#0F8C82', violet:'#7C5CBF', sky:'#2AA9E0', coral:'#E0665A',
-  halo:'#6EA8FE', highlight:'#D7ECFB'
-};
-function colorFor(name){ return COLORS[name] || COLORS.ink; }
-
-/* ---------- scroll tracking: never fight the user ---------- */
-function isNearBottom(){
-  const slack = 120;
-  return boardScroll.scrollHeight - boardScroll.scrollTop - boardScroll.clientHeight < slack;
-}
-function checkIfScrolledAway(){
-  userIsScrolledAway = !isNearBottom();
-  scrollLatestBtn.classList.toggle('show', userIsScrolledAway && boardContent.children.length > 0);
-}
-boardScroll.addEventListener('scroll', () => { checkIfScrolledAway(); updateTutorPointerPosition(); }, { passive:true });
-scrollLatestBtn.addEventListener('click', () => {
-  userIsScrolledAway = false;
-  boardScroll.scrollTo({ top: boardScroll.scrollHeight, behavior:'smooth' });
-  scrollLatestBtn.classList.remove('show');
-});
-
-function scrollToBottomIfFollowing(smooth){
-  if(userIsScrolledAway) return;
-  boardScroll.scrollTo({ top: boardScroll.scrollHeight, behavior: smooth===false ? 'auto' : 'smooth' });
-}
-
-/* ---------- "teacher pointing at the board" focus system ----------
-   Resolves the AI's speechSegments[].boardRefs into live elements, scrolls
-   to them only when genuinely needed, and applies/removes the .tutor-focus
-   highlight as narration moves on — including scrolling BACK UP when the
-   tutor refers to something taught earlier. */
-
-function elementComfortablyVisible(el){
-  const outer = boardScroll.getBoundingClientRect();
-  const rect = el.getBoundingClientRect();
-  const margin = 48;
-  return rect.top >= outer.top + margin && rect.bottom <= outer.bottom - margin;
-}
-
-// Only scrolls if the element isn't already comfortably in view, and never
-// fights a user who has manually scrolled away (same rule the rest of the
-// board follows — see userIsScrolledAway / checkIfScrolledAway above).
-function focusBoardElement(element){
-  if(!element) return;
-  if(userIsScrolledAway) return;
-  if(elementComfortablyVisible(element)) return;
-  element.scrollIntoView({ behavior:'smooth', block:'center' });
-}
-
-/* ---------- the floating pointer itself ----------
-   Tracks whichever element is the PRIMARY current focus (the first ref in
-   the active breakpoint) and keeps its tip against that element's left
-   edge, vertically centered on whatever portion of it is actually visible
-   — so it stays sensible even while a smooth scroll is still animating,
-   and hides itself gracefully if its target is fully off-screen. */
-let tutorPointerTargetId = null;
-
-function updateTutorPointerPosition(){
-  if(!tutorPointerTargetId){ tutorPointer.classList.remove('active'); return; }
-  const el = boardElementMap.get(tutorPointerTargetId);
-  if(!el || !el.isConnected){ tutorPointer.classList.remove('active'); return; }
-  const rect = el.getBoundingClientRect();
-  const visTop = Math.max(rect.top, 0);
-  const visBottom = Math.min(rect.bottom, window.innerHeight);
-  if(visBottom - visTop < 4){ tutorPointer.classList.remove('active'); return; }
-  const y = (visTop + visBottom) / 2;
-  const x = Math.max(rect.left - 16, 6);
-  tutorPointer.style.left = x + 'px';
-  tutorPointer.style.top = y + 'px';
-  tutorPointer.classList.add('active');
-}
-
-function setTutorPointerTarget(id){
-  tutorPointerTargetId = id || null;
-  // Run now and again next frame — the target's position may still be
-  // settling (e.g. right after it was first drawn, before layout/reflow).
-  updateTutorPointerPosition();
-  requestAnimationFrame(updateTutorPointerPosition);
-}
-
-window.addEventListener('resize', updateTutorPointerPosition);
-
-// A ref is either:
-//   - a number: an index into THIS turn's `board` array (a just-drawn item)
-//   - a string: a short snippet of text to search for among ALL board items
-//     ever rendered (a back-reference to something taught earlier, so the
-//     AI can point at the existing element instead of redrawing it)
-function resolveBoardRef(ref){
-  if(typeof ref === 'number'){
-    const cmd = currentTurnBoardCommands[ref];
-    if(!cmd || !cmd.id) return null;
-    const el = boardElementMap.get(cmd.id);
-    return el ? { id: cmd.id, el } : null;
-  }
-  if(typeof ref === 'string'){
-    const needle = ref.toLowerCase().replace(/^ref:/,'').trim();
-    if(!needle) return null;
-    let best = null;
-    // Map preserves insertion order, so the last match found is the most
-    // recently-taught matching element — the natural "refer back" target.
-    boardElementMap.forEach((el, id) => {
-      const hay = (el.textContent || '').toLowerCase();
-      if(hay && hay.includes(needle)) best = { id, el };
-    });
-    return best;
-  }
-  return null;
-}
-
-function cancelPendingFocusTimers(){
-  pendingFocusTimers.forEach(t => clearTimeout(t));
-  pendingFocusTimers = [];
-}
-
-// Removes highlight from anything not in `resolved`, adds it to anything
-// newly referenced, and scrolls (at most once) to the primary reference.
-function setActiveFocusElements(resolved, myToken){
-  if(myToken !== currentSpeechToken) return;
-  const newIds = new Set(resolved.map(r => r.id));
-  currentlyFocusedIds.forEach(id => {
-    if(!newIds.has(id)){
-      const el = boardElementMap.get(id);
-      if(el) el.classList.remove('tutor-focus');
-    }
-  });
-  let scrolled = false;
-  resolved.forEach(({id, el}) => {
-    if(!el) return;
-    el.classList.add('tutor-focus');
-    if(!scrolled){ focusBoardElement(el); scrolled = true; }
-  });
-  currentlyFocusedIds = newIds;
-  // The pointer always tracks the PRIMARY reference — the first one in this
-  // breakpoint — so it settles on one clear target even when a sentence
-  // names two things at once (e.g. "compare the curve with the equation").
-  setTutorPointerTarget(resolved.length ? resolved[0].id : null);
-}
-
-function clearBoardFocus(){
-  currentlyFocusedIds.forEach(id => {
-    const el = boardElementMap.get(id);
-    if(el) el.classList.remove('tutor-focus');
-  });
-  currentlyFocusedIds.clear();
-  lastAppliedBreakpointCharStart = -1;
-  cancelPendingFocusTimers();
-  setTutorPointerTarget(null);
-}
-
-// Resolves a breakpoint's refs into elements, retrying briefly if a
-// just-mentioned board item hasn't finished being drawn yet (the drawing
-// queue and the narration are paced to track each other, but aren't
-// perfectly locked together). Falls back to "the most recently drawn item"
-// when there's nothing else to go on — this is also the entire code path
-// used for old AI responses that never included speechSegments at all.
-function applyFocusForRefs(refs, myToken, attemptsLeft){
-  if(myToken !== currentSpeechToken) return;
-  const resolved = [];
-  let anyKnownButUndrawn = false;
-  (refs || []).forEach(ref => {
-    const r = resolveBoardRef(ref);
-    if(r) resolved.push(r);
-    else if(typeof ref === 'number' && currentTurnBoardCommands[ref]) anyKnownButUndrawn = true;
-  });
-  if(resolved.length === 0 && anyKnownButUndrawn && attemptsLeft > 0){
-    const t = setTimeout(() => applyFocusForRefs(refs, myToken, attemptsLeft - 1), 220);
-    pendingFocusTimers.push(t);
-    return;
-  }
-  if(resolved.length === 0 && lastAppendedBlockId){
-    const el = boardElementMap.get(lastAppendedBlockId);
-    if(el) resolved.push({ id: lastAppendedBlockId, el });
-  }
-  setActiveFocusElements(resolved, myToken);
-}
-
-// Called whenever spoken narration crosses into a new breakpoint's region —
-// from a chunk boundary (always available) or, when the browser supports
-// it, a finer-grained utterance.onboundary word event.
-function updateFocusForCharOffset(absCharOffset, myToken){
-  if(myToken !== currentSpeechToken) return;
-  if(!currentTurnBreakpoints){
-    // No explicit speechSegments this turn — just keep pointing at whatever
-    // was most recently drawn, so the tutor still "follows" its own pen.
-    applyFocusForRefs(null, myToken, 0);
-    return;
-  }
-  let active = null;
-  for(const bp of currentTurnBreakpoints){
-    if(bp.charStart <= absCharOffset) active = bp; else break;
-  }
-  if(!active || active.charStart === lastAppliedBreakpointCharStart) return;
-  lastAppliedBreakpointCharStart = active.charStart;
-  applyFocusForRefs(active.refs, myToken, 5);
-}
-
-// Builds the char-offset -> boardRefs alignment for one turn by locating
-// each speechSegment's text within the full `speech` string. Best-effort:
-// a segment that can't be located (paraphrased slightly differently than
-// the model wrote it) is simply skipped rather than breaking the rest.
-function buildSpeechBoardAlignment(speechText, speechSegments){
-  if(!speechText || !Array.isArray(speechSegments) || speechSegments.length === 0) return null;
-  const breakpoints = [];
-  let searchFrom = 0;
-  for(const seg of speechSegments){
-    if(!seg || typeof seg.text !== 'string' || !seg.text.trim()) continue;
-    const needle = seg.text.trim();
-    let idx = speechText.indexOf(needle, searchFrom);
-    if(idx === -1){
-      const firstWords = needle.split(/\s+/).slice(0,6).join(' ');
-      idx = firstWords ? speechText.indexOf(firstWords, searchFrom) : -1;
-    }
-    if(idx === -1) continue;
-    breakpoints.push({ charStart: idx, refs: Array.isArray(seg.boardRefs) ? seg.boardRefs : [] });
-    searchFrom = idx + needle.length;
-  }
-  breakpoints.sort((a,b) => a.charStart - b.charStart);
-  return breakpoints.length ? breakpoints : null;
-}
-
-/* ---------- board lifecycle ---------- */
-function clearBoard(record=true){
-  if(record) drawnCommands = [];
-  boardContent.innerHTML = '';
-  boardContent.classList.add('empty');
-  pendingVectorGroup = [];
-  boardElementMap.clear();
-  lastAppendedBlockId = null;
-  clearBoardFocus();
-}
 function resetRegionCursors(){
   globalCursorY = TOP_MARGIN;
   userIsScrolledAway = false;
-  boardScroll.scrollTo({ top: 0, behavior:'auto' });
-  scrollLatestBtn.classList.remove('show');
+  
+  if (viewW > 0) {
+      camera.scale = Math.min(1.5, viewW / 1050);
+      camera.x = 500;
+  }
 }
-// Rebuilds the entire board from a flat command history — used on session
-// load, and aliased as `redrawAll` since older code (session restore) still
-// calls that name.
-function rebuildBoard(commands){
-  boardContent.innerHTML = '';
-  pendingVectorGroup = [];
-  boardElementMap.clear();
-  lastAppendedBlockId = null;
-  clearBoardFocus();
-  // Re-establish the id counter above the highest id already used in this
-  // history, so newly-generated commands after a reload never collide with
-  // stable ids that old sessions (and old back-references) still rely on.
-  let maxSeen = -1;
-  (commands || []).forEach(cmd => {
-    const m = typeof cmd.id === 'string' && /^board-block-(\d+)$/.exec(cmd.id);
-    if(m) maxSeen = Math.max(maxSeen, parseInt(m[1], 10));
+
+function getMaxYWorld(){
+  return globalCursorY;
+}
+
+let panToken = 0;
+function animateCameraPan(targetX, targetY, duration, onDone){
+  if(userIsScrolledAway) { if(onDone) onDone(); return; }
+  const myToken = ++panToken;
+  const startX = camera.x, startY = camera.y;
+  const dx = targetX - startX, dy = targetY - startY;
+  const start = performance.now();
+  let finished = false;
+  function finish(){ if(!finished){ finished = true; if(onDone) onDone(); } }
+  function ease(t){ return t<0.5 ? 4*t*t*t : 1-Math.pow(-2*t+2,3)/2; }
+  function frame(now){
+    if(myToken !== panToken || userIsScrolledAway){ finish(); return; }
+    const raw = Math.min(1, (now-start)/duration);
+    const t = ease(raw);
+    camera.x = startX + dx*t;
+    camera.y = startY + dy*t;
+    redrawAll();
+    if(raw < 1) requestAnimationFrame(frame); else { camera.x = targetX; camera.y = targetY; redrawAll(); finish(); }
+  }
+  requestAnimationFrame(frame);
+}
+
+function panCameraToCursor(targetY, onDone){
+  const idealScale = Math.min(1.5, viewW / 1050);
+  if (Math.abs(camera.scale - idealScale) > 0.01 && !userIsScrolledAway) {
+      camera.scale = idealScale;
+  }
+  // Force X to stay precisely centered on 500
+  animateCameraPan(500, targetY, 900, onDone);
+}
+
+function checkIfScrolledAway(){
+  const maxY = getMaxYWorld();
+  const bottomVisibleY = screenToWorld(0, viewH)[1];
+  userIsScrolledAway = (bottomVisibleY < maxY - 300);
+}
+
+function resizeCanvas(){
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  viewW = rect.width; viewH = rect.height;
+  
+  if (!userIsScrolledAway && viewW > 0) {
+      camera.scale = Math.min(1.5, viewW / 1050);
+      camera.x = 500;
+  }
+  
+  redrawAll();
+}
+window.addEventListener('resize', resizeCanvas);
+
+window.addEventListener('orientationchange', () => {
+  setTimeout(resizeCanvas, 50);
+  setTimeout(resizeCanvas, 350);
+});
+if (screen.orientation && screen.orientation.addEventListener) {
+  screen.orientation.addEventListener('change', () => {
+    setTimeout(resizeCanvas, 50);
+    setTimeout(resizeCanvas, 350);
   });
-  if(maxSeen >= blockIdCounter) blockIdCounter = maxSeen + 1;
-  (commands || []).forEach(cmd => appendBlockForCommand(cmd, /*animate*/false));
-  flushVectorGroup(false);
-  boardContent.classList.toggle('empty', boardContent.children.length === 0);
-  requestAnimationFrame(() => boardScroll.scrollTo({ top: boardScroll.scrollHeight, behavior:'auto' }));
 }
-function redrawAll(){ rebuildBoard(drawnCommands); }
 
-/* ---------- geometry helpers for grouped vector diagrams ---------- */
-const VECTOR_TYPES = new Set(['line','arrow','rect','circle','curve','path','halo','highlight']);
-let pendingVectorGroup = [];
+function worldToScreen(wx, wy){
+  return [(wx - camera.x) * camera.scale + viewW/2, (wy - camera.y) * camera.scale + viewH/2];
+}
+function screenToWorld(sx, sy){
+  return [(sx - viewW/2) / camera.scale + camera.x, (sy - viewH/2) / camera.scale + camera.y];
+}
 
-function pointsOfCommand(cmd, out){
-  switch(cmd.type){
-    case 'line': case 'arrow':
-      out.push([cmd.x1,cmd.y1],[cmd.x2,cmd.y2]); break;
-    case 'rect':
-      out.push([cmd.x,cmd.y],[cmd.x+(cmd.w||0),cmd.y+(cmd.h||0)]); break;
-    case 'circle':
-      out.push([cmd.x-(cmd.rx||0),cmd.y-(cmd.ry||0)],[cmd.x+(cmd.rx||0),cmd.y+(cmd.ry||0)]); break;
-    case 'curve':
-      (cmd.points||[]).forEach(p=>out.push(p)); break;
-    case 'path':
-      (cmd.segments||[]).forEach(seg=>{
-        for(let i=1;i<seg.length;i+=2){ out.push([seg[i], seg[i+1]]); }
-      }); break;
-    case 'halo':
-      out.push([cmd.x-(cmd.r||0),cmd.y-(cmd.r||0)],[cmd.x+(cmd.r||0),cmd.y+(cmd.r||0)]); break;
-    case 'highlight':
-      out.push([cmd.x,cmd.y],[cmd.x+(cmd.w||0),cmd.y+(cmd.h||0)]); break;
+const INK = '#1E2B3A';
+const OCHRE = '#D96B27';
+const SAGE = '#2A8A5D';
+const BRICK = '#C0392B';
+const TEAL = '#008080';
+const VIOLET = '#6C3483';
+const SKY = '#2980B9';
+const CORAL = '#E67E22';
+const HALO = '#8FA6FF';
+const HILITE = '#FCE896';
+const COLORS = { chalk:INK, ink:INK, ochre:OCHRE, sage:SAGE, brick:BRICK, teal:TEAL, violet:VIOLET, sky:SKY, coral:CORAL, halo:HALO, highlight:HILITE };
+
+function hexToRgba(hex, alpha){
+  const h = hex.replace('#','');
+  const r = parseInt(h.substring(0,2),16), g = parseInt(h.substring(2,4),16), b = parseInt(h.substring(4,6),16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+let drawnCommands = [];
+
+function drawBG(){
+  ctx.fillStyle = '#FAF8F3';
+  ctx.fillRect(0,0,viewW,viewH);
+}
+
+function drawPageGuides(){
+  const [leftMarginX] = worldToScreen(70, 0);
+  ctx.save();
+  ctx.strokeStyle = 'rgba(224, 128, 128, 0.45)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(leftMarginX, 0); ctx.lineTo(leftMarginX, viewH); ctx.stroke();
+  ctx.restore();
+}
+
+function drawRuleLines(){
+  const topWorldY = screenToWorld(0, 0)[1];
+  const bottomWorldY = screenToWorld(0, viewH)[1];
+  const firstLine = Math.floor(topWorldY / RULE_LINE_SPACING) * RULE_LINE_SPACING;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(200, 190, 170, 0.4)';
+  ctx.lineWidth = 1;
+  for(let wy = firstLine; wy <= bottomWorldY; wy += RULE_LINE_SPACING){
+    const [, sy] = worldToScreen(0, wy);
+    ctx.beginPath(); ctx.moveTo(0, sy); ctx.lineTo(viewW, sy); ctx.stroke();
   }
+  ctx.restore();
 }
 
-function smoothPathD(points){
-  if(!points || points.length < 2) return '';
-  let d = `M ${points[0][0]} ${points[0][1]} `;
-  if(points.length === 2){ d += `L ${points[1][0]} ${points[1][1]} `; return d; }
-  for(let i=0;i<points.length-1;i++){
-    const p0 = points[i===0?0:i-1], p1 = points[i], p2 = points[i+1], p3 = points[i+2===points.length+1?i+1:Math.min(i+2,points.length-1)];
-    const cp1x = p1[0] + (p2[0]-p0[0])/6, cp1y = p1[1] + (p2[1]-p0[1])/6;
-    const cp2x = p2[0] - (p3[0]-p1[0])/6, cp2y = p2[1] - (p3[1]-p1[1])/6;
-    d += `C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2[0]} ${p2[1]} `;
+function clearBoard(record=true){
+  if(record) drawnCommands = [];
+  drawBG();
+  drawRuleLines();
+  drawPageGuides();
+}
+
+function redrawAll(){
+  drawBG();
+  drawRuleLines();
+  drawPageGuides();
+  drawnCommands.forEach(cmd => renderCommand(cmd));
+}
+
+function redrawAllExcept(skipCmd){
+  drawBG();
+  drawRuleLines();
+  drawPageGuides();
+  drawnCommands.forEach(cmd => { if(cmd !== skipCmd) renderCommand(cmd); });
+}
+
+function sw(n){ return n * camera.scale; }
+
+function wrapTextToLines(text, maxWidthPx, customCtx){
+  const words = (text||'').split(/\s+/).filter(Boolean);
+  const lines = [];
+  let cur = '';
+  const context = customCtx || ctx;
+  words.forEach(w => {
+    const test = cur ? cur + ' ' + w : w;
+    if(cur && context.measureText(test).width > maxWidthPx){
+      lines.push(cur);
+      cur = w;
+    } else {
+      cur = test;
+    }
+  });
+  if(cur) lines.push(cur);
+  return lines.length ? lines : [''];
+}
+
+// A single underline stroke drawn beneath a finished line of heading text,
+// with a touch of hand-drawn imperfection (a slight downward bow, like a
+// pen underline) rather than a perfectly straight ruled line — so it reads
+// as "the tutor underlined this" rather than a UI decoration.
+function drawHeadingUnderline(sx, baselineY, widthPx, sizeWorld, color){
+  if(widthPx <= 0) return;
+  const y = baselineY + sw(sizeWorld*0.16);
+  const bow = sw(sizeWorld*0.03);
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = sw(Math.max(1.5, sizeWorld*0.045));
+  ctx.beginPath();
+  ctx.moveTo(sx, y);
+  ctx.quadraticCurveTo(sx + widthPx/2, y + bow, sx + widthPx, y);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function commandScreenBBox(cmd){
+  const PAD = 10;
+  function pad(x0,y0,x1,y1){
+    return [Math.min(x0,x1)-PAD, Math.min(y0,y1)-PAD, Math.max(x0,x1)+PAD, Math.max(y0,y1)+PAD];
   }
-  return d;
-}
-
-function svgElFor(cmd, defs){
-  const ns = 'http://www.w3.org/2000/svg';
-  const color = colorFor(cmd.color);
-  const width = cmd.width || 2.5;
   switch(cmd.type){
-    case 'line': {
-      const el = document.createElementNS(ns,'line');
-      el.setAttribute('x1',cmd.x1); el.setAttribute('y1',cmd.y1);
-      el.setAttribute('x2',cmd.x2); el.setAttribute('y2',cmd.y2);
-      el.setAttribute('stroke',color); el.setAttribute('stroke-width',width);
-      el.setAttribute('stroke-linecap','round');
-      return el;
+    case 'text': {
+      const fam = "'Kalam', 'Caveat', cursive";
+      const weight = cmd.weight || 700;
+      const size = (cmd.size||26)*HAND_SIZE_MULT;
+      ctx.font = `${weight} ${sw(size)}px ${fam}`;
+      const [sx,sy] = worldToScreen(cmd.x, cmd.y);
+      if(cmd.maxWidth){
+        const lines = wrapTextToLines(cmd.text||'', sw(cmd.maxWidth));
+        const lineHeight = sw(lineHeightFor(size));
+        const width = Math.max(0, ...lines.map(l=>ctx.measureText(l).width));
+        return pad(sx, sy - sw(size)*1.05, sx + width, sy + lineHeight*(lines.length-1) + sw(size)*0.25);
+      }
+      const width = ctx.measureText(cmd.text||'').width;
+      return pad(sx, sy - sw(size)*1.05, sx + width, sy + sw(size)*0.25);
     }
-    case 'arrow': {
-      const g = document.createElementNS(ns,'g');
-      const el = document.createElementNS(ns,'line');
-      el.setAttribute('x1',cmd.x1); el.setAttribute('y1',cmd.y1);
-      el.setAttribute('x2',cmd.x2); el.setAttribute('y2',cmd.y2);
-      el.setAttribute('stroke',color); el.setAttribute('stroke-width',width);
-      el.setAttribute('stroke-linecap','round');
-      g.appendChild(el);
-      const angle = Math.atan2(cmd.y2-cmd.y1, cmd.x2-cmd.x1);
-      const headLen = Math.max(8, width*4);
-      const hx1 = cmd.x2 - headLen*Math.cos(angle-Math.PI/7), hy1 = cmd.y2 - headLen*Math.sin(angle-Math.PI/7);
-      const hx2 = cmd.x2 - headLen*Math.cos(angle+Math.PI/7), hy2 = cmd.y2 - headLen*Math.sin(angle+Math.PI/7);
-      const head = document.createElementNS(ns,'polygon');
-      head.setAttribute('points', `${cmd.x2},${cmd.y2} ${hx1},${hy1} ${hx2},${hy2}`);
-      head.setAttribute('fill', color);
-      g.appendChild(head);
-      return g;
+    case 'line': case 'arrow': {
+      const [x1,y1] = worldToScreen(cmd.x1,cmd.y1); const [x2,y2] = worldToScreen(cmd.x2,cmd.y2);
+      return pad(x1,y1,x2,y2);
     }
-    case 'rect': {
-      const el = document.createElementNS(ns,'rect');
-      el.setAttribute('x',cmd.x); el.setAttribute('y',cmd.y);
-      el.setAttribute('width',cmd.w||0); el.setAttribute('height',cmd.h||0);
-      el.setAttribute('rx',4);
-      el.setAttribute('stroke',color); el.setAttribute('stroke-width',width);
-      el.setAttribute('fill', cmd.fill ? color : 'none');
-      if(cmd.fill) el.setAttribute('fill-opacity','0.12');
-      return el;
+    case 'rect': case 'highlight': case 'highlight-marker': {
+      const [x,y] = worldToScreen(cmd.x,cmd.y);
+      return pad(x, y, x+sw(cmd.w), y+sw(cmd.h||(cmd.type==='rect'?0:40)));
     }
     case 'circle': {
-      const el = document.createElementNS(ns,'ellipse');
-      el.setAttribute('cx',cmd.x); el.setAttribute('cy',cmd.y);
-      el.setAttribute('rx',cmd.rx||0); el.setAttribute('ry',cmd.ry||0);
-      el.setAttribute('stroke',color); el.setAttribute('stroke-width',width);
-      el.setAttribute('fill', cmd.fill ? color : 'none');
-      if(cmd.fill) el.setAttribute('fill-opacity','0.12');
-      return el;
+      const [x,y] = worldToScreen(cmd.x,cmd.y);
+      return pad(x-sw(cmd.rx), y-sw(cmd.ry), x+sw(cmd.rx), y+sw(cmd.ry));
     }
     case 'curve': {
-      const el = document.createElementNS(ns,'path');
-      let d = smoothPathD(cmd.points||[]);
-      if(cmd.fill) d += 'Z';
-      el.setAttribute('d', d);
-      el.setAttribute('stroke',color); el.setAttribute('stroke-width',width);
-      el.setAttribute('fill', cmd.fill ? colorFor(cmd.fillColor||cmd.color) : 'none');
-      if(cmd.fill) el.setAttribute('fill-opacity', cmd.fillOpacity ?? 0.12);
-      el.setAttribute('stroke-linejoin','round'); el.setAttribute('stroke-linecap','round');
-      return el;
+      const pts = (cmd.points||[]).map(p=>worldToScreen(p[0],p[1]));
+      if(!pts.length) return [0,0,0,0];
+      const xs = pts.map(p=>p[0]), ys = pts.map(p=>p[1]);
+      return pad(Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys));
     }
-    case 'path': {
-      const el = document.createElementNS(ns,'path');
-      let d = '';
-      (cmd.segments||[]).forEach(seg=>{
-        const [op, ...rest] = seg;
-        d += op + ' ' + rest.join(' ') + ' ';
-      });
-      el.setAttribute('d', d.trim());
-      el.setAttribute('stroke',color); el.setAttribute('stroke-width',width);
-      el.setAttribute('fill', cmd.fill ? colorFor(cmd.fillColor||cmd.color) : 'none');
-      if(cmd.fill) el.setAttribute('fill-opacity', cmd.fillOpacity ?? 0.12);
-      el.setAttribute('stroke-linejoin','round'); el.setAttribute('stroke-linecap','round');
-      return el;
+    case 'axes': case 'plot': {
+      const [ox,oy] = worldToScreen(cmd.x,cmd.y);
+      const w = sw(cmd.w), h = sw(cmd.h);
+      return pad(ox, oy-h-sw(30), ox+w, oy+sw(20));
     }
     case 'halo': {
-      const el = document.createElementNS(ns,'circle');
-      el.setAttribute('cx',cmd.x); el.setAttribute('cy',cmd.y); el.setAttribute('r',cmd.r||40);
-      el.setAttribute('fill',colorFor(cmd.color||'halo'));
-      el.setAttribute('opacity','0.22');
-      return el;
+      const [x,y] = worldToScreen(cmd.x,cmd.y); const r = sw(cmd.r||60);
+      return pad(x-r,y-r,x+r,y+r);
+    }
+    case 'path': {
+      const pts = flattenScreenSegsToPoints(worldPathToScreenSegments(cmd.segments||[]));
+      if(!pts.length) return [0,0,0,0];
+      const xs = pts.map(p=>p[0]), ys = pts.map(p=>p[1]);
+      return pad(Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys));
+    }
+    default: return [0,0,0,0];
+  }
+}
+
+/* ---------- PATH primitive: lets the model compose arbitrary organic
+   shapes (cell membranes, leaf outlines, animal silhouettes, etc.) out
+   of move/line/quadratic/cubic segments in world space, same way an
+   SVG <path> works. Segments: ["M",x,y] ["L",x,y] ["Q",cx,cy,x,y]
+   ["C",c1x,c1y,c2x,c2y,x,y] ["Z"]. ---------- */
+function worldPathToScreenSegments(segments){
+  return (segments||[]).map(seg=>{
+    if(!seg || !seg.length) return null;
+    if(seg[0]==='Z' || seg[0]==='z') return ['Z'];
+    const out = [seg[0]];
+    for(let i=1;i<seg.length;i+=2){
+      const [sx,sy] = worldToScreen(seg[i], seg[i+1]);
+      out.push(sx, sy);
+    }
+    return out;
+  }).filter(Boolean);
+}
+
+function drawPathSegments(pctx, screenSegs){
+  pctx.beginPath();
+  screenSegs.forEach(seg=>{
+    const t = seg[0];
+    if(t==='M') pctx.moveTo(seg[1],seg[2]);
+    else if(t==='L') pctx.lineTo(seg[1],seg[2]);
+    else if(t==='Q') pctx.quadraticCurveTo(seg[1],seg[2],seg[3],seg[4]);
+    else if(t==='C') pctx.bezierCurveTo(seg[1],seg[2],seg[3],seg[4],seg[5],seg[6]);
+    else if(t==='Z') pctx.closePath();
+  });
+}
+
+function flattenScreenSegsToPoints(screenSegs){
+  const pts = [];
+  let cur = [0,0];
+  screenSegs.forEach(seg=>{
+    const t = seg[0];
+    if(t==='M'){ cur=[seg[1],seg[2]]; pts.push(cur); }
+    else if(t==='L'){ cur=[seg[1],seg[2]]; pts.push(cur); }
+    else if(t==='Q'){
+      const [x0,y0]=cur, cx=seg[1], cy=seg[2], x1=seg[3], y1=seg[4];
+      for(let i=1;i<=10;i++){ const tt=i/10, mt=1-tt;
+        pts.push([mt*mt*x0+2*mt*tt*cx+tt*tt*x1, mt*mt*y0+2*mt*tt*cy+tt*tt*y1]); }
+      cur=[x1,y1];
+    } else if(t==='C'){
+      const [x0,y0]=cur, c1x=seg[1],c1y=seg[2],c2x=seg[3],c2y=seg[4],x1=seg[5],y1=seg[6];
+      for(let i=1;i<=12;i++){ const tt=i/12, mt=1-tt;
+        pts.push([mt*mt*mt*x0+3*mt*mt*tt*c1x+3*mt*tt*tt*c2x+tt*tt*tt*x1, mt*mt*mt*y0+3*mt*mt*tt*c1y+3*mt*tt*tt*c2y+tt*tt*tt*y1]); }
+      cur=[x1,y1];
+    }
+    // 'Z' contributes no new point — it just closes back to the start
+  });
+  return pts;
+}
+
+function strokePolylinePartial(pts, t){
+  if(!pts.length) return [0,0];
+  if(pts.length===1) return pts[0];
+  const segLens=[]; let total=0;
+  for(let i=0;i<pts.length-1;i++){ const d=Math.hypot(pts[i+1][0]-pts[i][0], pts[i+1][1]-pts[i][1]); segLens.push(d); total+=d; }
+  const target = total*t;
+  ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+  let acc=0, penX=pts[0][0], penY=pts[0][1];
+  for(let i=0;i<segLens.length;i++){
+    const segLen = segLens[i];
+    if(acc+segLen <= target){ ctx.lineTo(pts[i+1][0], pts[i+1][1]); acc+=segLen; penX=pts[i+1][0]; penY=pts[i+1][1]; }
+    else{
+      const frac = segLen>0 ? (target-acc)/segLen : 0;
+      penX = pts[i][0]+(pts[i+1][0]-pts[i][0])*frac;
+      penY = pts[i][1]+(pts[i+1][1]-pts[i][1])*frac;
+      ctx.lineTo(penX,penY);
+      break;
+    }
+  }
+  ctx.stroke();
+  return [penX,penY];
+}
+
+function renderCommand(cmd){
+  const color = COLORS[cmd.color] || INK;
+  ctx.strokeStyle = color; ctx.fillStyle = color;
+
+  switch(cmd.type){
+    case 'text': {
+      const fam = "'Kalam', 'Caveat', cursive";
+      const weight = cmd.weight || 700;
+      const size = (cmd.size||26)*HAND_SIZE_MULT;
+      ctx.font = `${weight} ${sw(size)}px ${fam}`;
+      ctx.textBaseline = 'alphabetic';
+      const [sx,sy] = worldToScreen(cmd.x, cmd.y);
+      if(cmd.maxWidth){
+        const lines = wrapTextToLines(cmd.text||'', sw(cmd.maxWidth));
+        const lineHeight = sw(lineHeightFor(size));
+        lines.forEach((line,i) => {
+          const ly = sy + i*lineHeight;
+          ctx.fillText(line, sx, ly);
+          if(cmd.heading) drawHeadingUnderline(sx, ly, ctx.measureText(line).width, size, color);
+        });
+      } else {
+        ctx.fillText(cmd.text, sx, sy);
+        if(cmd.heading) drawHeadingUnderline(sx, sy, ctx.measureText(cmd.text||'').width, size, color);
+      }
+      break;
+    }
+    case 'line': {
+      ctx.lineWidth = sw(cmd.width || 2.5);
+      const [x1,y1] = worldToScreen(cmd.x1, cmd.y1); const [x2,y2] = worldToScreen(cmd.x2, cmd.y2);
+      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+      break;
+    }
+    case 'arrow': {
+      ctx.lineWidth = sw(cmd.width || 2.5);
+      const [x1,y1] = worldToScreen(cmd.x1, cmd.y1); const [x2,y2] = worldToScreen(cmd.x2, cmd.y2);
+      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+      const angle = Math.atan2(y2-y1, x2-x1); const headLen = sw(cmd.headSize || 12);
+      ctx.beginPath(); ctx.moveTo(x2, y2);
+      ctx.lineTo(x2 - headLen*Math.cos(angle - Math.PI/7), y2 - headLen*Math.sin(angle - Math.PI/7));
+      ctx.lineTo(x2 - headLen*Math.cos(angle + Math.PI/7), y2 - headLen*Math.sin(angle + Math.PI/7));
+      ctx.closePath(); ctx.fill();
+      break;
+    }
+    case 'rect': {
+      ctx.lineWidth = sw(cmd.width || 2.5);
+      const [x,y] = worldToScreen(cmd.x, cmd.y); const w = sw(cmd.w), h = sw(cmd.h);
+      if(cmd.fill){ ctx.globalAlpha = 0.10; ctx.fillRect(x,y,w,h); ctx.globalAlpha = 1; }
+      ctx.strokeRect(x,y,w,h);
+      break;
+    }
+    case 'circle': {
+      ctx.lineWidth = sw(cmd.width || 2.5);
+      const [x,y] = worldToScreen(cmd.x, cmd.y);
+      ctx.beginPath(); ctx.ellipse(x, y, sw(cmd.rx), sw(cmd.ry), 0, 0, Math.PI*2);
+      if(cmd.fill){ ctx.globalAlpha = 0.10; ctx.fill(); ctx.globalAlpha = 1; }
+      ctx.stroke();
+      break;
+    }
+    case 'curve': {
+      ctx.lineWidth = sw(cmd.width || 2.5);
+      const pts = cmd.points.map(p => worldToScreen(p[0], p[1]));
+      if(cmd.fill && pts.length>2){
+        ctx.save();
+        ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]);
+        for(let i=1;i<pts.length-1;i++){
+          const midX=(pts[i][0]+pts[i+1][0])/2, midY=(pts[i][1]+pts[i+1][1])/2;
+          ctx.quadraticCurveTo(pts[i][0],pts[i][1],midX,midY);
+        }
+        const last = pts[pts.length-1]; ctx.lineTo(last[0],last[1]); ctx.closePath();
+        ctx.globalAlpha = cmd.fillOpacity!=null ? cmd.fillOpacity : 0.12;
+        ctx.fillStyle = COLORS[cmd.fillColor] || color;
+        ctx.fill();
+        ctx.restore();
+      }
+      strokeSmoothCurve(pts);
+      break;
+    }
+    case 'path': {
+      ctx.lineWidth = sw(cmd.width || 2.5);
+      const screenSegs = worldPathToScreenSegments(cmd.segments||[]);
+      drawPathSegments(ctx, screenSegs);
+      if(cmd.fill){
+        ctx.save();
+        ctx.globalAlpha = cmd.fillOpacity!=null ? cmd.fillOpacity : 0.12;
+        ctx.fillStyle = COLORS[cmd.fillColor] || color;
+        ctx.fill();
+        ctx.restore();
+      }
+      ctx.stroke();
+      break;
+    }
+    case 'axes': {
+      const [ox,oy] = worldToScreen(cmd.x, cmd.y); const w = sw(cmd.w), h = sw(cmd.h);
+      drawAxesGrid(ox, oy, w, h, cmd);
+      ctx.lineWidth = sw(2);
+      ctx.strokeStyle = color; ctx.fillStyle = color;
+      ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox, oy - h); ctx.moveTo(ox, oy); ctx.lineTo(ox + w, oy); ctx.stroke();
+      drawArrowhead(ox, oy - h, -Math.PI/2, color);
+      drawArrowhead(ox + w, oy, 0, color);
+      drawAxesTicksAndLabels(ox, oy, w, h, cmd, color);
+      break;
+    }
+    case 'plot': {
+      const [ox,oy] = worldToScreen(cmd.x, cmd.y); const w = sw(cmd.w), h = sw(cmd.h);
+      drawAxesGrid(ox, oy, w, h, cmd);
+      ctx.lineWidth = sw(2.5);
+      ctx.strokeStyle = color; ctx.fillStyle = color;
+      ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox, oy - h); ctx.moveTo(ox, oy); ctx.lineTo(ox + w, oy); ctx.stroke();
+      drawArrowhead(ox, oy - h, -Math.PI/2, color);
+      drawArrowhead(ox + w, oy, 0, color);
+      drawAxesTicksAndLabels(ox, oy, w, h, cmd, color);
+      const [scaleX, scaleY] = plotScalers(ox, oy, w, h, cmd);
+      (cmd.curves || []).forEach(curve => {
+        const pts = (curve.points || []).map(p => [scaleX(p[0]), scaleY(p[1])]);
+        if(pts.length < 2) return;
+        const curveColor = COLORS[curve.color] || color;
+        ctx.save();
+        ctx.shadowColor = hexToRgba(curveColor, 0.35);
+        ctx.shadowBlur = sw(4);
+        ctx.shadowOffsetY = sw(1.5);
+        ctx.strokeStyle = curveColor;
+        ctx.lineWidth = sw(curve.width || 3.25);
+        strokeSmoothCurve(pts);
+        ctx.restore();
+        ctx.fillStyle = curveColor;
+        pts.forEach(p => { ctx.beginPath(); ctx.arc(p[0], p[1], sw(2.75), 0, Math.PI*2); ctx.fill(); });
+        if(curve.label){
+          ctx.fillStyle = curveColor;
+          ctx.font = `700 ${sw(18)}px 'Caveat', cursive`;
+          ctx.textAlign = 'left';
+          const [lx,ly] = pts[pts.length-1];
+          ctx.fillText(curve.label, lx+sw(8), ly+sw(4));
+        }
+      });
+      break;
     }
     case 'highlight': {
-      const el = document.createElementNS(ns,'rect');
-      el.setAttribute('x',cmd.x); el.setAttribute('y',cmd.y-(cmd.h||26));
-      el.setAttribute('width',cmd.w||0); el.setAttribute('height',cmd.h||26);
-      el.setAttribute('rx',4);
-      el.setAttribute('fill',colorFor(cmd.color||'highlight'));
-      el.setAttribute('opacity','0.45');
-      return el;
+      ctx.globalAlpha = 0.18; ctx.fillStyle = color;
+      const [x,y] = worldToScreen(cmd.x, cmd.y);
+      ctx.fillRect(x, y, sw(cmd.w), sw(cmd.h || 26));
+      ctx.globalAlpha = 1;
+      break;
+    }
+    case 'halo': {
+      const [x,y] = worldToScreen(cmd.x, cmd.y);
+      const r = sw(cmd.r || 60);
+      const glow = COLORS[cmd.color] || HALO;
+      const grad = ctx.createRadialGradient(x,y,0,x,y,r);
+      grad.addColorStop(0, hexToRgba(glow, 0.40));
+      grad.addColorStop(1, hexToRgba(glow, 0));
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+      break;
     }
   }
-  return null;
 }
 
-function flushVectorGroup(animate){
-  if(pendingVectorGroup.length === 0) return;
-  const group = pendingVectorGroup;
-  pendingVectorGroup = [];
-
-  const pts = [];
-  group.forEach(cmd => pointsOfCommand(cmd, pts));
-  if(pts.length === 0) return;
-  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
-  pts.forEach(([x,y])=>{ if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y; });
-  const pad = 24;
-  minX-=pad; minY-=pad; maxX+=pad; maxY+=pad;
-  const w = Math.max(40, maxX-minX), h = Math.max(40, maxY-minY);
-
-  const wrap = document.createElement('div');
-  wrap.className = 'board-block b-diagram';
-  const ns = 'http://www.w3.org/2000/svg';
-  const svg = document.createElementNS(ns,'svg');
-  svg.setAttribute('viewBox', `${minX} ${minY} ${w} ${h}`);
-  svg.setAttribute('preserveAspectRatio','xMidYMid meet');
-  group.forEach(cmd => { const el = svgElFor(cmd); if(el) svg.appendChild(el); });
-  wrap.appendChild(svg);
-  boardContent.appendChild(wrap);
-  revealBlock(wrap, animate);
-  // A grouped diagram is one visual block made of several vector commands —
-  // register the shared wrapper under every command id in the group, so a
-  // reference to ANY of them (e.g. "the arrow on the demand curve") finds
-  // the same element to scroll to / highlight.
-  group.forEach(cmd => { if(cmd.id) boardElementMap.set(cmd.id, wrap); });
-  const lastWithId = [...group].reverse().find(cmd => cmd.id);
-  if(lastWithId) lastAppendedBlockId = lastWithId.id;
+function drawArrowhead(x, y, angle, color, size){
+  const headLen = sw(size || 9);
+  ctx.fillStyle = color;
+  ctx.beginPath(); ctx.moveTo(x, y);
+  ctx.lineTo(x - headLen*Math.cos(angle - Math.PI/7), y - headLen*Math.sin(angle - Math.PI/7));
+  ctx.lineTo(x - headLen*Math.cos(angle + Math.PI/7), y - headLen*Math.sin(angle + Math.PI/7));
+  ctx.closePath(); ctx.fill();
 }
 
-/* ---------- text wrapping is handled natively by the browser now;
-   this only decides which visual "voice" a text command gets ---------- */
-function looksLikeEquationOrList(cmd){
-  if(cmd.mono) return true;
-  const t = cmd.text || '';
-  return /\.{3,}/.test(t) || /[=≈≤≥]/.test(t) && t.length < 90 && !/[.!?]$/.test(t.trim());
-}
-
-/* ---------- handwriting variance: deterministic per-line "hand" so the
-   same content always looks the same, but different lines don't look
-   machine-uniform — alternates between two handwriting typefaces and
-   applies a tiny natural tilt, the way a real pen wobbles line to line. */
-const HAND_FONTS = ["'Kalam', cursive", "'Caveat', cursive"];
-function hashStr(s){
-  let h = 0;
-  for(let i=0;i<s.length;i++){ h = (h*31 + s.charCodeAt(i)) | 0; }
-  return Math.abs(h);
-}
-function applyHandwriting(el, text, maxTilt){
-  const h = hashStr(text || '');
-  el.style.fontFamily = HAND_FONTS[h % HAND_FONTS.length];
-  const tilt = ((h % 100) / 100 - 0.5) * 2 * maxTilt;
-  el.style.display = 'inline-block';
-  el.style.transform = `rotate(${tilt.toFixed(2)}deg)`;
-}
-
-/* ---------- inline fraction rendering ----------
-   Turns "a/b" style math fragments inside an equation string into a real
-   stacked numerator/denominator (like actual handwritten math), instead of
-   a flat "a/b". Still no LaTeX — this only recognises the plain notation
-   the tutor already writes (dy/dx, (x+h)/2, 1/2, Δy/Δx, etc). */
-const FRAC_PAREN = "\\((?:[^()]*|\\([^()]*\\))*\\)";
-const FRAC_ATOM = "[A-Za-zΔΣ√πθβαγ0-9²³\\u2080-\\u2089]+";
-const FRAC_RE = new RegExp(`(${FRAC_PAREN}|${FRAC_ATOM})\\/(${FRAC_PAREN}|${FRAC_ATOM})`, 'g');
-function stripOuterParens(s){ return /^\(.*\)$/.test(s) ? s.slice(1,-1) : s; }
-
-function buildEquationFragment(text){
-  const frag = document.createDocumentFragment();
-  let lastIndex = 0, m;
-  FRAC_RE.lastIndex = 0;
-  while((m = FRAC_RE.exec(text))){
-    if(m.index > lastIndex) frag.appendChild(document.createTextNode(text.slice(lastIndex, m.index)));
-    const fracEl = document.createElement('span');
-    fracEl.className = 'frac';
-    const num = document.createElement('span'); num.className = 'frac-num'; num.textContent = stripOuterParens(m[1]);
-    const den = document.createElement('span'); den.className = 'frac-den'; den.textContent = stripOuterParens(m[2]);
-    fracEl.appendChild(num); fracEl.appendChild(den);
-    frag.appendChild(fracEl);
-    lastIndex = FRAC_RE.lastIndex;
-  }
-  if(lastIndex < text.length) frag.appendChild(document.createTextNode(text.slice(lastIndex)));
-  return frag;
-}
-
-function renderTextBlock(cmd){
-  if(cmd.heading){
-    const el = document.createElement('div');
-    el.className = 'board-block b-heading';
-    el.style.color = colorFor(cmd.color || 'ink');
-    if(cmd.size) el.style.fontSize = Math.min(34, Math.max(20, cmd.size)) + 'px';
-    el.textContent = cmd.text || '';
-    applyHandwriting(el, cmd.text, 0.6);
-    boardContent.appendChild(el);
-    return el;
-  }
-  if(looksLikeEquationOrList(cmd)){
-    const el = document.createElement('div');
-    el.className = 'board-block b-equation';
-    const inner = document.createElement('span');
-    inner.className = 'eq-text';
-    inner.style.color = colorFor(cmd.color || 'ink');
-    if(cmd.size) inner.style.fontSize = Math.min(22, Math.max(15, cmd.size*0.7)) + 'px';
-    inner.appendChild(buildEquationFragment(cmd.text || ''));
-    applyHandwriting(inner, cmd.text, 1.0);
-    el.appendChild(inner);
-    boardContent.appendChild(el);
-    return el;
-  }
-  const el = document.createElement('p');
-  el.className = 'board-block b-text';
-  el.style.color = colorFor(cmd.color || 'ink');
-  if(cmd.weight >= 700) el.style.fontWeight = '600';
-  el.textContent = cmd.text || '';
-  boardContent.appendChild(el);
-  return el;
-}
-
-/* ---------- static (non-animated) canvas-based plot/axes rendering ----------
-   Each plot/axes command gets its OWN small canvas, sized to the block —
-   this is NOT the old infinite/world canvas, just a self-contained chart. */
-function plotScale(range, pxSize, margin){
-  const [lo,hi] = range;
-  return (v) => margin + ( (v-lo) / (hi-lo || 1) ) * (pxSize - margin*2);
-}
-
-function drawAxesOnCtx(ctx, W, H, cmd){
-  const margin = 46;
-  const xRange = cmd.xRange || [0,10];
-  const yRange = cmd.yRange || [0,10];
-  const sx = plotScale(xRange, W, margin);
-  const syRaw = plotScale(yRange, H, margin);
-  const sy = (v) => H - syRaw(v); // flip Y
-
-  ctx.clearRect(0,0,W,H);
-  ctx.font = '12px Inter, sans-serif';
-  ctx.fillStyle = '#8CA0B3';
-  ctx.strokeStyle = '#E3ECF3';
+function drawAxesGrid(ox, oy, w, h, cmd){
+  if(cmd.grid === false) return;
+  const n = cmd.gridLines || 5;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(38,36,31,0.14)';
   ctx.lineWidth = 1;
-
-  if(cmd.grid !== false){
-    const xTicks = cmd.xTicks || null;
-    const yTicks = cmd.yTicks || null;
-    const nX = xTicks ? xTicks.length : 6;
-    const nY = yTicks ? yTicks.length : 5;
-    for(let i=0;i<nX;i++){
-      const v = xRange[0] + (xRange[1]-xRange[0]) * (i/(nX-1));
-      const x = sx(v);
-      ctx.beginPath(); ctx.moveTo(x, margin*0.4); ctx.lineTo(x, H-margin*0.6); ctx.stroke();
-      const label = xTicks ? xTicks[i] : v.toFixed(1);
-      ctx.textAlign = 'center';
-      ctx.fillText(String(label), x, H-margin*0.6+16);
-    }
-    for(let i=0;i<nY;i++){
-      const v = yRange[0] + (yRange[1]-yRange[0]) * (i/(nY-1));
-      const y = sy(v);
-      ctx.beginPath(); ctx.moveTo(margin*0.6, y); ctx.lineTo(W-margin*0.4, y); ctx.stroke();
-      const label = yTicks ? yTicks[i] : v.toFixed(1);
-      ctx.textAlign = 'right';
-      ctx.fillText(String(label), margin*0.6-8, y+4);
-    }
+  ctx.setLineDash([sw(3), sw(4)]);
+  for(let i=1;i<=n;i++){
+    const gx = ox + (w*i/n);
+    ctx.beginPath(); ctx.moveTo(gx, oy); ctx.lineTo(gx, oy-h); ctx.stroke();
+    const gy = oy - (h*i/n);
+    ctx.beginPath(); ctx.moveTo(ox, gy); ctx.lineTo(ox+w, gy); ctx.stroke();
   }
-
-  ctx.strokeStyle = '#1E2B3A';
-  ctx.lineWidth = 1.6;
-  ctx.beginPath(); ctx.moveTo(margin*0.6, H-margin*0.6); ctx.lineTo(W-margin*0.4, H-margin*0.6); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(margin*0.6, margin*0.4); ctx.lineTo(margin*0.6, H-margin*0.6); ctx.stroke();
-
-  ctx.fillStyle = '#1E2B3A';
-  ctx.font = '600 12.5px Inter, sans-serif';
-  if(cmd.xlabel){ ctx.textAlign='center'; ctx.fillText(cmd.xlabel, W/2, H-6); }
-  if(cmd.ylabel){
-    ctx.save(); ctx.translate(14, H/2); ctx.rotate(-Math.PI/2); ctx.textAlign='center';
-    ctx.fillText(cmd.ylabel, 0, 0); ctx.restore();
-  }
-  return { sx, sy, margin };
+  ctx.setLineDash([]);
+  ctx.restore();
 }
 
-function renderPlotBlock(cmd){
-  const wrap = document.createElement('div');
-  wrap.className = 'board-block b-plot';
-  if(cmd.title){
-    const t = document.createElement('div');
-    t.className = 'b-plot-title';
-    t.textContent = cmd.title;
-    wrap.appendChild(t);
-  }
-  const canvas = document.createElement('canvas');
-  const cssW = 680, cssH = Math.round(cssW * ((cmd.h||400)/(cmd.w||800)));
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
-  canvas.width = cssW*dpr; canvas.height = cssH*dpr;
-  canvas.style.width = '100%';
-  const ctx = canvas.getContext('2d');
-  ctx.scale(dpr,dpr);
-
-  const { sx, sy } = drawAxesOnCtx(ctx, cssW, cssH, cmd);
-
-  (cmd.curves||[]).forEach(curve=>{
-    const pts = (curve.points||[]).map(([x,y]) => [sx(x), sy(y)]);
-    if(pts.length < 2) return;
-    ctx.strokeStyle = colorFor(curve.color || 'ochre');
-    ctx.lineWidth = curve.width || 2.5;
-    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-    ctx.beginPath();
-    const d = smoothPathD(pts);
-    const p2d = new Path2D(d);
-    ctx.stroke(p2d);
-  });
-
-  // simple legend
-  const labeled = (cmd.curves||[]).filter(c=>c.label);
-  if(labeled.length){
-    ctx.font = '12px Inter, sans-serif';
-    let ly = 16;
-    labeled.forEach(c=>{
-      ctx.fillStyle = colorFor(c.color||'ochre');
-      ctx.fillRect(cssW-140, ly-9, 12, 3);
-      ctx.fillStyle = '#3a4a5a';
-      ctx.textAlign = 'left';
-      ctx.fillText(c.label, cssW-122, ly-3);
-      ly += 18;
+function drawAxesTicksAndLabels(ox, oy, w, h, cmd, color){
+  ctx.save();
+  ctx.font = `${sw(14)}px 'Caveat', cursive`;
+  ctx.fillStyle = color;
+  if(Array.isArray(cmd.xTicks)){
+    const n = cmd.xTicks.length;
+    cmd.xTicks.forEach((label, i) => {
+      const tx = ox + w*(i+1)/(n+1);
+      ctx.strokeStyle = color; ctx.lineWidth = sw(1.5);
+      ctx.beginPath(); ctx.moveTo(tx, oy-sw(4)); ctx.lineTo(tx, oy+sw(4)); ctx.stroke();
+      ctx.textAlign = 'center';
+      ctx.fillText(String(label), tx, oy+sw(18));
     });
   }
-
-  wrap.appendChild(canvas);
-  boardContent.appendChild(wrap);
-  return wrap;
-}
-
-/* ---------- image (real photo/diagram fetched from Wikimedia) ---------- */
-function renderImageBlock(cmd){
-  const fig = document.createElement('figure');
-  fig.className = 'board-block b-figure';
-  const img = document.createElement('img');
-  img.src = (cmd._img && cmd._img.src) || cmd.url || '';
-  img.alt = cmd.alt || cmd.caption || cmd.query || '';
-  const ratio = (cmd.w && cmd.h) ? (cmd.h/cmd.w) : 0.6;
-  img.style.aspectRatio = `${cmd.w||640} / ${cmd.h||Math.round((cmd.w||640)*ratio)}`;
-  fig.appendChild(img);
-  if(cmd.caption){
-    const cap = document.createElement('figcaption');
-    cap.textContent = cmd.caption;
-    fig.appendChild(cap);
+  if(Array.isArray(cmd.yTicks)){
+    const n = cmd.yTicks.length;
+    cmd.yTicks.forEach((label, i) => {
+      const ty = oy - h*(i+1)/(n+1);
+      ctx.strokeStyle = color; ctx.lineWidth = sw(1.5);
+      ctx.beginPath(); ctx.moveTo(ox-sw(4), ty); ctx.lineTo(ox+sw(4), ty); ctx.stroke();
+      ctx.textAlign = 'right';
+      ctx.fillText(String(label), ox-sw(8), ty+sw(4));
+    });
   }
-  boardContent.appendChild(fig);
-  return fig;
+  ctx.textAlign = 'left';
+  ctx.font = `${sw(16)}px 'Caveat', cursive`;
+  if(cmd.xlabel){ ctx.textAlign = 'right'; ctx.fillText(cmd.xlabel, ox+w, oy+sw(30)); }
+  if(cmd.ylabel){ ctx.save(); ctx.translate(ox-sw(28), oy-h); ctx.textAlign = 'left'; ctx.fillText(cmd.ylabel,0,0); ctx.restore(); }
+  if(cmd.title){ ctx.textAlign = 'center'; ctx.font = `700 ${sw(20)}px 'Caveat', cursive`; ctx.fillText(cmd.title, ox+w/2, oy-h-sw(16)); }
+  ctx.restore();
 }
 
-/* ---------- dispatch ---------- */
-function appendBlockForCommand(cmd, animate){
-  if(VECTOR_TYPES.has(cmd.type)){
-    pendingVectorGroup.push(cmd);
-    return null;
+function strokeSmoothCurve(pts){
+  ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+  for(let i=1;i<pts.length-1;i++){
+    const midX = (pts[i][0]+pts[i+1][0])/2, midY = (pts[i][1]+pts[i+1][1])/2;
+    ctx.quadraticCurveTo(pts[i][0], pts[i][1], midX, midY);
   }
-  // any non-vector command flushes a pending diagram group first, so
-  // shapes never get visually interleaved with unrelated text/plots
-  flushVectorGroup(animate);
+  const last = pts[pts.length-1];
+  ctx.lineTo(last[0], last[1]);
+  ctx.stroke();
+}
 
-  let el = null;
-  if(cmd.type === 'text') el = renderTextBlock(cmd);
-  else if(cmd.type === 'plot' || cmd.type === 'axes') el = renderPlotBlock(cmd);
-  else if(cmd.type === 'image') el = renderImageBlock(cmd);
-  if(el){
-    revealBlock(el, animate);
-    if(cmd.id){ boardElementMap.set(cmd.id, el); lastAppendedBlockId = cmd.id; }
+function strokeSmoothCurvePartial(pts, t){
+  const totalSegs = pts.length-1;
+  const segFloat = t*totalSegs;
+  const segIdx = Math.min(totalSegs-1, Math.floor(segFloat));
+  const segT = segFloat-segIdx;
+  ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+  for(let i=1;i<=segIdx;i++){
+    const nextI = Math.min(i+1, pts.length-1);
+    const midX = (pts[i][0]+pts[nextI][0])/2, midY = (pts[i][1]+pts[nextI][1])/2;
+    ctx.quadraticCurveTo(pts[i][0], pts[i][1], midX, midY);
   }
-  boardContent.classList.remove('empty');
-  return el;
+  let penX = pts[segIdx][0], penY = pts[segIdx][1];
+  if(pts[segIdx+1]){
+    penX = pts[segIdx][0]+(pts[segIdx+1][0]-pts[segIdx][0])*segT;
+    penY = pts[segIdx][1]+(pts[segIdx+1][1]-pts[segIdx][1])*segT;
+    ctx.lineTo(penX, penY);
+  }
+  ctx.stroke();
+  return [penX, penY];
 }
 
-function revealBlock(el, animate){
-  if(animate === false){ el.classList.add('in'); return; }
-  requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('in')));
+function plotScalers(ox, oy, w, h, cmd){
+  const [xMin,xMax] = cmd.xRange || [0, 10];
+  const [yMin,yMax] = cmd.yRange || [0, 10];
+  const xSpan = (xMax-xMin) || 1, ySpan = (yMax-yMin) || 1;
+  const scaleX = v => ox + ((v-xMin)/xSpan)*w;
+  const scaleY = v => oy - ((v-yMin)/ySpan)*h;
+  return [scaleX, scaleY];
 }
 
-/* ---------- pacing: how long to sit on a block before revealing the next
-   one, so the writing pace roughly tracks the narration pace ---------- */
-function estimateDuration(cmd){
-  const base = (()=>{
-    switch(cmd.type){
-      case 'text': return Math.min(2200, Math.max(500,(cmd.text||'').length*45));
-      case 'line': case 'arrow': return 260;
-      case 'curve': return 420;
-      case 'rect': return 320;
-      case 'circle': return 320;
-      case 'axes': return 400;
-      case 'plot': return 500 + ((cmd.curves||[]).length)*350;
-      case 'image': return 700;
-      case 'highlight': return 180;
-      case 'halo': return 260;
-      case 'path': return Math.min(1800, Math.max(400, (cmd.segments||[]).length*160));
-      default: return 250;
+/* ---------- PAN / ZOOM (mouse) ---------- */
+let isPanning = false, panStart=null, camStart=null;
+canvas.addEventListener('mousedown', (e)=>{ 
+  panToken++; isPanning=true; canvas.classList.add('grabbing'); 
+  panStart=[e.clientX,e.clientY]; camStart={x:camera.x,y:camera.y}; 
+  if(typeof stopHoverReplay==='function') stopHoverReplay(); 
+});
+window.addEventListener('mousemove', (e)=>{
+  if(!isPanning) return;
+  camera.y = camStart.y - (e.clientY - panStart[1]) / camera.scale;
+  checkIfScrolledAway();
+  redrawAll();
+});
+window.addEventListener('mouseup', ()=>{ isPanning=false; canvas.classList.remove('grabbing'); });
+
+/* ---------- PAN / ZOOM (touch — iPad & mobile) ----------
+   A single finger drags the board exactly like a mouse-drag pan, so you
+   can swipe up to read earlier notes or swipe down to catch up — this is
+   the primary way to scroll the whiteboard on a touch device. Two fingers
+   pinch-zoom around their midpoint. Both gestures immediately mark the
+   user as "scrolled away" (via checkIfScrolledAway), which is what stops
+   the AI's auto-follow camera from fighting a manual scroll; scrolling
+   back down near the live writing point clears that flag again on its
+   own the next time it's checked. */
+let touchMode = null; // 'pan' | 'pinch' | null
+let pinchStartDist = 0, pinchStartScale = 1, pinchWorldMid = null;
+function touchDist(t0,t1){ return Math.hypot(t1.clientX-t0.clientX, t1.clientY-t0.clientY); }
+function touchMid(t0,t1){ return { x:(t0.clientX+t1.clientX)/2, y:(t0.clientY+t1.clientY)/2 }; }
+canvas.addEventListener('touchstart', (e)=>{
+  panToken++; stopHoverReplay();
+  if(e.touches.length === 1){
+    touchMode = 'pan';
+    panStart = [e.touches[0].clientX, e.touches[0].clientY];
+    camStart = { x:camera.x, y:camera.y };
+  } else if(e.touches.length === 2){
+    touchMode = 'pinch';
+    pinchStartDist = touchDist(e.touches[0], e.touches[1]);
+    pinchStartScale = camera.scale;
+    const mid = touchMid(e.touches[0], e.touches[1]);
+    const rect = canvas.getBoundingClientRect();
+    pinchWorldMid = screenToWorld(mid.x-rect.left, mid.y-rect.top);
+  }
+}, {passive:true});
+canvas.addEventListener('touchmove', (e)=>{
+  if(touchMode === 'pan' && e.touches.length === 1){
+    e.preventDefault();
+    camera.y = camStart.y - (e.touches[0].clientY - panStart[1]) / camera.scale;
+    checkIfScrolledAway();
+    redrawAll();
+  } else if(touchMode === 'pinch' && e.touches.length === 2){
+    e.preventDefault();
+    const dist = touchDist(e.touches[0], e.touches[1]);
+    camera.scale = Math.min(3, Math.max(0.2, pinchStartScale * (dist/Math.max(1,pinchStartDist))));
+    const rect = canvas.getBoundingClientRect();
+    const mid = touchMid(e.touches[0], e.touches[1]);
+    const [nx,ny] = screenToWorld(mid.x-rect.left, mid.y-rect.top);
+    camera.x += (pinchWorldMid[0]-nx); camera.y += (pinchWorldMid[1]-ny);
+    checkIfScrolledAway();
+    redrawAll();
+  }
+}, {passive:false});
+canvas.addEventListener('touchend', (e)=>{
+  if(e.touches.length === 0){ touchMode = null; checkIfScrolledAway(); }
+  else if(e.touches.length === 1){
+    // dropped from a pinch down to one finger — restart as a plain pan
+    touchMode = 'pan';
+    panStart = [e.touches[0].clientX, e.touches[0].clientY];
+    camStart = { x:camera.x, y:camera.y };
+  }
+});
+canvas.addEventListener('touchcancel', ()=>{ touchMode = null; checkIfScrolledAway(); });
+
+/* ---------- HOVER-TO-REPLAY ---------- */
+const hoverAnim = { cmd:null, raf:null };
+
+function stopHoverReplay(){
+  if(hoverAnim.raf) cancelAnimationFrame(hoverAnim.raf);
+  hoverAnim.raf = null;
+  if(hoverAnim.cmd){ hoverAnim.cmd = null; redrawAll(); }
+}
+
+function startHoverReplay(cmd){
+  if(hoverAnim.cmd === cmd) return;
+  if(hoverAnim.raf) cancelAnimationFrame(hoverAnim.raf);
+  hoverAnim.cmd = cmd;
+  const duration = estimateDuration(cmd);
+  const start = performance.now();
+  function frame(now){
+    if(hoverAnim.cmd !== cmd) return;
+    const t = Math.min(1, (now-start)/duration);
+    redrawAllExcept(cmd);
+    renderPartialCommand(cmd, t);
+    if(t < 1){ hoverAnim.raf = requestAnimationFrame(frame); }
+    else { hoverAnim.raf = null; redrawAll(); }
+  }
+  hoverAnim.raf = requestAnimationFrame(frame);
+}
+
+canvas.addEventListener('mousemove', (e)=>{
+  if(isPanning || drawing) return;
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  let hit = null;
+  for(let i = drawnCommands.length - 1; i >= 0; i--){
+    const cmd = drawnCommands[i];
+    if(cmd.type === 'highlight' || cmd.type === 'halo') continue;
+    const [x0,y0,x1,y1] = commandScreenBBox(cmd);
+    if(mx>=x0 && mx<=x1 && my>=y0 && my<=y1){ hit = cmd; break; }
+  }
+  canvas.classList.toggle('hoverable', !!hit);
+  if(hit) startHoverReplay(hit); else stopHoverReplay();
+});
+canvas.addEventListener('mouseleave', stopHoverReplay);
+canvas.addEventListener('wheel', (e)=>{
+  e.preventDefault();
+  panToken++;
+  stopHoverReplay();
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX-rect.left, my = e.clientY-rect.top;
+  // Pinch-to-zoom on a trackpad (and ctrl+wheel) reports as a wheel event
+  // with ctrlKey set — treat that as zoom. A plain wheel/trackpad scroll
+  // is treated as an ordinary scroll of the board, so the page is fully
+  // scrollable with a normal mouse wheel or two-finger trackpad swipe.
+  if(e.ctrlKey){
+    const [wx,wy] = screenToWorld(mx,my);
+    camera.scale = Math.min(3, Math.max(0.2, camera.scale * (e.deltaY>0?0.9:1.1)));
+    const [nx,ny] = screenToWorld(mx,my);
+    camera.x += (wx-nx); camera.y += (wy-ny);
+  } else {
+    camera.y += e.deltaY / camera.scale;
+  }
+  checkIfScrolledAway();
+  redrawAll();
+}, {passive:false});
+document.getElementById('zoom-reset').addEventListener('click', ()=>{ 
+  panToken++; camera.x=500; camera.scale=Math.min(1.5, viewW / 1050); 
+  userIsScrolledAway=false; 
+  panCameraToCursor(globalCursorY - 300, null);
+  redrawAll(); 
+});
+document.getElementById('btn-clear').addEventListener('click', ()=>{ panToken++; drawQueue=[]; camera.x=500;camera.y=300;camera.scale=1; resetRegionCursors(); clearBoard(); });
+
+/* =========================================================
+   EXPORT PDF
+   ========================================================= */
+function worldContentBounds(){
+  const savedCam = { ...camera }, savedW = viewW, savedH = viewH;
+  camera.scale = 1; camera.x = viewW/2; camera.y = viewH/2;
+  let minX=0, minY=0, maxX=PAGE_W, maxY=1;
+  drawnCommands.forEach(cmd=>{
+    const [x0,y0,x1,y1] = commandScreenBBox(cmd);
+    minX=Math.min(minX,x0); minY=Math.min(minY,y0);
+    maxX=Math.max(maxX,x1); maxY=Math.max(maxY,y1);
+  });
+  Object.assign(camera, savedCam); viewW = savedW; viewH = savedH;
+  return { minX, minY, maxX, maxY };
+}
+
+async function exportBoardAsPDF(){
+  if(!window.jspdf){ setStatus('pdf export unavailable — see console'); console.error('jsPDF did not load.'); return; }
+  if(drawnCommands.length===0){ setStatus('nothing drawn yet'); return; }
+  if(drawing || drawQueue.length){ setStatus('wait for current drawing to finish'); return; }
+
+  setStatus('exporting pdf…');
+  stopHoverReplay();
+  const savedCam = { ...camera }, savedW = viewW, savedH = viewH, savedCtx = ctx;
+
+  try{
+    const { minX, minY, maxY } = worldContentBounds();
+    const pageWorldW = PAGE_W;
+    const pageWorldH = PAGE_H;
+    const numPages = Math.max(1, Math.ceil((maxY - minY) / pageWorldH));
+    const PX_PER_WORLD_UNIT = 1.6;
+    const pxW = Math.round(pageWorldW * PX_PER_WORLD_UNIT);
+    const pxH = Math.round(pageWorldH * PX_PER_WORLD_UNIT);
+
+    const off = document.createElement('canvas');
+    off.width = pxW; off.height = pxH;
+    const offCtx = off.getContext('2d');
+    offCtx.lineCap = 'round'; offCtx.lineJoin = 'round';
+
+    const { jsPDF } = window.jspdf;
+    let doc = null;
+
+    for(let i=0; i<numPages; i++){
+      ctx = offCtx;
+      viewW = pxW; viewH = pxH;
+      camera.scale = PX_PER_WORLD_UNIT;
+      camera.x = minX + pageWorldW/2;
+      camera.y = (minY + i*pageWorldH) + pageWorldH/2;
+
+      drawBG();
+      drawRuleLines();
+      drawPageGuides();
+      drawnCommands.forEach(cmd => renderCommand(cmd));
+
+      const dataUrl = off.toDataURL('image/png');
+      if(i===0){
+        doc = new jsPDF({ unit:'pt', format:[pageWorldW, pageWorldH], orientation: pageWorldW>=pageWorldH?'landscape':'portrait' });
+      } else {
+        doc.addPage([pageWorldW, pageWorldH], pageWorldW>=pageWorldH?'landscape':'portrait');
+      }
+      doc.addImage(dataUrl, 'PNG', 0, 0, pageWorldW, pageWorldH);
     }
-  })();
-  return base * pacingScale;
+
+    const name = (currentSessionTitle || (pdfFileName ? pdfFileName.replace(/\.pdf$/i,'') : 'chalkline-lesson')).replace(/[^\w\-]+/g,'_');
+    doc.save(`${name}.pdf`);
+    setStatus(`saved ${numPages}-page pdf`);
+  } catch(err){
+    console.error('PDF export failed:', err);
+    setStatus('pdf export failed — see console');
+  } finally {
+    ctx = savedCtx;
+    Object.assign(camera, savedCam);
+    viewW = savedW; viewH = savedH;
+    redrawAll();
+  }
+}
+document.getElementById('btn-export-pdf').addEventListener('click', exportBoardAsPDF);
+
+/* =========================================================
+   LIVE PEN & DRAWING ANIMATION
+   ========================================================= */
+let drawQueue = [], drawing = false;
+// Scales every command's animation duration so the total time spent
+// drawing a turn's board content lines up with how long the speech for
+// that same turn takes to say — set once per turn in runTeachingTurn().
+let drawPaceScale = 1;
+
+function drawPen(x, y, angle){
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle + Math.PI/4);
+  ctx.fillStyle = '#2A2A2A';
+  const s = 14;
+  ctx.beginPath();
+  ctx.moveTo(0,0); ctx.lineTo(s*0.35,s*0.35); ctx.lineTo(s*1.7,s*1.7-s*0.5); ctx.lineTo(s*1.35,s*2.0-s*0.5);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#B8722E';
+  ctx.beginPath(); ctx.arc(s*0.45,s*0.45,3.2,0,Math.PI*2); ctx.fill();
+  ctx.restore();
 }
 
-/* ---------- queue: reveal commands one at a time in reading order ---------- */
+/* ---------- DIAGRAM CLUSTERING ----------
+   Shape commands (line/arrow/rect/circle/curve/path) plus any
+   "text" command flagged diagramLabel:true are drawn by the model in
+   its own small local coordinate box (see SYSTEM_PROMPT rules 4-6).
+   Rather than trusting those raw coordinates as final page position
+   (which is how diagrams used to end up overlapping stacked text),
+   every consecutive run of such commands is treated as ONE cluster:
+   we measure its combined local bounding box, then translate every
+   command in it by a single (dx,dy) so the cluster sits at the
+   current cursor position — exactly like a "plot" reserves its own
+   vertical slot. This guarantees no diagram can overlap the
+   paragraph text stacked above or below it. */
+const DIAGRAM_SHAPE_TYPES = new Set(['line','arrow','rect','circle','curve','path']);
+
+function isDiagramShapeCmd(c){
+    return DIAGRAM_SHAPE_TYPES.has(c.type) || (c.type === 'text' && c.diagramLabel);
+}
+
+// Local (pre-translation) bounding box of a single diagram command, in
+// the model's own raw coordinate units — no camera/world transform.
+function diagramLocalBBox(c){
+    switch(c.type){
+        case 'line': case 'arrow':
+            return [Math.min(c.x1,c.x2), Math.min(c.y1,c.y2), Math.max(c.x1,c.x2), Math.max(c.y1,c.y2)];
+        case 'rect': {
+            const h = c.h || 0;
+            return [Math.min(c.x,c.x+c.w), Math.min(c.y,c.y+h), Math.max(c.x,c.x+c.w), Math.max(c.y,c.y+h)];
+        }
+        case 'highlight': {
+            const h = c.h || 26;
+            return [Math.min(c.x,c.x+c.w), Math.min(c.y,c.y+h), Math.max(c.x,c.x+c.w), Math.max(c.y,c.y+h)];
+        }
+        case 'circle':
+            return [c.x-c.rx, c.y-c.ry, c.x+c.rx, c.y+c.ry];
+        case 'curve': {
+            const pts = c.points || [];
+            if(!pts.length) return null;
+            const xs = pts.map(p=>p[0]), ys = pts.map(p=>p[1]);
+            return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+        }
+        case 'path': {
+            const xs = [], ys = [];
+            (c.segments || []).forEach(seg=>{
+                if(!seg || !seg.length || seg[0]==='Z' || seg[0]==='z') return;
+                for(let i=1;i<seg.length;i+=2){ xs.push(seg[i]); ys.push(seg[i+1]); }
+            });
+            if(!xs.length) return null;
+            return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+        }
+        case 'halo': {
+            const r = c.r || 60;
+            return [c.x-r, c.y-r, c.x+r, c.y+r];
+        }
+        case 'text': { // diagramLabel — rough estimate is fine, it's a small word
+            const size = c.size || 18;
+            const approxW = (c.text||'').length * size * 0.55;
+            return [c.x, c.y - size, c.x + approxW, c.y + size*0.3];
+        }
+        default: return null;
+    }
+}
+
+// Shift a diagram command's raw coordinates by (dx,dy). Widths/radii are
+// untouched — only positions move.
+function translateDiagramCmd(c, dx, dy){
+    switch(c.type){
+        case 'line': case 'arrow':
+            c.x1+=dx; c.y1+=dy; c.x2+=dx; c.y2+=dy; break;
+        case 'rect': case 'highlight': case 'circle': case 'halo': case 'text':
+            c.x+=dx; c.y+=dy; break;
+        case 'curve':
+            c.points = (c.points||[]).map(p=>[p[0]+dx, p[1]+dy]); break;
+        case 'path':
+            c.segments = (c.segments||[]).map(seg=>{
+                if(!seg || !seg.length || seg[0]==='Z' || seg[0]==='z') return seg;
+                const out = [seg[0]];
+                for(let i=1;i<seg.length;i+=2){ out.push(seg[i]+dx, seg[i+1]+dy); }
+                return out;
+            });
+            break;
+    }
+    return c;
+}
+
+const DIAGRAM_MARGIN_TOP = RULE_LINE_SPACING;
+const DIAGRAM_MARGIN_BOTTOM = RULE_LINE_SPACING*2;
+const DIAGRAM_LEFT = 160;
+
+function enqueueCommandsAtCursor(commands){
+    let placedAll = [];
+    const testCanvas = document.createElement('canvas');
+    const tCtx = testCanvas.getContext('2d');
+
+    // Commands are trusted to arrive in reading order (the model is
+    // instructed to emit each diagram as one unbroken run) — no longer
+    // re-sorted by raw y, since a diagram's local coordinates aren't a
+    // page position and sorting by them would scramble reading order.
+    let pendingDiagram = [];
+
+    function flushDiagram(){
+        if(!pendingDiagram.length) return;
+        let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
+        pendingDiagram.forEach(c=>{
+            const bb = diagramLocalBBox(c);
+            if(!bb) return;
+            minX = Math.min(minX, bb[0]); minY = Math.min(minY, bb[1]);
+            maxX = Math.max(maxX, bb[2]); maxY = Math.max(maxY, bb[3]);
+        });
+        if(minX === Infinity){ pendingDiagram = []; return; } // nothing measurable
+
+        globalCursorY += DIAGRAM_MARGIN_TOP;
+        const dx = DIAGRAM_LEFT - minX;
+        const dy = globalCursorY - minY;
+        pendingDiagram.forEach(c=>{ translateDiagramCmd(c, dx, dy); placedAll.push(c); });
+        // Reserve exactly the cluster's own height plus a bottom margin —
+        // same pattern as the "plot" case below — so whatever text comes
+        // next starts safely below the lowest shape in the diagram.
+        globalCursorY += (maxY - minY) + DIAGRAM_MARGIN_BOTTOM;
+        pendingDiagram = [];
+    }
+
+    commands.forEach(cmd => {
+        let c = { ...cmd };
+
+        if (c.type === 'halo' || c.type === 'highlight') {
+            // Preserve the old "glow/underline the word I just wrote"
+            // behavior when it directly follows plain paragraph text and
+            // isn't part of an in-progress diagram cluster.
+            if (!pendingDiagram.length && placedAll.length) {
+                const prev = placedAll[placedAll.length-1];
+                if (prev.type === 'text' && !prev.diagramLabel) {
+                    c.x = prev.x + 40; c.y = prev.y - 10;
+                    placedAll.unshift(c);
+                    return;
+                }
+            }
+            pendingDiagram.push(c);
+            return;
+        }
+
+        if (isDiagramShapeCmd(c)) {
+            pendingDiagram.push(c);
+            return;
+        }
+
+        // Any non-diagram command ends whatever cluster was building and
+        // reserves its space before this command claims the cursor.
+        flushDiagram();
+
+        if (c.type === 'text') {
+            c.x = 80; // Sit close to the left margin line
+            c.maxWidth = 930; // Use nearly the full line width before wrapping
+            const size = (c.size || 26) * HAND_SIZE_MULT;
+            const fam = "'Kalam', 'Caveat', cursive";
+            tCtx.font = `${c.weight || 700} ${size}px ${fam}`;
+            
+            const words = (c.text || '').split(/\s+/).filter(Boolean);
+            let lines = 1; let cur = '';
+            words.forEach(w => {
+                const test = cur ? cur + ' ' + w : w;
+                if(tCtx.measureText(test).width > c.maxWidth){ lines++; cur = w; }
+                else { cur = test; }
+            });
+            
+            const lh = lineHeightFor(size);
+            // A heading skips one blank ruled line before it starts, so it
+            // reads as a new section rather than butting straight up
+            // against whatever came before — but only if something is
+            // already on the board above it (no pointless gap at the very
+            // top of a fresh page).
+            if(c.heading && globalCursorY > TOP_MARGIN) globalCursorY += RULE_LINE_SPACING;
+            // Baseline sits exactly ON the rule line at the bottom of this
+            // first allotted line-space (not floating near the top of it),
+            // so the handwriting visually rests on the ruled paper the way
+            // real handwriting does — ascenders reach up into the block,
+            // descenders dip slightly below the line, just like ink on
+            // actual notebook paper.
+            c.y = globalCursorY + lh;
+            placedAll.push(c);
+            // Advance by exactly the block's own height — no extra blank
+            // gap tacked on — so consecutive notes stack tight against each
+            // other like continuous handwriting, while every line (of this
+            // block and the next) still lands on a whole rule-line boundary
+            // because `lh` is always a whole multiple of RULE_LINE_SPACING.
+            globalCursorY += lines * lh;
+
+        } else if (c.type === 'plot' || c.type === 'axes') {
+            c.x = 160;
+            c.w = 640;
+            c.h = 400; // a whole multiple of RULE_LINE_SPACING, like every
+                       // other vertical measurement here — see note below
+            
+            globalCursorY += RULE_LINE_SPACING; // Title margin
+            c.y = globalCursorY + c.h; // Origin is bottom-left
+            placedAll.push(c);
+            // X-axis label margin. MUST be a whole multiple of
+            // RULE_LINE_SPACING like every other vertical measurement in
+            // this function — otherwise globalCursorY drifts off the rule
+            // grid after the first graph, and every line of handwriting
+            // placed after it stops resting on the ruled lines (it'll
+            // visually "float" between them instead of sitting on one).
+            globalCursorY = c.y + RULE_LINE_SPACING*2;
+        }
+    });
+
+    flushDiagram();
+
+    let panTargetY = globalCursorY - 300; 
+    if (panTargetY < TOP_MARGIN) panTargetY = TOP_MARGIN;
+
+    redrawAll();
+    
+    if(!userIsScrolledAway){
+        panCameraToCursor(panTargetY, () => enqueueCommands(placedAll));
+    } else {
+        enqueueCommands(placedAll);
+    }
+}
+
 function enqueueCommands(commands){
   drawQueue.push(...commands);
   if(!drawing) processQueue();
 }
+
+function commandWorldAnchor(cmd){
+  if(cmd.type === 'plot' || cmd.type === 'axes') {
+      return [cmd.x + (cmd.w||0)/2, cmd.y - (cmd.h||0)/2];
+  }
+  if('x' in cmd && 'y' in cmd) return [cmd.x, cmd.y];
+  if('x1' in cmd && 'y1' in cmd) return [(cmd.x1+cmd.x2)/2, (cmd.y1+cmd.y2)/2];
+  if(Array.isArray(cmd.points) && cmd.points.length) return cmd.points[Math.floor(cmd.points.length/2)];
+  return null;
+}
+
 function processQueue(){
-  if(drawQueue.length === 0){ drawing = false; return; }
-  drawing = true;
+  if(drawQueue.length===0){ drawing=false; redrawAll(); return; }
+  drawing=true;
   const cmd = drawQueue.shift();
-  drawnCommands.push(cmd);
-  appendBlockForCommand(cmd, true);
-  scrollToBottomIfFollowing();
-  const wait = VECTOR_TYPES.has(cmd.type) ? 60 : estimateDuration(cmd);
-  setTimeout(processQueue, Math.max(40, wait));
-}
-
-// Entry point called by runTeachingTurn() with the AI's `board` array.
-// Kept the original name so the AI-call / teaching-turn code above didn't
-// need to change at all.
-function enqueueCommandsAtCursor(commands){
-  boardContent.classList.remove('empty');
-  enqueueCommands(commands);
-}
-
-/* ---------- export the lesson as a PDF (DOM-based, not canvas-based) ---------- */
-async function exportBoardAsPDF(){
-  if(!window.jspdf || !window.html2canvas){ setStatus('pdf export unavailable — see console'); console.error('jsPDF/html2canvas did not load.'); return; }
-  if(drawnCommands.length === 0){ setStatus('nothing drawn yet'); return; }
-  if(drawing || drawQueue.length){ setStatus('wait for current drawing to finish'); return; }
-
-  setStatus('exporting pdf…');
-  try{
-    const { jsPDF } = window.jspdf;
-    const target = boardContent;
-    const canvas = await window.html2canvas(target, { scale: 2, backgroundColor:'#ffffff', useCORS:true });
-    const imgData = canvas.toDataURL('image/png');
-    const pageW = 612; // 8.5in @72dpi
-    const imgW = pageW;
-    const imgH = canvas.height * (imgW / canvas.width);
-    const pageH = 792; // 11in
-    const doc = new jsPDF({ unit:'pt', format:[pageW, pageH] });
-    let heightLeft = imgH, position = 0, first = true;
-    while(heightLeft > 0){
-      if(!first) doc.addPage([pageW, pageH]);
-      doc.addImage(imgData, 'PNG', 0, position, imgW, imgH);
-      heightLeft -= pageH;
-      position -= pageH;
-      first = false;
+  const anchor = commandWorldAnchor(cmd);
+  
+  if(anchor && !userIsScrolledAway){
+    const [sx, sy] = worldToScreen(anchor[0], anchor[1]);
+    const margin = 80;
+    if(sx < margin || sx > viewW-margin || sy < margin || sy > viewH-margin){
+      // Always enforce camera.x locking centrally at 500 when auto-following
+      animateCameraPan(500, anchor[1], 260, null);
     }
-    const name = (currentSessionTitle || (typeof pdfFileName !== 'undefined' && pdfFileName ? pdfFileName.replace(/\.pdf$/i,'') : 'chalkline-lesson')).replace(/[^\w\-]+/g,'_');
-    doc.save(`${name}.pdf`);
-    setStatus('saved pdf');
-  } catch(err){
-    console.error('PDF export failed:', err);
-    setStatus('pdf export failed — see console');
+  }
+  
+  animateCommand(cmd, ()=>{ drawnCommands.push(cmd); processQueue(); });
+}
+
+function animateCommand(cmd, onDone){
+  const duration = estimateDuration(cmd);
+  const start = performance.now();
+  function frame(now){
+    const t = Math.min(1,(now-start)/duration);
+    redrawAll();
+    renderPartialCommand(cmd, t);
+    if(t<1) requestAnimationFrame(frame); else onDone();
+  }
+  requestAnimationFrame(frame);
+}
+
+function baseDurationFor(cmd){
+  switch(cmd.type){
+    case 'text': return Math.min(2200, Math.max(500,(cmd.text||'').length*50));
+    case 'line': case 'arrow': return 380;
+    case 'curve': return 700;
+    case 'rect': return 550;
+    case 'circle': return 550;
+    case 'axes': return 550;
+    case 'plot': return 600 + ((cmd.curves||[]).length)*550;
+    case 'highlight': return 250;
+    case 'halo': return 450;
+    case 'path': return Math.min(2600, Math.max(600, (cmd.segments||[]).length*220));
+    default: return 300;
   }
 }
-document.getElementById('btn-export-pdf').addEventListener('click', exportBoardAsPDF);
-document.getElementById('btn-clear').addEventListener('click', ()=>{ drawQueue=[]; resetRegionCursors(); clearBoard(); });
-document.getElementById('zoom-reset').addEventListener('click', ()=>{
-  userIsScrolledAway = false;
-  boardScroll.scrollTo({ top:0, behavior:'smooth' });
-});
+
+function estimateDuration(cmd){
+  return baseDurationFor(cmd) * drawPaceScale;
+}
+
+// Rough estimate of how long speechSynthesis will take to say `text`,
+// matching the rate/voice settings used in speak() below.
+function estimateSpeechDurationMs(text){
+  const words = (text||'').trim().split(/\s+/).filter(Boolean).length;
+  if(!words) return 0;
+  const wordsPerMinute = 150 * 0.96; // matches utter.rate in speak()
+  const sentencePauses = ((text||'').match(/[.!?]/g) || []).length * 180;
+  return (words / wordsPerMinute) * 60000 + sentencePauses;
+}
+
+function renderPartialCommand(cmd, t){
+  const color = COLORS[cmd.color] || INK;
+  ctx.strokeStyle = color; ctx.fillStyle = color;
+  switch(cmd.type){
+    case 'text': {
+      const full = cmd.text || '';
+      const fam = "'Kalam', 'Caveat', cursive";
+      const weight = cmd.weight || 700;
+      const size = (cmd.size||26)*HAND_SIZE_MULT;
+      ctx.font = `${weight} ${sw(size)}px ${fam}`;
+      const [sx,sy] = worldToScreen(cmd.x, cmd.y);
+      if(cmd.maxWidth){
+        const lines = wrapTextToLines(full, sw(cmd.maxWidth));
+        const lineHeight = sw(lineHeightFor(size));
+        let charsLeft = Math.max(1, Math.round(full.length*t));
+        let lastX = sx, lastY = sy;
+        for(let i=0;i<lines.length;i++){
+          const line = lines[i];
+          const take = Math.max(0, Math.min(line.length, charsLeft));
+          const partial = line.slice(0, take);
+          const ly = sy + i*lineHeight;
+          ctx.fillText(partial, sx, ly);
+          // Only underline a heading line once it's fully written — the
+          // underline stroke happens after the words, like a real tutor
+          // finishing a heading and then drawing a line under it.
+          if(cmd.heading && take >= line.length) drawHeadingUnderline(sx, ly, ctx.measureText(line).width, size, color);
+          lastX = sx + ctx.measureText(partial).width;
+          lastY = ly;
+          charsLeft -= take + 1;
+          if(charsLeft <= 0) break;
+        }
+        drawPen(lastX, lastY, -Math.PI/2);
+      } else {
+        const nChars = Math.max(1, Math.round(full.length*t));
+        const partial = full.slice(0,nChars);
+        ctx.fillText(partial, sx, sy);
+        const w = ctx.measureText(partial).width;
+        if(cmd.heading && nChars >= full.length) drawHeadingUnderline(sx, sy, w, size, color);
+        drawPen(sx+w, sy, -Math.PI/2);
+      }
+      break;
+    }
+    case 'line': case 'arrow': {
+      ctx.lineWidth = sw(cmd.width||2.5);
+      const [x1,y1]=worldToScreen(cmd.x1,cmd.y1); const [x2,y2]=worldToScreen(cmd.x2,cmd.y2);
+      const cx=x1+(x2-x1)*t, cy=y1+(y2-y1)*t;
+      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(cx,cy); ctx.stroke();
+      if(cmd.type==='arrow' && t>=0.98){
+        const angle=Math.atan2(y2-y1,x2-x1); const headLen=sw(cmd.headSize||12);
+        ctx.beginPath(); ctx.moveTo(x2,y2);
+        ctx.lineTo(x2-headLen*Math.cos(angle-Math.PI/7), y2-headLen*Math.sin(angle-Math.PI/7));
+        ctx.lineTo(x2-headLen*Math.cos(angle+Math.PI/7), y2-headLen*Math.sin(angle+Math.PI/7));
+        ctx.closePath(); ctx.fill();
+      }
+      drawPen(cx,cy,Math.atan2(y2-y1,x2-x1));
+      break;
+    }
+    case 'curve': {
+      ctx.lineWidth = sw(cmd.width||2.5);
+      const pts = cmd.points.map(p=>worldToScreen(p[0],p[1]));
+      if(cmd.fill && t>=0.999 && pts.length>2){
+        ctx.save();
+        ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]);
+        for(let i=1;i<pts.length-1;i++){
+          const midX=(pts[i][0]+pts[i+1][0])/2, midY=(pts[i][1]+pts[i+1][1])/2;
+          ctx.quadraticCurveTo(pts[i][0],pts[i][1],midX,midY);
+        }
+        const last = pts[pts.length-1]; ctx.lineTo(last[0],last[1]); ctx.closePath();
+        ctx.globalAlpha = cmd.fillOpacity!=null ? cmd.fillOpacity : 0.12;
+        ctx.fillStyle = COLORS[cmd.fillColor] || color;
+        ctx.fill();
+        ctx.restore();
+      }
+      const [penX,penY] = strokeSmoothCurvePartial(pts, t);
+      drawPen(penX,penY,0);
+      break;
+    }
+    case 'path': {
+      ctx.lineWidth = sw(cmd.width||2.5);
+      const screenSegs = worldPathToScreenSegments(cmd.segments||[]);
+      const pts = flattenScreenSegsToPoints(screenSegs);
+      if(cmd.fill && t>=0.999){
+        drawPathSegments(ctx, screenSegs);
+        ctx.save();
+        ctx.globalAlpha = cmd.fillOpacity!=null ? cmd.fillOpacity : 0.12;
+        ctx.fillStyle = COLORS[cmd.fillColor] || color;
+        ctx.fill();
+        ctx.restore();
+      }
+      const [penX,penY] = strokePolylinePartial(pts, t);
+      drawPen(penX,penY,0);
+      break;
+    }
+    case 'rect': {
+      ctx.lineWidth = sw(cmd.width||2.5);
+      const [x,y]=worldToScreen(cmd.x,cmd.y); const w=sw(cmd.w), h=sw(cmd.h);
+      const perim=2*(w+h), drawn=perim*t;
+      ctx.beginPath(); let remaining=drawn, px=x, py=y; ctx.moveTo(px,py);
+      const segs=[[w,0],[0,h],[-w,0],[0,-h]];
+      for(const [dx,dy] of segs){
+        const len=Math.hypot(dx,dy), use=Math.min(len,remaining), frac=use/len;
+        px+=dx*frac; py+=dy*frac; ctx.lineTo(px,py); remaining-=use;
+        if(remaining<=0) break;
+      }
+      ctx.stroke(); drawPen(px,py,0);
+      break;
+    }
+    case 'circle': {
+      ctx.lineWidth = sw(cmd.width||2.5);
+      const [x,y]=worldToScreen(cmd.x,cmd.y); const rx=sw(cmd.rx), ry=sw(cmd.ry);
+      ctx.beginPath(); ctx.ellipse(x,y,rx,ry,0,-Math.PI/2,-Math.PI/2+t*Math.PI*2); ctx.stroke();
+      const ang=-Math.PI/2+t*Math.PI*2;
+      drawPen(x+rx*Math.cos(ang), y+ry*Math.sin(ang), ang+Math.PI/2);
+      break;
+    }
+    case 'axes': {
+      const [ox,oy]=worldToScreen(cmd.x,cmd.y); const w=sw(cmd.w), h=sw(cmd.h);
+      if(t>=0.99) drawAxesGrid(ox, oy, w, h, cmd);
+      ctx.lineWidth = sw(2);
+      const total=w+h, drawn=total*t;
+      ctx.beginPath(); ctx.moveTo(ox,oy);
+      const yLen=Math.min(h,drawn); ctx.lineTo(ox,oy-yLen);
+      let penX=ox, penY=oy-yLen;
+      if(drawn>h){ ctx.moveTo(ox,oy); const xLen=Math.min(w,drawn-h); ctx.lineTo(ox+xLen,oy); penX=ox+xLen; penY=oy; }
+      ctx.stroke();
+      if(t>=0.99){
+        drawArrowhead(ox, oy-h, -Math.PI/2, color);
+        drawArrowhead(ox+w, oy, 0, color);
+        drawAxesTicksAndLabels(ox, oy, w, h, cmd, color);
+      }
+      drawPen(penX,penY,0);
+      break;
+    }
+    case 'plot': {
+      const [ox,oy]=worldToScreen(cmd.x,cmd.y); const w=sw(cmd.w), h=sw(cmd.h);
+      const curves = cmd.curves || [];
+      const axesFrac = curves.length ? 0.3 : 1;
+      const axesT = Math.min(1, t/axesFrac);
+      if(axesT>=0.99) drawAxesGrid(ox, oy, w, h, cmd);
+      ctx.lineWidth = sw(2); ctx.strokeStyle = color; ctx.fillStyle = color;
+      const axTotal=w+h, axDrawn=axTotal*axesT;
+      ctx.beginPath(); ctx.moveTo(ox,oy);
+      const yLen=Math.min(h,axDrawn); ctx.lineTo(ox,oy-yLen);
+      let penX=ox, penY=oy-yLen;
+      if(axDrawn>h){ ctx.moveTo(ox,oy); const xLen=Math.min(w,axDrawn-h); ctx.lineTo(ox+xLen,oy); penX=ox+xLen; penY=oy; }
+      ctx.stroke();
+      if(axesT>=0.99){
+        drawArrowhead(ox, oy-h, -Math.PI/2, color);
+        drawArrowhead(ox+w, oy, 0, color);
+        drawAxesTicksAndLabels(ox, oy, w, h, cmd, color);
+      }
+      if(curves.length){
+        const [scaleX, scaleY] = plotScalers(ox, oy, w, h, cmd);
+        const perCurve = (1-axesFrac)/curves.length;
+        curves.forEach((curve, i) => {
+          const curveT = Math.max(0, Math.min(1, (t-axesFrac-i*perCurve)/perCurve));
+          if(curveT<=0) return;
+          const pts = (curve.points||[]).map(p=>[scaleX(p[0]), scaleY(p[1])]);
+          if(pts.length<2) return;
+          ctx.strokeStyle = COLORS[curve.color] || color;
+          ctx.lineWidth = sw(curve.width||2.75);
+          const [cx,cy] = strokeSmoothCurvePartial(pts, curveT);
+          if(curveT>=1){
+            if(curve.label){
+              ctx.fillStyle = COLORS[curve.color] || color;
+              ctx.font = `${sw(16)}px 'Caveat', cursive`;
+              ctx.textAlign = 'left';
+              ctx.fillText(curve.label, cx+sw(8), cy+sw(4));
+            }
+          } else { penX=cx; penY=cy; }
+        });
+      }
+      drawPen(penX,penY,0);
+      break;
+    }
+    case 'highlight': {
+      ctx.globalAlpha = 0.18*t;
+      const [x,y]=worldToScreen(cmd.x,cmd.y);
+      ctx.fillRect(x,y,sw(cmd.w)*t, sw(cmd.h||26));
+      ctx.globalAlpha=1;
+      break;
+    }
+    case 'halo': {
+      const [x,y] = worldToScreen(cmd.x, cmd.y);
+      const r = sw(cmd.r || 60);
+      const glow = COLORS[cmd.color] || HALO;
+      const grad = ctx.createRadialGradient(x,y,0,x,y,r);
+      grad.addColorStop(0, hexToRgba(glow, 0.40*t));
+      grad.addColorStop(1, hexToRgba(glow, 0));
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+      break;
+    }
+  }
+}
 
 /* =========================================================
-   VOICE (state used by the speech/TTS code further below —
-   unrelated to the whiteboard, kept exactly as it was)
+   VOICE
    ========================================================= */
 const avatar = document.getElementById('avatar');
 const captionText = document.getElementById('caption-text');
 let currentUtteranceText = '';
-let currentUtteranceRate = 0.96;
 let currentSpeechToken = 0;
 
 let bestVoice = null;
 let voicesReady = false;
 
-// Free-tier ElevenLabs preset voices (their default public voice IDs).
-// These work out of the box on any ElevenLabs account's free tier.
-// Roughly how long the browser's TTS will take to say a given piece of text,
-// including the little pauses speak() inserts between chunks. Used to stretch
-// or compress the block-reveal pacing so the board finishes roughly when the
-// voice finishes speaking.
-function estimateSpeechDuration(text){
-  if(!text) return 0;
-  const rate = (currentUtteranceRate || 0.96);
-  const charsPerSec = 13.5 * rate;
-  const chunks = splitIntoSpeechChunks(text);
-  let total = 0;
-  chunks.forEach(c=>{
-    total += Math.max(400, (c.length / charsPerSec) * 1000);
-    total += /\?\s*$/.test(c) ? 260 : 140;
-  });
-  return total;
-}
 function scoreVoice(v){
   let score = 0;
   const name = v.name || '';
@@ -1888,18 +2153,16 @@ function populateVoiceDropdown(){
   if(!sel) return;
   const voices = window.speechSynthesis.getVoices().filter(v => /^en/i.test(v.lang));
   const pool = voices.length ? voices : window.speechSynthesis.getVoices();
+  if(!pool.length) return;
   const currentVal = sel.value;
   sel.innerHTML = '';
-
   pool.sort((a,b)=> scoreVoice(b)-scoreVoice(a)).forEach(v=>{
     const opt = document.createElement('option');
     opt.value = v.name;
     opt.textContent = v.name + (v.localService ? '' : ' (network)');
     sel.appendChild(opt);
   });
-
-  const allValues = Array.from(sel.options).map(o => o.value);
-  if(currentVal && allValues.includes(currentVal)){
+  if(currentVal && pool.some(v=>v.name===currentVal)){
     sel.value = currentVal;
   } else if(bestVoice){
     sel.value = bestVoice.name;
@@ -1946,15 +2209,10 @@ function renderCaption(fullText, chunkStartIndex, chunkText){
 }
 
 function speak(text){
-  speakBrowser(text);
-}
-
-function speakBrowser(text){
   if(!('speechSynthesis' in window)) return;
   window.speechSynthesis.cancel();
   const myToken = ++currentSpeechToken;
   currentUtteranceText = text;
-  clearBoardFocus();
   const chunks = splitIntoSpeechChunks(text);
   let searchPos = 0;
   const chunkOffsets = chunks.map(c => {
@@ -1970,25 +2228,11 @@ function speakBrowser(text){
     if(i >= chunks.length){ avatar.classList.remove('speaking'); return; }
     const utter = new SpeechSynthesisUtterance(chunks[i]);
     utter.rate = 0.96;
-    currentUtteranceRate = utter.rate;
     utter.pitch = 1.0;
-    utter.volume = 1.0;
+    utter.volume = 1.0; // Enforces maximum browser volume output
     if(voice) utter.voice = voice;
     renderCaption(text, chunkOffsets[i], chunks[i]);
-    utter.onstart = () => {
-      avatar.classList.add('speaking');
-      updateFocusForCharOffset(chunkOffsets[i], myToken);
-    };
-    // Word-level sync where the browser supports it: refine which board
-    // element is focused as narration moves through a longer chunk, instead
-    // of only updating at chunk (roughly sentence) boundaries. Browsers that
-    // don't fire onboundary reliably (notably Safari) simply never call
-    // this, and the chunk-level update above is the fallback.
-    utter.onboundary = (event) => {
-      if(myToken !== currentSpeechToken) return;
-      if(event.name && event.name !== 'word' && event.name !== 'sentence') return;
-      updateFocusForCharOffset(chunkOffsets[i] + (event.charIndex || 0), myToken);
-    };
+    utter.onstart = () => avatar.classList.add('speaking');
     utter.onend = () => {
       if(myToken !== currentSpeechToken) return;
       const pause = /\?\s*$/.test(chunks[i]) ? 260 : 140;
@@ -1999,7 +2243,6 @@ function speakBrowser(text){
   }
   speakChunk(0);
 }
-
 document.getElementById('btn-replay').addEventListener('click', ()=>{ if(currentUtteranceText) speak(currentUtteranceText); });
 
 function escapeHtml(str){ const d=document.createElement('div'); d.textContent=str; return d.innerHTML; }
@@ -2116,37 +2359,23 @@ You must respond with ONLY a JSON object (no markdown fences, no prose outside t
 {
   "speech": "the spoken explanation, natural spoken lecture language for text-to-speech (spell out symbols, e.g. 'delta' not the character)",
   "board": [ ...array of drawing command objects... ],
-  "speechSegments": [ ...optional, see below... ],
-  "quiz": null OR { "question":"...", "options":["...","...","...","..."], "correctIndex":0, "explanation":"..." }
+  "quiz": null OR { "question":"...", "options":["...","...","...","..."], "correctIndex":0, "explanation":"..." },
+  "needsLookup": null OR "a short, specific search query"
 }
 
-"speechSegments" (OPTIONAL, but strongly preferred) lets the app scroll to and highlight
-the exact thing you're talking about while you say it — like a real teacher pointing at
-the board. Break "speech" into its natural pieces in spoken order, and for each piece say
-which board item(s) it's about:
-[
-  { "text":"First, let's look at the demand curve.", "boardRefs":[2] },
-  { "text":"Notice that it slopes downward.", "boardRefs":[2] },
-  { "text":"Remember the equation we wrote earlier for elasticity.", "boardRefs":["elasticity"] }
-]
-Rules for "speechSegments":
-- Every "text" value MUST be an exact, verbatim substring of "speech" (same words, same order, no paraphrasing) — the app locates each segment by searching for it inside "speech".
-- The segments, concatenated in order, should cover all of "speech" (a short one-off aside can be left out, but don't skip large chunks).
-- "boardRefs" is a list where each entry is EITHER:
-  (a) a number — the 0-based index of an item in THIS turn's "board" array (something you're drawing right now), or
-  (b) a short string — a few distinctive words copied from the TEXT of an item you (or an earlier turn) already put on the board, used to point back at that EXISTING item instead of redrawing it. Pick words specific enough to uniquely identify that item (e.g. "slopes downward because" rather than just "the curve").
-- When you say "remember...", "as we saw earlier...", "going back to...", or otherwise refer to something already on the board, use a string boardRef to point at the existing item — NEVER regenerate a duplicate copy of it in "board" just so you have something to reference.
-- It's fine and expected for consecutive segments to share the same boardRefs while you keep talking about one item, and for boardRefs to jump back to an earlier item and then forward again — that back-and-forth is exactly what makes the lesson feel like a real lecture rather than a scroll-through.
-- If you omit "speechSegments" entirely, the app falls back to simply following along with whatever is most recently drawn — so it still works, but won't be able to point back at earlier material. Prefer including it.
+WEB LOOKUP (use sparingly): set "needsLookup" ONLY when the next thing you need to teach depends on a current fact, statistic, date, or detail you are not confident you know precisely (e.g. "current US federal funds rate", "population of Lagos 2025"). When you set it, keep "board" and "speech" minimal (a brief natural "let me check that" line, no board content) — you will be given the lookup result and asked to continue for real on the next turn. Do NOT set "needsLookup" for ordinary concepts, definitions, or anything textbook-stable — that costs an extra round trip, so only spend it when accuracy genuinely requires fresh info. Leave it null almost all the time.
 
 ALL TEXT, HEADINGS, EQUATIONS, AND EXPLANATIONS ON THE BOARD ARE RENDERED IN REALISTIC HANDWRITING.
 Use color changes on key terms and equations for visual emphasis and clarity.
 Colors available: "ink" (navy blue), "ochre" (amber/orange keyword emphasis), "sage" (green emphasis), "brick" (red emphasis), "teal", "violet", "sky", "coral".
 
 CRITICAL LAYOUT RULES - THE APP WILL OVERRIDE YOUR COORDINATES:
-1. DO NOT try to position text next to a graph. Everything is strictly stacked vertically in a single column by the engine.
-2. ONLY use "text" commands for paragraph explanations. DO NOT use "text" commands to title or label graphs or images.
-3. FOR GRAPHS, use ONLY the "plot" command. FOR ANY REAL DIAGRAM/PHOTO, use ONLY the "image" command. Put the title/caption INSIDE that command's own properties. DO NOT use separate text commands near it.
+1. DO NOT try to position text next to a graph or diagram. Everything is strictly stacked vertically in a single column by the engine.
+2. ONLY use "text" commands for paragraph explanations. DO NOT use "text" commands to title or label graphs (use the "plot"/"axes" title/xlabel/ylabel properties instead).
+3. FOR GRAPHS, use ONLY the "plot" command. Put the title, xlabel, and ylabel INSIDE the plot command properties. DO NOT use separate text commands near it.
+4. FOR A DIAGRAM (a labeled picture built from "path"/"curve"/"circle"/"rect"/"line"/"arrow"/"halo"/"highlight"): draw every shape in that diagram using a small, self-consistent local coordinate box starting near (0,0) — e.g. everything within roughly x:0–300, y:0–300. Don't try to guess an absolute page position; the app automatically moves the whole diagram as one block to the next free spot on the page and reserves vertical space for it, so overlapping text is impossible as long as you keep it self-contained.
+5. EVERY command that belongs to one diagram must be emitted as one unbroken run in the "board" array — do not interleave a diagram's shapes with unrelated paragraph "text" commands. Put a normal heading/intro "text" command (with "diagramLabel" omitted) BEFORE the run starts, then all of that diagram's shapes and part-labels back to back, then resume normal paragraph text afterward.
+6. Any "text" command used to label a PART of a diagram (not a paragraph) must include "diagramLabel":true and use small local coordinates in the same box as the diagram's shapes — this tells the app to move the label together with the diagram instead of stacking it as its own paragraph line.
 
 TEXT ON THE BOARD MUST USE REAL SYMBOLS, NOT SPELLED-OUT WORDS: π, θ, β, α, γ, Δ, Σ, ∫, √, ∞, ≤, ≥, ≈, ×, ÷, →, ², ³, ₁, ₂, etc. directly inside "text" strings. Use "mono":true for alignment if drawing equations.
 
@@ -2162,7 +2391,7 @@ NEVER WRITE LaTeX/TeX MARKUP ON THE BOARD. There is no math typesetting engine �
 This rule applies to every "text" command, including headings, definitions, and worked equations — plain readable notation only, exactly like natural handwriting on a real whiteboard.
 
 Available command types:
-- {"type":"text","x":..,"y":..,"text":"...","size":26,"color":"ink|ochre|sage|brick|teal|violet|sky|coral","mono":false,"weight":700,"maxWidth":800,"heading":false} — set "heading":true ONLY for a section/topic title (e.g. "2. The Friedman-Phelps Critique"). The app automatically underlines heading text and inserts a blank ruled line above it, so DO NOT manually add a blank line or a "---"/underscore divider before a heading yourself — just set "heading":true and let the app handle the spacing and underline. Use a larger "size" (e.g. 32-40) for headings too, but "heading":true is what actually triggers the underline and spacing, not the size alone.
+- {"type":"text","x":..,"y":..,"text":"...","size":26,"color":"ink|ochre|sage|brick|teal|violet|sky|coral","mono":false,"weight":700,"maxWidth":800,"heading":false,"diagramLabel":false} — set "diagramLabel":true when this text labels a part of a diagram rather than being paragraph prose (see diagram rules above); otherwise leave it false/omitted. Set "heading":true ONLY for a section/topic title (e.g. "2. The Friedman-Phelps Critique"). The app automatically underlines heading text and inserts a blank ruled line above it, so DO NOT manually add a blank line or a "---"/underscore divider before a heading yourself — just set "heading":true and let the app handle the spacing and underline. Use a larger "size" (e.g. 32-40) for headings too, but "heading":true is what actually triggers the underline and spacing, not the size alone.
 - {"type":"halo","x":..,"y":..,"r":50,"color":"halo|ochre|sage|teal|violet|sky|coral"}
 - {"type":"line","x1":..,"y1":..,"x2":..,"y2":..,"color":"ink","width":2.5}
 - {"type":"arrow","x1":..,"y1":..,"x2":..,"y2":..,"color":"ochre","width":2.5}
@@ -2172,67 +2401,35 @@ Available command types:
 - {"type":"path","segments":[["M",x,y],["L",x,y],["Q",cx,cy,x,y],["C",c1x,c1y,c2x,c2y,x,y],["Z"]],"color":"sage","width":2.5,"fill":false,"fillColor":"sage","fillOpacity":0.12} — a general freeform outline, like an SVG path: "M" moves the pen (start a new sub-shape), "L" a straight segment, "Q" a quadratic curve (one control point), "C" a cubic curve (two control points), "Z" closes the current outline back to its last "M". THIS is the tool for drawing actual recognizable pictures — a cell and its organelles, a leaf, an animal, an organ, a map — by tracing the outline as a sequence of segments the way you'd sketch it by hand, then optionally filling it.
 - {"type":"axes","x":..,"y":..,"w":..,"h":..,"xlabel":"...","ylabel":"...","title":"...","grid":true,"xTicks":[...],"yTicks":[...]}
 - {"type":"plot","x":..,"y":..,"w":..,"h":..,"xRange":[0,10],"yRange":[0,10],"xlabel":"...","ylabel":"...","title":"...","grid":true,"xTicks":["0","2","4","6","8","10"],"yTicks":["0","5","10"],"curves":[{"points":[[dataX,dataY],...],"color":"brick","width":2.75,"label":"SRPC"}]}
-- {"type":"image","query":"specific, image-searchable description, e.g. 'human heart anatomy diagram' or 'map of Europe 1914'","caption":"short caption shown under the image (optional)","alt":"brief plain-text description used only if no image can be found (optional)"} — fetches a REAL photo/diagram from Wikimedia Commons and places it on the board like a pasted-in textbook figure. ALWAYS use this instead of hand-drawing with "path"/"circle"/"curve" for anything representational: anatomy, organisms, cells, maps, historical figures/events, real objects, landmarks, flags, instruments, machinery, artwork, etc. Make "query" specific and literal (what you'd type into an image search), not a vague topic name. Reserve "path"/"circle"/"curve" ONLY for abstract conceptual sketches that could never correspond to a real photographable/diagrammable thing (e.g. an invented illustrative shape for a made-up example). Math/economics/statistics graphs still ALWAYS use "plot", never "image".
-
-NEVER WRITE A BRACKETED PLACEHOLDER FOR A DIAGRAM AS "text" — e.g. never write a "text" command whose content is something like "[Diagram showing X, Y, Z]" or "[Image of ...]" or "[Figure: ...]". That placeholder style is BANNED. Every single time you would be tempted to write that kind of bracketed description, use an actual {"type":"image","query":"..."} command instead — the app will genuinely fetch and place a real picture there. A bracket placeholder is never an acceptable substitute for a real "image" command.
-  Example — WRONG: {"type":"text","text":"[Diagram showing plant cell wall, plasma membrane, nucleus, chloroplasts]"}
-  Example — CORRECT: {"type":"image","query":"labeled plant cell diagram organelles","caption":"Plant cell structure"}
 - {"type":"highlight","x":..,"y":..,"w":..,"h":26,"color":"ochre"}
 
-LISTS OF LINE ITEMS (financial statements, ledgers, tables of labeled values, any "Label ... $ amount" style list):
-- EVERY line item is its OWN separate "text" command on its OWN "y" row. NEVER put two or more line items inside a single "text" string — even if they'd technically fit on one visual line. One label-and-value pair per command, always.
-- DO NOT set "maxWidth" on a line-item's "text" command (or set it wide enough that the line can never wrap). A wrapped line item is what causes the next item to visually run onto the same row as the one before it — this must never happen. If a label is long, shrink "size" slightly or shorten the label text; do not let it wrap.
-- Build the dotted leader and amount yourself as part of the same string in a consistent style, e.g. "Cash and cash equivalents ......... $ 40,000", with roughly the same total line width across every item in that list (pad the dots so amounts visually line up down the page, the way a real balance sheet aligns its numbers in a column).
-- Give every line item the same left "x" (its label always starts at the same horizontal position as the other items in that list), and space consecutive rows with a consistent "y" gap — never overlap rows or bunch several rows onto one baseline.
-- A sub-total or total line ("Total Current Assets", "Total Liabilities", etc.) is also its own single "text" command, typically in "ochre" or "brick" for emphasis, on its own row, with a small blank gap above it to set it apart from the items it sums.
-- This rule applies any time you're writing a structured list of named values — balance sheets, income statements, cash-flow statements, price lists, comparison tables — not just accounting examples.
+DRAWING ACTUAL PICTURES (cells, leaves, animals, organs, diagrams, maps, anything representational):
+- Build the picture out of several layered primitives rather than one shape: an outer outline ("path" or filled "circle"/"curve"), then inner structures on top (smaller filled "circle"/"path" shapes for a nucleus, mitochondria, veins, etc.), then label the parts with a short "arrow" pointing from the label to the structure plus a small "text" command (with "diagramLabel":true) for the label word — exactly like a real teacher labels a diagram they've just drawn.
+- Trace organic outlines ("path") the way you'd actually sketch them by hand: a handful of "M"/"C"/"Q" segments roughly following the real silhouette (e.g. a leaf is a pointed oval with a "Z" to close it, a cell is a wobbly rounded "path" rather than a perfect "circle", a dog is several overlapping "path"/"circle" shapes for the head, snout, ears, body, legs, tail). It does not need to be photorealistic — a clean, recognizable line-art sketch is the goal, the same level of detail a lecturer would actually draw on a whiteboard, not a single crude blob.
+- Use "fill":true with a low "fillOpacity" (0.08–0.18) on the shapes that should read as solid regions, and leave fine detail (veins, membrane texture, fur lines) as unfilled "curve"/"path"/"line" strokes on top.
+- A diagram like this still occupies its own vertical slot on the board like a graph does. Give it a normal "text" heading above it (heading text, NOT diagramLabel) introducing what it is, then emit the whole diagram — every shape plus every "diagramLabel":true part-label — as one unbroken run in local coordinates (rule 4/5/6 above). The app positions and reserves space for the whole run as a single block, so it never overlaps the text before or after it.
 
-REPRESENTATIONAL DIAGRAMS AND PICTURES (cells, leaves, animals, organs, maps, historical figures, real objects, anything you'd normally look up rather than invent):
-- ALWAYS use an "image" command for these. Do NOT hand-draw them out of "path"/"circle"/"curve" primitives — a real photo or textbook diagram is always better than a hand sketch, so prefer fetching one every time a topic calls for this kind of visual.
-- Write a specific, literal "query" (what you'd actually type into an image search) — e.g. "mitochondria structure diagram", "Amazon rainforest canopy", "Isaac Newton portrait" — not a vague single word.
-- Give it a short "caption" naming what it shows, exactly like you'd caption a figure in a textbook.
-- The "image" command occupies its own vertical slot on the board like a "plot" does — give it a normal "text" heading above it introducing what it is, just like you would for a graph.
-- Only fall back to hand-drawn "path"/"circle"/"curve" primitives for a genuinely invented/abstract illustrative shape that has no real-world counterpart to photograph (rare) — never for anything that corresponds to a real object, organism, place, or person.
+PACING RULES — GO BIT BY BIT:
+- Teach in SMALL, SINGLE-IDEA turns: cover exactly one definition, one sub-step, or one small piece of a worked example per turn — never a whole topic in one go. A turn's "board" content should be short (a small handful of "text"/diagram commands, not a long stacked block of paragraphs).
+- After that one small idea, ALMOST ALWAYS stop and check in before continuing: either set "quiz" to a short comprehension question about exactly what you just covered, or end "speech" with a direct, specific question inviting the student to respond (e.g. "does that part make sense before I go on?", "want me to show an example of that, or move to the next step?"). Do not continue teaching past that point in the same turn.
+- Never bundle multiple sub-topics or several steps of a derivation into one turn "to save time" — bite-sized and frequently checking in is the priority, even if it takes many more turns to get through the material.
+- The only time it's fine to cover slightly more than one micro-step without stopping is a very short, tightly linked pair (e.g. stating a definition and immediately giving its one-line example) — even then, stop and check in right after.
 
-PACING RULES:
-- Teach in SUBSTANTIAL, CONTINUOUS chunks: a full turn should read like several minutes of real lecture — cover a complete idea in depth (its definition, why it matters, a worked example, and its key sub-points), not one lonely sentence. Write MUCH more per turn than feels natural for a "small step" — aim for a long, dense block of "board" content (many "text" commands in a row covering multiple paragraphs, sub-points, and worked equations) so the notes keep growing continuously down the page, the way a real lecturer fills page after page without pausing every few seconds.
-- Only stop and check in with a question once you've actually finished teaching a full coherent topic or sub-topic — not after a single definition or step. Do not artificially cut a turn short.
-- Keep going onto the NEXT related idea in the same turn if it naturally continues the same topic, rather than stopping just because you covered "one thing" already.
-
-"speech" AND "board" MUST STAY IN LOCKSTEP — THIS IS CRITICAL:
-- "speech" is what the teacher is SAYING OUT LOUD *while writing exactly this content on the board*, not a separate, richer, more detailed narration. Never let "speech" cover ideas, examples, sub-points, or elaboration that never actually appear as "text" on the board — if you say it, you must also write a corresponding line for it, and vice versa.
-- Build "speech" by walking through your "text" commands in order and speaking each one's content in natural spoken phrasing (numbers/symbols read aloud, not a verbatim character-for-character read, but the same substance, same amount of material, same order) — not a freer lecture that wanders beyond what's written.
-- Do NOT pad "speech" with extra spoken-only framing, verbal asides, or additional worked detail "for context" that has no matching board content. If a full turn's worth of board content would only take a short time to say, "speech" should also be that short — length of "speech" tracks length of "board", it does not run ahead of it.
-- If you want to say more, write more on the board first — add the corresponding "text"/"image"/"plot" commands for it, THEN speak it. Never the reverse.`;
+SPEECH/BOARD SYNC:
+- "speech" and "board" describe the SAME small piece of content — don't narrate something in "speech" that isn't also appearing on the board, and don't put board content that "speech" never refers to. Keep both scoped to the exact same single idea for this turn so what the student hears matches what they see appear at the same time.`;
 
 let conversationHistory = [];
-let aiBrain = 'auto';
+let aiBrain = 'gemini';
 const PROXY_URL = "https://api.takundamambudzi02.workers.dev";
 
 document.getElementById('brain-select').addEventListener('change', (e)=>{
   aiBrain = e.target.value;
 });
 
-async function callAuto(){
-  setStatus('trying Groq…');
-  let result = await callGroq();
-  if(result.ok) return result;
-
-  setStatus('Groq unavailable, trying Gemini…');
-  result = await callGemini();
-  if(result.ok) return result;
-
-  setStatus('Gemini unavailable, trying OpenRouter…');
-  result = await callOpenRouter();
-  if(result.ok) return result;
-
-  return result;
-}
-
 async function callTutor(userMessage){
   setStatus('thinking…');
   const contextParts = [];
-  if(pdfText && !conversationHistory.some(m => m.content.includes(`SOURCE DOCUMENT (${pdfFileName})`))){
+  if(pdfText && conversationHistory.length===0){
     contextParts.push(`SOURCE DOCUMENT (${pdfFileName}), extracted text:\n${pdfText.slice(0,15000)}`);
   }
   contextParts.push(userMessage);
@@ -2240,8 +2437,7 @@ async function callTutor(userMessage){
   conversationHistory.push({role:'user', content: fullUserContent});
 
   let result;
-  if(aiBrain === 'auto') result = await callAuto();
-  else if(aiBrain === 'groq') result = await callGroq();
+  if(aiBrain === 'groq') result = await callGroq();
   else if(aiBrain === 'openrouter') result = await callOpenRouter();
   else if(aiBrain === 'cerebras') result = await callCerebras();
   else result = await callGemini();
@@ -2441,132 +2637,26 @@ async function callGemini(){
 
 async function runTeachingTurn(userMessage, displayText){
   addTranscriptMsg('user', displayText !== undefined ? displayText : userMessage);
+  // Guarantee the handwriting webfonts are fully loaded BEFORE any text is
+  // measured for layout. Without this, the very first turn's line-wrap
+  // calculation can run against fallback system-font metrics (if the
+  // custom fonts haven't finished downloading yet), while the actual
+  // canvas paint moments later uses the real, differently-sized font —
+  // so the reserved vertical space is wrong and the next block overlaps
+  // the one before it. Awaiting here costs nothing once fonts are cached.
   await document.fonts.ready;
   const result = await callTutor(userMessage);
-  if(result.board && result.board.length){
-    result.board = await resolveImageCommands(upgradePlaceholderTextCommands(result.board));
-    // Every board command gets a stable id the first time it exists, before
-    // it's ever drawn — this is what speechSegments[].boardRefs points at,
-    // and what survives scrolling/highlighting/session save+reload.
-    result.board.forEach(cmd => { if(!cmd.id) cmd.id = nextBlockId(); });
-    // Match the pace of the pen to the pace of the voice: estimate how long
-    // this turn's speech will take, compare it to how long the handwriting
-    // would naturally take, and scale the writing speed so both roughly
-    // start and finish together instead of drifting apart.
-    if(result.speech){
-      const naturalDuration = result.board.reduce((sum, cmd) => sum + estimateDuration({...cmd}) / pacingScale, 0);
-      const speechDuration = estimateSpeechDuration(result.speech);
-      pacingScale = naturalDuration > 0 ? clamp(speechDuration / naturalDuration, 0.5, 3.5) : 1;
-    } else {
-      pacingScale = 1;
-    }
-    enqueueCommandsAtCursor(result.board);
-  }
-  // Set up this turn's speech -> board alignment BEFORE speaking, so the
-  // very first chunk already knows what it's pointing at.
-  currentTurnBoardCommands = result.board || [];
-  currentTurnBreakpoints = buildSpeechBoardAlignment(result.speech, result.speechSegments);
-  clearBoardFocus();
+  // Match the board animation's total length to how long the speech for
+  // this turn will take, so the pen finishes writing roughly when the
+  // voice finishes talking instead of racing ahead or trailing behind.
+  const boardCmds = (result.board && result.board.length) ? result.board : [];
+  const totalBaseMs = boardCmds.reduce((sum,c)=> sum + baseDurationFor(c), 0);
+  const speechMs = estimateSpeechDurationMs(result.speech || '');
+  drawPaceScale = totalBaseMs > 0 ? Math.min(2.5, Math.max(0.6, speechMs / totalBaseMs)) : 1;
+  if(boardCmds.length) enqueueCommandsAtCursor(boardCmds);
   if(result.speech){ addTranscriptMsg('tutor', result.speech); speak(result.speech); }
   if(result.quiz) addQuizCard(result.quiz);
   autoSaveSession();
-}
-
-function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
-
-// Safety net: some models occasionally ignore the instruction and write a
-// bracketed placeholder like "[Diagram showing X, Y, Z]" as plain text
-// instead of using a real "image" command. Catch that pattern and convert
-// it into an actual image fetch so the placeholder never survives to the
-// board even if the model slips up.
-const DIAGRAM_PLACEHOLDER_RE = /^\s*\[\s*(?:diagram|image|figure|photo|picture|illustration)\b[^\]]*\]\s*$/i;
-
-function extractPlaceholderQuery(text){
-  const inner = text.replace(/^\s*\[\s*/, '').replace(/\s*\]\s*$/, '');
-  return inner.replace(/^(diagram|image|figure|photo|picture|illustration)\s*(showing|of|:)?\s*/i, '').trim() || inner;
-}
-
-function upgradePlaceholderTextCommands(commands){
-  return commands.map(cmd => {
-    if(cmd.type === 'text' && typeof cmd.text === 'string' && DIAGRAM_PLACEHOLDER_RE.test(cmd.text)){
-      return { type: 'image', query: extractPlaceholderQuery(cmd.text), alt: cmd.text, id: cmd.id };
-    }
-    return cmd;
-  });
-}
-
-// ---------- Fetching real diagrams/photos from Wikimedia Commons ----------
-// Wikimedia's API is CORS-open (via origin=*) so this calls it directly from
-// the browser — no proxy/API key needed. We prefer a real photo/diagram over
-// hand-drawing anything representational (anatomy, maps, historical figures,
-// real objects); math/graphs/geometric constructions still get drawn.
-const IMAGE_BOARD_WIDTH = 640;
-const IMAGE_MIN_HEIGHT = 260;
-const IMAGE_MAX_HEIGHT = 620;
-
-async function searchWikimediaImage(query){
-  const searchUrl = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent('filetype:bitmap|drawing ' + query)}&gsrnamespace=6&gsrlimit=6&prop=imageinfo&iiprop=url|size|extmetadata&format=json&origin=*`;
-  const res = await fetch(searchUrl);
-  if(!res.ok) throw new Error('Wikimedia search failed: ' + res.status);
-  const data = await res.json();
-  const pages = data && data.query && data.query.pages;
-  if(!pages) return null;
-  const candidates = Object.values(pages)
-    .map(p => p.imageinfo && p.imageinfo[0])
-    .filter(info => info && info.url && /\.(png|jpe?g|gif|svg)$/i.test(info.url) && info.width >= 200);
-  if(!candidates.length) return null;
-  candidates.sort((a,b) => (b.width||0) - (a.width||0));
-  const best = candidates[0];
-  let credit = 'Wikimedia Commons';
-  try{
-    const artist = best.extmetadata && best.extmetadata.Artist && best.extmetadata.Artist.value;
-    if(artist) credit = 'Wikimedia Commons — ' + artist.replace(/<[^>]+>/g, '').trim();
-  }catch(e){}
-  return { url: best.url, width: best.width, height: best.height, credit };
-}
-
-function preloadImage(url){
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error('image failed to load'));
-    img.src = url;
-  });
-}
-
-// Turns each {type:'image', query, caption?, alt?} command into either a
-// ready-to-draw image command (with its real aspect ratio and a preloaded
-// <img>) or, if nothing usable was found, a plain text fallback so the
-// board still makes sense instead of silently dropping the topic.
-async function resolveImageCommands(commands){
-  const resolved = [];
-  for(const original of commands){
-    if(original.type !== 'image'){ resolved.push(original); continue; }
-    const cmd = { ...original };
-    try{
-      const found = await searchWikimediaImage(cmd.query || cmd.caption || cmd.alt || '');
-      if(!found) throw new Error('no results');
-      const img = await preloadImage(found.url);
-      const aspect = found.height / found.width;
-      cmd.w = IMAGE_BOARD_WIDTH;
-      cmd.h = clamp(Math.round(IMAGE_BOARD_WIDTH * aspect), IMAGE_MIN_HEIGHT, IMAGE_MAX_HEIGHT);
-      cmd._img = img;
-      cmd._attribution = found.credit;
-      resolved.push(cmd);
-    }catch(err){
-      console.warn('Image fetch failed for query "' + cmd.query + '":', err);
-      resolved.push({
-        type: 'text',
-        text: '[' + (cmd.alt || cmd.caption || ('Diagram: ' + (cmd.query || ''))) + ']',
-        size: 22,
-        color: 'ink',
-        weight: 400,
-        id: cmd.id
-      });
-    }
-  }
-  return resolved;
 }
 
 /* =========================================================
@@ -2664,8 +2754,6 @@ document.getElementById('btn-new-session').addEventListener('click', ()=>{
   camera.x=500; camera.scale=1;
   resetRegionCursors(); currentTopicLabel='Topic';
   clearBoard();
-  blockIdCounter = 0;
-  currentTurnBoardCommands = []; currentTurnBreakpoints = null;
   transcriptEl.innerHTML = '<div class="empty-note">Your lecture transcript and quiz questions will appear here as we go.</div>';
   resetUploadZoneUI();
   setStatus('new session');
@@ -2708,19 +2796,6 @@ function handleAsk(text){
 document.getElementById('btn-ask').addEventListener('click', ()=> handleAsk(document.getElementById('ask-input').value));
 document.getElementById('ask-input').addEventListener('keydown', (e)=>{ if(e.key==='Enter') handleAsk(e.target.value); });
 
-// Attach File Button Wiring
-const btnAttach = document.getElementById('btn-attach');
-const askFileInput = document.getElementById('ask-file-input');
-if(btnAttach && askFileInput) {
-    btnAttach.addEventListener('click', () => askFileInput.click());
-    askFileInput.addEventListener('change', (e) => {
-        if(e.target.files.length) {
-            handlePdfFile(e.target.files[0]);
-            document.getElementById('ask-input').placeholder = `Attached: ${e.target.files[0].name}. Ask about it...`;
-        }
-    });
-}
-
 /* =========================================================
    INIT
    ========================================================= */
@@ -2728,7 +2803,7 @@ document.getElementById('voice-select').addEventListener('change', ()=>{
   if(currentUtteranceText) speak(currentUtteranceText);
 });
 
-checkIfScrolledAway();
+resizeCanvas();
 setStatus('idle');
 refreshSessionList();
 <\/script>
@@ -2741,7 +2816,7 @@ refreshSessionList();
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Chalkline — Summary</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"><\/script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"><\/script>
@@ -2812,22 +2887,19 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
   font-family:'Source Serif 4', serif; font-size:15.5px; font-weight:600;
   background:var(--ink); color:#fff; border:none; border-radius:9px;
   padding:11px 22px; cursor:pointer;
-  box-shadow:0 0 0 1.5px rgba(20,90,255,0.55), 0 0 10px 2px rgba(20,90,255,0.45), 0 0 22px 4px rgba(0,140,255,0.30);
 }
-.btn-primary:disabled{ background:#cfc9b4; cursor:not-allowed; box-shadow:none; }
+.btn-primary:disabled{ background:#cfc9b4; cursor:not-allowed; }
 .btn-primary:not(:disabled):hover{ background:#3a372e; }
 .status-line{ font-family:'JetBrains Mono', monospace; font-size:11.5px; color:var(--muted); margin-top:10px; min-height:14px; }
 
-#output-wrap{ margin-top:38px; display:none; opacity:0; transform:translateY(6px); transition:opacity .35s ease, transform .35s ease; }
+#output-wrap{ margin-top:38px; display:none; }
 #output-wrap.show{ display:block; }
-#output-wrap.show.in{ opacity:1; transform:translateY(0); }
 .output-head{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:14px; flex-wrap:wrap; gap:10px; }
 .output-head h2{ font-size:20px; margin:0; font-weight:600; }
 .output-actions{ display:flex; gap:10px; }
 .icon-link{
   font-family:'JetBrains Mono', monospace; font-size:11.5px; color:var(--ochre);
-  text-decoration:none; cursor:pointer; background:none; border:none; padding:2px 8px; border-radius:6px;
-  box-shadow:0 0 0 1.5px rgba(20,90,255,0.5), 0 0 8px 2px rgba(20,90,255,0.35);
+  text-decoration:none; cursor:pointer; background:none; border:none; padding:0;
 }
 .icon-link:hover{ text-decoration:underline; }
 
@@ -2848,14 +2920,6 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 #summary-panel strong{ color:var(--brick); font-weight:600; }
 
 .empty-hint{ font-family:'JetBrains Mono', monospace; font-size:11.5px; color:var(--muted); margin-top:8px; }
-
-/* --- handwritten look --- */
-@import url('https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Caveat:wght@600;700&display=swap');
-body, p, li, a, span, div, h1, h2, h3, h4, h5, h6, button, label, input, textarea, nav, footer{
-  font-family:'Patrick Hand','Caveat',cursive !important;
-  letter-spacing:0.2px;
-}
-h1, h2, .brand{ font-family:'Caveat',cursive !important; }
 </style>
 </head>
 <body>
@@ -3018,11 +3082,9 @@ btnSummarize.addEventListener('click', async ()=>{
   }
   outputTitle.textContent = `Summary — ${pdfFileName.replace(/\.pdf$/i,'')}`;
   summaryPanel.innerHTML = result.html;
-  outputWrap.classList.remove('in');
   outputWrap.classList.add('show');
   setStatus('done');
   outputWrap.scrollIntoView({behavior:'smooth', block:'start'});
-  requestAnimationFrame(()=> requestAnimationFrame(()=> outputWrap.classList.add('in')));
 });
 
 document.getElementById('btn-copy').addEventListener('click', ()=>{
@@ -3121,16 +3183,6 @@ window.addEventListener('popstate', (e)=>{
 const initial = location.hash ? location.hash.slice(1) : 'home';
 history.replaceState({page: initial}, '', '#' + initial);
 navTo(initial, false);
-
-// Preload the other two pages in the background once the initial page
-// is up, so switching tabs later is a pure crossfade with nothing to build.
-window.addEventListener('load', ()=>{
-  setTimeout(()=>{
-    Object.keys(frames).forEach(page=>{
-      if(page !== current) ensureLoaded(page);
-    });
-  }, 400);
-});
 </script>
 
 </body>
