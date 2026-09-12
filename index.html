@@ -1437,6 +1437,15 @@ function plotScalers(ox, oy, w, h, cmd){
 }
 
 /* ---------- PAN / ZOOM (mouse) ---------- */
+// Stops the user from dragging/scrolling past the very top of the page —
+// without this, camera.y is unbounded and panning up keeps revealing more
+// and more blank canvas above the first line, forever.
+const TOP_SCROLL_SLACK_PX = 130; // how much blank space above the first line is tolerable
+function clampCameraY(){
+  const minY = TOP_MARGIN - TOP_SCROLL_SLACK_PX / camera.scale;
+  if(camera.y < minY) camera.y = minY;
+}
+
 let isPanning = false, panStart=null, camStart=null;
 canvas.addEventListener('mousedown', (e)=>{ 
   panToken++; isPanning=true; canvas.classList.add('grabbing'); 
@@ -1446,6 +1455,7 @@ canvas.addEventListener('mousedown', (e)=>{
 window.addEventListener('mousemove', (e)=>{
   if(!isPanning) return;
   camera.y = camStart.y - (e.clientY - panStart[1]) / camera.scale;
+  clampCameraY();
   checkIfScrolledAway();
   redrawAll();
 });
@@ -1475,6 +1485,7 @@ canvas.addEventListener('touchmove', (e)=>{
   if(touchMode === 'pan' && e.touches.length === 1){
     e.preventDefault();
     camera.y = camStart.y - (e.touches[0].clientY - panStart[1]) / camera.scale;
+    clampCameraY();
     checkIfScrolledAway();
     redrawAll();
   } else if(touchMode === 'pinch' && e.touches.length === 2){
@@ -1485,6 +1496,7 @@ canvas.addEventListener('touchmove', (e)=>{
     const mid = touchMid(e.touches[0], e.touches[1]);
     const [nx,ny] = screenToWorld(mid.x-rect.left, mid.y-rect.top);
     camera.x += (pinchWorldMid[0]-nx); camera.y += (pinchWorldMid[1]-ny);
+    clampCameraY();
     checkIfScrolledAway();
     redrawAll();
   }
@@ -1547,6 +1559,7 @@ canvas.addEventListener('wheel', (e)=>{
   // Zoom is disabled — even with ctrl/cmd held, wheel just scrolls
   // vertically; camera.scale never changes here.
   camera.y += e.deltaY / camera.scale;
+  clampCameraY();
   checkIfScrolledAway();
   redrawAll();
 }, {passive:false});
