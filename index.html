@@ -982,6 +982,19 @@ body{
   transition:border-color .15s ease;
 }
 .subject-modal input:focus{ border-color:var(--ochre); }
+.subject-modal .sm-existing{ margin-top:16px; }
+.subject-modal .sm-existing-label{
+  font-family:'JetBrains Mono', monospace; font-size:10.5px; color:var(--muted);
+  margin:0 0 8px; letter-spacing:0.2px;
+}
+.subject-modal .sm-chip-row{ display:flex; flex-wrap:wrap; gap:7px; max-height:110px; overflow-y:auto; }
+.subject-modal .sm-chip{
+  font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--ink);
+  background:var(--highlight); border:1px solid var(--panel-border); border-radius:999px;
+  padding:6px 13px; cursor:pointer; transition:border-color .15s ease, background .15s ease;
+}
+.subject-modal .sm-chip:hover{ border-color:var(--ochre); background:#fff; }
+.subject-modal .sm-chip.selected{ background:var(--ink); color:#fff; border-color:var(--ink); }
 .subject-modal .sm-actions{ display:flex; justify-content:flex-end; gap:10px; margin-top:20px; }
 .subject-modal .sm-skip{
   font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--muted);
@@ -1185,6 +1198,10 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
     <h2>What are we studying?</h2>
     <p>Give this lesson a subject or course name — it'll help you find it again under Previous tutorials.</p>
     <input type="text" id="subject-input" placeholder="e.g. Managerial Accounting, STA2020…" autocomplete="off">
+    <div class="sm-existing" id="subject-existing" style="display:none;">
+      <p class="sm-existing-label">Or add to an existing course</p>
+      <div class="sm-chip-row" id="subject-chip-row"></div>
+    </div>
     <div class="sm-actions">
       <button class="sm-skip" id="btn-subject-skip">Skip for now</button>
       <button class="sm-go" id="btn-subject-go">Start lesson</button>
@@ -3225,10 +3242,60 @@ let currentSessionTitle = null;
 /* ------------------- subject prompt (new lessons only) -------------- */
 const subjectModal = document.getElementById('subject-modal');
 const subjectInput = document.getElementById('subject-input');
+const subjectExisting = document.getElementById('subject-existing');
+const subjectChipRow = document.getElementById('subject-chip-row');
+
+// Pulls the distinct subject/course names already saved (for whoever is
+// currently signed in, or this browser's guest bucket) so a new lesson
+// can be dropped into an existing folder instead of always starting a
+// fresh one — e.g. a second "Managerial Accounting" lesson lands in the
+// same Previous Tutorials folder as the first.
+async function loadExistingSubjects(){
+  try{
+    const result = await window.storage.list(sessionKeyPrefix(), false);
+    const keys = (result && result.keys) ? result.keys : [];
+    const seen = new Map(); // subject -> most recent savedAt, for ordering
+    for(const key of keys){
+      try{
+        const rec = await window.storage.get(key, false);
+        if(!rec) continue;
+        const item = JSON.parse(rec.value);
+        const subj = (item.subject || '').trim();
+        if(!subj || subj === 'Unsorted') continue;
+        const savedAt = item.savedAt || 0;
+        if(!seen.has(subj) || seen.get(subj) < savedAt) seen.set(subj, savedAt);
+      } catch(e){}
+    }
+    return Array.from(seen.entries()).sort((a,b)=> b[1]-a[1]).map(([subj])=>subj);
+  } catch(e){ console.error('Could not load existing subjects:', e); return []; }
+}
+
+async function populateSubjectChips(){
+  const subjects = await loadExistingSubjects();
+  if(subjects.length===0){ subjectExisting.style.display = 'none'; subjectChipRow.innerHTML=''; return; }
+  subjectExisting.style.display = 'block';
+  subjectChipRow.innerHTML = '';
+  subjects.forEach(subj=>{
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'sm-chip';
+    chip.textContent = subj;
+    chip.addEventListener('click', ()=>{
+      subjectInput.value = subj;
+      subjectChipRow.querySelectorAll('.sm-chip').forEach(c=> c.classList.remove('selected'));
+      chip.classList.add('selected');
+      subjectInput.focus();
+    });
+    subjectChipRow.appendChild(chip);
+  });
+}
 
 function openSubjectModal(){
   subjectInput.value = '';
   subjectModal.classList.add('open');
+  subjectExisting.style.display = 'none';
+  subjectChipRow.innerHTML = '';
+  populateSubjectChips();
   setTimeout(()=> subjectInput.focus(), 50);
 }
 function closeSubjectModal(){ subjectModal.classList.remove('open'); }
@@ -3244,6 +3311,11 @@ function confirmSubject(){
 document.getElementById('btn-subject-go').addEventListener('click', confirmSubject);
 document.getElementById('btn-subject-skip').addEventListener('click', closeSubjectModal);
 subjectInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); confirmSubject(); } });
+subjectInput.addEventListener('input', ()=>{
+  subjectChipRow.querySelectorAll('.sm-chip').forEach(c=>{
+    c.classList.toggle('selected', c.textContent === subjectInput.value);
+  });
+});
 
 // Ask for a subject the first time this tab lands on a brand-new,
 // never-saved lesson. If the shell tells us (via postMessage) to open
