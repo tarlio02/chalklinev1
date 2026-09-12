@@ -3363,16 +3363,20 @@ document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState 
 window.addEventListener('pagehide', flushSaveOnExit);
 window.addEventListener('beforeunload', flushSaveOnExit);
 
+let sessionListReq = 0;
 async function refreshSessionList(){
+  const myReq = ++sessionListReq;
   const listEl = document.getElementById('session-list');
   try{
     const result = await window.storage.list(sessionKeyPrefix(), false);
+    if(myReq !== sessionListReq) return; // superseded by a newer auth state
     const keys = (result && result.keys) ? result.keys : [];
     if(keys.length===0){ listEl.innerHTML = '<div class="empty-note">No saved sessions yet.</div>'; return; }
     const items = [];
     for(const key of keys){
       try{ const rec = await window.storage.get(key, false); if(rec) items.push(JSON.parse(rec.value)); } catch(e){}
     }
+    if(myReq !== sessionListReq) return;
     items.sort((a,b)=>(b.savedAt||0)-(a.savedAt||0));
     listEl.innerHTML = '';
     items.forEach(item=>{
@@ -3845,17 +3849,21 @@ async function persistSummarySession(html){
   refreshSummarySessionList();
 }
 
+let summarySessionListReq = 0;
 async function refreshSummarySessionList(){
+  const myReq = ++summarySessionListReq;
   const listEl = document.getElementById('summary-session-list');
   if(!currentUser){ listEl.innerHTML = '<div class="empty-hint">Sign in to save and revisit your summaries.</div>'; return; }
   try{
     const result = await window.storage.list(summarySessionKeyPrefix(), false);
+    if(myReq !== summarySessionListReq) return; // superseded by a newer auth state
     const keys = (result && result.keys) ? result.keys : [];
     if(keys.length===0){ listEl.innerHTML = '<div class="empty-hint">No saved summaries yet.</div>'; return; }
     const items = [];
     for(const key of keys){
       try{ const rec = await window.storage.get(key, false); if(rec) items.push(JSON.parse(rec.value)); } catch(e){}
     }
+    if(myReq !== summarySessionListReq) return;
     items.sort((a,b)=>(b.savedAt||0)-(a.savedAt||0));
     listEl.innerHTML = '';
     items.forEach(item=>{
@@ -4239,10 +4247,13 @@ window.addEventListener('message', (e)=>{
   refreshTutorHistory();
 });
 
+let sessionListReqTH = 0;
 async function refreshTutorHistory(){
+  const myReq = ++sessionListReqTH;
   const content = document.getElementById('th-content');
   try{
     const result = await window.storage.list(sessionKeyPrefixTH(), false);
+    if(myReq !== sessionListReqTH) return; // a newer auth state has since started its own refresh
     const keys = (result && result.keys) ? result.keys : [];
     if(keys.length===0){
       content.innerHTML = thUser
@@ -4254,6 +4265,7 @@ async function refreshTutorHistory(){
     for(const key of keys){
       try{ const rec = await window.storage.get(key, false); if(rec) items.push(JSON.parse(rec.value)); } catch(e){}
     }
+    if(myReq !== sessionListReqTH) return;
     items.sort((a,b)=>(b.savedAt||0)-(a.savedAt||0));
 
     const groups = {};
@@ -4493,10 +4505,13 @@ window.addEventListener('message', (e)=>{
   refreshSummaryHistory();
 });
 
+let summaryHistoryReqSH = 0;
 async function refreshSummaryHistory(){
+  const myReq = ++summaryHistoryReqSH;
   const content = document.getElementById('sh-content');
   try{
     const result = await window.storage.list(summaryKeyPrefixSH(), false);
+    if(myReq !== summaryHistoryReqSH) return; // superseded by a newer auth state
     const keys = (result && result.keys) ? result.keys : [];
     if(keys.length===0){
       content.innerHTML = shUser
@@ -4508,6 +4523,7 @@ async function refreshSummaryHistory(){
     for(const key of keys){
       try{ const rec = await window.storage.get(key, false); if(rec) items.push(JSON.parse(rec.value)); } catch(e){}
     }
+    if(myReq !== summaryHistoryReqSH) return;
     items.sort((a,b)=>(b.savedAt||0)-(a.savedAt||0));
 
     const list = document.createElement('div');
