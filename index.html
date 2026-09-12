@@ -184,26 +184,30 @@ function showShellSigninFallbackLink(){
   });
 }
 
-// Google's rendered button can silently empty itself a moment after it
-// first appears — this happens on browsers/webviews that block or
-// partition third-party cookies (Safari ITP, many managed/enterprise
-// browsers), where Google's script detects it can't persist its auth
-// cookie and clears the button with no visible error. Watch the button's
-// container and swap in the fallback link the instant that happens,
-// instead of silently leaving the user with nothing to click.
+// Google's rendered button is itself a cross-origin iframe. When it fails
+// silently (Safari ITP, cookie-partitioning browsers, some managed
+// browsers), sometimes the iframe element is removed outright, but other
+// times the iframe stays in the DOM while its internal content collapses
+// to near-zero size — a plain childList observer misses that second case.
+// Polling the actual rendered size catches both.
 function watchShellSigninButton(){
   const el = document.getElementById('shell-signin-btn');
   if(!el) return;
-  const observer = new MutationObserver(()=>{
-    if(shellUser) return; // signed in — button is hidden on purpose, nothing to watch for
-    if(el.dataset.fallback === '1') return; // already on the fallback, leave it alone
-    if(el.children.length === 0){
-      // Give Google's script a brief moment in case it's just mid-render,
-      // then fall back only if it's genuinely still empty after that.
-      setTimeout(()=>{ if(!shellUser && el.children.length === 0) showShellSigninFallbackLink(); }, 800);
+  let checks = 0;
+  const maxChecks = 10; // ~7 seconds of polling covers the delayed-failure case seen in testing
+  const poll = setInterval(()=>{
+    checks++;
+    if(shellUser){ clearInterval(poll); return; } // signed in — button is hidden on purpose
+    if(el.dataset.fallback === '1'){ clearInterval(poll); return; } // already on the fallback
+    const rect = el.getBoundingClientRect();
+    const collapsed = rect.width < 20 || rect.height < 10;
+    if(collapsed){
+      showShellSigninFallbackLink();
+      clearInterval(poll);
+      return;
     }
-  });
-  observer.observe(el, { childList:true });
+    if(checks >= maxChecks) clearInterval(poll);
+  }, 700);
 }
 
 function initShellGoogleSignIn(){
