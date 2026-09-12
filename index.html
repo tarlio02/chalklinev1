@@ -1435,6 +1435,7 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
   </button>
   <div class="top-right-cluster">
     <div class="status-chip" id="status-line">idle</div>
+    <div class="status-chip" id="voice-status-chip" style="display:none;" title=""></div>
   </div>
 </div>
 
@@ -3169,20 +3170,53 @@ function renderCaption(fullText, chunkStartIndex, chunkText){
 // speechSynthesis so the tutor never goes silent.
 let currentAudioEl = null;
 
+function setVoiceStatus(mode, detail){
+  const chip = document.getElementById('voice-status-chip');
+  if(!chip) return;
+  chip.style.display = 'inline-block';
+  if(mode === 'cloudflare'){
+    chip.textContent = '🔊 Cloudflare voice';
+    chip.style.color = '#1E7B4D';
+    chip.title = '';
+  } else if(mode === 'fallback'){
+    chip.textContent = '🔊 Browser voice (fallback)';
+    chip.style.color = '#B8860B';
+    chip.title = detail ? ('Cloudflare voice failed: ' + detail) : 'Cloudflare voice unavailable';
+  } else if(mode === 'error'){
+    chip.textContent = '🔇 Voice error';
+    chip.style.color = '#C0392B';
+    chip.title = detail || '';
+  }
+}
+
 async function fetchCloudflareVoice(text){
-  if(PROXY_URL.includes('YOUR-WORKER-SUBDOMAIN')) return null;
+  if(PROXY_URL.includes('YOUR-WORKER-SUBDOMAIN')){
+    setVoiceStatus('fallback', 'proxy not configured');
+    return null;
+  }
   try{
     const resp = await fetch(`${PROXY_URL}/tts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, lang: 'en' })
     });
-    if(!resp.ok) return null;
+    if(!resp.ok){
+      let detail = `HTTP ${resp.status}`;
+      try{ const errText = await resp.text(); if(errText) detail += ' — ' + errText.slice(0,200); } catch(e){}
+      console.warn('Cloudflare voice request failed:', detail);
+      setVoiceStatus('fallback', detail);
+      return null;
+    }
     const blob = await resp.blob();
-    if(blob.size === 0) return null;
+    if(blob.size === 0){
+      setVoiceStatus('fallback', 'empty audio response');
+      return null;
+    }
+    setVoiceStatus('cloudflare');
     return URL.createObjectURL(blob);
   } catch(e){
     console.warn('Cloudflare voice request failed, falling back to browser voice:', e);
+    setVoiceStatus('fallback', e.message);
     return null;
   }
 }
@@ -3203,7 +3237,11 @@ function speak(text){
   const voice = getSelectedVoice();
 
   function speakChunkBrowser(i){
-    if(!('speechSynthesis' in window)){ avatar.classList.remove('speaking'); return; }
+    if(!('speechSynthesis' in window)){
+      avatar.classList.remove('speaking');
+      setVoiceStatus('error', 'No speech synthesis available on this device/browser');
+      return;
+    }
     const utter = new SpeechSynthesisUtterance(chunks[i]);
     utter.rate = 0.96;
     utter.pitch = 1.0;
