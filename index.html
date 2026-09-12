@@ -3053,10 +3053,13 @@ let currentTurnImage = null;
 // AI backend selection is automatic: try Groq first (fastest/cheapest),
 // then Gemini, then NVIDIA NIM, with OpenRouter's free tier as the last
 // resort if all three are down. No manual switching.
+// TEMPORARY: NVIDIA moved to the front for debugging — revert to
+// Groq, Gemini, NVIDIA, OpenRouter once the NVIDIA route is confirmed
+// working.
 const AI_BACKEND_CHAIN = [
+  { name: 'NVIDIA', call: () => callNvidia() },
   { name: 'Groq', call: () => callGroq() },
   { name: 'Gemini', call: () => callGemini() },
-  { name: 'NVIDIA', call: () => callNvidia() },
   { name: 'OpenRouter', call: () => callOpenRouter() }
 ];
 
