@@ -424,6 +424,22 @@ nav{
 
 .tool-card h2 span{ position:relative; }
 
+.card-history{ margin-top:16px; padding-top:14px; border-top:1px solid var(--panel-border); }
+.card-history .h-label{
+  font-family:'JetBrains Mono', monospace; font-size:10.5px; letter-spacing:0.3px;
+  color:var(--muted); display:block; margin-bottom:8px;
+}
+.card-history-list{ display:flex; flex-direction:column; gap:5px; }
+.card-history-item{
+  display:flex; justify-content:space-between; align-items:center; gap:8px;
+  font-size:12.5px; color:#4a4738; padding:5px 0;
+}
+.card-history-item .h-name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.card-history-item .h-date{
+  font-family:'JetBrains Mono', monospace; font-size:9.5px; color:var(--muted); flex-shrink:0;
+}
+.card-history-empty{ font-size:12px; color:var(--muted); font-style:italic; }
+
 .strip{
   border-top:1px solid var(--panel-border); padding:40px 0 70px;
   display:flex; gap:40px; flex-wrap:wrap;
@@ -469,6 +485,10 @@ footer{
       <span class="go">Start a lesson
         <svg viewBox="0 0 16 16" fill="none"><path d="M2 8h11M9 3.5 13.5 8 9 12.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </span>
+      <div class="card-history" onclick="event.stopPropagation();">
+        <span class="h-label">PREVIOUS TUTORIALS</span>
+        <div class="card-history-list" id="tutor-history-list"><div class="card-history-empty">Sign in to see your saved tutorials.</div></div>
+      </div>
     </a>
     <a class="tool-card summary" href="#" onclick="parent.postMessage({nav:'summary'},'*');return false;">
       <div class="mark">📄</div>
@@ -477,6 +497,10 @@ footer{
       <span class="go">Summarize a PDF
         <svg viewBox="0 0 16 16" fill="none"><path d="M2 8h11M9 3.5 13.5 8 9 12.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </span>
+      <div class="card-history" onclick="event.stopPropagation();">
+        <span class="h-label">PREVIOUS SUMMARIES</span>
+        <div class="card-history-list" id="summary-history-list"><div class="card-history-empty">Sign in to see your saved summaries.</div></div>
+      </div>
     </a>
   </section>
 
@@ -498,6 +522,56 @@ footer{
     <span>AI whiteboard tutor &amp; notes summarizer</span>
   </footer>
 </div>
+
+<script>
+// Same account-scoped storage convention as the tutor/summary pages:
+// 'session:<sub|local>:<id>' for tutorials, 'summary:<sub|local>:<id>'
+// for summaries. Listens for the shell's auth broadcast, then reads
+// window.storage directly (swap for a real backend call once one
+// exists, same as the note on the tutor page's persistSession).
+let homeUser = null;
+
+function escapeHtmlHome(str){ const d=document.createElement('div'); d.textContent=str; return d.innerHTML; }
+
+async function loadHistoryInto(listId, keyPrefix, emptyMsg, navTarget){
+  const listEl = document.getElementById(listId);
+  if(!homeUser){ listEl.innerHTML = `<div class="card-history-empty">Sign in to see your saved ${emptyMsg}.</div>`; return; }
+  try{
+    const result = await window.storage.list(keyPrefix, false);
+    const keys = (result && result.keys) ? result.keys : [];
+    if(keys.length===0){ listEl.innerHTML = `<div class="card-history-empty">No saved ${emptyMsg} yet.</div>`; return; }
+    const items = [];
+    for(const key of keys){
+      try{ const rec = await window.storage.get(key, false); if(rec) items.push(JSON.parse(rec.value)); } catch(e){}
+    }
+    items.sort((a,b)=>(b.savedAt||0)-(a.savedAt||0));
+    listEl.innerHTML = '';
+    items.slice(0,4).forEach(item=>{
+      const div = document.createElement('div'); div.className='card-history-item';
+      const date = new Date(item.savedAt);
+      div.innerHTML = `<span class="h-name">${escapeHtmlHome(item.title||'Untitled')}</span><span class="h-date">${date.toLocaleDateString()}</span>`;
+      div.style.cursor = 'pointer';
+      div.addEventListener('click', ()=> parent.postMessage({nav:navTarget}, '*'));
+      listEl.appendChild(div);
+    });
+  } catch(err){ console.error('Loading history failed:', err); listEl.innerHTML = `<div class="card-history-empty">Could not load saved ${emptyMsg}.</div>`; }
+}
+
+function refreshHomeHistory(){
+  const prefix = homeUser ? homeUser.sub : 'local';
+  loadHistoryInto('tutor-history-list', 'session:' + prefix + ':', 'tutorials', 'tutor');
+  loadHistoryInto('summary-history-list', 'summary:' + prefix + ':', 'summaries', 'summary');
+}
+
+window.addEventListener('message', (e)=>{
+  const d = e.data;
+  if(!d || !d.chalklineAuth) return;
+  homeUser = d.signedIn ? d.user : null;
+  refreshHomeHistory();
+});
+
+refreshHomeHistory();
+<\/script>
 
 </body>
 </html>
@@ -3421,6 +3495,16 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 #summary-panel strong{ color:var(--brick); font-weight:600; }
 
 .empty-hint{ font-family:'JetBrains Mono', monospace; font-size:11.5px; color:var(--muted); margin-top:8px; }
+
+.session-list{max-height:150px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;}
+.session-item{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:8px 10px;border:1px solid var(--panel-border);border-radius:8px;
+  font-size:12.5px;background:#fff;
+}
+.session-item:hover{border-color:var(--sage);}
+.session-item .s-name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.session-item .s-date{font-family:'JetBrains Mono', monospace;font-size:10px;color:var(--muted);flex-shrink:0;margin-left:8px;}
 </style>
 </head>
 <body>
@@ -3439,6 +3523,14 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
   <div class="page-head">
     <h1>Summarize your notes</h1>
     <p>Upload a PDF — a chapter, slide deck, or your own notes — and get back a clear, structured summary of what's actually in it.</p>
+  </div>
+
+  <div class="p-section" style="margin-bottom:22px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <h2 style="font-size:15px;margin:0;">Previous summaries</h2>
+      <button class="icon-link" id="btn-new-summary-session">new</button>
+    </div>
+    <div class="session-list" id="summary-session-list" style="margin-top:10px;"><div class="empty-hint">Sign in to save and revisit your summaries.</div></div>
   </div>
 
   <div id="upload-zone">
@@ -3478,6 +3570,85 @@ const uploadZone = document.getElementById('upload-zone');
 const pdfInput = document.getElementById('pdf-input');
 const btnSummarize = document.getElementById('btn-summarize');
 const statusLine = document.getElementById('status-line');
+
+/* ---------------- account + saved summaries -----------------------
+   Same convention as the tutor page: sessions are namespaced under
+   'summary:<account sub or "local">:<id>' so the home page can list
+   both kinds of history by prefix. Swap window.storage for a real
+   backend call once one exists — see the tutor page's persistSession
+   for the same note. */
+let currentUser = null;
+let currentSummarySessionId = 'summary_' + Date.now();
+let currentSummaryTitle = null;
+
+function summarySessionKeyPrefix(){
+  return 'summary:' + (currentUser ? currentUser.sub : 'local') + ':';
+}
+
+window.addEventListener('message', (e)=>{
+  const d = e.data;
+  if(!d || !d.chalklineAuth) return;
+  currentUser = d.signedIn ? d.user : null;
+  refreshSummarySessionList();
+});
+
+async function persistSummarySession(html){
+  const payload = {
+    id: currentSummarySessionId,
+    title: currentSummaryTitle || (pdfFileName ? pdfFileName.replace(/\.pdf$/i,'') : 'Untitled summary'),
+    savedAt: Date.now(),
+    pdfFileName, html
+  };
+  try{ await window.storage.set(summarySessionKeyPrefix() + currentSummarySessionId, JSON.stringify(payload), false); }
+  catch(e){ console.error('Saving summary failed:', e); }
+  refreshSummarySessionList();
+}
+
+async function refreshSummarySessionList(){
+  const listEl = document.getElementById('summary-session-list');
+  if(!currentUser){ listEl.innerHTML = '<div class="empty-hint">Sign in to save and revisit your summaries.</div>'; return; }
+  try{
+    const result = await window.storage.list(summarySessionKeyPrefix(), false);
+    const keys = (result && result.keys) ? result.keys : [];
+    if(keys.length===0){ listEl.innerHTML = '<div class="empty-hint">No saved summaries yet.</div>'; return; }
+    const items = [];
+    for(const key of keys){
+      try{ const rec = await window.storage.get(key, false); if(rec) items.push(JSON.parse(rec.value)); } catch(e){}
+    }
+    items.sort((a,b)=>(b.savedAt||0)-(a.savedAt||0));
+    listEl.innerHTML = '';
+    items.forEach(item=>{
+      const div = document.createElement('div'); div.className='session-item';
+      const date = new Date(item.savedAt);
+      div.innerHTML = `<span class="s-name">${escapeHtml(item.title||'Untitled')}</span><span class="s-date">${date.toLocaleDateString()}</span>`;
+      div.style.cursor = 'pointer';
+      div.addEventListener('click', ()=> loadSummarySession(item));
+      listEl.appendChild(div);
+    });
+  } catch(err){ console.error('Listing summaries failed:', err); listEl.innerHTML = '<div class="empty-hint">Could not load saved summaries.</div>'; }
+}
+
+function loadSummarySession(item){
+  currentSummarySessionId = item.id; currentSummaryTitle = item.title;
+  pdfFileName = item.pdfFileName || '';
+  outputTitle.textContent = `Summary — ${(pdfFileName || item.title || '').replace(/\.pdf$/i,'')}`;
+  summaryPanel.innerHTML = item.html || '';
+  outputWrap.classList.add('show');
+  setStatus('summary loaded');
+  outputWrap.scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+document.getElementById('btn-new-summary-session').addEventListener('click', ()=>{
+  currentSummarySessionId = 'summary_' + Date.now(); currentSummaryTitle = null;
+  pdfText=''; pdfFileName='';
+  uploadZone.classList.remove('has-file');
+  uploadZone.innerHTML = `Drop a PDF here, or click to choose a file.<input type="file" id="pdf-input" accept="application/pdf">`;
+  document.getElementById('pdf-input').addEventListener('change', (e)=>{ if(e.target.files.length) handlePdfFile(e.target.files[0]); });
+  btnSummarize.disabled = true;
+  outputWrap.classList.remove('show');
+  setStatus('new summary');
+});
+/* -------------------------------------------------------------- */
 function setStatus(s){ statusLine.textContent = s || ''; }
 function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
@@ -3586,6 +3757,7 @@ btnSummarize.addEventListener('click', async ()=>{
   outputWrap.classList.add('show');
   setStatus('done');
   outputWrap.scrollIntoView({behavior:'smooth', block:'start'});
+  persistSummarySession(result.html);
 });
 
 document.getElementById('btn-copy').addEventListener('click', ()=>{
