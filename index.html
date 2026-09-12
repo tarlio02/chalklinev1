@@ -424,15 +424,33 @@ nav{
 
 .tool-card h2 span{ position:relative; }
 
-.card-link-btn{
-  display:inline-flex; align-items:center; gap:6px;
-  margin-top:16px; padding-top:14px; border-top:1px solid var(--panel-border);
-  font-family:'JetBrains Mono', monospace; font-size:11.5px; color:var(--muted);
-  text-decoration:none; width:100%;
-  transition:color .15s ease;
+.history-cards{
+  display:grid; grid-template-columns:1fr 1fr; gap:22px; margin:0 0 64px;
 }
-.card-link-btn:hover{ color:var(--ink); }
-.card-link-btn svg{ width:11px; height:11px; }
+@media (max-width:680px){ .history-cards{ grid-template-columns:1fr; } }
+.history-card{
+  display:flex; align-items:center; gap:16px; text-decoration:none; color:inherit;
+  background:#FBFBF7; border:1px dashed var(--panel-border); border-radius:14px;
+  padding:22px 24px; cursor:pointer;
+  transition:border-color .18s ease, background .18s ease, transform .18s ease;
+}
+.history-card:hover{
+  border-color:var(--ochre); border-style:solid; background:#fff; transform:translateY(-2px);
+}
+.history-card.summary:hover{ border-color:var(--sage); }
+.history-card .h-mark{
+  width:38px; height:38px; border-radius:10px; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; font-size:17px;
+  background:var(--highlight);
+}
+.history-card.summary .h-mark{ background:#E1F0F7; }
+.history-card .h-body{ flex:1; min-width:0; }
+.history-card .h-title{ font-size:16px; font-weight:600; margin:0 0 2px; }
+.history-card .h-sub{ font-size:12.5px; color:var(--muted); margin:0; }
+.history-card .h-arrow{ flex-shrink:0; color:var(--muted); transition:transform .18s ease, color .18s ease; }
+.history-card:hover .h-arrow{ transform:translateX(3px); color:var(--ochre); }
+.history-card.summary:hover .h-arrow{ color:var(--sage); }
+.history-card .h-arrow svg{ width:15px; height:15px; }
 
 .strip{
   border-top:1px solid var(--panel-border); padding:40px 0 70px;
@@ -479,10 +497,6 @@ footer{
       <span class="go">Start a lesson
         <svg viewBox="0 0 16 16" fill="none"><path d="M2 8h11M9 3.5 13.5 8 9 12.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </span>
-      <a class="card-link-btn" href="#" onclick="event.stopPropagation();parent.postMessage({nav:'tutor-history'},'*');return false;">
-        Previous tutorials
-        <svg viewBox="0 0 16 16" fill="none"><path d="M2 8h11M9 3.5 13.5 8 9 12.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </a>
     </div>
     <div class="tool-card summary" onclick="parent.postMessage({nav:'summary'},'*');">
       <div class="mark">📄</div>
@@ -491,11 +505,26 @@ footer{
       <span class="go">Summarize a PDF
         <svg viewBox="0 0 16 16" fill="none"><path d="M2 8h11M9 3.5 13.5 8 9 12.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </span>
-      <a class="card-link-btn" href="#" onclick="event.stopPropagation();parent.postMessage({nav:'summary-history'},'*');return false;">
-        Previous summaries
-        <svg viewBox="0 0 16 16" fill="none"><path d="M2 8h11M9 3.5 13.5 8 9 12.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </a>
     </div>
+  </section>
+
+  <section class="history-cards">
+    <a class="history-card tutor" href="#" onclick="parent.postMessage({nav:'tutor-history'},'*');return false;">
+      <div class="h-mark">🗂️</div>
+      <div class="h-body">
+        <p class="h-title">Previous tutorials</p>
+        <p class="h-sub">Revisit past whiteboard sessions</p>
+      </div>
+      <span class="h-arrow"><svg viewBox="0 0 16 16" fill="none"><path d="M2 8h11M9 3.5 13.5 8 9 12.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+    </a>
+    <a class="history-card summary" href="#" onclick="parent.postMessage({nav:'summary-history'},'*');return false;">
+      <div class="h-mark">🗒️</div>
+      <div class="h-body">
+        <p class="h-title">Previous summaries</p>
+        <p class="h-sub">Revisit summaries you've saved</p>
+      </div>
+      <span class="h-arrow"><svg viewBox="0 0 16 16" fill="none"><path d="M2 8h11M9 3.5 13.5 8 9 12.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+    </a>
   </section>
 
   <section class="strip">
