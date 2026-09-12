@@ -4576,6 +4576,28 @@ window.addEventListener('message', (e)=>{
 });
 
 let sessionListReqTH = 0;
+
+// Each subject folder gets a distinct color + icon, derived
+// deterministically from its name (a simple string hash), so the same
+// subject always looks the same across visits instead of colors
+// shuffling around on every reload.
+const FOLDER_PALETTE = [
+  { accent:'#2E7DBE', tint:'#EAF4FD', icon:'📘' },
+  { accent:'#3E8FA6', tint:'#E9F6F7', icon:'📗' },
+  { accent:'#C0392B', tint:'#FBEDE9', icon:'📕' },
+  { accent:'#D96B27', tint:'#FDF1E7', icon:'📙' },
+  { accent:'#6C3483', tint:'#F3EBF7', icon:'📔' },
+  { accent:'#2A8A5D', tint:'#EAF7F0', icon:'📓' },
+  { accent:'#B7950B', tint:'#FBF6E3', icon:'📒' },
+  { accent:'#5D6D7E', tint:'#EEF1F3', icon:'🗂️' }
+];
+function folderStyleFor(subj){
+  if(subj === 'Unsorted') return { accent:'#7C93A8', tint:'#F3F5F7', icon:'🗒️' };
+  let hash = 0;
+  for(let i=0;i<subj.length;i++){ hash = (hash*31 + subj.charCodeAt(i)) | 0; }
+  return FOLDER_PALETTE[Math.abs(hash) % FOLDER_PALETTE.length];
+}
+
 async function refreshTutorHistory(){
   const myReq = ++sessionListReqTH;
   const content = document.getElementById('th-content');
@@ -4610,15 +4632,18 @@ async function refreshTutorHistory(){
 
     content.innerHTML = '';
     subjects.forEach((subj, idx)=>{
+      const style = folderStyleFor(subj);
       const folder = document.createElement('div');
-      folder.className = 'folder' + (idx===0 ? ' open' : '');
+      folder.className = 'folder';
+      folder.style.borderTopColor = style.accent;
+      folder.style.borderTopWidth = '3px';
       const head = document.createElement('div');
       head.className = 'folder-head';
       head.innerHTML = `
-        <div class="folder-icon">📘</div>
+        <div class="folder-icon" style="background:${style.tint};color:${style.accent};">${style.icon}</div>
         <div class="folder-title">${escapeHtmlTH(subj)}</div>
-        <div class="folder-count">${groups[subj].length} lesson${groups[subj].length===1?'':'s'}</div>
-        <div class="folder-chevron"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M6 3.5 11 8l-5 4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="folder-count" style="color:${style.accent};background:${style.tint};">${groups[subj].length} lesson${groups[subj].length===1?'':'s'}</div>
+        <div class="folder-chevron" style="color:${style.accent};"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M6 3.5 11 8l-5 4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
       `;
       head.addEventListener('click', ()=> folder.classList.toggle('open'));
       const body = document.createElement('div');
