@@ -1404,6 +1404,61 @@ document.getElementById('zoom-reset').addEventListener('click', ()=>{
   userIsScrolledAway = false;
   boardScroll.scrollTo({ top:0, behavior:'smooth' });
 });
+
+/* =========================================================
+   VOICE (state used by the speech/TTS code further below —
+   unrelated to the whiteboard, kept exactly as it was)
+   ========================================================= */
+const avatar = document.getElementById('avatar');
+const captionText = document.getElementById('caption-text');
+let currentUtteranceText = '';
+let currentUtteranceRate = 0.96;
+let currentSpeechToken = 0;
+
+let bestVoice = null;
+let voicesReady = false;
+
+// Free-tier ElevenLabs preset voices (their default public voice IDs).
+// These work out of the box on any ElevenLabs account's free tier.
+const ELEVEN_VOICES = [
+  { id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel' },
+  { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Bella' },
+  { id: 'pNInz6obpgDQGcFmaJgB', name: 'Adam' },
+  { id: 'ErXwobaYiN019PkySvjV', name: 'Antoni' },
+  { id: 'AZnzlk1XvdvUeBnXmlld', name: 'Domi' },
+  { id: 'MF3mGyEYCl7XYWbV9V6O', name: 'Elli' },
+  { id: 'TxGEqnHWrfWFTfGW9XjX', name: 'Josh' },
+  { id: 'VR6AewLTigWG4xSOukaG', name: 'Arnold' },
+  { id: 'yoZ06aMxZJJ28mfd3POQ', name: 'Sam' },
+];
+
+// Free-tier Google Cloud TTS voices (Neural2/WaveNet — 1M free chars/month).
+// voiceName encodes the language, e.g. "en-US-Neural2-C".
+const GOOGLE_VOICES = [
+  { id: 'en-US-Neural2-C', name: 'Google — Ava (US, female)' },
+  { id: 'en-US-Neural2-D', name: 'Google — Miles (US, male)' },
+  { id: 'en-US-Neural2-F', name: 'Google — Iris (US, female)' },
+  { id: 'en-US-Neural2-J', name: 'Google — Reed (US, male)' },
+  { id: 'en-GB-Neural2-A', name: 'Google — Willow (UK, female)' },
+  { id: 'en-GB-Neural2-B', name: 'Google — Arthur (UK, male)' },
+];
+
+// Roughly how long the browser's TTS will take to say a given piece of text,
+// including the little pauses speak() inserts between chunks. Used to stretch
+// or compress the block-reveal pacing so the board finishes roughly when the
+// voice finishes speaking.
+function estimateSpeechDuration(text){
+  if(!text) return 0;
+  const rate = (currentUtteranceRate || 0.96);
+  const charsPerSec = 13.5 * rate;
+  const chunks = splitIntoSpeechChunks(text);
+  let total = 0;
+  chunks.forEach(c=>{
+    total += Math.max(400, (c.length / charsPerSec) * 1000);
+    total += /\?\s*$/.test(c) ? 260 : 140;
+  });
+  return total;
+}
 function scoreVoice(v){
   let score = 0;
   const name = v.name || '';
