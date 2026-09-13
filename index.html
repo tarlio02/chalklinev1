@@ -428,26 +428,34 @@ window.addEventListener('message', (e)=>{
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Chalkline — AI Study Tools</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&family=Caveat:wght@600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&family=Caveat:wght@600;700&display=swap');
 
 :root{
-  --board-bg:#BFDCF7;
-  --ink:#1E2B3A;
+  --board-bg:#0E1B33;
+  --navy:#0E1B33;
+  --navy-2:#16294A;
+  --ink:#0E1B33;
+  --paper:#F4F8FE;
   --ochre:#2E7DBE;
+  --violet:#6C5CE7;
+  --gold:#F0B94D;
   --highlight:#A6D0F2;
   --sage:#3E8FA6;
   --brick:#3D6B93;
-  --panel-border:#D3E6F5;
-  --muted:#7C93A8;
+  --panel-border:rgba(30,50,90,0.10);
+  --muted:#5C7089;
   --halo-blue:#6EA8FE;
-  --halo-blue-soft:#A5C8FF;
+  --halo-blue-soft:#8F7CF0;
 }
 *{box-sizing:border-box;}
 html,body{margin:0;padding:0;}
 body{
   font-family:'Source Serif 4', Georgia, serif;
   color:var(--ink);
-  background:var(--board-bg);
+  background:
+    radial-gradient(ellipse 900px 500px at 15% -10%, rgba(108,92,231,0.16), transparent 60%),
+    radial-gradient(ellipse 900px 600px at 100% 0%, rgba(46,125,190,0.20), transparent 60%),
+    linear-gradient(180deg, #EEF4FD 0%, #DCEBFB 55%, #E7EEFB 100%);
   min-height:100vh;
   position:relative;
   overflow-x:hidden;
@@ -458,7 +466,7 @@ body{
 }
 .ambient-halo::before,.ambient-halo::after{
   content:''; position:absolute; width:60vmax;height:60vmax;
-  border-radius:50%; filter:blur(100px); opacity:0.26; mix-blend-mode:multiply;
+  border-radius:50%; filter:blur(110px); opacity:0.30; mix-blend-mode:multiply;
 }
 .ambient-halo::before{
   top:-22%; left:-18%;
@@ -467,91 +475,138 @@ body{
 }
 .ambient-halo::after{
   bottom:-25%; right:-15%;
-  background:radial-gradient(circle, var(--halo-blue-soft) 0%, rgba(165,200,255,0) 70%);
+  background:radial-gradient(circle, var(--halo-blue-soft) 0%, rgba(143,124,240,0) 70%);
   animation:drift2 28s ease-in-out infinite;
 }
 @keyframes drift1{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(10%,8%) scale(1.15);}}
 @keyframes drift2{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(-8%,-6%) scale(1.12);}}
 
-.wrap{ position:relative; z-index:1; max-width:1040px; margin:0 auto; padding:0 28px; }
+@keyframes fadeUp{ from{ opacity:0; transform:translateY(16px); } to{ opacity:1; transform:translateY(0); } }
+.fade-up{ opacity:0; animation:fadeUp .7s cubic-bezier(.2,.7,.2,1) forwards; }
+
+.wrap{ position:relative; z-index:1; max-width:1080px; margin:0 auto; padding:0 28px; }
 
 nav{
   display:flex; align-items:center; justify-content:space-between;
-  padding:26px 0 10px;
+  padding:18px 24px; margin-top:18px;
+  background:rgba(255,255,255,0.55);
+  backdrop-filter:blur(18px) saturate(160%);
+  -webkit-backdrop-filter:blur(18px) saturate(160%);
+  border:1px solid rgba(255,255,255,0.6);
+  border-radius:999px;
+  box-shadow:0 8px 30px rgba(16,40,80,0.10);
 }
 .brand{
-  font-family:'Caveat', cursive; font-weight:700; font-size:28px;
-  color:var(--ink); text-decoration:none; display:flex; align-items:center; gap:8px;
+  font-family:'Caveat', cursive; font-weight:700; font-size:29px;
+  color:var(--navy); text-decoration:none; display:flex; align-items:center; gap:8px;
 }
-.brand .dot{ width:9px;height:9px;border-radius:50%; background:var(--ochre); display:inline-block; }
+.brand .dot{
+  width:10px;height:10px;border-radius:50%;
+  background:linear-gradient(135deg, var(--ochre), var(--violet));
+  display:inline-block; box-shadow:0 0 0 4px rgba(108,92,231,0.14);
+}
 .nav-links{ display:flex; gap:26px; font-family:'JetBrains Mono', monospace; font-size:13px; }
-.nav-links a{ color:var(--muted); text-decoration:none; }
-.nav-links a:hover{ color:var(--ink); }
+.nav-links a{ color:var(--muted); text-decoration:none; transition:color .15s ease; }
+.nav-links a:hover{ color:var(--navy); }
 @media (max-width:680px){ .nav-links{ display:none; } }
 
 .go-app-btn{
-  font-family:'JetBrains Mono', monospace; font-size:12.5px;
-  color:var(--ink); text-decoration:none;
-  border:1px solid var(--panel-border); border-radius:999px;
-  padding:10px 20px; background:#fff;
-  transition:border-color .18s ease, transform .18s ease;
+  font-family:-apple-system,Segoe UI,sans-serif; font-weight:600; font-size:13.5px;
+  color:#fff; text-decoration:none;
+  border:none; border-radius:999px;
+  padding:11px 22px;
+  background:linear-gradient(120deg, var(--navy), var(--violet) 60%, var(--ochre));
+  box-shadow:0 6px 18px rgba(70,60,160,0.28);
+  transition:transform .18s ease, box-shadow .18s ease;
 }
-.go-app-btn:hover{ border-color:var(--ochre); transform:translateY(-1px); }
+.go-app-btn:hover{ transform:translateY(-1px); box-shadow:0 10px 24px rgba(70,60,160,0.34); }
 
 .nav-right{ display:flex; align-items:center; gap:14px; }
 #google-signin-btn-landing{ line-height:0; }
 .account-chip{
   display:flex; align-items:center; gap:8px;
-  font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--ink);
+  font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--navy);
   background:#fff; border:1px solid var(--panel-border); border-radius:999px;
   padding:5px 14px 5px 5px;
 }
 .account-chip img{ width:24px; height:24px; border-radius:50%; }
 
+.eyebrow{
+  display:inline-flex; align-items:center; gap:8px;
+  font-family:'JetBrains Mono', monospace; font-size:12px; letter-spacing:0.02em;
+  color:var(--navy); background:rgba(255,255,255,0.7);
+  border:1px solid rgba(255,255,255,0.8);
+  padding:7px 16px; border-radius:999px;
+  box-shadow:0 4px 14px rgba(16,40,80,0.08);
+  margin-bottom:26px;
+}
+.eyebrow .spark{
+  width:6px; height:6px; border-radius:50%;
+  background:var(--gold); box-shadow:0 0 0 3px rgba(240,185,77,0.3);
+  animation:pulseDot 2.2s ease-in-out infinite;
+}
+@keyframes pulseDot{ 0%,100%{ opacity:1; } 50%{ opacity:0.4; } }
+
 .hero-card{
   position:relative; z-index:1;
-  margin:56px 0 40px;
-  border-radius:26px;
-  padding:90px 40px;
+  margin:44px 0 30px;
+  border-radius:28px;
+  padding:96px 40px 84px;
   text-align:center;
-  background:linear-gradient(120deg, var(--highlight) 0%, #CFE6F8 45%, #E4EEF8 100%);
+  background:
+    radial-gradient(circle at 30% 15%, rgba(255,255,255,0.9), transparent 55%),
+    linear-gradient(135deg, rgba(255,255,255,0.55), rgba(255,255,255,0.28));
+  border:1px solid rgba(255,255,255,0.7);
+  box-shadow:0 30px 80px -20px rgba(20,40,90,0.25), inset 0 1px 0 rgba(255,255,255,0.6);
+  backdrop-filter:blur(6px);
   overflow:hidden;
 }
 .hero-card::before{
   content:''; position:absolute; inset:0;
-  background:radial-gradient(circle at 30% 20%, rgba(110,168,254,0.18), transparent 55%),
-             radial-gradient(circle at 80% 85%, rgba(62,143,166,0.16), transparent 55%);
+  background:radial-gradient(circle at 30% 20%, rgba(108,92,231,0.16), transparent 55%),
+             radial-gradient(circle at 80% 85%, rgba(46,125,190,0.18), transparent 55%);
   pointer-events:none;
 }
 .hero-card h1{
-  position:relative; font-size:42px; line-height:1.22; font-weight:600;
-  margin:0 auto 20px; max-width:760px; letter-spacing:-0.01em;
+  position:relative; font-family:'Fraunces', 'Source Serif 4', Georgia, serif;
+  font-size:46px; line-height:1.16; font-weight:600;
+  margin:0 auto 20px; max-width:780px; letter-spacing:-0.015em;
+  color:var(--navy);
 }
 .hero-card h1 .chalk{
-  font-family:'Caveat', cursive; font-weight:700; color:var(--ochre);
+  font-family:'Caveat', cursive; font-weight:700;
+  background:linear-gradient(100deg, var(--ochre), var(--violet) 65%, var(--gold));
+  -webkit-background-clip:text; background-clip:text; color:transparent;
 }
 .hero-card p.sub{
-  position:relative; font-size:18px; color:#5c6f80; margin:0 0 34px;
+  position:relative; font-size:18px; color:#4C5C74; margin:0 0 38px;
   font-family:'Source Serif 4', Georgia, serif;
 }
+.cta-row{ display:flex; align-items:center; justify-content:center; gap:16px; flex-wrap:wrap; position:relative; }
+
 .cta-btn{
-  position:relative; display:inline-block; text-decoration:none;
+  position:relative; display:inline-flex; align-items:center; gap:10px; text-decoration:none;
   font-family:-apple-system,Segoe UI,sans-serif; font-weight:600; font-size:17px;
-  color:#fff; padding:16px 40px; border-radius:999px; border:none; cursor:pointer;
-  background:linear-gradient(90deg, var(--ochre), var(--sage));
-  box-shadow:0 6px 0 0 rgba(20,70,110,0.55), 0 14px 26px rgba(20,70,110,0.32);
+  color:#fff; padding:17px 38px; border-radius:999px; border:none; cursor:pointer;
+  background:linear-gradient(100deg, var(--navy) 0%, var(--violet) 55%, var(--ochre) 100%);
+  box-shadow:0 6px 0 0 rgba(10,20,45,0.55), 0 18px 34px rgba(50,50,120,0.34);
   transition:transform .18s ease, box-shadow .18s ease;
   animation: ctaBounce 4.2s ease-in-out infinite;
+  overflow:hidden;
 }
+.cta-btn::after{
+  content:''; position:absolute; top:0; left:-60%; width:40%; height:100%;
+  background:linear-gradient(115deg, transparent, rgba(255,255,255,0.55), transparent);
+  transform:skewX(-20deg);
+  animation:shine 3.2s ease-in-out infinite;
+}
+@keyframes shine{ 0%{ left:-60%; } 45%,100%{ left:130%; } }
 .cta-btn:hover{
   transform:translateY(-2px);
-  box-shadow:0 8px 0 0 rgba(20,70,110,0.55), 0 18px 32px rgba(20,70,110,0.36);
+  box-shadow:0 8px 0 0 rgba(10,20,45,0.55), 0 22px 40px rgba(50,50,120,0.38);
   animation-play-state:paused;
 }
-.cta-btn:active{ transform:translateY(4px); box-shadow:0 2px 0 0 rgba(20,70,110,0.55), 0 6px 14px rgba(20,70,110,0.3); }
-/* A quiet idle period, then a quick double-bounce near the end of each
-   cycle — this reads as an occasional friendly nudge to tap, not a
-   constantly-jittering button, which would get annoying fast. */
+.cta-btn:active{ transform:translateY(4px); box-shadow:0 2px 0 0 rgba(10,20,45,0.55), 0 8px 16px rgba(50,50,120,0.3); }
 @keyframes ctaBounce{
   0%, 78%, 100%{ transform:translateY(0); }
   83%{ transform:translateY(-11px); }
@@ -560,9 +615,39 @@ nav{
   95%{ transform:translateY(0); }
 }
 
+.ghost-btn{
+  font-family:-apple-system,Segoe UI,sans-serif; font-weight:600; font-size:15.5px;
+  color:var(--navy); text-decoration:none; padding:16px 26px; border-radius:999px;
+  border:1.5px solid rgba(30,50,90,0.18); background:rgba(255,255,255,0.5);
+  transition:border-color .18s ease, background .18s ease, transform .18s ease;
+}
+.ghost-btn:hover{ border-color:var(--violet); background:rgba(255,255,255,0.8); transform:translateY(-1px); }
+
+.feature-row{
+  display:grid; grid-template-columns:repeat(3,1fr); gap:20px;
+  margin:8px 0 50px;
+}
+@media (max-width:760px){ .feature-row{ grid-template-columns:1fr; } }
+.feature-card{
+  background:rgba(255,255,255,0.55);
+  border:1px solid rgba(255,255,255,0.7);
+  border-radius:18px; padding:26px 24px;
+  backdrop-filter:blur(10px);
+  box-shadow:0 12px 30px -14px rgba(20,40,90,0.18);
+  transition:transform .2s ease, box-shadow .2s ease;
+}
+.feature-card:hover{ transform:translateY(-4px); box-shadow:0 18px 40px -14px rgba(20,40,90,0.26); }
+.feature-card .ic{
+  width:42px; height:42px; border-radius:12px; margin-bottom:16px;
+  display:flex; align-items:center; justify-content:center; font-size:19px;
+  background:linear-gradient(135deg, rgba(46,125,190,0.16), rgba(108,92,231,0.16));
+}
+.feature-card h3{ font-size:16.5px; margin:0 0 8px; font-weight:600; color:var(--navy); }
+.feature-card p{ font-size:14px; line-height:1.55; color:var(--muted); margin:0; font-family:'Source Serif 4', Georgia, serif; }
+
 @media (max-width:680px){
-  .hero-card{ padding:60px 24px; border-radius:20px; }
-  .hero-card h1{ font-size:30px; }
+  .hero-card{ padding:64px 24px 56px; border-radius:22px; }
+  .hero-card h1{ font-size:32px; }
 }
 
 footer{
@@ -571,7 +656,7 @@ footer{
   display:flex; justify-content:center; gap:24px; flex-wrap:wrap; text-align:center;
 }
 footer a{ color:var(--muted); text-decoration:none; }
-footer a:hover{ color:var(--ink); }
+footer a:hover{ color:var(--navy); }
 </style>
 </head>
 <body>
@@ -579,7 +664,7 @@ footer a:hover{ color:var(--ink); }
 <div class="ambient-halo"></div>
 
 <div class="wrap">
-  <nav>
+  <nav class="fade-up">
     <a class="brand" href="#" onclick="parent.postMessage({nav:'landing'},'*');return false;"><span class="dot"></span>Chalkline</a>
     <div class="nav-right">
       <div id="account-signed-in-landing" style="display:none;">
@@ -588,14 +673,36 @@ footer a:hover{ color:var(--ink); }
           <span id="account-name-landing"></span>
         </div>
       </div>
-      <a class="go-app-btn" href="#" onclick="parent.postMessage({nav:'home'},'*');return false;">Go to App</a>
+      <a class="go-app-btn" href="#" onclick="parent.postMessage({nav:'home'},'*');return false;">Go to App →</a>
     </div>
   </nav>
 
-  <section class="hero-card">
+  <section class="hero-card fade-up" style="animation-delay:.08s;">
+    <span class="eyebrow"><span class="spark"></span>AI WHITEBOARD TUTOR</span>
     <h1>Start with your notes, slides, <span class="chalk">or textbook.</span><br>Your first lesson is free.</h1>
     <p class="sub">Try it on whatever's due tomorrow.</p>
-    <a class="cta-btn" href="#" onclick="parent.postMessage({showStartModal:true},'*');return false;">Start for free</a>
+    <div class="cta-row">
+      <a class="cta-btn" href="#" onclick="parent.postMessage({showStartModal:true},'*');return false;">Start for free</a>
+      <a class="ghost-btn" href="#" onclick="parent.postMessage({nav:'home'},'*');return false;">See how it works</a>
+    </div>
+  </section>
+
+  <section class="feature-row">
+    <div class="feature-card fade-up" style="animation-delay:.16s;">
+      <div class="ic">✏️</div>
+      <h3>Draws it out live</h3>
+      <p>Real handwriting, real diagrams — built on the board one idea at a time, not a wall of pasted text.</p>
+    </div>
+    <div class="feature-card fade-up" style="animation-delay:.24s;">
+      <div class="ic">📎</div>
+      <h3>Works from your material</h3>
+      <p>Drop in a PDF, slide deck, or notes, and the lesson is built around exactly what you're studying.</p>
+    </div>
+    <div class="feature-card fade-up" style="animation-delay:.32s;">
+      <div class="ic">💬</div>
+      <h3>Checks you're following</h3>
+      <p>Pauses to ask if it makes sense, and adjusts pace before moving to the next idea.</p>
+    </div>
   </section>
 
   <footer>
@@ -635,26 +742,32 @@ window.addEventListener('message', (e)=>{
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Chalkline — AI Study Tools</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&family=Caveat:wght@600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&family=Caveat:wght@600;700&display=swap');
 
 :root{
-  --board-bg:#BFDCF7;
-  --ink:#1E2B3A;
+  --board-bg:#0E1B33;
+  --navy:#0E1B33;
+  --ink:#0E1B33;
   --ochre:#2E7DBE;
+  --violet:#6C5CE7;
+  --gold:#F0B94D;
   --highlight:#A6D0F2;
   --sage:#3E8FA6;
   --brick:#3D6B93;
-  --panel-border:#D3E6F5;
-  --muted:#7C93A8;
+  --panel-border:rgba(30,50,90,0.10);
+  --muted:#5C7089;
   --halo-blue:#6EA8FE;
-  --halo-blue-soft:#A5C8FF;
+  --halo-blue-soft:#8F7CF0;
 }
 *{box-sizing:border-box;}
 html,body{margin:0;padding:0;}
 body{
   font-family:'Source Serif 4', Georgia, serif;
   color:var(--ink);
-  background:var(--board-bg);
+  background:
+    radial-gradient(ellipse 900px 500px at 15% -10%, rgba(108,92,231,0.16), transparent 60%),
+    radial-gradient(ellipse 900px 600px at 100% 0%, rgba(46,125,190,0.20), transparent 60%),
+    linear-gradient(180deg, #EEF4FD 0%, #DCEBFB 55%, #E7EEFB 100%);
   min-height:100vh;
   position:relative;
   overflow-x:hidden;
@@ -665,7 +778,7 @@ body{
 }
 .ambient-halo::before,.ambient-halo::after{
   content:''; position:absolute; width:60vmax;height:60vmax;
-  border-radius:50%; filter:blur(100px); opacity:0.26; mix-blend-mode:multiply;
+  border-radius:50%; filter:blur(110px); opacity:0.30; mix-blend-mode:multiply;
 }
 .ambient-halo::before{
   top:-22%; left:-18%;
@@ -674,90 +787,125 @@ body{
 }
 .ambient-halo::after{
   bottom:-25%; right:-15%;
-  background:radial-gradient(circle, var(--halo-blue-soft) 0%, rgba(165,200,255,0) 70%);
+  background:radial-gradient(circle, var(--halo-blue-soft) 0%, rgba(143,124,240,0) 70%);
   animation:drift2 28s ease-in-out infinite;
 }
 @keyframes drift1{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(10%,8%) scale(1.15);}}
 @keyframes drift2{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(-8%,-6%) scale(1.12);}}
 
-.wrap{ position:relative; z-index:1; max-width:920px; margin:0 auto; padding:0 28px; }
+@keyframes fadeUp{ from{ opacity:0; transform:translateY(16px); } to{ opacity:1; transform:translateY(0); } }
+.fade-up{ opacity:0; animation:fadeUp .7s cubic-bezier(.2,.7,.2,1) forwards; }
+
+.wrap{ position:relative; z-index:1; max-width:960px; margin:0 auto; padding:0 28px; }
 
 nav{
   display:flex; align-items:center; justify-content:space-between;
-  padding:26px 0 10px;
+  padding:18px 24px; margin-top:18px;
+  background:rgba(255,255,255,0.55);
+  backdrop-filter:blur(18px) saturate(160%);
+  -webkit-backdrop-filter:blur(18px) saturate(160%);
+  border:1px solid rgba(255,255,255,0.6);
+  border-radius:999px;
+  box-shadow:0 8px 30px rgba(16,40,80,0.10);
 }
 .brand{
-  font-family:'Caveat', cursive; font-weight:700; font-size:28px;
-  color:var(--ink); text-decoration:none; display:flex; align-items:center; gap:8px;
+  font-family:'Caveat', cursive; font-weight:700; font-size:29px;
+  color:var(--navy); text-decoration:none; display:flex; align-items:center; gap:8px;
 }
-.brand .dot{ width:9px;height:9px;border-radius:50%; background:var(--ochre); display:inline-block; }
-.nav-links{ display:flex; gap:26px; font-family:'JetBrains Mono', monospace; font-size:13px; }
-.nav-links a{ color:var(--muted); text-decoration:none; }
-.nav-links a:hover{ color:var(--ink); }
+.brand .dot{
+  width:10px;height:10px;border-radius:50%;
+  background:linear-gradient(135deg, var(--ochre), var(--violet));
+  display:inline-block; box-shadow:0 0 0 4px rgba(108,92,231,0.14);
+}
+.nav-links{ display:flex; gap:8px; font-family:'JetBrains Mono', monospace; font-size:13px; }
+.nav-links a{
+  color:var(--navy); text-decoration:none; padding:9px 18px; border-radius:999px;
+  transition:background .15s ease, color .15s ease;
+}
+.nav-links a:hover{ background:rgba(46,125,190,0.10); }
 
-.hero{ padding:70px 0 56px; }
+.hero{ padding:56px 0 46px; text-align:left; }
+.hero .eyebrow{
+  display:inline-flex; align-items:center; gap:8px;
+  font-family:'JetBrains Mono', monospace; font-size:12px; letter-spacing:0.02em;
+  color:var(--navy); background:rgba(255,255,255,0.7);
+  border:1px solid rgba(255,255,255,0.8);
+  padding:7px 16px; border-radius:999px;
+  box-shadow:0 4px 14px rgba(16,40,80,0.08);
+  margin-bottom:22px;
+}
+.hero .eyebrow .spark{
+  width:6px; height:6px; border-radius:50%;
+  background:var(--gold); box-shadow:0 0 0 3px rgba(240,185,77,0.3);
+  animation:pulseDot 2.2s ease-in-out infinite;
+}
+@keyframes pulseDot{ 0%,100%{ opacity:1; } 50%{ opacity:0.4; } }
 .hero h1{
-  font-size:52px; line-height:1.12; font-weight:600; margin:0 0 18px;
-  max-width:680px; letter-spacing:-0.01em;
+  font-family:'Fraunces', 'Source Serif 4', Georgia, serif;
+  font-size:50px; line-height:1.12; font-weight:600; margin:0 0 18px;
+  max-width:680px; letter-spacing:-0.015em; color:var(--navy);
 }
 .hero h1 .chalk{
-  font-family:'Caveat', cursive; font-weight:700; color:var(--ochre);
+  font-family:'Caveat', cursive; font-weight:700;
+  background:linear-gradient(100deg, var(--ochre), var(--violet) 65%, var(--gold));
+  -webkit-background-clip:text; background-clip:text; color:transparent;
   position:relative; white-space:nowrap;
 }
 .hero p{
-  font-size:19px; line-height:1.6; color:#4a4738; max-width:520px; margin:0;
+  font-size:18.5px; line-height:1.6; color:#4C5C74; max-width:520px; margin:0;
 }
 
 .tools{
-  display:grid; grid-template-columns:1fr 1fr; gap:22px; margin:0 0 64px;
+  display:grid; grid-template-columns:1fr 1fr; gap:22px; margin:0 0 56px;
 }
-@media (max-width:680px){ .tools{ grid-template-columns:1fr; } .hero h1{ font-size:38px; } }
+@media (max-width:680px){ .tools{ grid-template-columns:1fr; } .hero h1{ font-size:36px; } }
 
 .tool-card{
   display:block; text-decoration:none; color:inherit; cursor:pointer;
-  background:#fff; border:1px solid var(--panel-border); border-radius:14px;
+  background:rgba(255,255,255,0.6); border:1px solid rgba(255,255,255,0.75); border-radius:18px;
   padding:30px 28px 26px; position:relative; overflow:hidden;
-  transition:border-color .18s ease, transform .18s ease, box-shadow .18s ease;
+  backdrop-filter:blur(10px);
+  box-shadow:0 14px 34px -16px rgba(20,40,90,0.20);
+  transition:border-color .18s ease, transform .2s ease, box-shadow .2s ease;
 }
 .tool-card:hover{
-  border-color:#d8d0b8; transform:translateY(-2px);
-  box-shadow:0 10px 28px rgba(38,36,31,0.07);
+  transform:translateY(-4px);
+  box-shadow:0 22px 46px -16px rgba(20,40,90,0.30);
 }
 .tool-card .mark{
-  width:44px; height:44px; border-radius:10px; margin-bottom:20px;
+  width:46px; height:46px; border-radius:12px; margin-bottom:20px;
   display:flex; align-items:center; justify-content:center;
-  font-size:20px;
+  font-size:21px;
+  background:linear-gradient(135deg, rgba(46,125,190,0.18), rgba(108,92,231,0.18));
 }
-.tool-card.tutor .mark{ background:#D7ECFB; }
-.tool-card.summary .mark{ background:#E1F0F7; }
+.tool-card.summary .mark{ background:linear-gradient(135deg, rgba(62,143,166,0.20), rgba(46,125,190,0.16)); }
 .tool-card h2{
-  font-size:23px; margin:0 0 8px; font-weight:600;
+  font-family:'Fraunces', 'Source Serif 4', Georgia, serif;
+  font-size:23px; margin:0 0 8px; font-weight:600; color:var(--navy);
 }
 .tool-card p{
-  font-size:15.5px; line-height:1.55; color:#5c5847; margin:0 0 18px;
+  font-size:15.5px; line-height:1.55; color:var(--muted); margin:0 0 18px;
 }
 .tool-card .go{
   font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--ochre);
-  display:inline-flex; align-items:center; gap:6px;
+  display:inline-flex; align-items:center; gap:6px; font-weight:600;
 }
 .tool-card.summary .go{ color:var(--sage); }
 .go svg{ width:13px; height:13px; transition:transform .18s ease; }
 .tool-card:hover .go svg{ transform:translateX(3px); }
 
-.tool-card h2 span{ position:relative; }
-
 .history-cards{
-  display:grid; grid-template-columns:1fr 1fr; gap:22px; margin:0 0 64px;
+  display:grid; grid-template-columns:1fr 1fr; gap:22px; margin:0 0 56px;
 }
 @media (max-width:680px){ .history-cards{ grid-template-columns:1fr; } }
 .history-card{
   display:flex; align-items:center; gap:16px; text-decoration:none; color:inherit;
-  background:#FBFBF7; border:1px dashed var(--panel-border); border-radius:14px;
+  background:rgba(255,255,255,0.4); border:1px dashed rgba(30,50,90,0.18); border-radius:16px;
   padding:22px 24px; cursor:pointer;
   transition:border-color .18s ease, background .18s ease, transform .18s ease;
 }
 .history-card:hover{
-  border-color:var(--ochre); border-style:solid; background:#fff; transform:translateY(-2px);
+  border-color:var(--ochre); border-style:solid; background:rgba(255,255,255,0.7); transform:translateY(-2px);
 }
 .history-card.summary:hover{ border-color:var(--sage); }
 .history-card .h-mark{
@@ -767,7 +915,7 @@ nav{
 }
 .history-card.summary .h-mark{ background:#E1F0F7; }
 .history-card .h-body{ flex:1; min-width:0; }
-.history-card .h-title{ font-size:16px; font-weight:600; margin:0 0 2px; }
+.history-card .h-title{ font-size:16px; font-weight:600; margin:0 0 2px; color:var(--navy); }
 .history-card .h-sub{ font-size:12.5px; color:var(--muted); margin:0; }
 .history-card .h-arrow{ flex-shrink:0; color:var(--muted); transition:transform .18s ease, color .18s ease; }
 .history-card:hover .h-arrow{ transform:translateX(3px); color:var(--ochre); }
@@ -781,10 +929,15 @@ nav{
 .strip-item{ flex:1; min-width:220px; }
 .strip-item .num{
   font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--muted);
-  margin-bottom:8px; display:block;
+  margin-bottom:10px; display:inline-flex; align-items:center; gap:8px;
 }
-.strip-item h3{ font-size:16.5px; margin:0 0 6px; font-weight:600; }
-.strip-item p{ font-size:14.5px; color:#6b6754; line-height:1.5; margin:0; }
+.strip-item .num::before{
+  content:''; width:22px; height:22px; border-radius:50%;
+  background:linear-gradient(135deg, var(--ochre), var(--violet));
+  display:inline-block;
+}
+.strip-item h3{ font-family:'Fraunces', 'Source Serif 4', Georgia, serif; font-size:17px; margin:0 0 6px; font-weight:600; color:var(--navy); }
+.strip-item p{ font-size:14.5px; color:var(--muted); line-height:1.5; margin:0; }
 
 footer{
   border-top:1px solid var(--panel-border); padding:22px 0 40px;
@@ -798,7 +951,7 @@ footer{
 <div class="ambient-halo"></div>
 
 <div class="wrap">
-  <nav>
+  <nav class="fade-up">
     <a class="brand" href="#" onclick="parent.postMessage({nav:'home'},'*');return false;"><span class="dot"></span>Chalkline</a>
     <div class="nav-links">
       <a href="#" onclick="parent.postMessage({nav:'tutor'},'*');return false;">Tutor</a>
@@ -806,13 +959,14 @@ footer{
     </div>
   </nav>
 
-  <section class="hero">
+  <section class="hero fade-up" style="animation-delay:.08s;">
+    <span class="eyebrow"><span class="spark"></span>AI WHITEBOARD TUTOR</span>
     <h1>A study session, <span class="chalk">drawn out loud.</span></h1>
     <p>Bring a topic or a PDF. Chalkline either teaches it to you on a live whiteboard, or reads it and hands you back the version worth remembering.</p>
   </section>
 
   <section class="tools">
-    <div class="tool-card tutor" onclick="parent.postMessage({nav:'tutor'},'*');">
+    <div class="tool-card tutor fade-up" style="animation-delay:.16s;" onclick="parent.postMessage({nav:'tutor'},'*');">
       <div class="mark">✏️</div>
       <h2>Live Tutor</h2>
       <p>An AI tutor that teaches on a real whiteboard — writing, diagrams, and worked examples, paced one idea at a time, with check-ins along the way.</p>
@@ -820,7 +974,7 @@ footer{
         <svg viewBox="0 0 16 16" fill="none"><path d="M2 8h11M9 3.5 13.5 8 9 12.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </span>
     </div>
-    <div class="tool-card summary" onclick="parent.postMessage({nav:'summary'},'*');">
+    <div class="tool-card summary fade-up" style="animation-delay:.24s;" onclick="parent.postMessage({nav:'summary'},'*');">
       <div class="mark">📄</div>
       <h2>Summary</h2>
       <p>Upload a chapter, slide deck, or set of notes as a PDF, and get a clear, structured summary of what actually matters — ready to read or save.</p>
@@ -871,6 +1025,8 @@ footer{
 </body>
 </html>
 </script>
+
+<script type="text/plain" id="src-tutor"><!DOCTYPE html>
 
 <script type="text/plain" id="src-tutor"><!DOCTYPE html>
 <html lang="en">
@@ -3618,8 +3774,8 @@ function showBackendDebug(){
 // from Groq means. Keep only a recent window of turns for the API call
 // itself (the on-screen transcript/history the user sees is untouched —
 // this only affects what gets resent to the model).
-function recentHistoryForApi(){
-  const MAX_TURNS = 10; // ~5 user+assistant exchanges
+function recentHistoryForApi(maxTurns){
+  const MAX_TURNS = maxTurns || 10; // ~5 user+assistant exchanges by default
   if(conversationHistory.length <= MAX_TURNS) return conversationHistory;
   return conversationHistory.slice(-MAX_TURNS);
 }
@@ -3671,6 +3827,56 @@ async function callTutor(userMessage, imageAttachment){
   }
 }
 
+// A condensed version of SYSTEM_PROMPT used ONLY for Groq. Groq's free/
+// on-demand tier caps requests at as low as 8000 tokens-per-minute, and the
+// full SYSTEM_PROMPT alone is close to 9,500 tokens — meaning every single
+// Groq call failed with "413 request too large" regardless of how short
+// history/pdf context were trimmed, since the fixed prompt cost already
+// exceeded the ceiling before anything else was added. This trimmed prompt
+// (~1,500 tokens) keeps every rule that affects output correctness/quality
+// but cuts repeated worked examples and verbose prose. Gemini/OpenRouter/
+// Cerebras keep the full SYSTEM_PROMPT since their limits are far higher.
+const SYSTEM_PROMPT_GROQ = `You are an expert university lecturer operating a notebook whiteboard tutoring tool called Chalkline. Teach at genuine university level: rigorous, precise, no hand-waving.
+
+Respond with ONLY a JSON object (no markdown fences, no outside prose):
+{
+  "speech": "spoken explanation, natural TTS language (spell out symbols e.g. 'delta' not the character)",
+  "board": [ ...drawing command objects... ],
+  "quiz": null OR { "question":"...", "options":["...","...","...","..."], "correctIndex":0, "explanation":"..." },
+  "needsLookup": null OR "a short search query"
+}
+Set "needsLookup" ONLY when you need a current fact/stat/date you're unsure of; keep board/speech minimal that turn. Leave null almost always.
+
+LAYOUT: For a diagram (path/curve/circle/rect/line/arrow/halo/highlight), use a small self-contained local coordinate box near (0,0) (e.g. x:0-300,y:0-300) — the app auto-places the whole block on the page. Emit ALL of one diagram's shapes as one unbroken run in "board" (heading text before, then all shapes+labels together, then resume normal text after). Any text labeling a diagram PART must have "diagramLabel":true with local coords so it moves with the diagram.
+
+MATH: use real unicode symbols directly in text (π θ β Δ Σ ∫ √ ∞ ≤ ≥ ≈ × ÷ → ² ³). NEVER output LaTeX/TeX (\frac, \cdot, $ $, \sqrt{}, ^{}, _{}) — the canvas prints strings literally. Write x² not x^{2}, a/b not \frac{a}{b}.
+
+COMMAND TYPES:
+- {"type":"text","x":..,"y":..,"text":"...","size":26,"color":"ink|sage|sky","mono":false,"weight":700,"maxWidth":800,"heading":false,"diagramLabel":false} — plain body text color MUST be "ink" (default/majority), "sage" (short sub-heading lead-in), or "sky" (heading:true only). diagramLabel text is exempt and may use any color. heading:true only for a section title (app auto-underlines it; don't add your own divider). Body size 24-28, diagramLabel size 18-20, heading size 32-36.
+- {"type":"halo","x":..,"y":..,"r":50,"color":"halo|ochre|sage|teal|violet|sky|coral"}
+- {"type":"line","x1":..,"y1":..,"x2":..,"y2":..,"color":"ink","width":2.5,"dash":false}
+- {"type":"arrow","x1":..,"y1":..,"x2":..,"y2":..,"color":"ochre","width":2.5,"dash":false}
+- {"type":"rect","x":..,"y":..,"w":..,"h":..,"color":"ink","fill":false,"dash":false}
+- {"type":"circle","x":..,"y":..,"rx":..,"ry":..,"color":"ink","fill":false,"dash":false}
+- {"type":"curve","points":[[x,y],...],"color":"sage","width":2.5,"fill":false,"fillColor":"sage","fillOpacity":0.12} — smooth curve through points, fill:true tints interior as a closed loop.
+- {"type":"path","segments":[["M",x,y],["L",x,y],["Q",cx,cy,x,y],["C",c1x,c1y,c2x,c2y,x,y],["Z"]],"color":"sage","width":2.5,"fill":false,"fillColor":"sage","fillOpacity":0.12} — freeform outline for real pictures (cells, leaves, organs, maps): trace like a hand sketch, optionally fill.
+- {"type":"polygon","points":[[x,y],...],"color":"ink","width":2.5,"fill":false,"fillColor":"ink","fillOpacity":0.10} — CLOSED straight-edge shape (auto-closes), for anything with flat sides/exact corners.
+- {"type":"polyline","points":[[x,y],...],"color":"ink","width":2.5,"dash":false} — like polygon but OPEN.
+- {"type":"axes","x":..,"y":..,"w":..,"h":..,"xlabel":"...","ylabel":"...","title":"...","grid":true,"xTicks":[...],"yTicks":[...]}
+- {"type":"plot","x":..,"y":..,"w":..,"h":..,"xRange":[0,10],"yRange":[0,10],"xlabel":"...","ylabel":"...","title":"...","grid":true,"xTicks":[...],"yTicks":[...],"curves":[{"points":[[x,y],...],"color":"brick","width":2.75,"label":"..."}]}
+- {"type":"highlight","x":..,"y":..,"w":..,"h":26,"color":"ochre"}
+Any shape accepts "dash":true for reference/equilibrium/hidden lines only — not everything.
+
+TABLES/GRIDS/MATRICES: build as one diagram (rect for outer border + line for each row/column divider), size to fit content, size a header row/col slightly larger and bold. EVERY cell's content (headers and body) must be a "diagramLabel":true text with x/y placed exactly inside that cell in the SAME unbroken run as the grid lines — NEVER draw an empty grid then list the contents afterward as plain sequential text, that produces a disconnected list below the table which is a total failure. NO DUPLICATE ROWS/LABELS EVER: plan the exact row list once, emit each row exactly once. A multi-column layout (e.g. Assets | Liabilities | Equity) can have different row counts per column — leave short columns' extra cells blank rather than repeating rows to fill space.
+
+NO-OVERLAP: before emitting a diagram, mentally check every text/label's bounding box (~chars×size×0.62 wide, size×1.3 tall) doesn't collide with another text or a shape it's not meant to sit on. Stagger close labels, keep labels outside the shape they name (leader arrow pointing in), keep row/col text inside its grid cell, keep paragraph text within "maxWidth". When unsure, add more spacing or split into two smaller diagrams — never cram.
+
+REALISM FOR PICTURES: layer 2-3 filled shapes of increasing opacity offset toward one light direction (not one flat tint); vary line weight (thick outer silhouette, thinner interior); add a soft filled contact-shadow where one shape touches another; use short directional stroke clusters for texture (fur/grain/striation), not random scribble; add one thin highlight curve on the lit side of a rounded surface; keep proportions realistic; avoid perfect symmetry.
+
+PACING: teach ONE small idea per turn (one definition/sub-step/small piece of an example) — never a whole topic at once, unless the one idea IS a complex diagram (then its full detail is appropriate). After that one idea, ALWAYS stop and check in — mandatory every turn — either via "quiz", or by ending "speech" with a direct question (vary between "does that make sense?", "any questions?", "should we move on or stay here?"). Never end on a flat statement with no question. Wait for the reply before continuing.
+
+SPEECH/BOARD SYNC: "speech" and "board" must describe the same single piece of content for this turn — nothing narrated that isn't on the board, nothing on the board speech never mentions. For a complex diagram, summarize it in speech rather than narrating every shape.`;
+
 async function callGroq(){
   if(PROXY_URL.includes('YOUR-WORKER-SUBDOMAIN')){
     return { ok:false, status:'proxy not configured', errorSpeech:"The AI proxy hasn't been set up yet." };
@@ -3685,8 +3891,8 @@ async function callGroq(){
         response_format:{ type:"json_object" },
         max_tokens:4000,
         messages: [
-          { role:"system", content: SYSTEM_PROMPT },
-          ...recentHistoryForApi()
+          { role:"system", content: SYSTEM_PROMPT_GROQ },
+          ...recentHistoryForApi(4)
         ]
       })
     });
