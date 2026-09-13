@@ -3182,7 +3182,7 @@ function setVoiceStatus(mode, detail){
     chip.textContent = '🔊 ElevenLabs voice';
     chip.style.color = '#1E7B4D';
   } else if(mode === 'cloudflare'){
-    chip.textContent = '🔊 Cloudflare voice';
+    chip.textContent = chip._voiceDetail ? '🔊 Cloudflare voice — tap for details' : '🔊 Cloudflare voice';
     chip.style.color = '#2E7DBE';
   } else if(mode === 'fallback'){
     chip.textContent = '🔊 Browser voice (fallback) — tap for details';
@@ -3218,7 +3218,12 @@ async function fetchCloudflareVoice(text){
       return null;
     }
     const provider = resp.headers.get('X-Voice-Provider') || 'cloudflare';
-    setVoiceStatus(provider);
+    if(provider === 'cloudflare'){
+      const elError = resp.headers.get('X-Elevenlabs-Error');
+      setVoiceStatus('cloudflare', elError ? ('ElevenLabs failed: ' + elError) : null);
+    } else {
+      setVoiceStatus(provider);
+    }
     return URL.createObjectURL(blob);
   } catch(e){
     console.warn('AI voice request failed, falling back to browser voice:', e);
