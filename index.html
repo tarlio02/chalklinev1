@@ -1759,6 +1759,29 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
 .quiz-explain{font-size:12px;margin-top:9px;padding-top:9px;border-top:1px solid var(--panel-border);color:#514d41;display:none;}
 .quiz-explain.show{display:block;}
 
+/* The on-canvas quiz card. Lives in its own fixed, full-viewport,
+   pointer-events:none layer (#board-quiz-overlay) directly on top of
+   the board canvas, so it can never intercept pan/zoom gestures on the
+   canvas underneath it except over the card itself. The card's own
+   position is set in JS (left/top, in screen px) to track wherever
+   globalCursorY currently is in world space, re-anchored on every
+   redrawAll() so it stays glued to the same spot on the page through
+   pan/zoom exactly like a real drawn element would. */
+#board-quiz-overlay{
+  position:fixed; inset:0; z-index:15; pointer-events:none;
+}
+.board-quiz-card{
+  position:absolute; pointer-events:auto;
+  width:min(92vw, 460px);
+  background:#fdfcf7; border:1.5px solid var(--panel-border); border-radius:10px;
+  padding:18px 20px; box-shadow:0 8px 28px rgba(30,43,58,0.18);
+  animation: quizPop .28s cubic-bezier(.2,.9,.3,1.2);
+}
+@keyframes quizPop{ from{ opacity:0; transform:translateY(10px) scale(.97); } to{ opacity:1; transform:translateY(0) scale(1); } }
+.board-quiz-card .quiz-q{font-size:16px;margin-bottom:12px;}
+.board-quiz-card .quiz-opt{font-size:14.5px;padding:10px 12px;}
+.board-quiz-card .quiz-explain{font-size:13px;}
+
 ::-webkit-scrollbar{width:7px;}
 ::-webkit-scrollbar-thumb{background:#e4ddc8;border-radius:4px;}
 </style>
@@ -1769,6 +1792,7 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
 <div id="board-wrap">
   <canvas id="board"></canvas>
 </div>
+<div id="board-quiz-overlay"></div>
 
 <div class="topbar">
   <div class="topbar-left-stack">
@@ -2187,6 +2211,7 @@ function clearBoard(record=true){
 function redrawAll(){
   drawBG();
   drawnCommands.forEach(cmd => renderCommand(cmd));
+  repositionQuizOverlay();
 }
 
 function redrawAllExcept(skipCmd){
@@ -3773,11 +3798,34 @@ function addTranscriptMsg(who, text){
   transcriptEl.scrollTop = transcriptEl.scrollHeight;
 }
 
+// The on-canvas quiz card. Only one can be showing at a time — a new
+// quiz always replaces whatever card (answered or not) was there before.
+let activeQuizCard = null;
+let activeQuizWorldY = null; // world-space y this card is anchored to
+
+// Keeps the floating quiz card glued to the same spot on the page as the
+// camera pans/zooms. Called once when the card is created and again from
+// redrawAll() on every camera-moving frame (pan animation, drag, pinch,
+// wheel zoom, resize) so it never drifts away from the content it belongs to.
+function repositionQuizOverlay(){
+  if(!activeQuizCard || activeQuizWorldY===null) return;
+  const [sx, sy] = worldToScreen(DIAGRAM_LEFT, activeQuizWorldY);
+  const cardW = activeQuizCard.offsetWidth || 300;
+  const maxLeft = Math.max(12, viewW - cardW - 12);
+  const maxTop = Math.max(80, viewH - 190); // keep clear of the bottom input bar
+  activeQuizCard.style.left = Math.min(maxLeft, Math.max(12, sx)) + 'px';
+  activeQuizCard.style.top = Math.min(maxTop, Math.max(80, sy)) + 'px';
+}
+
+function dismissQuizCard(){
+  if(activeQuizCard){ activeQuizCard.remove(); activeQuizCard = null; activeQuizWorldY = null; }
+}
+
 function addQuizCard(quiz){
-  const empty = transcriptEl.querySelector('.empty-note');
-  if(empty) empty.remove();
+  dismissQuizCard();
+  const overlayLayer = document.getElementById('board-quiz-overlay');
   const card = document.createElement('div');
-  card.className = 'quiz-card';
+  card.className = 'board-quiz-card quiz-card';
   const qEl = document.createElement('div'); qEl.className='quiz-q'; qEl.textContent = quiz.question;
   card.appendChild(qEl);
   const explainEl = document.createElement('div'); explainEl.className='quiz-explain'; explainEl.textContent = quiz.explanation;
@@ -3790,16 +3838,27 @@ function addQuizCard(quiz){
       else { b.classList.add('incorrect'); buttons[quiz.correctIndex].classList.add('correct'); }
       explainEl.classList.add('show');
       const resultNote = idx===quiz.correctIndex ? 'this was correct' : 'this was incorrect';
+      // Log to the transcript for history/scroll-back even though the
+      // live interaction happens on the board itself.
+      addTranscriptMsg('user', `Answered: "${opt}"`);
+      // Leave the answered card showing briefly (highlight + explanation)
+      // before clearing it, rather than yanking it away the instant it's
+      // tapped — the student should get to actually read the feedback.
+      setTimeout(()=>{ if(activeQuizCard===card) dismissQuizCard(); }, 2200);
       runTeachingTurn(
-        `[Quiz answer] For "${quiz.question}", I selected "${opt}" — ${resultNote}. Briefly react to this and then continue per the pacing rules.`,
-        `Answered: "${opt}"`
+        `[Quiz answer] For "${quiz.question}", I selected "${opt}" — ${resultNote}. Briefly react to this (e.g. confirm whether it was correct) and then continue per the pacing rules.`,
+        null
       );
     });
     card.appendChild(b);
   });
   card.appendChild(explainEl);
-  transcriptEl.appendChild(card);
-  transcriptEl.scrollTop = transcriptEl.scrollHeight;
+  overlayLayer.appendChild(card);
+  activeQuizCard = card;
+  // Anchor just below wherever the board's content cursor currently sits —
+  // i.e. right where the quiz "arrives" after whatever was just taught.
+  activeQuizWorldY = globalCursorY + 14;
+  repositionQuizOverlay();
 }
 
 /* =========================================================
@@ -4270,8 +4329,36 @@ async function callGemini(){
   return { ok:true, raw: raw.trim() };
 }
 
+// Safety net for the "always check in" pacing rule in SYSTEM_PROMPT. The
+// prompt already instructs the model to end every non-quiz turn with a
+// question — but that's one instruction buried deep in a long prompt, and
+// over a long session the model can quietly stop following it (this is
+// exactly what got reported: the AI stopped asking follow-ups). Rather
+// than trust the prompt alone, enforce it deterministically here: if the
+// model didn't attach a quiz AND its speech doesn't already end on a
+// question, append a short, rotating check-in question ourselves so the
+// pacing behavior can't silently degrade.
+const FALLBACK_CHECKINS = [
+  "Does that make sense so far?",
+  "Any questions on this before we continue?",
+  "Want me to go over that again, or should we move on?",
+  "How does that land — clear, or should I slow down?",
+  "Ready to keep going, or want a moment on this part first?"
+];
+let fallbackCheckinIdx = 0;
+function ensureEngagementCheckin(speech){
+  const trimmed = (speech || '').trim();
+  if(!trimmed) return trimmed;
+  // Already ends on a question — a real "?" is the reliable signal here
+  // since the model is instructed to vary its phrasing, not use fixed text.
+  if(/\?\s*$/.test(trimmed)) return trimmed;
+  const q = FALLBACK_CHECKINS[fallbackCheckinIdx % FALLBACK_CHECKINS.length];
+  fallbackCheckinIdx++;
+  return trimmed + ' ' + q;
+}
+
 async function runTeachingTurn(userMessage, displayText, imageAttachment){
-  addTranscriptMsg('user', displayText !== undefined ? displayText : userMessage);
+  if(displayText !== null) addTranscriptMsg('user', displayText !== undefined ? displayText : userMessage);
   // Guarantee the handwriting webfonts are fully loaded BEFORE any text is
   // measured for layout. Without this, the very first turn's line-wrap
   // calculation can run against fallback system-font metrics (if the
@@ -4288,8 +4375,9 @@ async function runTeachingTurn(userMessage, displayText, imageAttachment){
   const totalBaseMs = boardCmds.reduce((sum,c)=> sum + baseDurationFor(c), 0);
   const speechMs = estimateSpeechDurationMs(result.speech || '');
   drawPaceScale = totalBaseMs > 0 ? Math.min(2.5, Math.max(0.6, speechMs / totalBaseMs)) : 1;
-  if(boardCmds.length) enqueueCommandsAtCursor(boardCmds);
-  if(result.speech){ addTranscriptMsg('tutor', result.speech); speak(result.speech); }
+  if(boardCmds.length){ dismissQuizCard(); enqueueCommandsAtCursor(boardCmds); }
+  const finalSpeech = result.quiz ? result.speech : ensureEngagementCheckin(result.speech);
+  if(finalSpeech){ addTranscriptMsg('tutor', finalSpeech); speak(finalSpeech); }
   if(result.quiz) addQuizCard(result.quiz);
   autoSaveSession();
 }
@@ -4497,6 +4585,7 @@ function resetTutorBoardState(){
   camera.x=500; camera.scale=1;
   resetRegionCursors(); currentTopicLabel='Topic';
   clearBoard();
+  dismissQuizCard();
   transcriptEl.innerHTML = '<div class="empty-note">Your lecture transcript and quiz questions will appear here as we go.</div>';
   resetUploadZoneUI();
   forgetActiveSession();
@@ -4698,6 +4787,7 @@ function resetUploadZoneUI(){
 }
 
 function loadSession(item){
+  dismissQuizCard();
   currentSessionId = item.id; currentSessionTitle = item.title;
   currentSubject = item.subject && item.subject!=='Unsorted' ? item.subject : '';
   pdfFileName = item.pdfFileName || ''; pdfText = item.pdfText || '';
