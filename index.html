@@ -3181,13 +3181,24 @@ let currentAudioEl = null;
 const ttsAudioEl = new Audio();
 ttsAudioEl.playsInline = true;
 let audioUnlocked = false;
+// A ~0.1s silent WAV, base64-encoded. Playing an element with NO src at
+// all fails instantly (NotSupportedError) and does NOT count as a real
+// unlock — Safari only lifts its autoplay restriction for the rest of
+// the page's life once a media element has genuinely started playing
+// audio during a real user gesture. This tiny silent clip satisfies
+// that requirement without anyone actually hearing anything.
+const SILENT_WAV = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
 function unlockTtsAudio(){
   if(audioUnlocked) return;
-  audioUnlocked = true;
-  ttsAudioEl.play().then(()=>{ ttsAudioEl.pause(); }).catch(()=>{ audioUnlocked = false; });
+  ttsAudioEl.src = SILENT_WAV;
+  const p = ttsAudioEl.play();
+  if(p && p.then){
+    p.then(()=>{ audioUnlocked = true; ttsAudioEl.pause(); })
+     .catch(()=>{ /* still locked; will retry on next tap */ });
+  }
 }
-document.addEventListener('touchstart', unlockTtsAudio, { once:false, passive:true });
-document.addEventListener('click', unlockTtsAudio, { once:false });
+document.addEventListener('touchstart', unlockTtsAudio, { passive:true });
+document.addEventListener('click', unlockTtsAudio);
 
 function setVoiceStatus(mode, detail){
   const chip = document.getElementById('voice-status-chip');
