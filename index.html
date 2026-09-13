@@ -801,7 +801,7 @@ footer a:hover{ color:var(--navy); }
           <span id="account-name-landing"></span>
         </div>
       </div>
-      <a class="go-app-btn" href="#" onclick="parent.postMessage({nav:'home'},'*');return false;">Go to App →</a>
+      <a class="go-app-btn" id="landing-cta-btn" href="#">Sign in</a>
     </div>
   </nav>
 
@@ -874,17 +874,33 @@ document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeHowModal()
 // "null", and Google's script refuses to authenticate from a null
 // origin. This page just listens for the shell to tell it the current
 // sign-in state and reflects it in the UI.
+let landingSignedIn = false;
+function updateLandingCta(){
+  const cta = document.getElementById('landing-cta-btn');
+  cta.textContent = landingSignedIn ? 'Go to App →' : 'Sign in';
+}
 window.addEventListener('message', (e)=>{
   const d = e.data;
   if(!d || !d.chalklineAuth) return;
   const out = document.getElementById('account-signed-in-landing');
-  if(d.signedIn && d.user){
+  landingSignedIn = !!(d.signedIn && d.user);
+  if(landingSignedIn){
     out.style.display = 'block';
     document.getElementById('account-avatar-landing').src = d.user.picture || '';
     document.getElementById('account-name-landing').textContent = d.user.name || d.user.email || 'Signed in';
   } else {
     out.style.display = 'none';
   }
+  updateLandingCta();
+});
+// Signed in already: the button's job is to get you into the app.
+// Signed out: its job is to get you signed in first — hand off to the
+// shell's real sign-in-or-skip modal (same one "Start for free" uses)
+// rather than dropping straight into the app as a guest.
+document.getElementById('landing-cta-btn').addEventListener('click', (e)=>{
+  e.preventDefault();
+  if(landingSignedIn) parent.postMessage({ nav:'home' }, '*');
+  else parent.postMessage({ showStartModal:true }, '*');
 });
 <\/script>
 
@@ -3526,12 +3542,22 @@ let audioUnlocked = false;
 // audio during a real user gesture. This tiny silent clip satisfies
 // that requirement without anyone actually hearing anything.
 const SILENT_WAV = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+// Deliberately a SEPARATE <audio> element from ttsAudioEl. Reusing
+// ttsAudioEl here would mean every tap on the page — including one that
+// lands while real tutor speech is mid-playback — overwrites its .src
+// with silence and calls .play(), stomping the audio that was already
+// loaded/playing. This unlock element exists purely to satisfy Safari's
+// "a real user gesture must start playback at least once" rule; once
+// that's done for the page, ttsAudioEl itself is free to be driven by
+// async code without ever being touched by the click/touchstart listeners.
+const unlockAudioEl = new Audio();
+unlockAudioEl.playsInline = true;
 function unlockTtsAudio(){
   if(audioUnlocked) return;
-  ttsAudioEl.src = SILENT_WAV;
-  const p = ttsAudioEl.play();
+  unlockAudioEl.src = SILENT_WAV;
+  const p = unlockAudioEl.play();
   if(p && p.then){
-    p.then(()=>{ audioUnlocked = true; ttsAudioEl.pause(); })
+    p.then(()=>{ audioUnlocked = true; unlockAudioEl.pause(); })
      .catch(()=>{ /* still locked; will retry on next tap */ });
   }
 }
@@ -4435,20 +4461,24 @@ function sessionKeyPrefix(){
   return 'session:' + currentUser.sub + ':';
 }
 
-// Remembers which session is currently open, per signed-in account, so
-// a plain page refresh resumes it instead of prompting for a new course
-// name. Uses sessionStorage (survives a refresh, clears when the tab or
-// site is closed) rather than localStorage, so it never leaks into a
-// later, unrelated visit the way a persistent guest bucket would.
+// Remembers which session is currently open, per signed-in account. The
+// authoritative copy now lives in the SHELL's localStorage (see the nav
+// script at the bottom of the page) because this page itself is a srcdoc
+// iframe re-created from scratch on every load — it has no stable URL for
+// sessionStorage/localStorage to durably survive a refresh against.
+// sessionStorage here is kept only as a same-load fallback.
 const LAST_ACTIVE_STORAGE_KEY = 'chalkline_last_active_session';
 function rememberActiveSession(){
   if(!currentUser) return;
   try{
     sessionStorage.setItem(LAST_ACTIVE_STORAGE_KEY, JSON.stringify({ sub: currentUser.sub, id: currentSessionId }));
   } catch(e){ /* best-effort only */ }
+  try{ parent.postMessage({ chalklineActiveSession:true, page:'tutor', sub: currentUser.sub, id: currentSessionId }, '*'); }
+  catch(e){}
 }
 function forgetActiveSession(){
   try{ sessionStorage.removeItem(LAST_ACTIVE_STORAGE_KEY); } catch(e){}
+  try{ parent.postMessage({ chalklineActiveSession:true, page:'tutor', cleared:true }, '*'); } catch(e){}
 }
 function readRememberedSessionId(){
   try{
@@ -5999,6 +6029,36 @@ function navTo(page, pushHistory, navPayload, isInitialLoad){
   }
 }
 
+// Last-active-session tracking lives HERE, in the shell, not inside the
+// tutor/summary srcdoc iframes. Those iframes get torn down and re-parsed
+// as a fresh, un-navigated document on every load (they have no stable
+// URL — just an inline srcdoc string) so anything they write to their own
+// sessionStorage/localStorage is not reliably there for the *next* load
+// after a real page refresh. This top-level page, by contrast, has the
+// site's real origin and survives a refresh normally, so this is the only
+// place that can durably answer "what was open before the refresh?".
+// localStorage (not sessionStorage) on purpose: a refresh should resume
+// the same lesson, but so should closing the tab and coming back later —
+// there's no reason to lose that continuity just because a tab closed.
+const LAST_ACTIVE_KEY_PREFIX = 'chalkline_last_active_';
+function rememberActiveShell(page, sub, id){
+  if(!sub || !id) return;
+  try{ localStorage.setItem(LAST_ACTIVE_KEY_PREFIX + page, JSON.stringify({ sub, id })); }
+  catch(e){ /* best-effort only */ }
+}
+function forgetActiveShell(page){
+  try{ localStorage.removeItem(LAST_ACTIVE_KEY_PREFIX + page); } catch(e){}
+}
+function readActiveShell(page, sub){
+  try{
+    const raw = localStorage.getItem(LAST_ACTIVE_KEY_PREFIX + page);
+    if(!raw) return null;
+    const parsed = JSON.parse(raw);
+    if(parsed && parsed.sub === sub) return parsed.id;
+  } catch(e){}
+  return null;
+}
+
 window.addEventListener('message', (e)=>{
   const d = e.data;
   if(d && d.nav){
@@ -6006,6 +6066,15 @@ window.addEventListener('message', (e)=>{
     if(d.loadSessionId) payload = { loadSessionId: d.loadSessionId };
     else if(d.loadSummaryId) payload = { loadSummaryId: d.loadSummaryId };
     navTo(d.nav, true, payload);
+    return;
+  }
+  // Reported by the tutor/summary iframe whenever the session it has open
+  // changes (new session created, saved, or a saved one loaded) — see the
+  // matching postMessage calls added alongside rememberActiveSession().
+  if(d && d.chalklineActiveSession){
+    const page = d.page === 'summary' ? 'summary' : 'tutor';
+    if(d.cleared) forgetActiveShell(page);
+    else rememberActiveShell(page, d.sub, d.id);
   }
 });
 
@@ -6016,7 +6085,16 @@ window.addEventListener('popstate', (e)=>{
 
 const initial = location.hash ? location.hash.slice(1) : 'landing';
 history.replaceState({page: initial}, '', '#' + initial);
-navTo(initial, false, null, true);
+// On a real page refresh landing directly on tutor/summary (URL hash
+// already says so), try to resume whatever session was open before the
+// refresh — using the shell's own localStorage record, not anything the
+// about-to-be-recreated iframe might have tried to remember itself.
+let initialPayload = null;
+if((initial === 'tutor' || initial === 'summary') && shellUser){
+  const rememberedId = readActiveShell(initial, shellUser.sub);
+  if(rememberedId) initialPayload = { loadSessionId: rememberedId };
+}
+navTo(initial, false, initialPayload, true);
 </script>
 
 </body>
