@@ -3171,6 +3171,24 @@ function renderCaption(fullText, chunkStartIndex, chunkText){
 // speechSynthesis so the tutor never goes silent.
 let currentAudioEl = null;
 
+// iOS Safari only allows audio to play if it was started directly inside
+// a user gesture (a tap), not from code running after an async fetch —
+// which is exactly how tutor speech starts (auto-triggered after the AI
+// responds). The fix: create ONE <audio> element up front and "unlock"
+// it during the very first tap anywhere in the tutor UI by playing/
+// pausing it immediately. Once unlocked, changing its .src and calling
+// .play() later (even from async code) is allowed for that same element.
+const ttsAudioEl = new Audio();
+ttsAudioEl.playsInline = true;
+let audioUnlocked = false;
+function unlockTtsAudio(){
+  if(audioUnlocked) return;
+  audioUnlocked = true;
+  ttsAudioEl.play().then(()=>{ ttsAudioEl.pause(); }).catch(()=>{ audioUnlocked = false; });
+}
+document.addEventListener('touchstart', unlockTtsAudio, { once:false, passive:true });
+document.addEventListener('click', unlockTtsAudio, { once:false });
+
 function setVoiceStatus(mode, detail){
   const chip = document.getElementById('voice-status-chip');
   if(!chip) return;
@@ -3274,20 +3292,29 @@ function speak(text){
     if(myToken !== currentSpeechToken) return;
 
     if(audioUrl){
-      const audioEl = new Audio(audioUrl);
-      currentAudioEl = audioEl;
-      audioEl.onplay = () => avatar.classList.add('speaking');
-      audioEl.onended = () => {
+      currentAudioEl = ttsAudioEl;
+      ttsAudioEl.src = audioUrl;
+      ttsAudioEl.load(); // Force the element to actually pick up the new src
+                          // instead of continuing/replaying whatever buffer
+                          // it already had loaded from the previous chunk.
+      ttsAudioEl.onplay = () => avatar.classList.add('speaking');
+      ttsAudioEl.onended = () => {
         URL.revokeObjectURL(audioUrl);
         if(myToken !== currentSpeechToken) return;
         const pause = /\?\s*$/.test(chunks[i]) ? 260 : 140;
         setTimeout(()=> speakChunk(i+1), pause);
       };
-      audioEl.onerror = () => {
+      ttsAudioEl.onerror = () => {
         URL.revokeObjectURL(audioUrl);
-        if(myToken === currentSpeechToken) speakChunkBrowser(i);
+        if(myToken === currentSpeechToken){
+          setVoiceStatus('fallback', 'Audio element failed to decode/play the ElevenLabs response.');
+          speakChunkBrowser(i);
+        }
       };
-      audioEl.play().catch(()=> speakChunkBrowser(i));
+      ttsAudioEl.play().catch((err)=>{
+        setVoiceStatus('fallback', 'Playback blocked: ' + err.message + ' — tap anywhere in the tutor once, then try again.');
+        speakChunkBrowser(i);
+      });
     } else {
       speakChunkBrowser(i);
     }
