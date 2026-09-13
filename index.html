@@ -3610,12 +3610,26 @@ function showBackendDebug(){
   alert("Last AI backend attempt(s):\n\n" + lines.join('\n\n'));
 }
 
+// Groq's free/on-demand tier caps requests at a fairly small tokens-per-minute
+// budget (as low as 8000 TPM). The full system prompt plus an unbounded,
+// ever-growing conversation history plus a large max_tokens request together
+// blow straight through that on any session that's gone on for more than a
+// couple of turns — this is what an "API error 413 / request too large"
+// from Groq means. Keep only a recent window of turns for the API call
+// itself (the on-screen transcript/history the user sees is untouched —
+// this only affects what gets resent to the model).
+function recentHistoryForApi(){
+  const MAX_TURNS = 10; // ~5 user+assistant exchanges
+  if(conversationHistory.length <= MAX_TURNS) return conversationHistory;
+  return conversationHistory.slice(-MAX_TURNS);
+}
+
 async function callTutor(userMessage, imageAttachment){
   setStatus('thinking…');
   lastBackendDebug = [];
   const contextParts = [];
   if(pdfText && conversationHistory.length===0){
-    contextParts.push(`SOURCE DOCUMENT (${pdfFileName}), extracted text:\n${pdfText.slice(0,15000)}`);
+    contextParts.push(`SOURCE DOCUMENT (${pdfFileName}), extracted text:\n${pdfText.slice(0,6000)}`);
   }
   contextParts.push(userMessage);
   const fullUserContent = contextParts.join('\n\n---\n\n');
@@ -3669,10 +3683,10 @@ async function callGroq(){
       body: JSON.stringify({
         model:"openai/gpt-oss-120b",
         response_format:{ type:"json_object" },
-        max_tokens:12000,
+        max_tokens:4000,
         messages: [
           { role:"system", content: SYSTEM_PROMPT },
-          ...conversationHistory
+          ...recentHistoryForApi()
         ]
       })
     });
@@ -3714,7 +3728,7 @@ async function callOpenRouter(){
         max_tokens:12000,
         messages: [
           { role:"system", content: SYSTEM_PROMPT },
-          ...conversationHistory
+          ...recentHistoryForApi()
         ]
       })
     });
@@ -3756,7 +3770,7 @@ async function callCerebras(){
         max_tokens:12000,
         messages: [
           { role:"system", content: SYSTEM_PROMPT },
-          ...conversationHistory
+          ...recentHistoryForApi()
         ]
       })
     });
