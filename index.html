@@ -3178,13 +3178,16 @@ function setVoiceStatus(mode, detail){
   chip.style.cursor = 'pointer';
   chip._voiceDetail = detail || '';
   chip.onclick = () => { if(chip._voiceDetail) alert(chip._voiceDetail); };
-  if(mode === 'cloudflare'){
-    chip.textContent = '🔊 Cloudflare voice';
+  if(mode === 'elevenlabs'){
+    chip.textContent = '🔊 ElevenLabs voice';
     chip.style.color = '#1E7B4D';
+  } else if(mode === 'cloudflare'){
+    chip.textContent = '🔊 Cloudflare voice';
+    chip.style.color = '#2E7DBE';
   } else if(mode === 'fallback'){
     chip.textContent = '🔊 Browser voice (fallback) — tap for details';
     chip.style.color = '#B8860B';
-    if(!chip._voiceDetail) chip._voiceDetail = 'Cloudflare voice unavailable (no further detail).';
+    if(!chip._voiceDetail) chip._voiceDetail = 'AI voice unavailable (no further detail).';
   } else if(mode === 'error'){
     chip.textContent = '🔇 Voice error — tap for details';
     chip.style.color = '#C0392B';
@@ -3205,7 +3208,7 @@ async function fetchCloudflareVoice(text){
     if(!resp.ok){
       let detail = `HTTP ${resp.status}`;
       try{ const errText = await resp.text(); if(errText) detail += ' — ' + errText.slice(0,200); } catch(e){}
-      console.warn('Cloudflare voice request failed:', detail);
+      console.warn('AI voice request failed:', detail);
       setVoiceStatus('fallback', detail);
       return null;
     }
@@ -3214,10 +3217,11 @@ async function fetchCloudflareVoice(text){
       setVoiceStatus('fallback', 'empty audio response');
       return null;
     }
-    setVoiceStatus('cloudflare');
+    const provider = resp.headers.get('X-Voice-Provider') || 'cloudflare';
+    setVoiceStatus(provider);
     return URL.createObjectURL(blob);
   } catch(e){
-    console.warn('Cloudflare voice request failed, falling back to browser voice:', e);
+    console.warn('AI voice request failed, falling back to browser voice:', e);
     setVoiceStatus('fallback', e.message);
     return null;
   }
