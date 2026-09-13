@@ -2054,6 +2054,15 @@ let currentSubject = '';
 function resetRegionCursors(){
   globalCursorY = TOP_MARGIN;
   userIsScrolledAway = false;
+  // Invalidate any camera pan animation still in flight from before this
+  // reset (e.g. a "follow the pen" pan queued by the previous session's
+  // last teaching turn). Without this, that animation's next
+  // requestAnimationFrame tick still passes its own now-stale token check
+  // and overwrites camera.y right back toward the old content's position,
+  // a frame or two after we set it correctly below — which is exactly why
+  // a fresh session's first heading could appear away from the top instead
+  // of at the actual top of a blank page.
+  panToken++;
   
   if (viewW > 0) {
       camera.scale = Math.min(1.5, viewW / 1050);
