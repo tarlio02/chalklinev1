@@ -3049,8 +3049,26 @@ function enqueueCommandsAtCursor(commands){
     // page position and sorting by them would scramble reading order.
     let pendingDiagram = [];
 
+    // A shape type substantial enough to actually be labeled/pointed at.
+    // "arrow"/"line" are deliberately excluded — an arrow only means
+    // something when it's pointing at one of these, so a cluster made up
+    // solely of arrows/lines/diagramLabels (no real shape) is exactly the
+    // "floating arrow pointing at nothing" failure — most often produced
+    // by the Groq fallback reaching for a pointer-callout on plain text
+    // instead of an actual diagram. Drop those clusters rather than draw
+    // disconnected arrows with no shape underneath them.
+    const SUBSTANTIVE_SHAPE_TYPES = new Set(['rect','circle','curve','path','polygon','polyline','plot','axes']);
+    function hasSubstantiveShape(cluster){
+        return cluster.some(c => SUBSTANTIVE_SHAPE_TYPES.has(c.type));
+    }
+
     function flushDiagram(){
         if(!pendingDiagram.length) return;
+        if(!hasSubstantiveShape(pendingDiagram)){
+            console.warn('Dropped an orphaned arrow/label cluster with no real shape to attach to:', pendingDiagram);
+            pendingDiagram = [];
+            return;
+        }
         let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
         pendingDiagram.forEach(c=>{
             const bb = diagramLocalBBox(c);
@@ -3935,6 +3953,7 @@ Any shape command above accepts "dash":true for a dashed stroke (equilibrium/ref
 
 DRAWING ACTUAL PICTURES (cells, leaves, animals, organs, diagrams, maps, anything representational):
 - Build the picture out of several layered primitives rather than one shape: an outer outline ("path" or filled "circle"/"curve"), then inner structures on top (smaller filled "circle"/"path"/"polygon" shapes for a nucleus, mitochondria, veins, crystal facets, etc.), then label the parts with a short "arrow" pointing from the label to the structure plus a small "text" command (with "diagramLabel":true) for the label word — exactly like a real teacher labels a diagram they've just drawn.
+- NEVER use "arrow"/"diagramLabel" as a pointer callout aimed at a piece of plain text, a formula, or a sentence you already wrote (e.g. a floating arrow labeled "b" pointing at nothing, meant to indicate the "b" in "ax²+bx+c=0"). Arrows and diagramLabels exist ONLY to name a part of an actual drawn shape (a rect, circle, path, curve, plot, or table) present in the SAME unbroken diagram run — a label with no shape to attach to produces exactly the kind of orphaned arrow pointing at empty space that must never happen. If you need to explain what a coefficient or term in a formula means, say it in a normal "text" line (e.g. "b determines the axis of symmetry") — do not draw anything for it.
 - Trace organic outlines ("path") the way you'd actually sketch them by hand: a handful of "M"/"C"/"Q" segments roughly following the real silhouette (e.g. a leaf is a pointed oval with a "Z" to close it, a cell is a wobbly rounded "path" rather than a perfect "circle", a dog is several overlapping "path"/"circle" shapes for the head, snout, ears, body, legs, tail). It does not need to be photorealistic — a clean, recognizable line-art sketch is the goal, the same level of detail a lecturer would actually draw on a whiteboard, not a single crude blob.
 - FOR SMOOTH CURVES: prefer "Q" (quadratic) and "C" (cubic) segments over "L" (straight-line) segments whenever a silhouette is meant to curve — a long run of short "L" segments renders as a jagged, faceted outline, while a handful of well-placed "Q"/"C" segments renders as one smooth stroke. Reserve "L" (or "polygon"/"polyline") for parts that are genuinely straight or angular (a stem, a table edge, a right angle, a crystal facet, a circuit wire). For a "curve" command, give it enough points to describe the bend smoothly (roughly 5-10 for a gentle arc, more for an S-shape) rather than just 2-3 points, since too few points makes the curve look kinked instead of flowing.
 - FOR STRAIGHT-EDGED TECHNICAL FIGURES (circuits, molecular skeletal formulas, crystal structures, geometric proofs, flowcharts, Punnett squares, truth-table grids, block diagrams): use "polygon"/"polyline"/"line"/"rect" almost exclusively — do NOT approximate a straight edge with a "path" or "curve", and do NOT eyeball an angle that's supposed to be exact (60° for a hexagon, 90° for a right angle, etc). Compute the actual vertex coordinates from the intended geometry (e.g. a regular hexagon of "radius" r centered at (cx,cy) has vertices at (cx + r·cos(60°·i), cy + r·sin(60°·i)) for i=0..5) so the shape is genuinely precise, not a rough hand-wave. This is exactly the kind of diagram where precision is the whole point — treat it like a technical drawing, not a sketch.
@@ -4153,6 +4172,7 @@ CRITICAL TABLE SIZING RULE: every cell's text MUST fit on ONE line at its given 
 NO-OVERLAP: before emitting a diagram, mentally check every text/label's bounding box (~chars×size×0.62 wide, size×1.3 tall) doesn't collide with another text or a shape it's not meant to sit on. Stagger close labels, keep labels outside the shape they name (leader arrow pointing in), keep row/col text inside its grid cell, keep paragraph text within "maxWidth". When unsure, add more spacing or split into two smaller diagrams — never cram.
 
 DRAWING SCOPE — YOU ARE THE FALLBACK MODEL, GEMINI HANDLES MOST TURNS: stick to structured, geometric board content you can execute reliably — tables/grids, "axes"/"plot" graphs, payoff matrices, truth tables, simple labeled rect/circle/line diagrams, flowcharts. AVOID attempting freeform organic illustrations (a realistic cell, an animal, an organ, a leaf, anything needing "path"/"curve" hand-sketch outlines with shading) — if the turn calls for one of those, draw a simpler labeled-shape version instead (basic circles/rects with labels) rather than a detailed illustration, since that detailed style is unreliable for you specifically. Tables, plots, and axes are where you should put your effort and detail.
+NEVER use "arrow"/"diagramLabel" as a pointer callout aimed at a piece of plain text, a formula, or a sentence you already wrote (e.g. an arrow labeled "b" floating near the word "b" in "ax²+bx+c=0"). Arrows and diagramLabels exist ONLY to name a part of an actual drawn shape (a rect, circle, curve, plot, or table) that is present in the SAME unbroken diagram run — never a bare arrow pointing at ordinary sentence text with nothing else drawn. If you need to explain what a coefficient or term in a formula means, just say it in a normal "text" line (e.g. "b determines the axis of symmetry") — do not draw anything for it.
 
 PACING: teach ONE small idea per turn (one definition/sub-step/small piece of an example) — never a whole topic at once, unless the one idea IS a complex diagram (then its full detail is appropriate). After that one idea, ALWAYS stop and check in — mandatory every turn — either via "quiz", or by ending "speech" with a direct question (vary between "does that make sense?", "any questions?", "should we move on or stay here?"). Never end on a flat statement with no question. Wait for the reply before continuing.
 
