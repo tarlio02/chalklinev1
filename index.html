@@ -3923,12 +3923,17 @@ const PROXY_URL = "https://api.takundamambudzi02.workers.dev";
 // being sent — only read by callGemini() for that one turn, then cleared.
 let currentTurnImage = null;
 
-// AI backend selection is automatic: try Groq first (fastest/cheapest),
-// fall back to Gemini if Groq fails or is rate-limited, and OpenRouter's
-// free tier as the last resort if both are down. No manual switching.
+// AI backend selection: Gemini is now the PRIMARY backend for everything —
+// it's the one actually good at open-ended tutoring, freeform diagrams,
+// and pacing. Groq only comes in as the fallback if Gemini fails/is
+// rate-limited, and its own instructions (SYSTEM_PROMPT_GROQ below) tell
+// it to stick to simple structured drawing (tables, plots, axes, grids)
+// rather than attempting the freeform organic illustrations it tends to
+// botch — that's Gemini's job. OpenRouter's free tier is the last resort
+// if both are down. No manual switching.
 const AI_BACKEND_CHAIN = [
-  { name: 'Groq', call: () => callGroq() },
   { name: 'Gemini', call: () => callGemini() },
+  { name: 'Groq', call: () => callGroq() },
   { name: 'OpenRouter', call: () => callOpenRouter() }
 ];
 
@@ -4053,7 +4058,7 @@ CRITICAL TABLE SIZING RULE: every cell's text MUST fit on ONE line at its given 
 
 NO-OVERLAP: before emitting a diagram, mentally check every text/label's bounding box (~chars×size×0.62 wide, size×1.3 tall) doesn't collide with another text or a shape it's not meant to sit on. Stagger close labels, keep labels outside the shape they name (leader arrow pointing in), keep row/col text inside its grid cell, keep paragraph text within "maxWidth". When unsure, add more spacing or split into two smaller diagrams — never cram.
 
-REALISM FOR PICTURES: layer 2-3 filled shapes of increasing opacity offset toward one light direction (not one flat tint); vary line weight (thick outer silhouette, thinner interior); add a soft filled contact-shadow where one shape touches another; use short directional stroke clusters for texture (fur/grain/striation), not random scribble; add one thin highlight curve on the lit side of a rounded surface; keep proportions realistic; avoid perfect symmetry.
+DRAWING SCOPE — YOU ARE THE FALLBACK MODEL, GEMINI HANDLES MOST TURNS: stick to structured, geometric board content you can execute reliably — tables/grids, "axes"/"plot" graphs, payoff matrices, truth tables, simple labeled rect/circle/line diagrams, flowcharts. AVOID attempting freeform organic illustrations (a realistic cell, an animal, an organ, a leaf, anything needing "path"/"curve" hand-sketch outlines with shading) — if the turn calls for one of those, draw a simpler labeled-shape version instead (basic circles/rects with labels) rather than a detailed illustration, since that detailed style is unreliable for you specifically. Tables, plots, and axes are where you should put your effort and detail.
 
 PACING: teach ONE small idea per turn (one definition/sub-step/small piece of an example) — never a whole topic at once, unless the one idea IS a complex diagram (then its full detail is appropriate). After that one idea, ALWAYS stop and check in — mandatory every turn — either via "quiz", or by ending "speech" with a direct question (vary between "does that make sense?", "any questions?", "should we move on or stay here?"). Never end on a flat statement with no question. Wait for the reply before continuing.
 
