@@ -6,13 +6,13 @@
 <title>Chalkline — AI Study Tools</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&display=swap');
-  html,body{ margin:0; padding:0; height:100%; overflow:hidden; background:#F3F9FE; font-family:-apple-system,Segoe UI,sans-serif; }
+  html,body{ margin:0; padding:0; height:100%; overflow:hidden; background:#BFDCF7; font-family:-apple-system,Segoe UI,sans-serif; }
   /* Scoped to .shell-page specifically (not a bare "iframe" tag selector):
      a bare tag selector here would also catch any other <iframe> that
      ends up on the page — e.g. the one Google's Sign-In script injects
      into #shell-signin-btn — and fade it to invisible/unclickable since
      it never receives the .active class our router manages below. */
-  .shell-page{ position:fixed; inset:0; width:100%; height:100%; border:none; background:#F3F9FE; }
+  .shell-page{ position:fixed; inset:0; width:100%; height:100%; border:none; background:#BFDCF7; }
   .shell-page{
     opacity:0; visibility:hidden; pointer-events:none;
     transition:opacity 0.22s ease;
@@ -431,10 +431,10 @@ window.addEventListener('message', (e)=>{
 @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&family=Caveat:wght@600;700&display=swap');
 
 :root{
-  --board-bg:#F3F9FE;
+  --board-bg:#BFDCF7;
   --ink:#1E2B3A;
   --ochre:#2E7DBE;
-  --highlight:#D7ECFB;
+  --highlight:#A6D0F2;
   --sage:#3E8FA6;
   --brick:#3D6B93;
   --panel-border:#D3E6F5;
@@ -514,7 +514,7 @@ nav{
   border-radius:26px;
   padding:90px 40px;
   text-align:center;
-  background:linear-gradient(120deg, var(--highlight) 0%, #EAF3FB 45%, #F6EFF9 100%);
+  background:linear-gradient(120deg, var(--highlight) 0%, #CFE6F8 45%, #E4EEF8 100%);
   overflow:hidden;
 }
 .hero-card::before{
@@ -539,11 +539,16 @@ nav{
   font-family:-apple-system,Segoe UI,sans-serif; font-weight:600; font-size:17px;
   color:#fff; padding:16px 40px; border-radius:999px; border:none; cursor:pointer;
   background:linear-gradient(90deg, var(--ochre), var(--sage));
-  box-shadow:0 10px 26px rgba(46,125,190,0.28);
+  box-shadow:0 6px 0 0 rgba(20,70,110,0.55), 0 14px 26px rgba(20,70,110,0.32);
   transition:transform .18s ease, box-shadow .18s ease;
   animation: ctaBounce 4.2s ease-in-out infinite;
 }
-.cta-btn:hover{ transform:translateY(-2px); box-shadow:0 14px 32px rgba(46,125,190,0.34); animation-play-state:paused; }
+.cta-btn:hover{
+  transform:translateY(-2px);
+  box-shadow:0 8px 0 0 rgba(20,70,110,0.55), 0 18px 32px rgba(20,70,110,0.36);
+  animation-play-state:paused;
+}
+.cta-btn:active{ transform:translateY(4px); box-shadow:0 2px 0 0 rgba(20,70,110,0.55), 0 6px 14px rgba(20,70,110,0.3); }
 /* A quiet idle period, then a quick double-bounce near the end of each
    cycle — this reads as an occasional friendly nudge to tap, not a
    constantly-jittering button, which would get annoying fast. */
@@ -576,9 +581,6 @@ footer a:hover{ color:var(--ink); }
 <div class="wrap">
   <nav>
     <a class="brand" href="#" onclick="parent.postMessage({nav:'landing'},'*');return false;"><span class="dot"></span>Chalkline</a>
-    <div class="nav-links">
-      <a href="#" onclick="parent.postMessage({nav:'home'},'*');return false;">About</a>
-    </div>
     <div class="nav-right">
       <div id="account-signed-in-landing" style="display:none;">
         <div class="account-chip">
@@ -636,10 +638,10 @@ window.addEventListener('message', (e)=>{
 @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&family=Caveat:wght@600;700&display=swap');
 
 :root{
-  --board-bg:#F3F9FE;
+  --board-bg:#BFDCF7;
   --ink:#1E2B3A;
   --ochre:#2E7DBE;
-  --highlight:#D7ECFB;
+  --highlight:#A6D0F2;
   --sage:#3E8FA6;
   --brick:#3D6B93;
   --panel-border:#D3E6F5;
@@ -882,12 +884,12 @@ footer{
 @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Kalam:wght@400;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 :root{
-  --board-bg:#EAF4FD;
+  --board-bg:#A9CFF0;
   --board-line:#E0D9C8;
   --margin-line:#E08080;
   --ink:#1E2B3A;
   --ochre:#2E7DBE;
-  --highlight:#D7ECFB;
+  --highlight:#A6D0F2;
   --sage:#3E8FA6;
   --brick:#3D6B93;
   --panel:#FFFFFF;
@@ -903,7 +905,7 @@ body{
   color:var(--ink);
   height:100vh;
   overflow:hidden;
-  background:linear-gradient(160deg, #EAF4FD 0%, #FFFFFF 65%);
+  background:linear-gradient(160deg, #A9CFF0 0%, #DCEEFB 65%);
 }
 
 #board-wrap{
@@ -993,7 +995,7 @@ body{
   color:var(--ink);
 }
 .icon-btn:hover{background:#fff;}
-.top-right-cluster{display:flex;gap:10px;align-items:flex-start;}
+.top-right-cluster{display:flex;flex-direction:column;gap:10px;align-items:flex-end;margin-top:48px;}
 .login-pill{
   position:absolute;
   left:50%;
@@ -3534,6 +3536,22 @@ DRAWING TABLES, LEDGERS/JOURNALS, AND MATRICES (accounting T-accounts, general j
 - A table/matrix is planned and sized as its own self-contained local coordinate box exactly like any other diagram (rule 4/5/6 above) and emitted as one unbroken run with a heading "text" before it — it reserves its own vertical slot on the board so it can never collide with the paragraph text before or after it.
 - NO DUPLICATE ROWS OR LABELS, EVER: before emitting the table, write out the final row list once (e.g. for a balance sheet: Current Assets, Non-current Assets, Total Assets / Current Liabilities, Non-current Liabilities, Total Liabilities / Common Stock, Retained Earnings, Total Liabilities & Equity) and emit each row label exactly ONCE at its one row boundary. A classic failure mode is restating the same header (e.g. "Liabilities & Equity") a second time as its own overlapping text, or repeating rows like "Current Liabilities"/"Common Stock"/"Total..." lower down out of confusion about how many rows the grid has — this is wrong; the grid has exactly as many rows as there are distinct line items, no more. Count your rows and count your "text" commands for that column, and confirm the two counts match before finishing the run.
 - A three-column layout like a balance sheet (Assets | Liabilities | Equity) does NOT mean every column needs the same number of rows — Assets, Liabilities, and Equity each have their own natural row count; leave a column's remaining cells blank (simply don't draw text there) rather than inventing extra repeated rows to fill space, and never stretch all three columns' content to match the tallest by re-listing items.
+- HARD REQUIREMENT — EVERY CELL'S TEXT MUST BE A "diagramLabel":true COMMAND WITH x/y INSIDE THE TABLE'S LOCAL BOX, IN THE SAME UNBROKEN RUN AS THE GRID LINES. Do NOT, under any circumstances, draw the empty grid (rect + lines) and then separately emit the row/column contents as ordinary sequential "text" commands (diagramLabel omitted/false) after the grid — that makes them stack as plain paragraph lines below the table with no relationship to the cells at all, which is a total failure, worse than a merely-overlapping table. If you cannot compute a coordinate for a piece of text that places it inside a specific cell, do not emit that text at all yet — reconsider the grid plan first.
+- WORKED EXAMPLE (copy this exact pattern/shape for any table — a small 2-row, 2-column ledger snippet, local box x:0-500,y:0-140):
+  [
+    {"type":"text","text":"Example Ledger","heading":true},
+    {"type":"rect","x":0,"y":0,"w":500,"h":140,"color":"ink","width":2.5},
+    {"type":"line","x1":250,"y1":0,"x2":250,"y2":140,"color":"ink","width":2},
+    {"type":"line","x1":0,"y1":46,"x2":500,"y2":46,"color":"ink","width":3},
+    {"type":"line","x1":0,"y1":93,"x2":500,"y2":93,"color":"ink","width":2},
+    {"type":"text","diagramLabel":true,"text":"Account","x":16,"y":30,"size":22,"weight":700},
+    {"type":"text","diagramLabel":true,"text":"Amount","x":484,"y":30,"size":22,"weight":700,"mono":true},
+    {"type":"text","diagramLabel":true,"text":"Cash","x":16,"y":75,"size":22},
+    {"type":"text","diagramLabel":true,"text":"$50,000","x":484,"y":75,"size":22,"mono":true},
+    {"type":"text","diagramLabel":true,"text":"Inventory","x":16,"y":122,"size":22},
+    {"type":"text","diagramLabel":true,"text":"$30,000","x":484,"y":122,"size":22,"mono":true}
+  ]
+  Notice: the heading comes first (not diagramLabel), then rect+lines, then EVERY SINGLE piece of cell content is diagramLabel:true with x/y computed from the same row/column boundaries as the lines — header cells and body cells alike, right-aligned numbers via x set near the column's right edge. A real table just repeats this pattern with more rows/columns; the pattern itself never changes.
 
 UNIVERSAL NO-OVERLAP RULE (applies to every diagram, not just tables): before emitting any diagram, mentally lay out a bounding box for every single "text"/diagramLabel string (estimate width as characters × size × 0.62, height as size × 1.3) and check it doesn't intersect the bounding box of any other text or any shape it isn't meant to sit on top of. Specific failure modes to actively avoid: (1) two diagramLabels for parts that are close together — if the parts are within roughly one label's-width of each other, stagger the labels at different distances from the structure (longer/shorter leader arrows) or offset them vertically, rather than letting both labels sit at the same distance and collide; (2) a label text sitting directly on top of the shape outline it's labeling — always place label text clearly outside the shape with a leader arrow pointing in, never inside a small structure where the text itself would obscure it; (3) row/column text in a table overrunning a grid line, covered above; (4) a heading or paragraph "text" command whose estimated width exceeds "maxWidth" — either shorten the string or explicitly set a larger "maxWidth" so the app's own wrapping doesn't fight your intended line breaks. When genuinely unsure whether two elements will collide, err toward more spacing, a shorter label, or splitting one crowded diagram into two sequential smaller ones — never toward cramming.
 
@@ -4386,10 +4404,10 @@ refreshSessionList();
 @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&family=Caveat:wght@600;700&display=swap');
 
 :root{
-  --board-bg:#F3F9FE;
+  --board-bg:#BFDCF7;
   --ink:#1E2B3A;
   --ochre:#2E7DBE;
-  --highlight:#D7ECFB;
+  --highlight:#A6D0F2;
   --sage:#3E8FA6;
   --brick:#3D6B93;
   --panel-border:#D3E6F5;
@@ -4912,10 +4930,10 @@ document.getElementById('btn-download').addEventListener('click', ()=>{
 @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&family=Caveat:wght@600;700&display=swap');
 
 :root{
-  --board-bg:#F3F9FE;
+  --board-bg:#BFDCF7;
   --ink:#1E2B3A;
   --ochre:#2E7DBE;
-  --highlight:#D7ECFB;
+  --highlight:#A6D0F2;
   --sage:#3E8FA6;
   --brick:#3D6B93;
   --panel-border:#D3E6F5;
@@ -5236,10 +5254,10 @@ refreshTutorHistory();
 @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&family=Caveat:wght@600;700&display=swap');
 
 :root{
-  --board-bg:#F3F9FE;
+  --board-bg:#BFDCF7;
   --ink:#1E2B3A;
   --ochre:#2E7DBE;
-  --highlight:#D7ECFB;
+  --highlight:#A6D0F2;
   --sage:#3E8FA6;
   --brick:#3D6B93;
   --panel-border:#D3E6F5;
