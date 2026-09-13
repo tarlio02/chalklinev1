@@ -1435,7 +1435,6 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
   </button>
   <div class="top-right-cluster">
     <div class="status-chip" id="status-line">idle</div>
-    <div class="status-chip" id="voice-status-chip" style="display:none;" title=""></div>
   </div>
 </div>
 
@@ -1446,6 +1445,7 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
 <div class="avatar-cluster">
   <div class="avatar" id="avatar">🧑‍🏫</div>
   <span class="tutor-live">Tutor is live</span>
+  <div class="status-chip" id="voice-status-chip" style="display:none; margin-top:8px;"></div>
 </div>
 
 <div class="bottom-bar">
@@ -3174,18 +3174,19 @@ function setVoiceStatus(mode, detail){
   const chip = document.getElementById('voice-status-chip');
   if(!chip) return;
   chip.style.display = 'inline-block';
+  chip.style.cursor = 'pointer';
+  chip._voiceDetail = detail || '';
+  chip.onclick = () => { if(chip._voiceDetail) alert(chip._voiceDetail); };
   if(mode === 'cloudflare'){
     chip.textContent = '🔊 Cloudflare voice';
     chip.style.color = '#1E7B4D';
-    chip.title = '';
   } else if(mode === 'fallback'){
-    chip.textContent = '🔊 Browser voice (fallback)';
+    chip.textContent = '🔊 Browser voice (fallback) — tap for details';
     chip.style.color = '#B8860B';
-    chip.title = detail ? ('Cloudflare voice failed: ' + detail) : 'Cloudflare voice unavailable';
+    if(!chip._voiceDetail) chip._voiceDetail = 'Cloudflare voice unavailable (no further detail).';
   } else if(mode === 'error'){
-    chip.textContent = '🔇 Voice error';
+    chip.textContent = '🔇 Voice error — tap for details';
     chip.style.color = '#C0392B';
-    chip.title = detail || '';
   }
 }
 
