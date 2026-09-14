@@ -1489,6 +1489,25 @@ body{
   margin-right:4px;
   white-space:nowrap;
 }
+.exit-lesson-btn{
+  font-family:'JetBrains Mono', monospace;
+  font-size:11px;
+  font-weight:700;
+  color:#fff;
+  background:#e53e3e;
+  border:none;
+  border-radius:999px;
+  padding:8px 14px;
+  cursor:pointer;
+  white-space:nowrap;
+  box-shadow:0 2px 8px rgba(229,62,62,0.35);
+  transition:background .15s ease, transform .15s ease;
+}
+.exit-lesson-btn:hover{ background:#c53030; }
+.exit-lesson-btn:active{ transform:scale(0.96); }
+@media (max-width:600px){
+  .exit-lesson-btn{ font-size:9.5px; padding:6px 10px; }
+}
 
 .btn-label{
   font-family:'JetBrains Mono', monospace;
@@ -1529,7 +1548,11 @@ body{
 
 .top-center-cluster{
   position:fixed;
-  top:calc(var(--safe-top) + var(--top-control-height, 60px));
+  /* Sits just under the login pill (which lives at safe-top+14px) —
+     high up near the very top of the screen on every device/breakpoint,
+     instead of hanging down at top-control-height where it used to
+     cover the first lines the tutor writes on the board. */
+  top:calc(var(--safe-top) + 46px);
   left:50%;
   transform:translateX(-50%);
   z-index:19;
@@ -1566,6 +1589,12 @@ body{
   font-size:24px;
   box-shadow:0 2px 8px rgba(0,0,0,0.08);
   position:relative;
+  flex-shrink:0;
+}
+.avatar-topbar{
+  width:var(--control-size);height:var(--control-size);
+  font-size:18px;
+  box-shadow:0 1px 4px rgba(0,0,0,0.08), 0 0 0 4px rgba(15,55,145,0.35);
   flex-shrink:0;
 }
 .avatar.speaking{border-color:var(--ochre);}
@@ -1653,24 +1682,24 @@ body{
 .ask-zone{
   position:relative;
   display:flex;
-  gap:6px;
+  gap:5px;
   align-items:center;
   background:#fff;
   border:1px solid var(--panel-border);
-  border-radius:26px;
-  padding:3px 3px 3px 14px;
+  border-radius:22px;
+  padding:2px 2px 2px 12px;
   box-shadow:0 3px 14px rgba(0,0,0,0.08);
   width:var(--ask-zone-width);
   min-width:0;
-  /* Sits a little lower than the round buttons beside it — a transform
-     shifts it visually without changing its flex box, so Replay/Talk/
-     Transcript stay exactly where they were. */
-  transform:translateY(12px);
+  height:var(--control-size-sm);
+  /* No vertical offset here anymore — the ask bar now sits on the exact
+     same baseline as Replay/Talk/Transcript beside it (the bottom-bar's
+     own align-items:center is what keeps everything level). */
 }
 .ask-icon-btn{
-  width:26px;height:26px;border-radius:50%;
+  width:22px;height:22px;border-radius:50%;
   border:none; background:transparent; color:var(--muted);
-  cursor:pointer; font-size:14px;
+  cursor:pointer; font-size:13px;
   display:flex;align-items:center;justify-content:center;
   flex-shrink:0;
 }
@@ -1689,16 +1718,17 @@ body{
 .attach-chip-remove:hover{ color:var(--brick); }
 .ask-zone input{
   flex:1;
+  min-width:0;
   border:none;outline:none;
   font-family:'Source Serif 4', serif;
-  font-size:15px;
+  font-size:14px;
   padding:6px 0;
   background:transparent;
 }
 .ask-zone button{
-  width:32px;height:32px;border-radius:50%;
+  width:27px;height:27px;border-radius:50%;
   border:none;background:var(--ink);color:#fff;
-  cursor:pointer;font-size:14px;
+  cursor:pointer;font-size:12px;
   display:flex;align-items:center;justify-content:center;
   flex-shrink:0;
   box-shadow:0 0 0 4px rgba(15,55,145,0.35);
@@ -2100,17 +2130,20 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
       <button class="icon-btn" id="btn-export-pdf" title="Export board as PDF">📄</button>
       <span class="btn-label">Export PDF</span>
     </div>
+    <div class="topbar-btn-wrap">
+      <div class="avatar avatar-topbar" id="avatar">🧑‍🏫</div>
+    </div>
   </div>
   <button class="login-pill" id="btn-login-pill" title="Login to save your work">
     🔒<span class="pill-full">Login to save your work</span><span class="pill-short">Login</span>
   </button>
   <div class="top-right-cluster">
+    <button class="exit-lesson-btn" id="btn-exit-lesson" title="Exit lesson">🚪 Exit Lesson</button>
     <div class="status-chip" id="status-line" onclick="showBackendDebug()" style="cursor:pointer;" title="Tap to see AI backend details">idle</div>
   </div>
 </div>
 
 <div class="top-center-cluster" id="top-center-cluster">
-  <div class="avatar" id="avatar">🧑‍🏫</div>
   <span class="tutor-live" id="tutor-live-badge">Tutor is live</span>
 </div>
 <div class="caption-text" id="caption-text" style="display:none;"></div>
@@ -5130,6 +5163,11 @@ document.getElementById('btn-login-pill').addEventListener('click', ()=>{
   parent.postMessage({ requestLogin: true }, '*');
 });
 updateLoginPillVisibility();
+
+// Exit Lesson (top right, red): reuses the same "save before leaving"
+// prompt that was already built for a Home button — asks for a lesson
+// name and saves before navigating back to the dashboard.
+document.getElementById('btn-exit-lesson').addEventListener('click', handleHomeClick);
 // -----------------------------------------------------------------------
 
 
