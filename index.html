@@ -915,11 +915,12 @@ document.getElementById('landing-cta-btn').addEventListener('click', (e)=>{
 
 :root{
   --board-bg:#0E1B33;
-  --navy:#0E1B33;
+  --navy:#080F20;
   --ink:#0E1B33;
   --ochre:#2E7DBE;
   --violet:#6C5CE7;
   --gold:#F0B94D;
+  --gold-deep:#C98A2B;
   --highlight:#A6D0F2;
   --sage:#3E8FA6;
   --brick:#3D6B93;
@@ -927,6 +928,7 @@ document.getElementById('landing-cta-btn').addEventListener('click', (e)=>{
   --muted:#5C7089;
   --halo-blue:#6EA8FE;
   --halo-blue-soft:#8F7CF0;
+  --emerald:#2FA88A;
 }
 *{box-sizing:border-box;}
 html,body{margin:0;padding:0;}
@@ -1106,57 +1108,119 @@ body{
 }
 
 /* ---------- MAIN DASHBOARD AREA ---------- */
-.main-area{ flex:1; min-width:0; padding:44px 40px 60px; }
-.dash-head{ margin-bottom:30px; }
-.dash-head .eyebrow{
-  display:inline-flex; align-items:center; gap:8px;
-  font-family:'JetBrains Mono', monospace; font-size:12px; letter-spacing:0.02em;
-  color:var(--navy); background:rgba(255,255,255,0.7);
-  border:1px solid rgba(255,255,255,0.8);
-  padding:7px 16px; border-radius:999px;
-  box-shadow:0 4px 14px rgba(16,40,80,0.08);
-  margin-bottom:16px;
-}
-.dash-head .eyebrow .spark{
-  width:6px; height:6px; border-radius:50%;
-  background:var(--gold); box-shadow:0 0 0 3px rgba(240,185,77,0.3);
-  animation:pulseDot 2.2s ease-in-out infinite;
-}
-@keyframes pulseDot{ 0%,100%{ opacity:1; } 50%{ opacity:0.4; } }
+.main-area{ flex:1; min-width:0; padding:44px 40px 70px; }
+.dash-head{ margin-bottom:34px; max-width:600px; }
 .dash-head h1{
   font-family:'Fraunces', 'Source Serif 4', Georgia, serif;
-  font-size:36px; line-height:1.15; font-weight:600; margin:0 0 10px;
+  font-size:42px; line-height:1.12; font-weight:600; margin:0 0 14px;
   letter-spacing:-0.015em; color:var(--navy);
 }
-.dash-head p{ font-size:16px; line-height:1.6; color:#4C5C74; max-width:520px; margin:0; }
+.dash-head p{ font-size:16.5px; line-height:1.65; color:#4C5C74; max-width:520px; margin:0; }
 
+/* ---------- 3D LESSON BUTTONS ---------- */
 .dash-grid{
-  display:grid; grid-template-columns:1fr 1fr; gap:22px; max-width:760px;
+  display:grid; grid-template-columns:1fr 1fr; gap:24px; max-width:780px;
+  perspective:1400px;
 }
 @media (max-width:680px){ .dash-grid{ grid-template-columns:1fr; } }
 
 .dash-card{
-  display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;
-  gap:10px; text-decoration:none; color:inherit; cursor:pointer;
-  min-height:150px; border-radius:999px;
-  background:rgba(255,255,255,0.55); border:1.5px solid rgba(255,255,255,0.7);
-  padding:22px 26px; position:relative; overflow:hidden;
-  backdrop-filter:blur(10px);
-  box-shadow:0 10px 26px -16px rgba(20,40,90,0.20);
-  transition:border-color .2s ease, transform .2s ease, box-shadow .2s ease, background .2s ease;
+  --card-a:var(--ochre); --card-b:var(--violet);
+  display:flex; flex-direction:column; align-items:flex-start; justify-content:flex-end; text-align:left;
+  gap:6px; text-decoration:none; color:inherit; cursor:pointer;
+  min-height:168px; border-radius:22px;
+  background:linear-gradient(160deg, #14213E 0%, var(--navy) 100%);
+  border:none;
+  padding:22px 24px 20px; position:relative; overflow:hidden;
+  transform-style:preserve-3d; transform:translateY(0) translateZ(0) rotateX(0deg);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.12) inset,
+    0 -18px 30px -18px rgba(0,0,0,0.55) inset,
+    0 14px 0 -6px rgba(4,9,20,0.55),
+    0 22px 34px -14px rgba(8,15,32,0.65);
+  transition:transform .22s cubic-bezier(.2,.8,.3,1.1), box-shadow .22s ease;
 }
+/* glowing gradient rim, only revealed as a thin ring around the card */
+.dash-card::before{
+  content:''; position:absolute; inset:0; border-radius:22px; padding:1.5px;
+  background:linear-gradient(135deg, var(--card-a), var(--card-b) 60%, transparent 100%);
+  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor; mask-composite:exclude;
+  opacity:0.55; transition:opacity .2s ease;
+}
+/* soft color bloom in the corner, like light catching foil */
+.dash-card::after{
+  content:''; position:absolute; top:-40%; right:-20%; width:70%; height:140%;
+  background:radial-gradient(circle, var(--card-b) 0%, transparent 70%);
+  opacity:0.22; filter:blur(6px); pointer-events:none;
+  transition:opacity .25s ease, transform .25s ease;
+}
+.dash-card.summary{ --card-a:var(--sage); --card-b:var(--emerald); }
 .dash-card:hover{
-  transform:translateY(-3px); border-color:var(--ochre);
-  background:rgba(255,255,255,0.8);
-  box-shadow:0 18px 38px -16px rgba(20,40,90,0.28);
+  transform:translateY(-6px) translateZ(18px) rotateX(4deg);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.16) inset,
+    0 -18px 30px -18px rgba(0,0,0,0.5) inset,
+    0 10px 0 -6px rgba(4,9,20,0.5),
+    0 30px 46px -16px rgba(8,15,32,0.7);
 }
-.dash-card.summary:hover{ border-color:var(--sage); }
-.dash-card .mark{ font-size:26px; line-height:1; }
+.dash-card:hover::before{ opacity:0.9; }
+.dash-card:hover::after{ opacity:0.36; transform:scale(1.1); }
+.dash-card:active{
+  transform:translateY(-1px) translateZ(4px) rotateX(1deg);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.1) inset,
+    0 -14px 24px -16px rgba(0,0,0,0.5) inset,
+    0 3px 0 -2px rgba(4,9,20,0.5),
+    0 8px 16px -8px rgba(8,15,32,0.6);
+}
+.dash-card .icon-badge{
+  width:46px; height:46px; border-radius:14px; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; font-size:22px;
+  background:linear-gradient(140deg, var(--card-a), var(--card-b));
+  box-shadow:0 6px 14px -6px rgba(0,0,0,0.5), 0 1px 0 rgba(255,255,255,0.25) inset;
+  margin-bottom:8px; position:relative; z-index:1;
+  transition:transform .22s cubic-bezier(.2,.8,.3,1.1);
+}
+.dash-card:hover .icon-badge{ transform:rotate(-6deg) scale(1.08); }
 .dash-card h2{
   font-family:'Fraunces', 'Source Serif 4', Georgia, serif;
-  font-size:19px; margin:0; font-weight:600; color:var(--navy);
+  font-size:19px; margin:0; font-weight:600; color:#fff; position:relative; z-index:1;
 }
-.dash-card p{ font-size:12.5px; line-height:1.4; color:var(--muted); margin:0; max-width:220px; }
+.dash-card p{ font-size:12.5px; line-height:1.4; color:rgba(255,255,255,0.6); margin:0; max-width:220px; position:relative; z-index:1; }
+
+/* ---------- BELOW-THE-FOLD: WHY CHALKLINE ---------- */
+.dash-more{ max-width:780px; margin-top:56px; }
+.dash-more-head{ margin-bottom:22px; }
+.dash-more-head h3{
+  font-family:'Fraunces', 'Source Serif 4', Georgia, serif;
+  font-size:23px; font-weight:600; color:var(--navy); margin:0 0 8px;
+}
+.dash-more-head .underline{
+  width:56px; height:3px; border-radius:3px; margin-bottom:14px;
+  background:linear-gradient(90deg, var(--gold), var(--violet));
+  background-size:200% 100%;
+  animation:shimmer 3.5s ease-in-out infinite;
+}
+@keyframes shimmer{ 0%{background-position:0% 0;} 50%{background-position:100% 0;} 100%{background-position:0% 0;} }
+.dash-more-head p{ font-size:14.5px; line-height:1.6; color:#4C5C74; max-width:480px; margin:0; }
+
+.dash-feature-row{ display:grid; grid-template-columns:repeat(3,1fr); gap:18px; }
+@media (max-width:680px){ .dash-feature-row{ grid-template-columns:1fr; } }
+.dash-feature{
+  background:rgba(255,255,255,0.55); border:1px solid rgba(255,255,255,0.7);
+  border-radius:16px; padding:18px; backdrop-filter:blur(8px);
+  box-shadow:0 8px 20px -14px rgba(20,40,90,0.18);
+}
+.dash-feature .f-ic{
+  width:34px; height:34px; border-radius:10px; display:flex; align-items:center; justify-content:center;
+  font-size:16px; margin-bottom:10px; color:#fff;
+  background:linear-gradient(140deg, var(--ochre), var(--violet));
+}
+.dash-feature:nth-child(2) .f-ic{ background:linear-gradient(140deg, var(--sage), var(--emerald)); }
+.dash-feature:nth-child(3) .f-ic{ background:linear-gradient(140deg, var(--gold-deep), var(--gold)); }
+.dash-feature h4{ font-size:14.5px; font-weight:600; color:var(--navy); margin:0 0 6px; font-family:'Fraunces','Source Serif 4',Georgia,serif; }
+.dash-feature p{ font-size:12.5px; line-height:1.5; color:var(--muted); margin:0; }
 </style>
 </head>
 <body>
@@ -1203,31 +1267,55 @@ body{
 
   <div class="main-area">
     <div class="dash-head fade-up">
-      <span class="eyebrow"><span class="spark"></span>AI WHITEBOARD TUTOR</span>
       <h1>A study session, <span class="chalk" style="font-family:'Caveat',cursive;background:linear-gradient(100deg, var(--ochre), var(--violet) 65%, var(--gold));-webkit-background-clip:text;background-clip:text;color:transparent;">drawn out loud.</span></h1>
       <p>Bring a topic or a PDF. Chalkline either teaches it to you on a live whiteboard, or reads it and hands you back the version worth remembering.</p>
     </div>
 
     <div class="dash-grid">
       <div class="dash-card tutor fade-up" style="animation-delay:.08s;" onclick="parent.postMessage({nav:'tutor'},'*');">
-        <span class="mark">✏️</span>
+        <span class="icon-badge">✏️</span>
         <h2>New Tutorial</h2>
         <p>Start a live lesson on the whiteboard</p>
       </div>
       <div class="dash-card tutor fade-up" style="animation-delay:.14s;" onclick="parent.postMessage({nav:'tutor-history'},'*');">
-        <span class="mark">🗂️</span>
+        <span class="icon-badge">🗂️</span>
         <h2>Tutorials</h2>
         <p>Revisit past whiteboard sessions</p>
       </div>
       <div class="dash-card summary fade-up" style="animation-delay:.20s;" onclick="parent.postMessage({nav:'summary'},'*');">
-        <span class="mark">📄</span>
+        <span class="icon-badge">📄</span>
         <h2>New Summary</h2>
         <p>Summarize a PDF, chapter, or notes</p>
       </div>
       <div class="dash-card summary fade-up" style="animation-delay:.26s;" onclick="parent.postMessage({nav:'summary-history'},'*');">
-        <span class="mark">🗒️</span>
+        <span class="icon-badge">🗒️</span>
         <h2>Summaries</h2>
         <p>Revisit summaries you've saved</p>
+      </div>
+    </div>
+
+    <div class="dash-more fade-up" style="animation-delay:.34s;">
+      <div class="dash-more-head">
+        <h3>Built to teach, not just answer</h3>
+        <span class="underline"></span>
+        <p>Every session runs like real office hours — worked through step by step, at a pace built for actually understanding it.</p>
+      </div>
+      <div class="dash-feature-row">
+        <div class="dash-feature">
+          <div class="f-ic">🖊️</div>
+          <h4>Live, worked-through lessons</h4>
+          <p>Watch each idea get drawn out and explained in order, not dumped as a wall of text.</p>
+        </div>
+        <div class="dash-feature">
+          <div class="f-ic">📚</div>
+          <h4>Grounded in your material</h4>
+          <p>Upload a PDF or chapter and get a summary that keeps the parts actually worth remembering.</p>
+        </div>
+        <div class="dash-feature">
+          <div class="f-ic">🕘</div>
+          <h4>Nothing gets lost</h4>
+          <p>Every tutorial and summary is saved, so you can pick a session back up right where you left it.</p>
+        </div>
       </div>
     </div>
   </div>
