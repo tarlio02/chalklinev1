@@ -1250,6 +1250,30 @@ footer{
   --muted:#7C93A8;
   --halo-blue:#0099FF;
   --halo-blue-soft:#00E5FF;
+
+  /* ============================================================
+     RESPONSIVE ARCHITECTURE
+     One set of variables drives every device-specific layout
+     decision below. Device-tier media queries (phone / tablet /
+     desktop) only ever override these — no page rule should ever
+     hard-code a raw pixel offset for "where the controls are".
+     --safe-* mirror the real device safe areas (notches, home
+     indicator, rounded corners); --control-size etc. are the
+     per-tier touch-target and spacing scale. ============================================================ */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+
+  /* Desktop/default tier */
+  --content-padding: 20px;
+  --control-size: 40px;
+  --control-size-sm: 38px;
+  --control-gap: 10px;
+  --top-control-height: 88px;
+  --bottom-control-height: 150px;
+  --ask-zone-width: min(520px, 44vw);
+  --caption-max-width: 760px;
 }
 *{box-sizing:border-box;}
 html,body{margin:0;height:100%;}
@@ -1257,6 +1281,7 @@ body{
   font-family:'Source Serif 4', Georgia, serif;
   color:var(--ink);
   height:100vh;
+  height:100dvh;
   overflow:hidden;
   background:linear-gradient(160deg, #A9CFF0 0%, #DCEEFB 65%);
 }
@@ -1322,9 +1347,11 @@ body{
   position:fixed;
   top:0;left:0;right:0;
   display:flex;
+  flex-wrap:wrap;
+  row-gap:8px;
   justify-content:space-between;
   align-items:flex-start;
-  padding:18px 20px;
+  padding:calc(var(--safe-top) + 14px) calc(var(--safe-right) + var(--content-padding)) 10px calc(var(--safe-left) + var(--content-padding));
   pointer-events:none;
   z-index:20;
 }
@@ -1333,10 +1360,10 @@ body{
   display:flex;
   flex-direction:column;
   align-items:center;
-  gap:10px;
+  gap:var(--control-gap);
 }
 .icon-btn{
-  width:40px;height:40px;
+  width:var(--control-size);height:var(--control-size);
   border-radius:50%;
   border:none;
   background:rgba(255,255,255,0.85);
@@ -1346,13 +1373,14 @@ body{
   cursor:pointer;
   font-size:16px;
   color:var(--ink);
+  flex-shrink:0;
 }
 .icon-btn:hover{background:#fff;}
-.top-right-cluster{display:flex;flex-direction:column;gap:10px;align-items:flex-end;margin-top:48px;}
+.top-right-cluster{display:flex;flex-direction:column;gap:10px;align-items:flex-end;margin-top:calc(var(--control-size) + 8px);}
 .login-pill{
   position:absolute;
   left:50%;
-  top:18px;
+  top:calc(var(--safe-top) + 14px);
   transform:translateX(-50%);
   display:flex;
   align-items:center;
@@ -1369,6 +1397,9 @@ body{
   color:var(--ink);
   white-space:nowrap;
   transition:background .15s ease;
+  max-width:min(70vw, 320px);
+  overflow:hidden;
+  text-overflow:ellipsis;
 }
 .login-pill:hover{background:#fff;}
 @media (max-width:620px){
@@ -1391,6 +1422,7 @@ body{
   border-radius:20px;
   align-self:center;
   margin-right:4px;
+  white-space:nowrap;
 }
 
 .btn-label{
@@ -1404,23 +1436,55 @@ body{
   border-radius:8px;
 }
 
-.caption-zone{
+/* ------------------------------------------------------------
+   BOTTOM DOCK
+   Everything anchored to the bottom of the screen (the speaking
+   avatar, the live caption, and the control bar) now lives inside
+   one flow container instead of three independently-positioned
+   fixed elements guessing at each other's height. Stacking them
+   in normal document flow is what actually guarantees they can
+   never overlap one another, on any device, without needing to
+   hard-code any element's height. JS reads this container's
+   rendered height (see getLayoutInsets()) to keep the on-canvas
+   handwriting from ever being drawn underneath it. ------------------------------------------------------------ */
+.bottom-dock{
   position:fixed;
-  left:0;right:0;
-  bottom:0;
+  left:0;right:0;bottom:0;
+  z-index:20;
+  display:flex;
+  flex-direction:column;
+  pointer-events:none;
+  padding-left:var(--safe-left);
+  padding-right:var(--safe-right);
+  padding-bottom:var(--safe-bottom);
+}
+.bottom-dock > *{pointer-events:auto;}
+
+.speaker-row{
+  display:flex;
+  align-items:flex-end;
+  gap:12px;
+  padding:0 var(--content-padding);
+}
+
+.caption-zone{
+  position:static;
+  flex:1;
+  min-width:0;
   background:linear-gradient(to top, rgba(255,255,255,0.98) 60%, rgba(255,255,255,0.9));
   border-top:1px solid var(--panel-border);
+  border-radius:14px 14px 0 0;
   backdrop-filter:blur(8px);
-  padding:10px 200px 8px;
+  padding:10px 16px 8px;
   min-height:20px;
   display:flex;
   justify-content:center;
   z-index:18;
-  pointer-events:none;
   box-shadow:0 -4px 16px rgba(0,0,0,0.04);
 }
 .caption-text{
-  max-width:760px;
+  max-width:var(--caption-max-width);
+  width:100%;
   text-align:center;
   font-size:16px;
   line-height:1.5;
@@ -1429,12 +1493,11 @@ body{
 .caption-text .fading{color:#b9b295;}
 
 .avatar-cluster{
-  position:fixed;
-  left:22px;bottom:70px;
   display:flex;
   align-items:center;
-  gap:10px;
-  z-index:20;
+  gap:8px;
+  flex-shrink:0;
+  padding-bottom:8px;
 }
 .avatar{
   width:52px;height:52px;
@@ -1445,6 +1508,7 @@ body{
   font-size:24px;
   box-shadow:0 2px 8px rgba(0,0,0,0.08);
   position:relative;
+  flex-shrink:0;
 }
 .avatar.speaking{border-color:var(--ochre);}
 .avatar.speaking::after{
@@ -1467,6 +1531,8 @@ body{
   padding:5px 10px;
   border-radius:14px;
   display:flex;align-items:center;gap:6px;
+  white-space:nowrap;
+  flex-shrink:0;
   animation:tutor-live-pulse 1.8s ease-in-out infinite;
 }
 .tutor-live::before{
@@ -1487,9 +1553,10 @@ body{
   flex-direction:column;
   align-items:center;
   gap:3px;
+  flex-shrink:0;
 }
 .cluster-btn{
-  width:38px;height:38px;border-radius:50%;
+  width:var(--control-size-sm);height:var(--control-size-sm);border-radius:50%;
   border:1px solid var(--panel-border);
   background:#fff;
   display:flex;align-items:center;justify-content:center;
@@ -1499,14 +1566,15 @@ body{
 .cluster-btn:hover{background:#faf8f2;}
 
 .bottom-bar{
-  position:fixed;
-  left:50%;
-  bottom:70px;
-  transform:translateX(-50%);
+  position:static;
   z-index:20;
   display:flex;
+  flex-wrap:wrap;
   align-items:center;
-  gap:10px;
+  justify-content:center;
+  gap:var(--control-gap);
+  row-gap:12px;
+  padding:12px var(--content-padding) 12px;
 }
 
 .mic-btn{
@@ -1517,6 +1585,7 @@ body{
   font-size:20px;
   display:flex;align-items:center;justify-content:center;
   cursor:pointer;
+  flex-shrink:0;
   box-shadow:0 3px 10px rgba(168,75,57,0.35), 0 0 0 4px rgba(15,55,145,0.35);
 }
 .mic-btn.live{animation:mic-pulse 1.3s ease-in-out infinite;}
@@ -1533,7 +1602,8 @@ body{
   border-radius:30px;
   padding:6px 6px 6px 10px;
   box-shadow:0 3px 14px rgba(0,0,0,0.08);
-  width:min(520px, 44vw);
+  width:var(--ask-zone-width);
+  min-width:0;
 }
 .ask-icon-btn{
   width:30px;height:30px;border-radius:50%;
@@ -1654,12 +1724,15 @@ body{
   transition:transform .25s cubic-bezier(.2,.8,.2,1);
   display:flex;flex-direction:column;
   box-shadow:8px 0 30px rgba(0,0,0,0.08);
+  padding-left:var(--safe-left);
+  padding-bottom:var(--safe-bottom);
 }
 .side-panel.open{transform:translateX(0);}
 
 .panel-head{
   display:flex;justify-content:space-between;align-items:center;
-  padding:18px 20px;border-bottom:1px solid var(--panel-border);
+  padding:calc(18px + var(--safe-top)) 20px 18px;border-bottom:1px solid var(--panel-border);
+  flex-shrink:0;
 }
 .panel-head h1{
   font-size:19px;margin:0;font-weight:600;
@@ -1784,6 +1857,116 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
 
 ::-webkit-scrollbar{width:7px;}
 ::-webkit-scrollbar-thumb{background:#e4ddc8;border-radius:4px;}
+
+/* ============================================================
+   DEVICE TIERS
+   Everything above this point is the DESKTOP/LAPTOP layout —
+   it's the sensible default for a mouse-driven, generously-sized
+   viewport (1366x768 and up). The two tiers below only ever
+   override variables and the handful of rules that genuinely
+   need a different arrangement on a smaller or touch-first
+   screen; they never fight the base rules with duplicate
+   selectors. Detection intentionally avoids user-agent sniffing
+   (iPadOS Safari reports itself as a desktop browser) and instead
+   combines viewport size, orientation and pointer/hover capability
+   — all of which recompute live on resize/rotation with no JS
+   and no page reload required.
+   ============================================================ */
+
+/* ---------- TABLET / iPAD ----------
+   Real touch tablets in the iPad size class. Requiring
+   pointer:coarse keeps a resized desktop browser window at the
+   same width from being treated as a tablet (it'll just get a
+   slightly narrower desktop layout instead, which is correct for
+   a mouse). */
+@media (pointer:coarse) and (min-width:601px) and (max-width:1180px) and (orientation:portrait),
+       (pointer:coarse) and (min-height:501px) and (max-width:1180px) and (orientation:landscape){
+  :root{
+    --content-padding:28px;
+    --control-size:46px;
+    --control-size-sm:44px;
+    --control-gap:14px;
+    --top-control-height:96px;
+    --bottom-control-height:150px;
+    --ask-zone-width:min(560px, 50vw);
+    --caption-max-width:620px;
+  }
+  .board-quiz-card{ width:min(80vw, 440px); }
+  .side-panel{ width:min(400px, 86vw); }
+}
+
+/* iPad portrait specifically: keep the whiteboard visually centered
+   with breathing room on both sides rather than bleeding edge to
+   edge like a phone. */
+@media (pointer:coarse) and (min-width:601px) and (max-width:1180px) and (orientation:portrait){
+  .bottom-bar{ padding-left:calc(var(--content-padding) + 6vw); padding-right:calc(var(--content-padding) + 6vw); }
+  .speaker-row{ padding-left:calc(var(--content-padding) + 6vw); padding-right:calc(var(--content-padding) + 6vw); }
+}
+
+/* iPad landscape: more horizontal room for the Ask bar, controls
+   pulled toward the edges instead of stretching everything wide. */
+@media (pointer:coarse) and (min-height:501px) and (max-width:1180px) and (orientation:landscape){
+  :root{ --ask-zone-width:min(620px, 46vw); }
+}
+
+/* ---------- PHONE ----------
+   Narrow phones in portrait, and the same phones rotated to
+   landscape (identified by short viewport height rather than
+   width, since a landscape phone can be as "wide" as a portrait
+   tablet). This tier is deliberately width/height driven — not
+   gated on pointer type — so a narrow desktop browser window also
+   collapses into the compact, single-column control layout, per
+   the "recalculates on resize" requirement. */
+@media (max-width:600px) and (orientation:portrait),
+       (max-height:500px) and (orientation:landscape){
+  :root{
+    --content-padding:14px;
+    --control-size:44px;
+    --control-size-sm:44px;
+    --control-gap:8px;
+    --top-control-height:60px;
+    --bottom-control-height:170px;
+    --ask-zone-width:100%;
+    --caption-max-width:100%;
+  }
+
+  /* Reclaim vertical space: the three top-left icons go from a
+     tall vertical stack to a compact horizontal row so they don't
+     eat a quarter of a short phone screen. */
+  .topbar-left-stack{ flex-direction:row; align-items:flex-start; gap:6px; }
+  .topbar-btn-wrap .btn-label{ font-size:8px; }
+  .top-right-cluster{ margin-top:0; }
+  .status-chip{ font-size:9.5px; padding:5px 8px; }
+
+  /* Bottom controls: icons row on top, full-width Ask bar below it
+     — never sharing a row with Transcript/Replay/Talk, and always
+     wide enough to comfortably type in. */
+  .bottom-bar{ justify-content:space-between; }
+  .bottom-bar .cluster-btn-wrap:nth-of-type(1){ order:1; }
+  .bottom-bar .cluster-btn-wrap:nth-of-type(2){ order:2; }
+  .bottom-bar .cluster-btn-wrap:nth-of-type(3){ order:3; }
+  .bottom-bar .ask-zone{ order:4; flex:1 1 100%; width:100%; }
+
+  .speaker-row{ padding:0 10px; }
+  .caption-zone{ padding:8px 12px 6px; }
+  .caption-text{ font-size:14px; }
+  .avatar{ width:40px; height:40px; font-size:18px; }
+  .tutor-live{ font-size:9.5px; padding:4px 8px; }
+
+  .login-pill{ padding:7px 12px; font-size:11px; }
+  .side-panel{ width:100vw; width:100dvw; }
+  .subject-modal .sm-card{ padding:26px 20px 22px; }
+}
+
+/* Landscape phones specifically: the screen is short, so trim the
+   vertical padding further and keep the caption a single line's
+   worth of room instead of the taller portrait allowance. */
+@media (max-height:500px) and (orientation:landscape){
+  .topbar{ padding-top:calc(var(--safe-top) + 8px); padding-bottom:4px; }
+  .bottom-bar{ padding-top:6px; padding-bottom:6px; }
+  .caption-zone{ padding:6px 12px 4px; min-height:0; }
+  .avatar{ width:34px; height:34px; font-size:16px; }
+}
 </style>
 </head>
 <body>
@@ -1817,37 +2000,39 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
   </div>
 </div>
 
-<div class="caption-zone">
-  <div class="caption-text" id="caption-text"></div>
-</div>
-
-<div class="avatar-cluster">
-  <div class="avatar" id="avatar">🧑‍🏫</div>
-</div>
-
-<span class="tutor-live" id="tutor-live-badge" style="position:fixed; top:16px; left:50%; transform:translateX(-50%); z-index:50;">Tutor is live</span>
-
-<div class="bottom-bar">
-  <div class="cluster-btn-wrap">
-    <button class="cluster-btn" id="btn-toggle-transcript" title="Show transcript">💬</button>
-    <span class="btn-label">Transcript</span>
-  </div>
-  <div class="cluster-btn-wrap">
-    <button class="cluster-btn" id="btn-replay" title="Replay narration">🔊</button>
-    <span class="btn-label">Replay</span>
+<div class="bottom-dock" id="bottom-dock">
+  <div class="speaker-row">
+    <div class="avatar-cluster">
+      <div class="avatar" id="avatar">🧑‍🏫</div>
+      <span class="tutor-live" id="tutor-live-badge">Tutor is live</span>
+    </div>
+    <div class="caption-zone">
+      <div class="caption-text" id="caption-text"></div>
+    </div>
   </div>
 
-  <div class="ask-zone">
-    <div class="attach-chip" id="attach-chip" style="display:none;"></div>
-    <button class="ask-icon-btn" id="btn-attach" title="Attach a file">📎</button>
-    <input type="file" id="attach-input" accept="image/*,.pdf,.txt,.md" style="display:none;">
-    <input type="text" id="ask-input" placeholder="Ask a follow-up…">
-    <button id="btn-ask" title="Send">➤</button>
-  </div>
+  <div class="bottom-bar">
+    <div class="cluster-btn-wrap">
+      <button class="cluster-btn" id="btn-toggle-transcript" title="Show transcript">💬</button>
+      <span class="btn-label">Transcript</span>
+    </div>
+    <div class="cluster-btn-wrap">
+      <button class="cluster-btn" id="btn-replay" title="Replay narration">🔊</button>
+      <span class="btn-label">Replay</span>
+    </div>
 
-  <div class="cluster-btn-wrap">
-    <button class="mic-btn" id="btn-mic" title="Talk to your tutor">🎙</button>
-    <span class="btn-label">Talk</span>
+    <div class="ask-zone">
+      <div class="attach-chip" id="attach-chip" style="display:none;"></div>
+      <button class="ask-icon-btn" id="btn-attach" title="Attach a file">📎</button>
+      <input type="file" id="attach-input" accept="image/*,.pdf,.txt,.md" style="display:none;">
+      <input type="text" id="ask-input" placeholder="Ask a follow-up…">
+      <button id="btn-ask" title="Send">➤</button>
+    </div>
+
+    <div class="cluster-btn-wrap">
+      <button class="mic-btn" id="btn-mic" title="Talk to your tutor">🎙</button>
+      <span class="btn-label">Talk</span>
+    </div>
   </div>
 </div>
 
@@ -1995,8 +2180,42 @@ const camera = { x: 500, y: 300, scale: 1 };
 // actual top-left of the screen. These anchor the page's top-left
 // corner to a small, fixed on-screen gutter instead, so text starts
 // right near the real top-left edge of the screen on every device.
-const PAGE_LEFT_GUTTER_PX = 24;
-const PAGE_TOP_GUTTER_PX = 32;
+// These start as sane fallbacks and are overwritten by
+// measureLayoutInsets() (called from resizeCanvas) with the *actual*
+// rendered size of the on-screen chrome — the top bar and the bottom
+// dock (avatar/caption/controls). Driving the gutters off a real
+// measurement, rather than a guessed constant, is what lets the
+// canvas content genuinely "know" how much space the controls
+// occupy on every device/breakpoint instead of the two numbers
+// silently going stale the moment the responsive CSS changes a
+// control's size.
+let PAGE_LEFT_GUTTER_PX = 24;
+let PAGE_TOP_GUTTER_PX = 32;
+let PAGE_RIGHT_GUTTER_PX = 24;
+let PAGE_BOTTOM_GUTTER_PX = 190;
+const layoutInsets = { top:0, bottom:0, left:0, right:0 };
+
+function measureLayoutInsets(){
+  const topEl = document.querySelector('.topbar');
+  const bottomEl = document.getElementById('bottom-dock');
+  const topH = topEl ? topEl.getBoundingClientRect().height : 0;
+  const bottomH = bottomEl ? bottomEl.getBoundingClientRect().height : 0;
+  const cs = getComputedStyle(document.documentElement);
+  const safeLeft = parseFloat(cs.getPropertyValue('--safe-left')) || 0;
+  const safeRight = parseFloat(cs.getPropertyValue('--safe-right')) || 0;
+  layoutInsets.top = topH;
+  layoutInsets.bottom = bottomH;
+  layoutInsets.left = safeLeft;
+  layoutInsets.right = safeRight;
+
+  // Small breathing-room buffer on top of the measured control size so
+  // handwriting never sits flush against a button edge.
+  PAGE_TOP_GUTTER_PX = layoutInsets.top + 16;
+  PAGE_BOTTOM_GUTTER_PX = layoutInsets.bottom + 20;
+  PAGE_LEFT_GUTTER_PX = layoutInsets.left + 24;
+  PAGE_RIGHT_GUTTER_PX = layoutInsets.right + 24;
+}
+
 function idealCameraX(scale){ return (viewW/2 - PAGE_LEFT_GUTTER_PX) / scale; }
 function idealCameraY(scale){ return TOP_MARGIN + (viewH/2 - PAGE_TOP_GUTTER_PX) / scale; }
 
@@ -2120,6 +2339,13 @@ function resizeCanvas(){
   canvas.height = rect.height * dpr;
   ctx.setTransform(dpr,0,0,dpr,0,0);
   viewW = rect.width; viewH = rect.height;
+
+  // Re-measure the actual on-screen top bar / bottom dock before doing
+  // any camera math below — their heights change across the phone /
+  // tablet / desktop breakpoints (and even within a breakpoint, e.g.
+  // the bottom dock growing an extra row on a narrow phone), so this
+  // has to happen on every resize/rotation, not just once at load.
+  measureLayoutInsets();
   
   // Horizontal position (left-gutter anchoring) and zoom level aren't
   // something the user "scrolls away" from — userIsScrolledAway only
@@ -2175,6 +2401,28 @@ if (screen.orientation && screen.orientation.addEventListener) {
 }
 if (window.visualViewport) {
   window.visualViewport.addEventListener('resize', () => resizeCanvasWhenStable(1000));
+}
+
+// The top bar and bottom dock aren't only resized by the viewport —
+// the bottom dock in particular changes height on its own whenever a
+// caption wraps onto more lines, an attach-chip appears above the Ask
+// input, or the phone tier's control row wraps. None of that fires a
+// window 'resize' event, so without this the canvas's idea of "how
+// much space the controls occupy" would silently go stale mid-lesson
+// even though the CSS layout itself is perfectly correct. A
+// ResizeObserver on the two chrome containers catches every one of
+// those content-driven size changes, not just viewport changes.
+if ('ResizeObserver' in window) {
+  let dockResizeQueued = false;
+  const dockResizeObserver = new ResizeObserver(() => {
+    if (dockResizeQueued) return;
+    dockResizeQueued = true;
+    requestAnimationFrame(() => { dockResizeQueued = false; resizeCanvas(); });
+  });
+  const topbarEl = document.querySelector('.topbar');
+  const bottomDockEl = document.getElementById('bottom-dock');
+  if (topbarEl) dockResizeObserver.observe(topbarEl);
+  if (bottomDockEl) dockResizeObserver.observe(bottomDockEl);
 }
 
 function worldToScreen(wx, wy){
@@ -3176,7 +3424,14 @@ function enqueueCommandsAtCursor(commands){
 
     flushDiagram();
 
-    let panTargetY = globalCursorY - 300; 
+    // Leave enough room below the pen for the bottom dock (avatar/
+    // caption/controls) to not cover the line that was just written —
+    // converted from the dock's real measured pixel height into world
+    // units at the current zoom, rather than a fixed guess, so it stays
+    // correct across every device tier and even across a phone rotating
+    // between its 1-row and 2-row bottom-bar layouts.
+    const bottomClearanceWorld = Math.max(220, PAGE_BOTTOM_GUTTER_PX / camera.scale);
+    let panTargetY = globalCursorY - bottomClearanceWorld;
     if (panTargetY < TOP_MARGIN) panTargetY = TOP_MARGIN;
 
     redrawAll();
@@ -3211,8 +3466,14 @@ function processQueue(){
   
   if(anchor && !userIsScrolledAway){
     const [sx, sy] = worldToScreen(anchor[0], anchor[1]);
-    const margin = 80;
-    if(sx < margin || sx > viewW-margin || sy < margin || sy > viewH-margin){
+    // Directional margins instead of one fixed number: the safe area
+    // that matters is "don't draw under the top bar" and "don't draw
+    // under the bottom dock", and those two are rarely the same height
+    // as each other or as the left/right margins.
+    const marginX = 80;
+    const marginTop = PAGE_TOP_GUTTER_PX + 20;
+    const marginBottom = PAGE_BOTTOM_GUTTER_PX;
+    if(sx < marginX || sx > viewW-marginX || sy < marginTop || sy > viewH-marginBottom){
       // Always enforce camera.x locking centrally at 500 when auto-following
       animateCameraPan(500, anchor[1], 260, null);
     }
@@ -3838,10 +4099,16 @@ function repositionQuizOverlay(){
   if(!activeQuizCard || activeQuizWorldY===null) return;
   const [sx, sy] = worldToScreen(DIAGRAM_LEFT, activeQuizWorldY);
   const cardW = activeQuizCard.offsetWidth || 300;
-  const maxLeft = Math.max(12, viewW - cardW - 12);
-  const maxTop = Math.max(80, viewH - 190); // keep clear of the bottom input bar
-  activeQuizCard.style.left = Math.min(maxLeft, Math.max(12, sx)) + 'px';
-  activeQuizCard.style.top = Math.min(maxTop, Math.max(80, sy)) + 'px';
+  // Keep the card clear of the top bar and the bottom dock, using their
+  // real measured heights rather than a fixed guess so this still holds
+  // on every device tier and after a phone rotation changes which of
+  // them is taller.
+  const minTop = PAGE_TOP_GUTTER_PX + 8;
+  const maxTop = Math.max(minTop, viewH - PAGE_BOTTOM_GUTTER_PX - 20);
+  const minLeft = Math.max(12, layoutInsets.left + 12);
+  const maxLeft = Math.max(minLeft, viewW - cardW - 12 - layoutInsets.right);
+  activeQuizCard.style.left = Math.min(maxLeft, Math.max(minLeft, sx)) + 'px';
+  activeQuizCard.style.top = Math.min(maxTop, Math.max(minTop, sy)) + 'px';
 }
 
 function dismissQuizCard(){
