@@ -969,22 +969,40 @@ body{
 @keyframes fadeUp{ from{ opacity:0; transform:translateY(16px); } to{ opacity:1; transform:translateY(0); } }
 .fade-up{ opacity:0; animation:fadeUp .7s cubic-bezier(.2,.7,.2,1) forwards; }
 
-.app-shell{ position:relative; z-index:1; display:flex; min-height:100vh; }
+.app-shell{ position:relative; z-index:1; display:flex; min-height:100vh; perspective:1800px; }
 
-/* ---------- SIDEBAR (open by default, persistent) ---------- */
+/* ---------- SIDEBAR (open by default, toggleable, with a physical
+   "panel" feel: layered elevation shadow + a darker spine along the
+   right edge + a slight 3D swing as it opens/closes) ---------- */
 .sidebar{
   width:252px; flex-shrink:0;
-  height:100vh; position:sticky; top:0;
+  height:100vh; position:fixed; left:0; top:0; z-index:45;
   display:flex; flex-direction:column;
   padding:22px 16px 18px;
-  background:rgba(255,255,255,0.55);
+  background:rgba(255,255,255,0.72);
   backdrop-filter:blur(18px) saturate(160%);
   -webkit-backdrop-filter:blur(18px) saturate(160%);
   border-right:1px solid rgba(255,255,255,0.6);
-  box-shadow:1px 0 30px rgba(16,40,80,0.06);
-  transition:transform .25s cubic-bezier(.2,.8,.2,1);
-  z-index:40;
+  box-shadow:
+    3px 0 1px rgba(255,255,255,0.5) inset,
+    10px 0 24px -8px rgba(16,40,80,0.28),
+    26px 0 46px -20px rgba(16,40,80,0.22);
+  transform-origin:left center;
+  transform:translateX(0) rotateY(0deg);
+  transition:transform .38s cubic-bezier(.22,.9,.32,1.1), box-shadow .38s ease;
 }
+/* the "spine" — a thin gradient strip that reads as the panel's edge/thickness */
+.sidebar::after{
+  content:''; position:absolute; top:0; right:-5px; bottom:0; width:5px;
+  background:linear-gradient(90deg, rgba(16,40,80,0.16), rgba(16,40,80,0));
+  pointer-events:none;
+}
+.app-shell.sidebar-closed .sidebar{
+  transform:translateX(-104%) rotateY(-18deg);
+  box-shadow:none;
+}
+.app-shell.sidebar-closed .sidebar::after{ opacity:0; }
+
 .sidebar-brand{
   font-family:'Caveat', cursive; font-weight:700; font-size:26px;
   color:var(--navy); text-decoration:none; display:flex; align-items:center; gap:8px;
@@ -1049,24 +1067,41 @@ body{
 }
 .sidebar-footer a:hover{ background:rgba(46,125,190,0.08); color:var(--navy); }
 
+/* Toggle button: always visible, docked to the sidebar's edge like a
+   handle, and slides with it. It flips its chevron and gives a little
+   squash on click so it feels pressable rather than just decorative. */
 .sidebar-toggle{
-  display:none; position:fixed; top:16px; left:16px; z-index:50;
-  width:40px; height:40px; border-radius:50%; border:none; cursor:pointer;
-  background:rgba(255,255,255,0.9); box-shadow:0 4px 14px rgba(16,40,80,0.14);
-  font-size:16px; align-items:center; justify-content:center;
+  position:fixed; top:26px; left:234px; z-index:50;
+  width:34px; height:34px; border-radius:50%; border:none; cursor:pointer;
+  background:rgba(255,255,255,0.95);
+  box-shadow:0 3px 10px rgba(16,40,80,0.20), 0 0 0 1px rgba(16,40,80,0.06);
+  font-size:13px; display:flex; align-items:center; justify-content:center;
+  color:var(--navy);
+  transition:left .38s cubic-bezier(.22,.9,.32,1.1), transform .15s ease, box-shadow .15s ease;
 }
-.sidebar-scrim{ display:none; position:fixed; inset:0; background:rgba(14,27,51,0.35); z-index:39; }
+.sidebar-toggle:hover{ box-shadow:0 5px 16px rgba(16,40,80,0.26), 0 0 0 1px rgba(16,40,80,0.08); }
+.sidebar-toggle:active{ transform:scale(0.88); }
+.sidebar-toggle .arrow{ display:inline-block; transition:transform .38s cubic-bezier(.22,.9,.32,1.1); }
+.app-shell.sidebar-closed .sidebar-toggle{ left:16px; }
+.app-shell.sidebar-closed .sidebar-toggle .arrow{ transform:rotate(180deg); }
+
+.sidebar-scrim{
+  display:none; position:fixed; inset:0; background:rgba(14,27,51,0.35); z-index:39;
+  opacity:0; transition:opacity .3s ease;
+}
+.app-shell:not(.sidebar-closed) .sidebar-scrim{ display:block; opacity:0; }
+
+/* Desktop/tablet: the sidebar docks and pushes the content over. */
+.main-area{ transition:margin-left .38s cubic-bezier(.22,.9,.32,1.1); margin-left:252px; }
+.app-shell.sidebar-closed .main-area{ margin-left:0; }
 
 @media (max-width:900px){
-  .sidebar-toggle{ display:flex; }
-  .sidebar{
-    position:fixed; left:0; top:0; z-index:45;
-    transform:translateX(-100%);
-    box-shadow:8px 0 30px rgba(0,0,0,0.18);
-  }
-  .sidebar.open{ transform:translateX(0); }
-  .sidebar.open ~ .sidebar-scrim{ display:block; }
-  .main-area{ padding-top:74px !important; }
+  /* Narrow screens: the sidebar floats over the content instead of
+     pushing it (there's no room to spare), so content never reflows
+     here — only the scrim (and the sidebar itself) toggles. */
+  .main-area{ margin-left:0 !important; padding-top:66px; }
+  .app-shell:not(.sidebar-closed) .sidebar-scrim{ opacity:1; }
+  .app-shell.sidebar-closed .sidebar-scrim{ display:none; }
 }
 
 /* ---------- MAIN DASHBOARD AREA ---------- */
@@ -1127,10 +1162,10 @@ body{
 
 <div class="ambient-halo"></div>
 
-<button class="sidebar-toggle" id="sidebar-toggle" title="Menu" aria-label="Toggle menu">☰</button>
+<button class="sidebar-toggle" id="sidebar-toggle" title="Toggle sidebar" aria-label="Toggle sidebar"><span class="arrow">◀</span></button>
 
-<div class="app-shell">
-  <aside class="sidebar open" id="sidebar">
+<div class="app-shell" id="app-shell">
+  <aside class="sidebar" id="sidebar">
     <a class="sidebar-brand" href="#" onclick="parent.postMessage({nav:'home'},'*');return false;"><span class="dot"></span>Chalkline</a>
 
     <div class="sidebar-account" onclick="parent.postMessage({navLoginClick:true},'*');" title="Account">
@@ -1198,16 +1233,18 @@ body{
 </div>
 
 <script>
-  const sbToggle = document.getElementById('sidebar-toggle');
-  const sb = document.getElementById('sidebar');
+  const shell = document.getElementById('app-shell');
   const sbScrim = document.getElementById('sidebar-scrim');
-  function closeSidebar(){ sb.classList.remove('open'); }
-  function openSidebar(){ sb.classList.add('open'); }
-  sbToggle.addEventListener('click', ()=> sb.classList.contains('open') ? closeSidebar() : openSidebar());
+  function closeSidebar(){ shell.classList.add('sidebar-closed'); }
+  function openSidebar(){ shell.classList.remove('sidebar-closed'); }
+  document.getElementById('sidebar-toggle').addEventListener('click', ()=>
+    shell.classList.contains('sidebar-closed') ? openSidebar() : closeSidebar()
+  );
   sbScrim.addEventListener('click', closeSidebar);
-  // Sidebar starts open by default on tablet/desktop widths; on narrow
-  // screens (<=900px) it's an off-canvas drawer, so start it closed there
-  // instead of covering the whole dashboard on first paint.
+  // Open by default on tablet/desktop, where it docks and pushes the
+  // content over. On narrow phone widths it would swallow the whole
+  // screen, so it starts closed there instead — the toggle still works
+  // exactly the same either way.
   if (window.innerWidth <= 900) closeSidebar();
 </script>
 
