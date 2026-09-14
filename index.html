@@ -1312,6 +1312,7 @@ body{
   --bottom-control-height: 150px;
   --ask-zone-width: min(520px, 44vw);
   --caption-max-width: 760px;
+  --side-panel-w: 360px;
 }
 *{box-sizing:border-box;}
 html,body{margin:0;height:100%;}
@@ -1928,6 +1929,7 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
     --bottom-control-height:150px;
     --ask-zone-width:min(560px, 50vw);
     --caption-max-width:620px;
+    --side-panel-w:min(400px, 86vw);
   }
   .board-quiz-card{ width:min(80vw, 440px); }
   .side-panel{ width:min(400px, 86vw); }
@@ -2015,6 +2017,33 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
   .bottom-bar{ padding-top:6px; padding-bottom:6px; }
   .caption-zone{ padding:6px 12px 4px; min-height:0; }
   .avatar{ width:34px; height:34px; font-size:16px; }
+}
+
+/* ---------- LANDSCAPE: dock the transcript panel instead of
+   overlaying it ----------
+   On a short phone in landscape (max-height:500px, handled above)
+   the panel already goes full-width by design, so there's no room
+   to "dock" it beside anything — that case is left alone. On every
+   other landscape screen (tablet/desktop, where the panel is a
+   fixed 360-400px column rather than the full viewport), opening
+   the transcript used to slide a panel on top of the whiteboard,
+   covering whatever was just written. Docking it instead — shrinking
+   the board rather than covering it — leaves the handwriting fully
+   visible and gives the transcript text real, uncramped width. */
+@media (orientation:landscape) and (min-height:501px){
+  #board-wrap{
+    left:0; width:100%;
+    transition:left .3s cubic-bezier(.22,.9,.32,1.1), width .3s cubic-bezier(.22,.9,.32,1.1);
+  }
+  body.panel-open #board-wrap{ left:var(--side-panel-w); width:calc(100% - var(--side-panel-w)); }
+  /* Docked (not floating over the board), so no dimming scrim over
+     the canvas and no drop-shadow pretending to float above it. */
+  body.panel-open .side-panel{ box-shadow:none; }
+  body.panel-open .overlay{ display:none; }
+  /* The quiz card docks to the right edge of the now-visible transcript
+     column instead of chasing the pen's on-canvas position — see
+     repositionQuizOverlay(). */
+  body.panel-open .board-quiz-card{ left:calc(var(--side-panel-w) + 18px) !important; }
 }
 </style>
 </head>
@@ -3507,6 +3536,7 @@ function commandWorldAnchor(cmd){
   return null;
 }
 
+let lastMidDrawPanAt = 0;
 function processQueue(){
   if(drawQueue.length===0){ drawing=false; redrawAll(); return; }
   drawing=true;
@@ -3522,9 +3552,20 @@ function processQueue(){
     const marginX = 80;
     const marginTop = PAGE_TOP_GUTTER_PX + 20;
     const marginBottom = PAGE_BOTTOM_GUTTER_PX;
-    if(sx < marginX || sx > viewW-marginX || sy < marginTop || sy > viewH-marginBottom){
-      // Always enforce camera.x locking centrally at 500 when auto-following
-      animateCameraPan(500, anchor[1], 260, null);
+    // Corrective pans must (a) always re-center X back to the actual
+    // gutter-anchored position — not a hardcoded world x=500, which
+    // drifted from idealCameraX() the moment the page wasn't centered
+    // (any tablet/desktop width) and fought the "real" camera position
+    // every time it fired — and (b) be throttled, since this check runs
+    // per queued command (i.e. roughly per stroke/letter). Without a
+    // cooldown, a fast run of small commands near an edge would each
+    // restart a fresh 260ms tween before the last one finished, so the
+    // camera never actually settled and visibly juddered while writing.
+    const now = performance.now();
+    if((sx < marginX || sx > viewW-marginX || sy < marginTop || sy > viewH-marginBottom)
+       && (now - lastMidDrawPanAt > 320)){
+      lastMidDrawPanAt = now;
+      animateCameraPan(idealCameraX(camera.scale), anchor[1], 260, null);
     }
   }
   
@@ -5173,8 +5214,19 @@ document.getElementById('btn-new-session').addEventListener('click', ()=>{
    ========================================================= */
 const sidePanel = document.getElementById('side-panel');
 const overlay = document.getElementById('overlay');
-function openPanel(){ sidePanel.classList.add('open'); overlay.classList.add('open'); }
-function closePanel(){ sidePanel.classList.remove('open'); overlay.classList.remove('open'); }
+function openPanel(){
+  sidePanel.classList.add('open'); overlay.classList.add('open');
+  document.body.classList.add('panel-open');
+  // In landscape the panel docks and shrinks the board instead of
+  // floating over it (see the matching CSS), so the canvas's own
+  // measured width just changed — recompute the camera against it.
+  resizeCanvasWhenStable(400);
+}
+function closePanel(){
+  sidePanel.classList.remove('open'); overlay.classList.remove('open');
+  document.body.classList.remove('panel-open');
+  resizeCanvasWhenStable(400);
+}
 document.getElementById('btn-menu').addEventListener('click', openPanel);
 document.getElementById('btn-panel-close').addEventListener('click', closePanel);
 overlay.addEventListener('click', closePanel);
