@@ -1444,19 +1444,68 @@ body{
   inset:0;
   z-index: 2;
   pointer-events: none;
+  /* This is now a genuine native-scrolling container — the canvas
+     inside it is made much taller than the viewport as content grows
+     (see applyCanvasHeight in the tutor script), and the browser scrolls
+     it natively (finger-drag, wheel, trackpad, scrollbar) exactly like
+     any tall page. There is no custom JS pan/zoom left; this replaces
+     it entirely. */
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain; /* stop scroll chaining/rubber-banding past our own top/bottom limits into the page behind it */
 }
 #board{
   width:100%;
-  height:100%;
   display:block;
-  cursor:grab;
+  cursor:default;
   pointer-events: auto;
-  touch-action: none; /* we handle all pan/zoom gestures ourselves, so stop
-                          the browser from also trying to scroll/zoom the
-                          page in response to the same finger drag */
+  /* Custom drag-to-pan and pinch-to-zoom gesture handling has been
+     removed, so the browser is now allowed to handle scroll gestures on
+     this element itself (pan-y), instead of us calling
+     preventDefault() on every touch move to do it ourselves. */
+  touch-action: pan-y;
 }
-#board.grabbing{cursor:grabbing;}
 #board.hoverable{cursor:pointer;}
+
+/* Pointer used for "point to the exact word/symbol currently being
+   explained" (see runTeachingTurn's use of pointToWord/pointToRegion).
+   A small solid dot with a soft halo, styled distinctly from the ink
+   colors used for handwriting so it always reads as "UI", not content.
+   It lives in viewport-fixed coordinates (like the quiz overlay) and is
+   repositioned via worldToViewport-style math whenever it moves or the
+   user scrolls — never via canvas drawing, so it's cheap to animate
+   smoothly every frame without a full canvas redraw. */
+#board-pointer{
+  position:fixed;
+  z-index: 5;
+  width:16px; height:16px;
+  margin-left:-8px; margin-top:-8px;
+  border-radius:50%;
+  background: var(--halo-blue, #0099FF);
+  box-shadow: 0 0 0 4px rgba(0,153,255,0.25), 0 0 14px 4px rgba(0,153,255,0.35);
+  pointer-events:none;
+  opacity:0;
+  transition: opacity 160ms ease;
+  will-change: transform, opacity;
+}
+#board-pointer.visible{ opacity:1; }
+
+/* The highlight box drawn behind whichever word/region the pointer is
+   currently on. Removed (opacity 0) the instant the tutor moves on to
+   the next word, per spec ("remove the highlight before moving to the
+   next word"). */
+#board-pointer-highlight{
+  position:fixed;
+  z-index: 4;
+  border-radius:4px;
+  background: rgba(255, 224, 102, 0.55);
+  pointer-events:none;
+  opacity:0;
+  transition: opacity 120ms ease, left 90ms ease, top 90ms ease, width 90ms ease, height 90ms ease;
+  will-change: transform, opacity, left, top, width, height;
+}
+#board-pointer-highlight.visible{ opacity:1; }
 
 .ambient-halo{
   position:fixed;
@@ -1838,20 +1887,6 @@ body{
   box-shadow:0 0 0 3px rgba(15,55,145,0.35);
 }
 .ask-zone button:hover{background:var(--ochre);}
-
-/* Talk/mic button now lives inside the ask box itself (like a chat
-   input's inline mic icon) instead of its own separate round button
-   outside it — sized to match the attach/send icons on either side
-   of it rather than its old larger standalone size. Scoped override
-   (not a change to .mic-btn itself) so the recording-state styling
-   (.mic-btn.live pulse, .mic-btn.unsupported) still applies untouched. */
-.ask-zone .mic-btn{
-  width:22px;height:22px;
-  font-size:12px;
-  box-shadow:none;
-  flex-shrink:0;
-}
-.ask-zone .mic-btn.live{ box-shadow:0 0 0 3px rgba(229,62,62,0.25); }
 
 .overlay{
   position:fixed;inset:0;
@@ -2236,6 +2271,8 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
   <canvas id="board"></canvas>
 </div>
 <div id="board-quiz-overlay"></div>
+<div id="board-pointer" aria-hidden="true"></div>
+<div id="board-pointer-highlight" aria-hidden="true"></div>
 
 <div class="topbar">
   <div class="topbar-left-stack">
@@ -2278,10 +2315,13 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
       <button class="ask-icon-btn" id="btn-attach" title="Attach a file">📎</button>
       <input type="file" id="attach-input" accept="image/*,.pdf,.txt,.md" style="display:none;">
       <input type="text" id="ask-input" placeholder="Ask a follow-up…">
-      <button class="mic-btn" id="btn-mic" title="Hold to talk to your tutor">🎙</button>
       <button id="btn-ask" title="Send">➤</button>
     </div>
 
+    <div class="cluster-btn-wrap">
+      <button class="mic-btn" id="btn-mic" title="Hold to talk to your tutor">🎙</button>
+      <span class="btn-label">Talk</span>
+    </div>
     <div class="cluster-btn-wrap">
       <button class="cluster-btn" id="btn-toggle-transcript" title="Show transcript">💬</button>
       <span class="btn-label">Transcript</span>
@@ -2428,16 +2468,32 @@ if(!window.storage || !window.storage.__isRealBackend){
    ========================================================= */
 
 const canvas = document.getElementById('board');
+const boardWrap = document.getElementById('board-wrap');
 let ctx = canvas.getContext('2d');
 ctx.lineCap = 'round';
 ctx.lineJoin = 'round';
 let viewW = 0, viewH = 0;
-const camera = { x: 500, y: 300, scale: 1 };
-// The board should never zoom out past its normal "fit to screen"
-// scale — that default fit scale is recomputed on every reset/resize
-// (viewport width changes), so this floor is kept in sync with it
-// rather than pinned to one fixed number.
-let MIN_ZOOM = 1;
+
+// ---------------------------------------------------------------------
+// FIXED WHITEBOARD / NATIVE SCROLL MODEL
+// ---------------------------------------------------------------------
+// The old model was an "infinite canvas": a single fixed-size <canvas>
+// painted through a camera transform (camera.x/y/scale) that panned and
+// zoomed to follow the pen. That's been removed entirely. The new model:
+//   - The canvas is drawn at a FIXED scale (camera.scale) that is set
+//     once (on load/resize, to fit the page width) and never changes
+//     from panning, pinching, or auto-follow. Zoom-out-to-fit is gone.
+//   - The canvas element itself is made as TALL as the content requires
+//     (canvas.height world-units == current max written y), and the
+//     page uses real, native browser scrolling (#board-wrap scrolls)
+//     to move which part of that tall canvas is visible. There is no
+//     camera.y pan anymore — "where we're looking" is just scrollTop.
+//   - camera.x stays as a fixed horizontal anchor (left-gutter position)
+//     exactly as before, since horizontal position never needs to move.
+// `camera` is kept as an object (rather than separate variables) purely
+// so every existing worldToScreen/sw() call site below keeps working
+// unmodified — only camera.y's *meaning* has changed (see worldToScreen).
+const camera = { x: 500, scale: 1 };
 
 // The board is a fixed-width "page" (PAGE_W world units) that used to
 // always sit horizontally centered on screen. That's fine on a narrow
@@ -2491,19 +2547,11 @@ function measureLayoutInsets(){
 }
 
 function idealCameraX(scale){ return (viewW/2 - PAGE_LEFT_GUTTER_PX) / scale; }
-function idealCameraY(scale){ return TOP_MARGIN + (viewH/2 - PAGE_TOP_GUTTER_PX) / scale; }
 
-// The board should never let the user scroll/pan/zoom-drag past the very
-// top of page 1 — only downward scrolling (toward later writing) is
-// allowed manually. This is the camera.y value at which world-y 0 (the
-// true top edge of the page, above even the first rule line) sits right
-// at the top gutter; camera.y is clamped to never go below it, since a
-// smaller camera.y is what reveals space above the page.
-function minCameraY(scale){ return (viewH/2 - PAGE_TOP_GUTTER_PX) / scale; }
-function clampCameraToTop(){
-  const minY = minCameraY(camera.scale);
-  if(camera.y < minY) camera.y = minY;
-}
+// idealCameraY / minCameraY / clampCameraToTop are gone along with camera
+// panning — there is no camera.y to clamp anymore. The equivalent "never
+// scroll above the top of page 1" guarantee is now just scrollTop >= 0,
+// which the browser already enforces natively (see clampScrollLimits()).
 
 // Kick off loading the handwriting webfonts immediately at page load
 // (rather than waiting for the first canvas draw to implicitly trigger
@@ -2536,7 +2584,6 @@ function lineHeightFor(sizeWorld){
   return mult * RULE_LINE_SPACING;
 }
 
-let userIsScrolledAway = false;
 const TOP_MARGIN = 80; // must be a whole multiple of RULE_LINE_SPACING so the
                         // very first line of writing starts baseline-aligned
                         // to a rule line, same as every line after it
@@ -2546,73 +2593,150 @@ let currentSubject = '';
 
 function resetRegionCursors(){
   globalCursorY = TOP_MARGIN;
-  userIsScrolledAway = false;
-  // Invalidate any camera pan animation still in flight from before this
-  // reset (e.g. a "follow the pen" pan queued by the previous session's
-  // last teaching turn). Without this, that animation's next
-  // requestAnimationFrame tick still passes its own now-stale token check
-  // and overwrites camera.y right back toward the old content's position,
-  // a frame or two after we set it correctly below — which is exactly why
-  // a fresh session's first heading could appear away from the top instead
-  // of at the actual top of a blank page.
+  isUserScrolling = false;
+  // Invalidate any in-flight scroll animation from before this reset
+  // (e.g. a "follow the pen" scroll queued by the previous session's
+  // last teaching turn) so it can't fight the reset below.
   panToken++;
-  
+
   if (viewW > 0) {
       camera.scale = Math.min(1.5, viewW / 1050);
-      MIN_ZOOM = camera.scale;
       camera.x = idealCameraX(camera.scale);
-      camera.y = idealCameraY(camera.scale);
   }
+  // A brand-new session always starts writing at the literal top-left
+  // of the whiteboard, per spec — jump (not animate) scroll back to 0.
+  applyCanvasHeight();
+  isProgrammaticScroll = true;
+  boardWrap.scrollTop = 0;
+  isProgrammaticScroll = false;
 }
 
 function getMaxYWorld(){
   return globalCursorY;
 }
 
-let panToken = 0;
-function animateCameraPan(targetX, targetY, duration, onDone){
-  if(userIsScrolledAway) { if(onDone) onDone(); return; }
+// ---------------------------------------------------------------------
+// AUTO-FOLLOW VIA NATIVE SCROLL (replaces camera panning entirely)
+// ---------------------------------------------------------------------
+// Core rule: the camera/canvas never moves. The PAGE scrolls. The tutor
+// auto-follows its current writing position by animating scrollTop, and
+// the user can grab manual scroll control at any time; auto-follow
+// pauses for a rolling 2-second window after their last scroll input
+// and then resumes on its own.
+let panToken = 0; // still used as a general "cancel in-flight animation" token
+const MANUAL_SCROLL_RESUME_MS = 2000;
+let manualScrollResumeAt = 0;      // performance.now() timestamp when auto-follow may resume
+let isUserScrolling = false;       // true only while a manual gesture is actively in progress
+let isProgrammaticScroll = false;  // true while OUR OWN scrollTo animation is writing scrollTop,
+                                    // so the 'scroll' event listener doesn't mistake it for manual input
+
+// Any real user-initiated scroll (wheel, touch-drag, trackpad, scrollbar
+// drag, keyboard) fires the container's native 'scroll' event. We can't
+// always distinguish "user scrolled" from "we scrolled programmatically"
+// from the event alone, so isProgrammaticScroll is set around every
+// programmatic scroll call below and checked here.
+function noteManualScrollActivity(){
+  if(isProgrammaticScroll) return;
+  isUserScrolling = true;
+  manualScrollResumeAt = performance.now() + MANUAL_SCROLL_RESUME_MS;
+  panToken++; // cancel any in-flight auto-follow animation immediately — never fight the user's scroll
+  clampScrollLimits();
+  scheduleResumeCheck();
+}
+
+let resumeCheckTimer = null;
+function scheduleResumeCheck(){
+  if(resumeCheckTimer) clearTimeout(resumeCheckTimer);
+  const wait = Math.max(50, manualScrollResumeAt - performance.now());
+  resumeCheckTimer = setTimeout(()=>{
+    if(performance.now() >= manualScrollResumeAt){
+      isUserScrolling = false;
+      // Resume following wherever the pen currently is, if writing is
+      // still in progress or the pen ended up off-screen while paused.
+      followCurrentWritingPosition();
+    } else {
+      scheduleResumeCheck();
+    }
+  }, wait);
+}
+
+boardWrap.addEventListener('scroll', ()=>{ noteManualScrollActivity(); repositionQuizOverlay(); repositionPointerOverlay(); }, {passive:true});
+
+// SCROLL LIMITS: never above the top of page 1; never far below the
+// latest written content. Native overflow already prevents scrolling
+// past [0, scrollHeight-clientHeight], and applyCanvasHeight() keeps
+// scrollHeight tracking content growth, so this just guards against the
+// rare case scrollTop drifts negative (elastic overscroll on some
+// browsers) by re-clamping explicitly.
+function clampScrollLimits(){
+  if(boardWrap.scrollTop < 0) boardWrap.scrollTop = 0;
+  const maxScroll = Math.max(0, boardWrap.scrollHeight - boardWrap.clientHeight);
+  if(boardWrap.scrollTop > maxScroll) boardWrap.scrollTop = maxScroll;
+}
+
+function animateScrollTo(targetScrollTop, duration, onDone){
   const myToken = ++panToken;
-  const startX = camera.x, startY = camera.y;
-  const dx = targetX - startX, dy = targetY - startY;
+  const startTop = boardWrap.scrollTop;
+  const dy = targetScrollTop - startTop;
   const start = performance.now();
   let finished = false;
   function finish(){ if(!finished){ finished = true; if(onDone) onDone(); } }
   function ease(t){ return t<0.5 ? 4*t*t*t : 1-Math.pow(-2*t+2,3)/2; }
   function frame(now){
-    if(myToken !== panToken || userIsScrolledAway){ finish(); return; }
+    if(myToken !== panToken || isUserScrolling){ finish(); return; }
     const raw = Math.min(1, (now-start)/duration);
     const t = ease(raw);
-    camera.x = startX + dx*t;
-    camera.y = startY + dy*t;
-    redrawAll();
-    if(raw < 1) requestAnimationFrame(frame); else { camera.x = targetX; camera.y = targetY; redrawAll(); finish(); }
+    isProgrammaticScroll = true;
+    boardWrap.scrollTop = startTop + dy*t;
+    isProgrammaticScroll = false;
+    if(raw < 1) requestAnimationFrame(frame);
+    else {
+      isProgrammaticScroll = true;
+      boardWrap.scrollTop = targetScrollTop;
+      isProgrammaticScroll = false;
+      finish();
+    }
   }
   requestAnimationFrame(frame);
 }
 
+// Auto-follow entry point: scroll so that world-y `targetY` sits at a
+// comfortable position in the viewport (used both for "keep up with the
+// pen while writing" and for "resume following after the 2s pause").
+// Never touches camera.scale/camera.x — no zooming, ever.
 function panCameraToCursor(targetY, onDone){
-  const idealScale = Math.min(1.5, viewW / 1050);
-  if (Math.abs(camera.scale - idealScale) > 0.01 && !userIsScrolledAway) {
-      camera.scale = idealScale;
-  }
-  // Keep X anchored to the page's left-gutter position (not dead center)
-  // while following the pen vertically.
-  animateCameraPan(idealCameraX(camera.scale), targetY, 900, onDone);
+  if(isUserScrolling){ if(onDone) onDone(); return; }
+  const targetScrollTop = Math.max(0, targetY * camera.scale - (viewH - PAGE_BOTTOM_GUTTER_PX));
+  animateScrollTo(targetScrollTop, 900, onDone);
 }
 
-function checkIfScrolledAway(){
-  const maxY = getMaxYWorld();
-  const bottomVisibleY = screenToWorld(0, viewH)[1];
-  userIsScrolledAway = (bottomVisibleY < maxY - 300);
+// Re-follow whatever the tutor is currently doing: if actively writing,
+// panCameraToCursor already gets called per-batch and per-command, so
+// this just re-centers on the most recent target immediately on resume
+// rather than waiting for the next queued command.
+let lastAutoFollowTargetY = TOP_MARGIN;
+function followCurrentWritingPosition(){
+  if(isUserScrolling) return;
+  panCameraToCursor(lastAutoFollowTargetY, null);
+}
+
+// The canvas element is now sized to the FULL page content height (in
+// device pixels), not just the viewport — #board-wrap is a normal
+// scrolling container (overflow-y:auto) and the browser scrolls the tall
+// canvas within it, exactly like scrolling a tall image or a long
+// notebook page. viewH below still means "viewport height" (how much of
+// the tall canvas is visible at once) since several existing layout
+// calculations (bottom-dock clearance, etc.) need that, not the full
+// canvas height.
+function currentContentHeightWorld(){
+  // At least one viewport-height tall so there's always something to
+  // scroll within on a fresh/empty board, growing as content is added.
+  return Math.max(getMaxYWorld() + 400, (viewH || 600) / (camera.scale || 1));
 }
 
 function resizeCanvas(){
-  const rect = canvas.getBoundingClientRect();
+  const rect = boardWrap.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
-  canvas.width = rect.width * dpr;
-  canvas.height = rect.height * dpr;
-  ctx.setTransform(dpr,0,0,dpr,0,0);
   viewW = rect.width; viewH = rect.height;
 
   // Re-measure the actual on-screen top bar / bottom dock before doing
@@ -2621,25 +2745,45 @@ function resizeCanvas(){
   // the bottom dock growing an extra row on a narrow phone), so this
   // has to happen on every resize/rotation, not just once at load.
   measureLayoutInsets();
-  
-  // Horizontal position (left-gutter anchoring) and zoom level aren't
-  // something the user "scrolls away" from — userIsScrolledAway only
-  // tracks whether they've panned vertically away from the pen. So keep
-  // recalculating scale/x on every resize (including mid-lesson rotations),
-  // and only gate the vertical recenter-to-top behind userIsScrolledAway.
+
+  // Scale is fixed once here (fit-to-width, capped) and is never touched
+  // again by panning, pinching, or auto-follow — per the "never
+  // auto-zoom, preserve canvas scale" requirement. Horizontal anchor
+  // (camera.x) is recalculated too, since it depends on viewW.
   if (viewW > 0) {
       camera.scale = Math.min(1.5, viewW / 1050);
-      MIN_ZOOM = camera.scale;
       camera.x = idealCameraX(camera.scale);
-      if (!userIsScrolledAway) {
-          camera.y = idealCameraY(camera.scale);
-      }
-      clampCameraToTop();
   }
-  
+
+  applyCanvasHeight();
   redrawAll();
+  clampScrollLimits();
+  repositionQuizOverlay();
+  repositionPointerOverlay();
 }
 window.addEventListener('resize', resizeCanvas);
+
+// Grows the canvas element (and its backing pixel buffer) to match
+// however much has been written so far, and never shrinks below the
+// viewport height. Called after every batch of new content and on
+// resize. This — not camera panning — is what makes "the page a large
+// notebook that extends vertically": the DOM element is genuinely that
+// tall, and the browser's own scrollbar/scroll physics take it from there.
+let lastAppliedCanvasHeightPx = 0;
+function applyCanvasHeight(){
+  const dpr = window.devicePixelRatio || 1;
+  const heightWorld = currentContentHeightWorld();
+  const heightPx = Math.ceil(heightWorld * camera.scale);
+  if (Math.abs(heightPx - lastAppliedCanvasHeightPx) < 2 && canvas.width === Math.round(viewW*dpr)) return;
+  lastAppliedCanvasHeightPx = heightPx;
+  canvas.width = Math.round(viewW * dpr);
+  canvas.height = Math.round(heightPx * dpr);
+  canvas.style.width = viewW + 'px';
+  canvas.style.height = heightPx + 'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+}
 
 // Mobile Safari (and other mobile browsers) can take noticeably longer than
 // 350ms to finish reflowing the visual viewport after a rotation — the
@@ -2701,11 +2845,35 @@ if ('ResizeObserver' in window) {
   if (bottomDockEl) dockResizeObserver.observe(bottomDockEl);
 }
 
+// worldToScreen/screenToWorld now describe position WITHIN THE CANVAS
+// ELEMENT ITSELF (which is what every renderCommand()/hit-test call site
+// actually needs — the canvas 2D context's own coordinate space), not
+// position within the visible viewport. Since the canvas no longer pans,
+// this is a simple fixed scale+offset with no vertical camera term at
+// all: world-y 0 always sits at the same pixel inside the (now very
+// tall) canvas element; scrolling the container is what changes which
+// slice of that canvas the user currently sees, exactly like scrolling
+// a tall <img>. Horizontal centering still uses the fixed camera.x
+// anchor from resizeCanvas(), same as before.
+// worldToScreen no longer has a y-panning term (see camera model notes),
+// so PDF export — which needs to render successive vertical "pages" of
+// world content into a fixed-size offscreen canvas — uses this explicit
+// offset instead of repurposing camera.y. It's 0 during normal on-screen
+// rendering and only non-zero while exportBoardAsPDF() is mid-render.
+let exportYOffset = 0;
 function worldToScreen(wx, wy){
-  return [(wx - camera.x) * camera.scale + viewW/2, (wy - camera.y) * camera.scale + viewH/2];
+  return [(wx - camera.x) * camera.scale + viewW/2, (wy - exportYOffset) * camera.scale];
 }
 function screenToWorld(sx, sy){
-  return [(sx - viewW/2) / camera.scale + camera.x, (sy - viewH/2) / camera.scale + camera.y];
+  return [(sx - viewW/2) / camera.scale + camera.x, sy / camera.scale];
+}
+
+// Convert a world-y into the current VIEWPORT-relative y (i.e. accounting
+// for scroll position) — used by auto-follow/scroll-targeting code, which
+// cares about "where is this on screen right now", unlike worldToScreen
+// above which is scroll-independent canvas-local space.
+function worldYToViewportY(wy){
+  return wy * camera.scale - boardWrap.scrollTop;
 }
 
 const INK = '#1E2B3A';
@@ -2745,6 +2913,7 @@ function redrawAll(){
   drawBG();
   drawnCommands.forEach(cmd => renderCommand(cmd));
   repositionQuizOverlay();
+  repositionPointerOverlay();
 }
 
 function redrawAllExcept(skipCmd){
@@ -3219,80 +3388,18 @@ function plotScalers(ox, oy, w, h, cmd){
   return [scaleX, scaleY];
 }
 
-/* ---------- PAN / ZOOM (mouse) ---------- */
-let isPanning = false, panStart=null, camStart=null;
-canvas.addEventListener('mousedown', (e)=>{ 
-  panToken++; isPanning=true; canvas.classList.add('grabbing'); 
-  panStart=[e.clientX,e.clientY]; camStart={x:camera.x,y:camera.y}; 
-  if(typeof stopHoverReplay==='function') stopHoverReplay(); 
-});
-window.addEventListener('mousemove', (e)=>{
-  if(!isPanning) return;
-  camera.y = camStart.y - (e.clientY - panStart[1]) / camera.scale;
-  clampCameraToTop();
-  checkIfScrolledAway();
-  redrawAll();
-});
-window.addEventListener('mouseup', ()=>{ isPanning=false; canvas.classList.remove('grabbing'); });
-
-/* ---------- PAN / ZOOM (touch — iPad & mobile) ----------
-   A single finger drags the board exactly like a mouse-drag pan, so you
-   can swipe up to read earlier notes or swipe down to catch up — this is
-   the primary way to scroll the whiteboard on a touch device. Two fingers
-   pinch-zoom around their midpoint. Both gestures immediately mark the
-   user as "scrolled away" (via checkIfScrolledAway), which is what stops
-   the AI's auto-follow camera from fighting a manual scroll; scrolling
-   back down near the live writing point clears that flag again on its
-   own the next time it's checked. */
-let touchMode = null; // 'pan' | 'pinch' | null
-let pinchStartDist = 0, pinchStartScale = 1, pinchWorldMid = null;
-function touchDist(t0,t1){ return Math.hypot(t1.clientX-t0.clientX, t1.clientY-t0.clientY); }
-function touchMid(t0,t1){ return { x:(t0.clientX+t1.clientX)/2, y:(t0.clientY+t1.clientY)/2 }; }
-canvas.addEventListener('touchstart', (e)=>{
-  panToken++; stopHoverReplay();
-  if(e.touches.length === 1){
-    touchMode = 'pan';
-    panStart = [e.touches[0].clientX, e.touches[0].clientY];
-    camStart = { x:camera.x, y:camera.y };
-  } else if(e.touches.length === 2){
-    touchMode = 'pinch';
-    pinchStartDist = touchDist(e.touches[0], e.touches[1]);
-    pinchStartScale = camera.scale;
-    const mid = touchMid(e.touches[0], e.touches[1]);
-    const rect = canvas.getBoundingClientRect();
-    pinchWorldMid = screenToWorld(mid.x-rect.left, mid.y-rect.top);
-  }
-}, {passive:true});
-canvas.addEventListener('touchmove', (e)=>{
-  if(touchMode === 'pan' && e.touches.length === 1){
-    e.preventDefault();
-    camera.y = camStart.y - (e.touches[0].clientY - panStart[1]) / camera.scale;
-    clampCameraToTop();
-    checkIfScrolledAway();
-    redrawAll();
-  } else if(touchMode === 'pinch' && e.touches.length === 2){
-    e.preventDefault();
-    const dist = touchDist(e.touches[0], e.touches[1]);
-    camera.scale = Math.min(3, Math.max(MIN_ZOOM, pinchStartScale * (dist/Math.max(1,pinchStartDist))));
-    const rect = canvas.getBoundingClientRect();
-    const mid = touchMid(e.touches[0], e.touches[1]);
-    const [nx,ny] = screenToWorld(mid.x-rect.left, mid.y-rect.top);
-    camera.x += (pinchWorldMid[0]-nx); camera.y += (pinchWorldMid[1]-ny);
-    clampCameraToTop();
-    checkIfScrolledAway();
-    redrawAll();
-  }
-}, {passive:false});
-canvas.addEventListener('touchend', (e)=>{
-  if(e.touches.length === 0){ touchMode = null; checkIfScrolledAway(); }
-  else if(e.touches.length === 1){
-    // dropped from a pinch down to one finger — restart as a plain pan
-    touchMode = 'pan';
-    panStart = [e.touches[0].clientX, e.touches[0].clientY];
-    camStart = { x:camera.x, y:camera.y };
-  }
-});
-canvas.addEventListener('touchcancel', ()=>{ touchMode = null; checkIfScrolledAway(); });
+/* ---------- MANUAL SCROLL (mouse-drag / touch / trackpad) ----------
+   All custom pan-by-dragging and pinch-to-zoom gesture handling has been
+   removed. #board-wrap is now a genuine native-scrolling container
+   (overflow-y:auto; see CSS), so finger-drag, mouse-wheel, trackpad
+   two-finger swipe, and scrollbar-drag all scroll it exactly like any
+   other scrollable page, for free, via the browser's own scroll physics
+   — no JS needed to reproduce that. The single 'scroll' listener
+   registered above (noteManualScrollActivity, in the auto-follow section)
+   is what detects this manual input and pauses/resumes auto-follow.
+   Pinch-zoom is intentionally NOT implemented: per spec, zoom never
+   changes automatically and canvas scale is preserved; there is no
+   camera scale left to pinch. */
 
 /* ---------- HOVER-TO-REPLAY ---------- */
 const hoverAnim = { cmd:null, raf:null };
@@ -3321,7 +3428,7 @@ function startHoverReplay(cmd){
 }
 
 canvas.addEventListener('mousemove', (e)=>{
-  if(isPanning || drawing) return;
+  if(drawing) return;
   const rect = canvas.getBoundingClientRect();
   const mx = e.clientX - rect.left, my = e.clientY - rect.top;
   let hit = null;
@@ -3335,28 +3442,11 @@ canvas.addEventListener('mousemove', (e)=>{
   if(hit) startHoverReplay(hit); else stopHoverReplay();
 });
 canvas.addEventListener('mouseleave', stopHoverReplay);
-canvas.addEventListener('wheel', (e)=>{
-  e.preventDefault();
-  panToken++;
-  stopHoverReplay();
-  const rect = canvas.getBoundingClientRect();
-  const mx = e.clientX-rect.left, my = e.clientY-rect.top;
-  // Pinch-to-zoom on a trackpad (and ctrl+wheel) reports as a wheel event
-  // with ctrlKey set — treat that as zoom. A plain wheel/trackpad scroll
-  // is treated as an ordinary scroll of the board, so the page is fully
-  // scrollable with a normal mouse wheel or two-finger trackpad swipe.
-  if(e.ctrlKey){
-    const [wx,wy] = screenToWorld(mx,my);
-    camera.scale = Math.min(3, Math.max(MIN_ZOOM, camera.scale * (e.deltaY>0?0.9:1.1)));
-    const [nx,ny] = screenToWorld(mx,my);
-    camera.x += (wx-nx); camera.y += (wy-ny);
-  } else {
-    camera.y += e.deltaY / camera.scale;
-  }
-  clampCameraToTop();
-  checkIfScrolledAway();
-  redrawAll();
-}, {passive:false});
+// No custom wheel handler: mouse wheel / trackpad scroll now falls
+// through to #board-wrap's native overflow-y:auto scrolling, same as
+// touch-drag and scrollbar-drag. Zoom-by-wheel/pinch has been removed
+// entirely — scale is fixed per "never automatically zoom, preserve
+// canvas scale" (see resizeCanvas()).
 // Reset-view and Clear-board buttons were removed from the toolbar
 // (they were being covered by the account menu) — clearBoard() itself
 // is still used internally (e.g. resetTutorBoardState on New session).
@@ -3365,15 +3455,15 @@ canvas.addEventListener('wheel', (e)=>{
    EXPORT PDF
    ========================================================= */
 function worldContentBounds(){
-  const savedCam = { ...camera }, savedW = viewW, savedH = viewH;
-  camera.scale = 1; camera.x = viewW/2; camera.y = viewH/2;
+  const savedCam = { ...camera }, savedW = viewW, savedH = viewH, savedOffset = exportYOffset;
+  camera.scale = 1; camera.x = viewW/2; exportYOffset = 0;
   let minX=0, minY=0, maxX=PAGE_W, maxY=1;
   drawnCommands.forEach(cmd=>{
     const [x0,y0,x1,y1] = commandScreenBBox(cmd);
     minX=Math.min(minX,x0); minY=Math.min(minY,y0);
     maxX=Math.max(maxX,x1); maxY=Math.max(maxY,y1);
   });
-  Object.assign(camera, savedCam); viewW = savedW; viewH = savedH;
+  Object.assign(camera, savedCam); viewW = savedW; viewH = savedH; exportYOffset = savedOffset;
   return { minX, minY, maxX, maxY };
 }
 
@@ -3384,7 +3474,7 @@ async function exportBoardAsPDF(){
 
   setStatus('exporting pdf…');
   stopHoverReplay();
-  const savedCam = { ...camera }, savedW = viewW, savedH = viewH, savedCtx = ctx;
+  const savedCam = { ...camera }, savedW = viewW, savedH = viewH, savedCtx = ctx, savedOffset = exportYOffset;
 
   try{
     const { minX, minY, maxY } = worldContentBounds();
@@ -3408,7 +3498,7 @@ async function exportBoardAsPDF(){
       viewW = pxW; viewH = pxH;
       camera.scale = PX_PER_WORLD_UNIT;
       camera.x = minX + pageWorldW/2;
-      camera.y = (minY + i*pageWorldH) + pageWorldH/2;
+      exportYOffset = (minY + i*pageWorldH);
 
       drawBG();
       drawnCommands.forEach(cmd => renderCommand(cmd));
@@ -3431,7 +3521,7 @@ async function exportBoardAsPDF(){
   } finally {
     ctx = savedCtx;
     Object.assign(camera, savedCam);
-    viewW = savedW; viewH = savedH;
+    viewW = savedW; viewH = savedH; exportYOffset = savedOffset;
     redrawAll();
   }
 }
@@ -3709,10 +3799,15 @@ function enqueueCommandsAtCursor(commands){
     const bottomClearanceWorld = Math.max(220, PAGE_BOTTOM_GUTTER_PX / camera.scale);
     let panTargetY = globalCursorY - bottomClearanceWorld;
     if (panTargetY < TOP_MARGIN) panTargetY = TOP_MARGIN;
+    lastAutoFollowTargetY = panTargetY;
 
+    // The canvas element must grow to fit the newly-placed content BEFORE
+    // we try to scroll to it — otherwise scrollHeight hasn't caught up
+    // yet and the scroll gets clamped short of where we're aiming.
+    applyCanvasHeight();
     redrawAll();
     
-    if(!userIsScrolledAway){
+    if(!isUserScrolling){
         panCameraToCursor(panTargetY, () => enqueueCommands(placedAll));
     } else {
         enqueueCommands(placedAll);
@@ -3741,8 +3836,9 @@ function processQueue(){
   const cmd = drawQueue.shift();
   const anchor = commandWorldAnchor(cmd);
   
-  if(anchor && !userIsScrolledAway){
-    const [sx, sy] = worldToScreen(anchor[0], anchor[1]);
+  if(anchor && !isUserScrolling){
+    const sx = (anchor[0] - camera.x) * camera.scale + viewW/2;
+    const sy = worldYToViewportY(anchor[1]);
     // Directional margins instead of one fixed number: the safe area
     // that matters is "don't draw under the top bar" and "don't draw
     // under the bottom dock", and those two are rarely the same height
@@ -3750,20 +3846,21 @@ function processQueue(){
     const marginX = 80;
     const marginTop = PAGE_TOP_GUTTER_PX + 20;
     const marginBottom = PAGE_BOTTOM_GUTTER_PX;
-    // Corrective pans must (a) always re-center X back to the actual
-    // gutter-anchored position — not a hardcoded world x=500, which
-    // drifted from idealCameraX() the moment the page wasn't centered
-    // (any tablet/desktop width) and fought the "real" camera position
-    // every time it fired — and (b) be throttled, since this check runs
-    // per queued command (i.e. roughly per stroke/letter). Without a
+    // Corrective scrolls must be throttled, since this check runs per
+    // queued command (i.e. roughly per stroke/letter). Without a
     // cooldown, a fast run of small commands near an edge would each
-    // restart a fresh 260ms tween before the last one finished, so the
-    // camera never actually settled and visibly juddered while writing.
+    // restart a fresh scroll tween before the last one finished, so the
+    // viewport never actually settled and visibly juddered while writing.
+    // Horizontal position never needs correcting anymore since camera.x
+    // is a fixed anchor, not something that drifts — only vertical
+    // scroll can need a corrective nudge.
     const now = performance.now();
-    if((sx < marginX || sx > viewW-marginX || sy < marginTop || sy > viewH-marginBottom)
+    if((sy < marginTop || sy > viewH-marginBottom)
        && (now - lastMidDrawPanAt > 320)){
       lastMidDrawPanAt = now;
-      animateCameraPan(idealCameraX(camera.scale), anchor[1], 260, null);
+      lastAutoFollowTargetY = anchor[1];
+      applyCanvasHeight();
+      panCameraToCursor(anchor[1], null);
     }
   }
   
@@ -4407,12 +4504,14 @@ let activeQuizCard = null;
 let activeQuizWorldY = null; // world-space y this card is anchored to
 
 // Keeps the floating quiz card glued to the same spot on the page as the
-// camera pans/zooms. Called once when the card is created and again from
-// redrawAll() on every camera-moving frame (pan animation, drag, pinch,
-// wheel zoom, resize) so it never drifts away from the content it belongs to.
+// user scrolls. Called once when the card is created and again on every
+// scroll/resize/redraw so it never drifts away from the content it
+// belongs to (the board itself no longer pans/zooms, but the user's
+// scroll position — which this card must track — still changes).
 function repositionQuizOverlay(){
   if(!activeQuizCard || activeQuizWorldY===null) return;
-  const [sx, sy] = worldToScreen(DIAGRAM_LEFT, activeQuizWorldY);
+  const sx = (DIAGRAM_LEFT - camera.x) * camera.scale + viewW/2;
+  const sy = worldYToViewportY(activeQuizWorldY);
   const cardW = activeQuizCard.offsetWidth || 300;
   // Keep the card clear of the top bar and the bottom dock, using their
   // real measured heights rather than a fixed guess so this still holds
@@ -4428,6 +4527,227 @@ function repositionQuizOverlay(){
 
 function dismissQuizCard(){
   if(activeQuizCard){ activeQuizCard.remove(); activeQuizCard = null; activeQuizWorldY = null; }
+}
+
+/* =========================================================
+   PRECISE POINTING: word-level content position tracking +
+   an on-screen pointer that can scroll to and highlight any
+   previously-written word, symbol, or region.
+   ========================================================= */
+
+// Every 'text' command already stores its world x/y, font size, weight,
+// and (if wrapped) maxWidth — exactly the inputs wrapTextToLines() and
+// ctx.measureText() need to reconstruct exactly where each word landed.
+// Rather than threading word-tracking through the write/animate pipeline
+// (which is timing-sensitive and easy to destabilize), word boxes are
+// computed on demand, straight from the same finished `drawnCommands`
+// array already used for hit-testing/hover-replay — so this is always
+// in sync with whatever is actually on the board, including after a
+// restored session where no "writing" ever happened this page-load.
+//
+// Returns an array of { text, x, y, w, h } in WORLD coordinates, one
+// entry per word, for a single text command. (x,y) is the word's
+// top-left; (w,h) its measured box, matching the padding convention
+// used by commandScreenBBox for consistency with hover hit-testing.
+function wordBoxesForTextCommand(cmd){
+  if(cmd.type !== 'text' || !cmd.text) return [];
+  const fam = "'Kalam', 'Caveat', cursive";
+  const weight = cmd.weight || 700;
+  const size = (cmd.size||26)*HAND_SIZE_MULT;
+  // Measure in WORLD units (scale=1 font) so results are resolution-
+  // independent, then the caller (worldToScreen) applies camera.scale —
+  // exactly like every other piece of drawn content.
+  ctx.save();
+  ctx.font = `${weight} ${size}px ${fam}`;
+  const lineHeight = cmd.maxWidth ? lineHeightFor(size) : size*1.3;
+  const lines = cmd.maxWidth ? wrapTextToLines(cmd.text, cmd.maxWidth) : [cmd.text];
+  const boxes = [];
+  lines.forEach((line, li) => {
+    const ly = cmd.y + li*lineHeight;
+    let cursorX = cmd.x;
+    const words = line.split(/(\s+)/); // keep whitespace tokens so cursorX tracks real spacing
+    words.forEach(tok => {
+      const w = ctx.measureText(tok).width;
+      if(tok.trim().length){
+        boxes.push({
+          text: tok,
+          x: cursorX,
+          y: ly - size*1.02,
+          w: w,
+          h: size*1.15
+        });
+      }
+      cursorX += w;
+    });
+  });
+  ctx.restore();
+  return boxes;
+}
+
+// Flat index over the whole board: [{ cmdIndex, wordIndex, text, x, y, w, h }, ...]
+// Rebuilt lazily whenever drawnCommands changes shape, rather than kept
+// incrementally in sync — the board rarely has more than a few hundred
+// words, so a full rebuild is cheap, and "always correct, trivially" beats
+// "fast but capable of drifting out of sync".
+let wordIndexCache = null;
+let wordIndexCacheLen = -1;
+function getWordIndex(){
+  if(wordIndexCache && wordIndexCacheLen === drawnCommands.length) return wordIndexCache;
+  const idx = [];
+  drawnCommands.forEach((cmd, cmdIndex) => {
+    if(cmd.type !== 'text') return;
+    wordBoxesForTextCommand(cmd).forEach((b, wordIndex) => {
+      idx.push({ cmdIndex, wordIndex, ...b });
+    });
+  });
+  wordIndexCache = idx;
+  wordIndexCacheLen = drawnCommands.length;
+  return idx;
+}
+
+// Finds the Nth occurrence (default: first) of a word/phrase already
+// written on the board, case-insensitively, e.g. findWordOnBoard('inflation').
+// This is the lookup the tutor uses for "look at the word X here" —
+// it never needs to know coordinates itself, just the word.
+function findWordOnBoard(needle, occurrence){
+  occurrence = occurrence || 1;
+  const target = (needle||'').trim().toLowerCase();
+  if(!target) return null;
+  let seen = 0;
+  const idx = getWordIndex();
+  for(let i=0;i<idx.length;i++){
+    const clean = idx[i].text.toLowerCase().replace(/[.,;:!?()"'*]/g,'');
+    if(clean === target){
+      seen++;
+      if(seen === occurrence) return idx[i];
+    }
+  }
+  return null;
+}
+
+const pointerEl = document.getElementById('board-pointer');
+const pointerHighlightEl = document.getElementById('board-pointer-highlight');
+let pointerToken = 0;
+
+// Moves the pointer dot (viewport-fixed) to world coordinates, scrolling
+// it into view first if it's currently off-screen — WITHOUT ever moving
+// the camera/canvas, exactly like the quiz card's own positioning.
+function movePointerToWorld(wx, wy, opts){
+  opts = opts || {};
+  const sx = (wx - camera.x) * camera.scale + viewW/2;
+  const sy = worldYToViewportY(wy);
+  pointerEl.style.transform = `translate(${sx}px, ${sy}px)`;
+  pointerEl.classList.add('visible');
+  if(!opts.keepHighlight) pointerHighlightEl.classList.remove('visible');
+}
+
+function showHighlightAtWorld(wx, wy, ww, wh){
+  const sx = (wx - camera.x) * camera.scale + viewW/2;
+  const sy = worldYToViewportY(wy);
+  pointerHighlightEl.style.left = sx + 'px';
+  pointerHighlightEl.style.top = sy + 'px';
+  pointerHighlightEl.style.width = (ww*camera.scale) + 'px';
+  pointerHighlightEl.style.height = (wh*camera.scale) + 'px';
+  pointerHighlightEl.classList.add('visible');
+}
+
+function hidePointer(){
+  pointerEl.classList.remove('visible');
+  pointerHighlightEl.classList.remove('visible');
+}
+
+// Keep the pointer/highlight glued to the right screen position as the
+// user scrolls, same reasoning as repositionQuizOverlay — they're
+// viewport-fixed elements sitting over content whose scroll position
+// keeps changing.
+let lastPointerWorldTarget = null; // { x, y, w, h } of whatever is currently pointed at, or null
+function repositionPointerOverlay(){
+  if(!lastPointerWorldTarget) return;
+  const t = lastPointerWorldTarget;
+  movePointerToWorld(t.x + (t.w||0)/2, t.y + (t.h||0)/2, { keepHighlight:true });
+  if(t.w && t.h) showHighlightAtWorld(t.x, t.y, t.w, t.h);
+}
+
+// Scrolls (if needed) so a world-y is comfortably visible, then resolves.
+// This is the "return to previously written content" scroll step — a
+// smaller/faster tween than the writing auto-follow one, since it's a
+// deliberate jump-to-reference rather than a continuous following motion.
+function scrollToWorldYIfNeeded(wy, onDone){
+  const viewportY = worldYToViewportY(wy);
+  const margin = PAGE_TOP_GUTTER_PX + 40;
+  const bottomLimit = viewH - PAGE_BOTTOM_GUTTER_PX - 40;
+  if(viewportY >= margin && viewportY <= bottomLimit){ if(onDone) onDone(); return; }
+  const targetScrollTop = Math.max(0, wy*camera.scale - viewH/2);
+  animateScrollTo(targetScrollTop, 500, onDone);
+}
+
+// ---- Public pointing API used by the teaching/explanation logic ----
+
+// Point at an arbitrary world-space region (a diagram element, an
+// equation, a whole sentence's bounding box, etc). Scrolls it into view
+// first if necessary, then shows the pointer + highlight on it.
+function pointToRegion(wx, wy, ww, wh){
+  const myToken = ++pointerToken;
+  lastPointerWorldTarget = { x:wx, y:wy, w:ww||0, h:wh||0 };
+  scrollToWorldYIfNeeded(wy + (wh||0)/2, ()=>{
+    if(myToken !== pointerToken) return;
+    movePointerToWorld(wx + (ww||0)/2, wy + (wh||0)/2, { keepHighlight:true });
+    if(ww && wh) showHighlightAtWorld(wx, wy, ww, wh);
+  });
+}
+
+// Point at a specific already-written word by text lookup (see
+// findWordOnBoard) — this is the "look at the word inflation here"
+// entry point.
+function pointToWordText(wordText, occurrence){
+  const hit = findWordOnBoard(wordText, occurrence);
+  if(!hit) return false;
+  pointToRegion(hit.x, hit.y, hit.w, hit.h);
+  return true;
+}
+
+// Point at a specific text command by its index into drawnCommands, and
+// (optionally) a specific word within it — used for word-by-word
+// progression through a sentence the tutor just wrote, in sync with
+// speech, per spec. Call repeatedly with increasing wordIndex.
+function pointToWordInCommand(cmdIndex, wordIndex){
+  const idx = getWordIndex();
+  const hit = idx.find(w => w.cmdIndex === cmdIndex && w.wordIndex === wordIndex);
+  if(!hit) return false;
+  pointToRegion(hit.x, hit.y, hit.w, hit.h);
+  return true;
+}
+
+// Progresses the pointer word-by-word through everything a single text
+// command wrote, pacing each step to roughly match natural reading speed
+// — this is the "point word-by-word as it speaks" / "progress through
+// sentences word-by-word or phrase-by-phrase" requirement. Returns a
+// cancel function; calling it (or starting a new call) stops the
+// in-progress sequence early so a new explanation can take over cleanly.
+let wordByWordTimer = null;
+function pointWordByWordThroughCommand(cmdIndex, msPerWord){
+  if(wordByWordTimer){ clearTimeout(wordByWordTimer); wordByWordTimer = null; }
+  const idx = getWordIndex().filter(w => w.cmdIndex === cmdIndex);
+  let i = 0;
+  const step = ()=>{
+    if(i >= idx.length){ return; }
+    const w = idx[i];
+    pointToRegion(w.x, w.y, w.w, w.h);
+    i++;
+    wordByWordTimer = setTimeout(step, msPerWord || 260);
+  };
+  step();
+  return function cancel(){ if(wordByWordTimer){ clearTimeout(wordByWordTimer); wordByWordTimer = null; } };
+}
+
+// Returning to the current writing position after pointing at older
+// content — resumes auto-follow at wherever globalCursorY/lastAutoFollowTargetY
+// currently is, and clears the pointer since we're back to live writing.
+function returnToCurrentWritingPosition(){
+  pointerToken++; // invalidate any in-flight pointToRegion scroll/animation
+  lastPointerWorldTarget = null;
+  hidePointer();
+  panCameraToCursor(lastAutoFollowTargetY, null);
 }
 
 function addQuizCard(quiz){
@@ -4613,16 +4933,6 @@ DRAWING TABLES, LEDGERS/JOURNALS, AND MATRICES (accounting T-accounts, general j
 
 UNIVERSAL NO-OVERLAP RULE (applies to every diagram, not just tables): before emitting any diagram, mentally lay out a bounding box for every single "text"/diagramLabel string (estimate width as characters × size × 0.62, height as size × 1.3) and check it doesn't intersect the bounding box of any other text or any shape it isn't meant to sit on top of. Specific failure modes to actively avoid: (1) two diagramLabels for parts that are close together — if the parts are within roughly one label's-width of each other, stagger the labels at different distances from the structure (longer/shorter leader arrows) or offset them vertically, rather than letting both labels sit at the same distance and collide; (2) a label text sitting directly on top of the shape outline it's labeling — always place label text clearly outside the shape with a leader arrow pointing in, never inside a small structure where the text itself would obscure it; (3) row/column text in a table overrunning a grid line, covered above; (4) a heading or paragraph "text" command whose estimated width exceeds "maxWidth" — either shorten the string or explicitly set a larger "maxWidth" so the app's own wrapping doesn't fight your intended line breaks. When genuinely unsure whether two elements will collide, err toward more spacing, a shorter label, or splitting one crowded diagram into two sequential smaller ones — never toward cramming.
 
-TEACHING STRUCTURE — when a student asks about a new concept, term, theory, formula, or topic, work through it in this fixed order, treating each stage as its OWN separate turn (this is what the PACING RULES below actually enforce — never collapse two stages into one turn):
-1. Definition — state what it means, in simple but academically accurate language. Do not oversimplify university-level material.
-2. Intuition — the "why this matters" / how to think about it, before diving into mechanics.
-3. Step-by-step explanation — the logic broken down, explaining WHY not just WHAT, connecting cause → effect → outcome. If it has multiple steps, each step is its own turn, not one combined turn.
-4. Example — one short real-world or academic example.
-5. Visual/graph (only if it genuinely aids understanding — see diagram rules below; skip this stage entirely if a visual wouldn't add anything). After drawing it, explain exactly what to look at on the board and how it maps to the concept.
-6. Key takeaway — one or two sentences distilling the core idea.
-7. Check-understanding question — a short question (via "quiz" or a question at the end of "speech") before considering this concept "done". If the student gets it wrong, re-teach that specific point from a different angle rather than just repeating it, then check again.
-Only move to the next stage once the student has responded — never chain multiple stages into one message "to save time". Once a concept's full cycle is complete, difficulty can gradually increase on the next concept.
-
 PACING RULES — GO BIT BY BIT:
 - Teach in SMALL, SINGLE-IDEA turns: cover exactly one definition, one sub-step, or one small piece of a worked example per turn — never a whole topic in one go. A turn's "board" content should be short (a small handful of "text"/diagram commands, not a long stacked block of paragraphs) UNLESS this turn's one idea is itself a complex diagram (see COMPLEX DIAGRAM MODE above), in which case the diagram's full detail is the appropriate size for that single idea.
 - After that one small idea, ALWAYS stop and check in before continuing — this is mandatory on every single turn, with no exceptions other than a diagram whose shapes are still mid-run (see COMPLEX DIAGRAM MODE). Do this by EITHER setting "quiz" to a short comprehension question about exactly what you just covered, OR ending "speech" with a direct, specific, varied question inviting the student to respond — rotate naturally between checking understanding ("does that make sense so far?", "want me to explain that differently?"), inviting questions ("any questions on this before I continue?"), and offering to move on ("should we move to the next part, or stay here a bit longer?"). Never end a turn's "speech" on a flat statement of fact with no question attached. Do not continue teaching past that point in the same turn — wait for the student's reply.
@@ -4780,8 +5090,6 @@ NO-OVERLAP: before emitting a diagram, mentally check every text/label's boundin
 
 DRAWING SCOPE — YOU ARE THE FALLBACK MODEL, GEMINI HANDLES MOST TURNS: stick to structured, geometric board content you can execute reliably — tables/grids, "axes"/"plot" graphs, payoff matrices, truth tables, simple labeled rect/circle/line diagrams, flowcharts. AVOID attempting freeform organic illustrations (a realistic cell, an animal, an organ, a leaf, anything needing "path"/"curve" hand-sketch outlines with shading) — if the turn calls for one of those, draw a simpler labeled-shape version instead (basic circles/rects with labels) rather than a detailed illustration, since that detailed style is unreliable for you specifically. Tables, plots, and axes are where you should put your effort and detail.
 NEVER use "arrow"/"diagramLabel" as a pointer callout aimed at a piece of plain text, a formula, or a sentence you already wrote (e.g. an arrow labeled "b" floating near the word "b" in "ax²+bx+c=0"). Arrows and diagramLabels exist ONLY to name a part of an actual drawn shape (a rect, circle, curve, plot, or table) that is present in the SAME unbroken diagram run — never a bare arrow pointing at ordinary sentence text with nothing else drawn. If you need to explain what a coefficient or term in a formula means, just say it in a normal "text" line (e.g. "b determines the axis of symmetry") — do not draw anything for it.
-
-TEACHING STRUCTURE (each stage below is its OWN turn — never combine stages): 1) Definition (accurate, not oversimplified) 2) Intuition (why it matters) 3) Step-by-step explanation (the WHY, cause→effect→outcome; split across multiple turns if it has multiple steps) 4) Example (short, real-world/academic) 5) Visual/graph, ONLY if it genuinely helps — explain what to look at after drawing it 6) Key takeaway (1-2 sentences) 7) Check-understanding question. Advance only after the student responds; if they're wrong, re-teach that point differently, then re-check.
 
 PACING: teach ONE small idea per turn (one definition/sub-step/small piece of an example) — never a whole topic at once, unless the one idea IS a complex diagram (then its full detail is appropriate). After that one idea, ALWAYS stop and check in — mandatory every turn — either via "quiz", or by ending "speech" with a direct question (vary between "does that make sense?", "any questions?", "should we move on or stay here?"). Never end on a flat statement with no question. Wait for the reply before continuing.
 
@@ -5436,7 +5744,11 @@ function loadSession(item){
   pdfFileName = item.pdfFileName || ''; pdfText = item.pdfText || '';
   conversationHistory = item.conversationHistory || [];
   drawnCommands = item.drawnCommands || [];
-  if(item.camera) Object.assign(camera, item.camera);
+  // Only x/scale are meaningful camera fields now (see camera model
+  // notes above) — an old save's camera.y, if present, is simply
+  // ignored rather than restored, since there's no pan position left
+  // to restore it into; scroll position is restored separately below.
+  if(item.camera){ if(item.camera.x !== undefined) camera.x = item.camera.x; if(item.camera.scale !== undefined) camera.scale = item.camera.scale; }
   if(item.globalCursorY !== undefined) globalCursorY = item.globalCursorY;
   else if(item.regionCursor) globalCursorY = Math.max(item.regionCursor.notes, item.regionCursor.graph, item.regionCursor.detail);
   else globalCursorY = TOP_MARGIN;
@@ -5447,8 +5759,15 @@ function loadSession(item){
     uploadZone.classList.add('has-file');
     uploadZone.innerHTML = `<div class="file-name">📄 ${escapeHtml(pdfFileName)}</div><div class="file-meta">restored from saved session</div>`;
   } else { resetUploadZoneUI(); }
-  checkIfScrolledAway();
+  applyCanvasHeight();
   redrawAll();
+  // Restored sessions resume scrolled to wherever the pen last was, not
+  // forced back to the top — only a brand-new session (resetRegionCursors)
+  // jumps to y=0.
+  isProgrammaticScroll = true;
+  boardWrap.scrollTop = Math.max(0, globalCursorY * camera.scale - (viewH - PAGE_BOTTOM_GUTTER_PX));
+  isProgrammaticScroll = false;
+  clampScrollLimits();
   setStatus('session loaded');
   closePanel();
   rememberActiveSession();
