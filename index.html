@@ -969,255 +969,247 @@ body{
 @keyframes fadeUp{ from{ opacity:0; transform:translateY(16px); } to{ opacity:1; transform:translateY(0); } }
 .fade-up{ opacity:0; animation:fadeUp .7s cubic-bezier(.2,.7,.2,1) forwards; }
 
-.wrap{ position:relative; z-index:1; max-width:960px; margin:0 auto; padding:0 28px; }
+.app-shell{ position:relative; z-index:1; display:flex; min-height:100vh; }
 
-nav{
-  display:flex; align-items:center; justify-content:space-between;
-  padding:18px 24px; margin-top:18px;
+/* ---------- SIDEBAR (open by default, persistent) ---------- */
+.sidebar{
+  width:252px; flex-shrink:0;
+  height:100vh; position:sticky; top:0;
+  display:flex; flex-direction:column;
+  padding:22px 16px 18px;
   background:rgba(255,255,255,0.55);
   backdrop-filter:blur(18px) saturate(160%);
   -webkit-backdrop-filter:blur(18px) saturate(160%);
-  border:1px solid rgba(255,255,255,0.6);
-  border-radius:999px;
-  box-shadow:0 8px 30px rgba(16,40,80,0.10);
+  border-right:1px solid rgba(255,255,255,0.6);
+  box-shadow:1px 0 30px rgba(16,40,80,0.06);
+  transition:transform .25s cubic-bezier(.2,.8,.2,1);
+  z-index:40;
 }
-.brand{
-  font-family:'Caveat', cursive; font-weight:700; font-size:29px;
+.sidebar-brand{
+  font-family:'Caveat', cursive; font-weight:700; font-size:26px;
   color:var(--navy); text-decoration:none; display:flex; align-items:center; gap:8px;
+  padding:2px 6px 16px;
 }
-.brand .dot{
-  width:10px;height:10px;border-radius:50%;
+.sidebar-brand .dot{
+  width:9px;height:9px;border-radius:50%;
   background:linear-gradient(135deg, var(--ochre), var(--violet));
   display:inline-block; box-shadow:0 0 0 4px rgba(108,92,231,0.14);
 }
-.nav-links{ display:flex; gap:8px; font-family:'JetBrains Mono', monospace; font-size:13px; }
-.nav-links a{
-  color:var(--navy); text-decoration:none; padding:9px 18px; border-radius:999px;
+.sidebar-account{
+  display:flex; align-items:center; gap:10px;
+  padding:9px 10px; border-radius:12px; cursor:pointer;
+  background:rgba(255,255,255,0.55); border:1px solid rgba(255,255,255,0.7);
+  margin-bottom:18px; transition:background .15s ease;
+}
+.sidebar-account:hover{ background:rgba(255,255,255,0.85); }
+.sidebar-account .avatar{
+  width:30px; height:30px; border-radius:50%; flex-shrink:0;
+  background:linear-gradient(135deg, var(--ochre), var(--violet));
+  display:flex; align-items:center; justify-content:center;
+  color:#fff; font-size:13px; font-weight:600; font-family:'Source Serif 4', serif;
+}
+.sidebar-account .acc-name{ font-size:13px; font-weight:600; color:var(--navy); line-height:1.2; }
+.sidebar-account .acc-sub{ font-size:10.5px; color:var(--muted); font-family:'JetBrains Mono', monospace; }
+
+.sidebar-nav{ display:flex; flex-direction:column; gap:2px; }
+.sidebar-nav a{
+  display:flex; align-items:center; gap:11px;
+  color:var(--navy); text-decoration:none; padding:10px 12px; border-radius:10px;
+  font-family:'JetBrains Mono', monospace; font-size:12.5px;
   transition:background .15s ease, color .15s ease;
 }
-.nav-links a:hover{ background:rgba(46,125,190,0.10); }
+.sidebar-nav a .ic{ font-size:15px; width:18px; text-align:center; flex-shrink:0; }
+.sidebar-nav a:hover{ background:rgba(46,125,190,0.10); }
+.sidebar-nav a.active{ background:rgba(46,125,190,0.14); color:var(--ochre); font-weight:600; }
 
-.hero{ padding:56px 0 46px; text-align:left; }
-.hero .eyebrow{
+.sidebar-divider{ height:1px; background:var(--panel-border); margin:16px 6px; flex-shrink:0; }
+
+.sidebar-recent{ flex:1; min-height:0; overflow-y:auto; padding:0 2px; }
+.sidebar-recent h4{
+  font-family:'JetBrains Mono', monospace; font-size:10px; letter-spacing:0.06em;
+  color:var(--muted); margin:0 0 10px; padding:0 10px; font-weight:600;
+}
+.sidebar-recent .rw-empty{
+  font-size:12px; color:var(--muted); padding:0 10px; line-height:1.5;
+}
+.sidebar-recent a{
+  display:flex; align-items:center; gap:9px; text-decoration:none; color:var(--navy);
+  padding:8px 10px; border-radius:9px; font-size:12.5px;
+  transition:background .15s ease;
+}
+.sidebar-recent a:hover{ background:rgba(46,125,190,0.08); }
+.sidebar-recent a .ic{ font-size:13px; flex-shrink:0; }
+.sidebar-recent a .rw-title{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+.sidebar-footer{ flex-shrink:0; padding-top:12px; margin-top:12px; border-top:1px solid var(--panel-border); }
+.sidebar-footer a{
+  display:flex; align-items:center; gap:11px; text-decoration:none; color:var(--muted);
+  font-family:'JetBrains Mono', monospace; font-size:12.5px; padding:9px 12px; border-radius:10px;
+  transition:background .15s ease, color .15s ease;
+}
+.sidebar-footer a:hover{ background:rgba(46,125,190,0.08); color:var(--navy); }
+
+.sidebar-toggle{
+  display:none; position:fixed; top:16px; left:16px; z-index:50;
+  width:40px; height:40px; border-radius:50%; border:none; cursor:pointer;
+  background:rgba(255,255,255,0.9); box-shadow:0 4px 14px rgba(16,40,80,0.14);
+  font-size:16px; align-items:center; justify-content:center;
+}
+.sidebar-scrim{ display:none; position:fixed; inset:0; background:rgba(14,27,51,0.35); z-index:39; }
+
+@media (max-width:900px){
+  .sidebar-toggle{ display:flex; }
+  .sidebar{
+    position:fixed; left:0; top:0; z-index:45;
+    transform:translateX(-100%);
+    box-shadow:8px 0 30px rgba(0,0,0,0.18);
+  }
+  .sidebar.open{ transform:translateX(0); }
+  .sidebar.open ~ .sidebar-scrim{ display:block; }
+  .main-area{ padding-top:74px !important; }
+}
+
+/* ---------- MAIN DASHBOARD AREA ---------- */
+.main-area{ flex:1; min-width:0; padding:44px 40px 60px; }
+.dash-head{ margin-bottom:30px; }
+.dash-head .eyebrow{
   display:inline-flex; align-items:center; gap:8px;
   font-family:'JetBrains Mono', monospace; font-size:12px; letter-spacing:0.02em;
   color:var(--navy); background:rgba(255,255,255,0.7);
   border:1px solid rgba(255,255,255,0.8);
   padding:7px 16px; border-radius:999px;
   box-shadow:0 4px 14px rgba(16,40,80,0.08);
-  margin-bottom:22px;
+  margin-bottom:16px;
 }
-.hero .eyebrow .spark{
+.dash-head .eyebrow .spark{
   width:6px; height:6px; border-radius:50%;
   background:var(--gold); box-shadow:0 0 0 3px rgba(240,185,77,0.3);
   animation:pulseDot 2.2s ease-in-out infinite;
 }
 @keyframes pulseDot{ 0%,100%{ opacity:1; } 50%{ opacity:0.4; } }
-.hero h1{
+.dash-head h1{
   font-family:'Fraunces', 'Source Serif 4', Georgia, serif;
-  font-size:50px; line-height:1.12; font-weight:600; margin:0 0 18px;
-  max-width:680px; letter-spacing:-0.015em; color:var(--navy);
+  font-size:36px; line-height:1.15; font-weight:600; margin:0 0 10px;
+  letter-spacing:-0.015em; color:var(--navy);
 }
-.hero h1 .chalk{
-  font-family:'Caveat', cursive; font-weight:700;
-  background:linear-gradient(100deg, var(--ochre), var(--violet) 65%, var(--gold));
-  -webkit-background-clip:text; background-clip:text; color:transparent;
-  position:relative; white-space:nowrap;
-}
-.hero p{
-  font-size:18.5px; line-height:1.6; color:#4C5C74; max-width:520px; margin:0;
-}
+.dash-head p{ font-size:16px; line-height:1.6; color:#4C5C74; max-width:520px; margin:0; }
 
-.tools{
-  display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:0 0 50px;
+.dash-grid{
+  display:grid; grid-template-columns:1fr 1fr; gap:22px; max-width:760px;
 }
-@media (max-width:680px){ .tools{ grid-template-columns:1fr; } .hero h1{ font-size:36px; } }
+@media (max-width:680px){ .dash-grid{ grid-template-columns:1fr; } }
 
-.tool-card{
-  display:flex; align-items:flex-start; gap:14px;
-  text-decoration:none; color:inherit; cursor:pointer;
-  background:rgba(255,255,255,0.55); border:1px solid rgba(255,255,255,0.7); border-radius:16px;
-  padding:18px 18px; position:relative; overflow:hidden;
+.dash-card{
+  display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;
+  gap:10px; text-decoration:none; color:inherit; cursor:pointer;
+  min-height:150px; border-radius:999px;
+  background:rgba(255,255,255,0.55); border:1.5px solid rgba(255,255,255,0.7);
+  padding:22px 26px; position:relative; overflow:hidden;
   backdrop-filter:blur(10px);
   box-shadow:0 10px 26px -16px rgba(20,40,90,0.20);
   transition:border-color .2s ease, transform .2s ease, box-shadow .2s ease, background .2s ease;
 }
-.tool-card::before{
-  content:''; position:absolute; inset:0; border-radius:16px; padding:1px;
-  background:linear-gradient(135deg, var(--ochre), var(--violet));
-  -webkit-mask:linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite:xor; mask-composite:exclude;
-  opacity:0; transition:opacity .25s ease; pointer-events:none;
-}
-.tool-card.summary::before{ background:linear-gradient(135deg, var(--sage), var(--ochre)); }
-.tool-card:hover{
-  transform:translateY(-3px);
-  background:rgba(255,255,255,0.75);
+.dash-card:hover{
+  transform:translateY(-3px); border-color:var(--ochre);
+  background:rgba(255,255,255,0.8);
   box-shadow:0 18px 38px -16px rgba(20,40,90,0.28);
 }
-.tool-card:hover::before{ opacity:1; }
-.tool-card .mark{
-  width:38px; height:38px; border-radius:11px; flex-shrink:0;
-  display:flex; align-items:center; justify-content:center;
-  font-size:17px;
-  background:linear-gradient(135deg, rgba(46,125,190,0.18), rgba(108,92,231,0.18));
-}
-.tool-card.summary .mark{ background:linear-gradient(135deg, rgba(62,143,166,0.20), rgba(46,125,190,0.16)); }
-.tool-card .tc-body{ flex:1; min-width:0; }
-.tool-card .kicker{
-  font-family:'JetBrains Mono', monospace; font-size:10px; letter-spacing:0.06em;
-  color:var(--ochre); font-weight:600; display:block; margin-bottom:3px;
-}
-.tool-card.summary .kicker{ color:var(--sage); }
-.tool-card h2{
+.dash-card.summary:hover{ border-color:var(--sage); }
+.dash-card .mark{ font-size:26px; line-height:1; }
+.dash-card h2{
   font-family:'Fraunces', 'Source Serif 4', Georgia, serif;
-  font-size:17.5px; margin:0 0 4px; font-weight:600; color:var(--navy); line-height:1.2;
+  font-size:19px; margin:0; font-weight:600; color:var(--navy);
 }
-.tool-card p{
-  font-size:12.5px; line-height:1.45; color:var(--muted); margin:0 0 10px;
-  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
-}
-.tool-card .go{
-  font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--ochre);
-  display:inline-flex; align-items:center; gap:5px; font-weight:600;
-}
-.tool-card.summary .go{ color:var(--sage); }
-.go svg{ width:11px; height:11px; transition:transform .18s ease; }
-.tool-card:hover .go svg{ transform:translateX(3px); }
-
-.history-cards{
-  display:grid; grid-template-columns:1fr 1fr; gap:22px; margin:0 0 56px;
-}
-@media (max-width:680px){ .history-cards{ grid-template-columns:1fr; } }
-.history-card{
-  display:flex; align-items:center; gap:16px; text-decoration:none; color:inherit;
-  background:rgba(255,255,255,0.4); border:1px dashed rgba(30,50,90,0.18); border-radius:16px;
-  padding:22px 24px; cursor:pointer;
-  transition:border-color .18s ease, background .18s ease, transform .18s ease;
-}
-.history-card:hover{
-  border-color:var(--ochre); border-style:solid; background:rgba(255,255,255,0.7); transform:translateY(-2px);
-}
-.history-card.summary:hover{ border-color:var(--sage); }
-.history-card .h-mark{
-  width:38px; height:38px; border-radius:10px; flex-shrink:0;
-  display:flex; align-items:center; justify-content:center; font-size:17px;
-  background:var(--highlight);
-}
-.history-card.summary .h-mark{ background:#E1F0F7; }
-.history-card .h-body{ flex:1; min-width:0; }
-.history-card .h-title{ font-size:16px; font-weight:600; margin:0 0 2px; color:var(--navy); }
-.history-card .h-sub{ font-size:12.5px; color:var(--muted); margin:0; }
-.history-card .h-arrow{ flex-shrink:0; color:var(--muted); transition:transform .18s ease, color .18s ease; }
-.history-card:hover .h-arrow{ transform:translateX(3px); color:var(--ochre); }
-.history-card.summary:hover .h-arrow{ color:var(--sage); }
-.history-card .h-arrow svg{ width:15px; height:15px; }
-
-.strip{
-  border-top:1px solid var(--panel-border); padding:40px 0 70px;
-  display:flex; gap:40px; flex-wrap:wrap;
-}
-.strip-item{ flex:1; min-width:220px; }
-.strip-item .num{
-  font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--muted);
-  margin-bottom:10px; display:inline-flex; align-items:center; gap:8px;
-}
-.strip-item .num::before{
-  content:''; width:22px; height:22px; border-radius:50%;
-  background:linear-gradient(135deg, var(--ochre), var(--violet));
-  display:inline-block;
-}
-.strip-item h3{ font-family:'Fraunces', 'Source Serif 4', Georgia, serif; font-size:17px; margin:0 0 6px; font-weight:600; color:var(--navy); }
-.strip-item p{ font-size:14.5px; color:var(--muted); line-height:1.5; margin:0; }
-
-footer{
-  border-top:1px solid var(--panel-border); padding:22px 0 40px;
-  font-family:'JetBrains Mono', monospace; font-size:11.5px; color:var(--muted);
-  display:flex; justify-content:space-between;
-}
+.dash-card p{ font-size:12.5px; line-height:1.4; color:var(--muted); margin:0; max-width:220px; }
 </style>
 </head>
 <body>
 
 <div class="ambient-halo"></div>
 
-<div class="wrap">
-  <nav class="fade-up">
-    <a class="brand" href="#" onclick="parent.postMessage({nav:'home'},'*');return false;"><span class="dot"></span>Chalkline</a>
-    <div class="nav-links">
-      <a href="#" onclick="parent.postMessage({nav:'tutor'},'*');return false;">Tutor</a>
-      <a href="#" onclick="parent.postMessage({nav:'summary'},'*');return false;">Summary</a>
-    </div>
-  </nav>
+<button class="sidebar-toggle" id="sidebar-toggle" title="Menu" aria-label="Toggle menu">☰</button>
 
-  <section class="hero fade-up" style="animation-delay:.08s;">
-    <span class="eyebrow"><span class="spark"></span>AI WHITEBOARD TUTOR</span>
-    <h1>A study session, <span class="chalk">drawn out loud.</span></h1>
-    <p>Bring a topic or a PDF. Chalkline either teaches it to you on a live whiteboard, or reads it and hands you back the version worth remembering.</p>
-  </section>
+<div class="app-shell">
+  <aside class="sidebar open" id="sidebar">
+    <a class="sidebar-brand" href="#" onclick="parent.postMessage({nav:'home'},'*');return false;"><span class="dot"></span>Chalkline</a>
 
-  <section class="tools">
-    <div class="tool-card tutor fade-up" style="animation-delay:.16s;" onclick="parent.postMessage({nav:'tutor'},'*');">
-      <div class="mark">✏️</div>
-      <div class="tc-body">
-        <span class="kicker">LIVE WHITEBOARD</span>
-        <h2>Live Tutor</h2>
-        <p>Teaches on a real board, one idea at a time, with check-ins along the way.</p>
-        <span class="go">Start a lesson
-          <svg viewBox="0 0 16 16" fill="none"><path d="M2 8h11M9 3.5 13.5 8 9 12.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </span>
+    <div class="sidebar-account" onclick="parent.postMessage({navLoginClick:true},'*');" title="Account">
+      <span class="avatar">👤</span>
+      <div>
+        <div class="acc-name">Account</div>
+        <div class="acc-sub">tap to sign in</div>
       </div>
     </div>
-    <div class="tool-card summary fade-up" style="animation-delay:.24s;" onclick="parent.postMessage({nav:'summary'},'*');">
-      <div class="mark">📄</div>
-      <div class="tc-body">
-        <span class="kicker">FROM YOUR NOTES</span>
-        <h2>Summary</h2>
-        <p>Upload a PDF and get a clear, structured summary of what matters.</p>
-        <span class="go">Summarize a PDF
-          <svg viewBox="0 0 16 16" fill="none"><path d="M2 8h11M9 3.5 13.5 8 9 12.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </span>
+
+    <nav class="sidebar-nav">
+      <a href="#" class="active" onclick="parent.postMessage({nav:'home'},'*');return false;"><span class="ic">🏠</span>Dashboard</a>
+      <a href="#" onclick="parent.postMessage({nav:'tutor'},'*');return false;"><span class="ic">🎓</span>Tutor</a>
+      <a href="#" onclick="parent.postMessage({nav:'summary'},'*');return false;"><span class="ic">📄</span>Summaries</a>
+    </nav>
+
+    <div class="sidebar-divider"></div>
+
+    <div class="sidebar-recent">
+      <h4>RECENT WORK</h4>
+      <a href="#" onclick="parent.postMessage({nav:'tutor-history'},'*');return false;">
+        <span class="ic">🗂️</span><span class="rw-title">Previous tutorials</span>
+      </a>
+      <a href="#" onclick="parent.postMessage({nav:'summary-history'},'*');return false;">
+        <span class="ic">🗒️</span><span class="rw-title">Previous summaries</span>
+      </a>
+    </div>
+
+    <div class="sidebar-footer">
+      <a href="#" onclick="parent.postMessage({nav:'settings'},'*');return false;"><span class="ic">⚙️</span>Settings</a>
+    </div>
+  </aside>
+  <div class="sidebar-scrim" id="sidebar-scrim"></div>
+
+  <div class="main-area">
+    <div class="dash-head fade-up">
+      <span class="eyebrow"><span class="spark"></span>AI WHITEBOARD TUTOR</span>
+      <h1>A study session, <span class="chalk" style="font-family:'Caveat',cursive;background:linear-gradient(100deg, var(--ochre), var(--violet) 65%, var(--gold));-webkit-background-clip:text;background-clip:text;color:transparent;">drawn out loud.</span></h1>
+      <p>Bring a topic or a PDF. Chalkline either teaches it to you on a live whiteboard, or reads it and hands you back the version worth remembering.</p>
+    </div>
+
+    <div class="dash-grid">
+      <div class="dash-card tutor fade-up" style="animation-delay:.08s;" onclick="parent.postMessage({nav:'tutor'},'*');">
+        <span class="mark">✏️</span>
+        <h2>New Tutorial</h2>
+        <p>Start a live lesson on the whiteboard</p>
+      </div>
+      <div class="dash-card tutor fade-up" style="animation-delay:.14s;" onclick="parent.postMessage({nav:'tutor-history'},'*');">
+        <span class="mark">🗂️</span>
+        <h2>Tutorials</h2>
+        <p>Revisit past whiteboard sessions</p>
+      </div>
+      <div class="dash-card summary fade-up" style="animation-delay:.20s;" onclick="parent.postMessage({nav:'summary'},'*');">
+        <span class="mark">📄</span>
+        <h2>New Summary</h2>
+        <p>Summarize a PDF, chapter, or notes</p>
+      </div>
+      <div class="dash-card summary fade-up" style="animation-delay:.26s;" onclick="parent.postMessage({nav:'summary-history'},'*');">
+        <span class="mark">🗒️</span>
+        <h2>Summaries</h2>
+        <p>Revisit summaries you've saved</p>
       </div>
     </div>
-  </section>
-
-  <section class="history-cards">
-    <a class="history-card tutor" href="#" onclick="parent.postMessage({nav:'tutor-history'},'*');return false;">
-      <div class="h-mark">🗂️</div>
-      <div class="h-body">
-        <p class="h-title">Previous tutorials</p>
-        <p class="h-sub">Revisit past whiteboard sessions</p>
-      </div>
-      <span class="h-arrow"><svg viewBox="0 0 16 16" fill="none"><path d="M2 8h11M9 3.5 13.5 8 9 12.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-    </a>
-    <a class="history-card summary" href="#" onclick="parent.postMessage({nav:'summary-history'},'*');return false;">
-      <div class="h-mark">🗒️</div>
-      <div class="h-body">
-        <p class="h-title">Previous summaries</p>
-        <p class="h-sub">Revisit summaries you've saved</p>
-      </div>
-      <span class="h-arrow"><svg viewBox="0 0 16 16" fill="none"><path d="M2 8h11M9 3.5 13.5 8 9 12.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-    </a>
-  </section>
-
-  <section class="strip">
-    <div class="strip-item">
-      <span class="num">FOR LEARNING SOMETHING NEW</span>
-      <h3>Live Tutor</h3>
-      <p>Type a topic or upload source material, and the tutor builds the explanation on the board as it talks — pausing to check you're following before it moves on.</p>
-    </div>
-    <div class="strip-item">
-      <span class="num">FOR REVIEWING WHAT YOU HAVE</span>
-      <h3>Summary</h3>
-      <p>Drop in a PDF of notes, slides, or a chapter. Chalkline reads the whole thing and gives you a structured summary you can skim before an exam.</p>
-    </div>
-  </section>
-
-  <footer>
-    <span>Chalkline</span>
-    <span>AI whiteboard tutor &amp; notes summarizer</span>
-  </footer>
+  </div>
 </div>
+
+<script>
+  const sbToggle = document.getElementById('sidebar-toggle');
+  const sb = document.getElementById('sidebar');
+  const sbScrim = document.getElementById('sidebar-scrim');
+  function closeSidebar(){ sb.classList.remove('open'); }
+  function openSidebar(){ sb.classList.add('open'); }
+  sbToggle.addEventListener('click', ()=> sb.classList.contains('open') ? closeSidebar() : openSidebar());
+  sbScrim.addEventListener('click', closeSidebar);
+  // Sidebar starts open by default on tablet/desktop widths; on narrow
+  // screens (<=900px) it's an off-canvas drawer, so start it closed there
+  // instead of covering the whole dashboard on first paint.
+  if (window.innerWidth <= 900) closeSidebar();
+</script>
 
 </body>
 </html>
@@ -1878,8 +1870,8 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
    same width from being treated as a tablet (it'll just get a
    slightly narrower desktop layout instead, which is correct for
    a mouse). */
-@media (pointer:coarse) and (min-width:601px) and (max-width:1180px) and (orientation:portrait),
-       (pointer:coarse) and (min-height:501px) and (max-width:1180px) and (orientation:landscape){
+@media (pointer:coarse) and (min-width:601px) and (max-width:1400px) and (orientation:portrait),
+       (pointer:coarse) and (min-height:501px) and (max-width:1400px) and (orientation:landscape){
   :root{
     --content-padding:28px;
     --control-size:46px;
@@ -1892,19 +1884,30 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
   }
   .board-quiz-card{ width:min(80vw, 440px); }
   .side-panel{ width:min(400px, 86vw); }
+
+  /* Touch devices in this tier (iPads of every size, big Android
+     tablets) previously kept the desktop default of stacking the
+     Home/Export PDF/Menu icons in a tall vertical column in the
+     top-left corner. That column's height fed straight into
+     measureLayoutInsets()'s top gutter (see the canvas camera code),
+     so the AI's handwriting had to start well below it — often
+     looking like it "starts in the middle" of the board on a tablet.
+     A compact horizontal row keeps the top bar short, same fix the
+     phone tier already applies below. */
+  .topbar-left-stack{ flex-direction:row; align-items:flex-start; gap:10px; }
 }
 
 /* iPad portrait specifically: keep the whiteboard visually centered
    with breathing room on both sides rather than bleeding edge to
    edge like a phone. */
-@media (pointer:coarse) and (min-width:601px) and (max-width:1180px) and (orientation:portrait){
+@media (pointer:coarse) and (min-width:601px) and (max-width:1400px) and (orientation:portrait){
   .bottom-bar{ padding-left:calc(var(--content-padding) + 6vw); padding-right:calc(var(--content-padding) + 6vw); }
   .speaker-row{ padding-left:calc(var(--content-padding) + 6vw); padding-right:calc(var(--content-padding) + 6vw); }
 }
 
 /* iPad landscape: more horizontal room for the Ask bar, controls
    pulled toward the edges instead of stretching everything wide. */
-@media (pointer:coarse) and (min-height:501px) and (max-width:1180px) and (orientation:landscape){
+@media (pointer:coarse) and (min-height:501px) and (max-width:1400px) and (orientation:landscape){
   :root{ --ask-zone-width:min(620px, 46vw); }
 }
 
