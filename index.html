@@ -197,15 +197,11 @@ function broadcastAuthState(){
 
 function showSignedInChip(user){
   document.getElementById('shell-signin-btn').style.display = 'none';
-  const chip = document.getElementById('shell-account-chip');
-  chip.style.display = 'flex';
+  // The account name/avatar now lives in each page's own sidebar
+  // (mirrors shellUser via chalklineAuth broadcasts below), so the
+  // top-right chip is intentionally never shown anymore — just keep
+  // it hidden and stash the name for the (now-unused) dropdown.
   const fullName = user.name || user.email || 'Signed in';
-  const avatar = document.getElementById('shell-account-avatar');
-  avatar.src = user.picture || '';
-  avatar.title = fullName;
-  // Short first-name-only label next to the avatar so the button stays
-  // compact; the full name still shows in the dropdown when opened.
-  document.getElementById('shell-account-name-short').textContent = (user.given_name || fullName.split(' ')[0] || '');
   document.getElementById('shell-menu-name').textContent = fullName;
 }
 
@@ -1084,7 +1080,7 @@ body{
 .sidebar-toggle:active{ transform:scale(0.94); }
 .sidebar-toggle .arrow{ display:inline-block; font-size:13px; transition:transform .38s cubic-bezier(.22,.9,.32,1.1); }
 .app-shell.sidebar-closed .sidebar-toggle{ left:16px; }
-.app-shell.sidebar-closed .sidebar-toggle .arrow{ transform:rotate(180deg); }
+
 @media (max-width:900px){
   .sidebar-toggle{ left:16px; top:16px; }
   .app-shell.sidebar-closed .sidebar-toggle{ left:16px; }
@@ -1167,17 +1163,17 @@ body{
 
 <div class="ambient-halo"></div>
 
-<button class="sidebar-toggle" id="sidebar-toggle" title="Toggle sidebar" aria-label="Toggle sidebar"><span class="arrow">◀</span><span class="toggle-label" id="sidebar-toggle-label">Hide Sidebar</span></button>
+<button class="sidebar-toggle" id="sidebar-toggle" title="Menu" aria-label="Menu"><span class="arrow">☰</span><span class="toggle-label" id="sidebar-toggle-label">Menu</span></button>
 
 <div class="app-shell" id="app-shell">
   <aside class="sidebar" id="sidebar">
     <a class="sidebar-brand" href="#" onclick="parent.postMessage({nav:'home'},'*');return false;"><span class="dot"></span>Chalkline</a>
 
-    <div class="sidebar-account" onclick="parent.postMessage({navLoginClick:true},'*');" title="Account">
-      <span class="avatar">👤</span>
+    <div class="sidebar-account" id="home-sidebar-account" onclick="handleHomeSidebarAccountClick();" title="Account">
+      <span class="avatar" id="home-sidebar-avatar">👤</span>
       <div>
-        <div class="acc-name">Account</div>
-        <div class="acc-sub">tap to sign in</div>
+        <div class="acc-name" id="home-sidebar-name">Account</div>
+        <div class="acc-sub" id="home-sidebar-sub">tap to sign in</div>
       </div>
     </div>
 
@@ -1240,12 +1236,8 @@ body{
 <script>
   const shell = document.getElementById('app-shell');
   const sbScrim = document.getElementById('sidebar-scrim');
-  const toggleLabel = document.getElementById('sidebar-toggle-label');
-  function syncToggleLabel(){
-    toggleLabel.textContent = shell.classList.contains('sidebar-closed') ? 'Show Sidebar' : 'Hide Sidebar';
-  }
-  function closeSidebar(){ shell.classList.add('sidebar-closed'); syncToggleLabel(); }
-  function openSidebar(){ shell.classList.remove('sidebar-closed'); syncToggleLabel(); }
+  function closeSidebar(){ shell.classList.add('sidebar-closed'); }
+  function openSidebar(){ shell.classList.remove('sidebar-closed'); }
   document.getElementById('sidebar-toggle').addEventListener('click', ()=>
     shell.classList.contains('sidebar-closed') ? openSidebar() : closeSidebar()
   );
@@ -1255,7 +1247,41 @@ body{
   // screen, so it starts closed there instead — the toggle still works
   // exactly the same either way.
   if (window.innerWidth <= 900) closeSidebar();
-  syncToggleLabel();
+
+  // Account row reflects real sign-in state (mirrors the shell's
+  // chalklineAuth broadcast) instead of always saying "tap to sign in" —
+  // this is now the only place the signed-in name/avatar shows, since
+  // the top-right chip in the shell was removed.
+  let homeShellUser = null;
+  function renderHomeSidebarAccount(){
+    const avatarEl = document.getElementById('home-sidebar-avatar');
+    const nameEl = document.getElementById('home-sidebar-name');
+    const subEl = document.getElementById('home-sidebar-sub');
+    if(homeShellUser){
+      const fullName = homeShellUser.name || homeShellUser.email || 'Signed in';
+      if(homeShellUser.picture){
+        avatarEl.outerHTML = `<img class="avatar" id="home-sidebar-avatar" src="${homeShellUser.picture}" alt="" style="object-fit:cover;">`;
+      } else {
+        avatarEl.textContent = (homeShellUser.given_name || fullName)[0].toUpperCase();
+      }
+      nameEl.textContent = fullName;
+      subEl.textContent = 'tap to sign out';
+    } else {
+      avatarEl.outerHTML = `<span class="avatar" id="home-sidebar-avatar">👤</span>`;
+      nameEl.textContent = 'Account';
+      subEl.textContent = 'tap to sign in';
+    }
+  }
+  function handleHomeSidebarAccountClick(){
+    parent.postMessage(homeShellUser ? { requestSignOut:true } : { navLoginClick:true }, '*');
+  }
+  window.handleHomeSidebarAccountClick = handleHomeSidebarAccountClick;
+  window.addEventListener('message', (e)=>{
+    const d = e.data;
+    if(!d || !d.chalklineAuth) return;
+    homeShellUser = d.signedIn ? d.user : null;
+    renderHomeSidebarAccount();
+  });
 <\/script>
 
 </body>
@@ -1768,6 +1794,18 @@ body{
 }
 .side-panel.open{transform:translateX(0);}
 
+/* Transcript-only panel: mirror of .side-panel, docked to the right
+   instead of the left, so Menu (sidebar) and Transcript (conversation
+   log + ask box) never fight over the same slide-out panel. */
+.conv-panel{
+  left:auto; right:0;
+  border-right:none; border-left:1px solid var(--panel-border);
+  box-shadow:-8px 0 30px rgba(0,0,0,0.08);
+  transform:translateX(100%);
+  padding-left:0; padding-right:var(--safe-right, 0);
+}
+.conv-panel.open{transform:translateX(0);}
+
 .panel-head{
   display:flex;justify-content:space-between;align-items:center;
   padding:calc(18px + var(--safe-top)) 20px 18px;border-bottom:1px solid var(--panel-border);
@@ -2058,16 +2096,12 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
 <div class="topbar">
   <div class="topbar-left-stack">
     <div class="topbar-btn-wrap">
-      <a class="icon-btn" href="#" title="Back to Chalkline" style="text-decoration:none;display:flex;align-items:center;justify-content:center;" onclick="handleHomeClick();return false;">🏠</a>
-      <span class="btn-label">Home</span>
+      <button class="icon-btn" id="btn-menu" title="Menu">☰</button>
+      <span class="btn-label">Menu</span>
     </div>
     <div class="topbar-btn-wrap">
       <button class="icon-btn" id="btn-export-pdf" title="Export board as PDF">📄</button>
       <span class="btn-label">Export PDF</span>
-    </div>
-    <div class="topbar-btn-wrap">
-      <button class="icon-btn" id="btn-menu" title="Menu">☰</button>
-      <span class="btn-label">Menu</span>
     </div>
   </div>
   <button class="login-pill" id="btn-login-pill" title="Login to save your work">
@@ -2091,10 +2125,6 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
 
   <div class="bottom-bar">
     <div class="cluster-btn-wrap">
-      <button class="cluster-btn" id="btn-toggle-transcript" title="Show transcript">💬</button>
-      <span class="btn-label">Transcript</span>
-    </div>
-    <div class="cluster-btn-wrap">
       <button class="cluster-btn" id="btn-replay" title="Replay narration">🔊</button>
       <span class="btn-label">Replay</span>
     </div>
@@ -2110,6 +2140,10 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
     <div class="cluster-btn-wrap">
       <button class="mic-btn" id="btn-mic" title="Talk to your tutor">🎙</button>
       <span class="btn-label">Talk</span>
+    </div>
+    <div class="cluster-btn-wrap">
+      <button class="cluster-btn" id="btn-toggle-transcript" title="Show transcript">💬</button>
+      <span class="btn-label">Transcript</span>
     </div>
   </div>
 </div>
@@ -2191,9 +2225,19 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
         <button class="p-btn" id="btn-quiz">Quiz me</button>
       </div>
     </div>
-    <div class="p-section" style="border-bottom:none;">
-      <h2>Transcript</h2>
-      <div class="transcript" id="transcript" style="padding:0;"><div class="empty-note">Your lecture transcript and quiz questions will appear here as we go.</div></div>
+  </div>
+</div>
+
+<div class="side-panel conv-panel" id="conv-panel">
+  <div class="panel-head">
+    <h1>Transcript</h1>
+    <button class="panel-close" id="btn-conv-close">✕</button>
+  </div>
+  <div class="panel-body" style="padding:0;display:flex;flex-direction:column;">
+    <div class="transcript" id="transcript" style="flex:1;overflow-y:auto;"><div class="empty-note">Your lecture transcript and quiz questions will appear here as we go.</div></div>
+    <div class="ask-zone" id="conv-ask-zone" style="flex-shrink:0;">
+      <input type="text" id="conv-ask-input" placeholder="Ask a question…">
+      <button id="btn-conv-ask" title="Send">➤</button>
     </div>
   </div>
 </div>
@@ -5242,10 +5286,41 @@ function closePanel(){
   document.body.classList.remove('panel-open');
   resizeCanvasWhenStable(400);
 }
-document.getElementById('btn-menu').addEventListener('click', openPanel);
+document.getElementById('btn-menu').addEventListener('click', ()=>{ closeConvPanel(); openPanel(); });
 document.getElementById('btn-panel-close').addEventListener('click', closePanel);
-overlay.addEventListener('click', closePanel);
-document.getElementById('btn-toggle-transcript').addEventListener('click', openPanel);
+overlay.addEventListener('click', ()=>{ closePanel(); closeConvPanel(); });
+
+/* Transcript panel: docks right, shows ONLY the AI conversation log
+   plus its own ask box. Asking here never draws on the board and
+   never speaks the reply out loud — the response is just appended
+   to the transcript, same as a text-only chat. */
+const convPanel = document.getElementById('conv-panel');
+function openConvPanel(){
+  convPanel.classList.add('open'); overlay.classList.add('open');
+}
+function closeConvPanel(){
+  convPanel.classList.remove('open'); overlay.classList.remove('open');
+}
+document.getElementById('btn-toggle-transcript').addEventListener('click', ()=>{ closePanel(); openConvPanel(); });
+document.getElementById('btn-conv-close').addEventListener('click', closeConvPanel);
+
+async function handleConvAsk(text){
+  const typed = (text || '').trim();
+  if(!typed) return;
+  document.getElementById('conv-ask-input').value = '';
+  addTranscriptMsg('user', typed);
+  await document.fonts.ready;
+  try{
+    const result = await callTutor(typed, null);
+    if(result && result.speech) addTranscriptMsg('tutor', result.speech);
+  } catch(e){
+    console.error('Transcript ask failed:', e);
+    addTranscriptMsg('tutor', 'Sorry, something went wrong answering that.');
+  }
+  autoSaveSession();
+}
+document.getElementById('btn-conv-ask').addEventListener('click', ()=> handleConvAsk(document.getElementById('conv-ask-input').value));
+document.getElementById('conv-ask-input').addEventListener('keydown', (e)=>{ if(e.key==='Enter') handleConvAsk(e.target.value); });
 
 /* =========================================================
    WIRE UP CONTROLS
