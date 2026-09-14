@@ -1751,6 +1751,20 @@ body{
 }
 .ask-zone button:hover{background:var(--ochre);}
 
+/* Talk/mic button now lives inside the ask box itself (like a chat
+   input's inline mic icon) instead of its own separate round button
+   outside it — sized to match the attach/send icons on either side
+   of it rather than its old larger standalone size. Scoped override
+   (not a change to .mic-btn itself) so the recording-state styling
+   (.mic-btn.live pulse, .mic-btn.unsupported) still applies untouched. */
+.ask-zone .mic-btn{
+  width:22px;height:22px;
+  font-size:12px;
+  box-shadow:none;
+  flex-shrink:0;
+}
+.ask-zone .mic-btn.live{ box-shadow:0 0 0 3px rgba(229,62,62,0.25); }
+
 .overlay{
   position:fixed;inset:0;
   background:rgba(20,18,12,0.25);
@@ -2176,13 +2190,10 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
       <button class="ask-icon-btn" id="btn-attach" title="Attach a file">📎</button>
       <input type="file" id="attach-input" accept="image/*,.pdf,.txt,.md" style="display:none;">
       <input type="text" id="ask-input" placeholder="Ask a follow-up…">
+      <button class="mic-btn" id="btn-mic" title="Hold to talk to your tutor">🎙</button>
       <button id="btn-ask" title="Send">➤</button>
     </div>
 
-    <div class="cluster-btn-wrap">
-      <button class="mic-btn" id="btn-mic" title="Hold to talk to your tutor">🎙</button>
-      <span class="btn-label">Talk</span>
-    </div>
     <div class="cluster-btn-wrap">
       <button class="cluster-btn" id="btn-toggle-transcript" title="Show transcript">💬</button>
       <span class="btn-label">Transcript</span>
@@ -2334,6 +2345,11 @@ ctx.lineCap = 'round';
 ctx.lineJoin = 'round';
 let viewW = 0, viewH = 0;
 const camera = { x: 500, y: 300, scale: 1 };
+// The board should never zoom out past its normal "fit to screen"
+// scale — that default fit scale is recomputed on every reset/resize
+// (viewport width changes), so this floor is kept in sync with it
+// rather than pinned to one fixed number.
+let MIN_ZOOM = 1;
 
 // The board is a fixed-width "page" (PAGE_W world units) that used to
 // always sit horizontally centered on screen. That's fine on a narrow
@@ -2455,6 +2471,7 @@ function resetRegionCursors(){
   
   if (viewW > 0) {
       camera.scale = Math.min(1.5, viewW / 1050);
+      MIN_ZOOM = camera.scale;
       camera.x = idealCameraX(camera.scale);
       camera.y = idealCameraY(camera.scale);
   }
@@ -2524,6 +2541,7 @@ function resizeCanvas(){
   // and only gate the vertical recenter-to-top behind userIsScrolledAway.
   if (viewW > 0) {
       camera.scale = Math.min(1.5, viewW / 1050);
+      MIN_ZOOM = camera.scale;
       camera.x = idealCameraX(camera.scale);
       if (!userIsScrolledAway) {
           camera.y = idealCameraY(camera.scale);
@@ -3167,7 +3185,7 @@ canvas.addEventListener('touchmove', (e)=>{
   } else if(touchMode === 'pinch' && e.touches.length === 2){
     e.preventDefault();
     const dist = touchDist(e.touches[0], e.touches[1]);
-    camera.scale = Math.min(3, Math.max(0.2, pinchStartScale * (dist/Math.max(1,pinchStartDist))));
+    camera.scale = Math.min(3, Math.max(MIN_ZOOM, pinchStartScale * (dist/Math.max(1,pinchStartDist))));
     const rect = canvas.getBoundingClientRect();
     const mid = touchMid(e.touches[0], e.touches[1]);
     const [nx,ny] = screenToWorld(mid.x-rect.left, mid.y-rect.top);
@@ -3241,7 +3259,7 @@ canvas.addEventListener('wheel', (e)=>{
   // scrollable with a normal mouse wheel or two-finger trackpad swipe.
   if(e.ctrlKey){
     const [wx,wy] = screenToWorld(mx,my);
-    camera.scale = Math.min(3, Math.max(0.2, camera.scale * (e.deltaY>0?0.9:1.1)));
+    camera.scale = Math.min(3, Math.max(MIN_ZOOM, camera.scale * (e.deltaY>0?0.9:1.1)));
     const [nx,ny] = screenToWorld(mx,my);
     camera.x += (wx-nx); camera.y += (wy-ny);
   } else {
@@ -4507,6 +4525,16 @@ DRAWING TABLES, LEDGERS/JOURNALS, AND MATRICES (accounting T-accounts, general j
 
 UNIVERSAL NO-OVERLAP RULE (applies to every diagram, not just tables): before emitting any diagram, mentally lay out a bounding box for every single "text"/diagramLabel string (estimate width as characters × size × 0.62, height as size × 1.3) and check it doesn't intersect the bounding box of any other text or any shape it isn't meant to sit on top of. Specific failure modes to actively avoid: (1) two diagramLabels for parts that are close together — if the parts are within roughly one label's-width of each other, stagger the labels at different distances from the structure (longer/shorter leader arrows) or offset them vertically, rather than letting both labels sit at the same distance and collide; (2) a label text sitting directly on top of the shape outline it's labeling — always place label text clearly outside the shape with a leader arrow pointing in, never inside a small structure where the text itself would obscure it; (3) row/column text in a table overrunning a grid line, covered above; (4) a heading or paragraph "text" command whose estimated width exceeds "maxWidth" — either shorten the string or explicitly set a larger "maxWidth" so the app's own wrapping doesn't fight your intended line breaks. When genuinely unsure whether two elements will collide, err toward more spacing, a shorter label, or splitting one crowded diagram into two sequential smaller ones — never toward cramming.
 
+TEACHING STRUCTURE — when a student asks about a new concept, term, theory, formula, or topic, work through it in this fixed order, treating each stage as its OWN separate turn (this is what the PACING RULES below actually enforce — never collapse two stages into one turn):
+1. Definition — state what it means, in simple but academically accurate language. Do not oversimplify university-level material.
+2. Intuition — the "why this matters" / how to think about it, before diving into mechanics.
+3. Step-by-step explanation — the logic broken down, explaining WHY not just WHAT, connecting cause → effect → outcome. If it has multiple steps, each step is its own turn, not one combined turn.
+4. Example — one short real-world or academic example.
+5. Visual/graph (only if it genuinely aids understanding — see diagram rules below; skip this stage entirely if a visual wouldn't add anything). After drawing it, explain exactly what to look at on the board and how it maps to the concept.
+6. Key takeaway — one or two sentences distilling the core idea.
+7. Check-understanding question — a short question (via "quiz" or a question at the end of "speech") before considering this concept "done". If the student gets it wrong, re-teach that specific point from a different angle rather than just repeating it, then check again.
+Only move to the next stage once the student has responded — never chain multiple stages into one message "to save time". Once a concept's full cycle is complete, difficulty can gradually increase on the next concept.
+
 PACING RULES — GO BIT BY BIT:
 - Teach in SMALL, SINGLE-IDEA turns: cover exactly one definition, one sub-step, or one small piece of a worked example per turn — never a whole topic in one go. A turn's "board" content should be short (a small handful of "text"/diagram commands, not a long stacked block of paragraphs) UNLESS this turn's one idea is itself a complex diagram (see COMPLEX DIAGRAM MODE above), in which case the diagram's full detail is the appropriate size for that single idea.
 - After that one small idea, ALWAYS stop and check in before continuing — this is mandatory on every single turn, with no exceptions other than a diagram whose shapes are still mid-run (see COMPLEX DIAGRAM MODE). Do this by EITHER setting "quiz" to a short comprehension question about exactly what you just covered, OR ending "speech" with a direct, specific, varied question inviting the student to respond — rotate naturally between checking understanding ("does that make sense so far?", "want me to explain that differently?"), inviting questions ("any questions on this before I continue?"), and offering to move on ("should we move to the next part, or stay here a bit longer?"). Never end a turn's "speech" on a flat statement of fact with no question attached. Do not continue teaching past that point in the same turn — wait for the student's reply.
@@ -4664,6 +4692,8 @@ NO-OVERLAP: before emitting a diagram, mentally check every text/label's boundin
 
 DRAWING SCOPE — YOU ARE THE FALLBACK MODEL, GEMINI HANDLES MOST TURNS: stick to structured, geometric board content you can execute reliably — tables/grids, "axes"/"plot" graphs, payoff matrices, truth tables, simple labeled rect/circle/line diagrams, flowcharts. AVOID attempting freeform organic illustrations (a realistic cell, an animal, an organ, a leaf, anything needing "path"/"curve" hand-sketch outlines with shading) — if the turn calls for one of those, draw a simpler labeled-shape version instead (basic circles/rects with labels) rather than a detailed illustration, since that detailed style is unreliable for you specifically. Tables, plots, and axes are where you should put your effort and detail.
 NEVER use "arrow"/"diagramLabel" as a pointer callout aimed at a piece of plain text, a formula, or a sentence you already wrote (e.g. an arrow labeled "b" floating near the word "b" in "ax²+bx+c=0"). Arrows and diagramLabels exist ONLY to name a part of an actual drawn shape (a rect, circle, curve, plot, or table) that is present in the SAME unbroken diagram run — never a bare arrow pointing at ordinary sentence text with nothing else drawn. If you need to explain what a coefficient or term in a formula means, just say it in a normal "text" line (e.g. "b determines the axis of symmetry") — do not draw anything for it.
+
+TEACHING STRUCTURE (each stage below is its OWN turn — never combine stages): 1) Definition (accurate, not oversimplified) 2) Intuition (why it matters) 3) Step-by-step explanation (the WHY, cause→effect→outcome; split across multiple turns if it has multiple steps) 4) Example (short, real-world/academic) 5) Visual/graph, ONLY if it genuinely helps — explain what to look at after drawing it 6) Key takeaway (1-2 sentences) 7) Check-understanding question. Advance only after the student responds; if they're wrong, re-teach that point differently, then re-check.
 
 PACING: teach ONE small idea per turn (one definition/sub-step/small piece of an example) — never a whole topic at once, unless the one idea IS a complex diagram (then its full detail is appropriate). After that one idea, ALWAYS stop and check in — mandatory every turn — either via "quiz", or by ending "speech" with a direct question (vary between "does that make sense?", "any questions?", "should we move on or stay here?"). Never end on a flat statement with no question. Wait for the reply before continuing.
 
