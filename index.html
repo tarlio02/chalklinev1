@@ -1656,13 +1656,17 @@ body{
   position:static;
   z-index:20;
   display:flex;
-  flex-wrap:wrap;
+  flex-wrap:nowrap;
   align-items:center;
   justify-content:center;
   gap:var(--control-gap);
-  row-gap:12px;
   padding:12px var(--content-padding) 12px;
 }
+/* Replay/Talk/Transcript keep their fixed round size on every device;
+   only the ask bar between them grows/shrinks to take up the slack —
+   this is what keeps Replay – Ask – Talk – Transcript on one strict,
+   never-wrapping row from the smallest phone up to a wide desktop. */
+.bottom-bar > .cluster-btn-wrap{ flex:0 0 auto; }
 
 .mic-btn{
   width:56px;height:56px;border-radius:50%;
@@ -1685,11 +1689,12 @@ body{
   gap:5px;
   align-items:center;
   background:#fff;
-  border:1px solid var(--panel-border);
-  border-radius:22px;
+  border:1.5px solid var(--ink);
+  border-radius:12px;
   padding:2px 2px 2px 12px;
   box-shadow:0 3px 14px rgba(0,0,0,0.08);
-  width:var(--ask-zone-width);
+  flex:1 1 auto;
+  max-width:var(--ask-zone-width);
   min-width:0;
   height:var(--control-size-sm);
   /* No vertical offset here anymore — the ask bar now sits on the exact
@@ -2042,7 +2047,7 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
     --control-gap:8px;
     --top-control-height:60px;
     --bottom-control-height:170px;
-    --ask-zone-width:100%;
+    --ask-zone-width:520px;
     --caption-max-width:100%;
   }
 
@@ -2054,14 +2059,13 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
   .top-right-cluster{ margin-top:0; }
   .status-chip{ font-size:9.5px; padding:5px 8px; }
 
-  /* Bottom controls: icons row on top, full-width Ask bar below it
-     — never sharing a row with Transcript/Replay/Talk, and always
-     wide enough to comfortably type in. */
-  .bottom-bar{ justify-content:space-between; }
-  .bottom-bar .cluster-btn-wrap:nth-of-type(1){ order:1; }
-  .bottom-bar .cluster-btn-wrap:nth-of-type(2){ order:2; }
-  .bottom-bar .cluster-btn-wrap:nth-of-type(3){ order:3; }
-  .bottom-bar .ask-zone{ order:4; flex:1 1 100%; width:100%; }
+  /* Bottom controls stay on ONE strict row — Replay, Ask, Talk,
+     Transcript — on every device including small phones, matching
+     the fixed layout used everywhere else. The ask bar itself is the
+     only flexible piece (flex:1 1 auto on .ask-zone, set in the base
+     rule) and shrinks to fit the remaining space between the four
+     fixed-size round controls. */
+  .bottom-bar{ justify-content:space-between; gap:6px; }
 
   .speaker-row{ padding:0 10px; }
   .caption-zone{ padding:8px 12px 6px; }
