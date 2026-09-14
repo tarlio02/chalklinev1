@@ -1441,7 +1441,20 @@ body{
   flex-shrink:0;
 }
 .icon-btn:hover{background:#fff;}
-.top-right-cluster{display:flex;flex-direction:column;gap:10px;align-items:flex-end;margin-top:calc(var(--control-size) + 8px);}
+.top-right-cluster{
+  display:flex;flex-direction:column;gap:10px;align-items:flex-end;
+  /* The real Google "Sign in" button (and, once signed in, the account
+     chip) is NOT part of this page — it lives in the top-level shell
+     page one level up, fixed at the very top of the whole screen, and
+     it always renders above every iframe's content no matter what
+     z-index anything in here has. It can be quite wide/tall while
+     signed out, so this cluster needs real fixed clearance below it —
+     not just alignment with the icon row — or Exit Lesson silently
+     sits underneath it and becomes unclickable/invisible exactly like
+     that. control-size covers the icon row's own height; +34px is the
+     extra headroom for the shell's overlay on top of that. */
+  margin-top:calc(var(--control-size) + 34px);
+}
 .login-pill{
   position:absolute;
   left:50%;
@@ -1669,11 +1682,11 @@ body{
 .bottom-bar > .cluster-btn-wrap{ flex:0 0 auto; }
 
 .mic-btn{
-  width:56px;height:56px;border-radius:50%;
+  width:var(--control-size-sm);height:var(--control-size-sm);border-radius:50%;
   border:none;
   background:var(--brick);
   color:#fff;
-  font-size:20px;
+  font-size:17px;
   display:flex;align-items:center;justify-content:center;
   cursor:pointer;
   flex-shrink:0;
@@ -2056,7 +2069,7 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
      eat a quarter of a short phone screen. */
   .topbar-left-stack{ flex-direction:row; align-items:flex-start; gap:6px; }
   .topbar-btn-wrap .btn-label{ font-size:8px; }
-  .top-right-cluster{ margin-top:0; }
+  .top-right-cluster{ margin-top:34px; }
   .status-chip{ font-size:9.5px; padding:5px 8px; }
 
   /* Bottom controls stay on ONE strict row — Replay, Ask, Talk,
