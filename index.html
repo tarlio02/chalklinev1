@@ -1443,7 +1443,14 @@ body{
   position:fixed;
   inset:0;
   z-index: 2;
-  pointer-events: none;
+  /* Must receive pointer events itself (wheel/touch/drag) or none of
+     that input ever reaches it to trigger native scrolling — pointer
+     events are NOT inherited by children needing scroll the way visual
+     properties are. This was left over from the old design, where
+     #board-wrap was just an inert positioning shell and #board (the
+     canvas) handled its own custom pan/zoom via mouse events instead
+     of the wrapper scrolling natively. */
+  pointer-events: auto;
   /* This is now a genuine native-scrolling container — the canvas
      inside it is made much taller than the viewport as content grows
      (see applyCanvasHeight in the tutor script), and the browser scrolls
