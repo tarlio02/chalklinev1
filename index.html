@@ -2297,24 +2297,6 @@ function measureLayoutInsets(){
 function idealCameraX(scale){ return (viewW/2 - PAGE_LEFT_GUTTER_PX) / scale; }
 function idealCameraY(scale){ return TOP_MARGIN + (viewH/2 - PAGE_TOP_GUTTER_PX) / scale; }
 
-// Base zoom is purely width-driven (more horizontal pixels => more world
-// units fit at 1:1), which works fine on tablets/desktop. But on a phone
-// specifically, width alone gets the two orientations backwards relative
-// to what actually reads well: portrait is narrow, so the width-only
-// formula zooms it WAY out (tiny handwriting) even though a phone held
-// upright has plenty of vertical room to just show less of the page,
-// bigger; landscape is short, so the same formula leaves everything
-// cramped between the top bar and bottom dock. This nudges phone-tier
-// zoom in the opposite direction from the raw width formula: in on
-// portrait, out on landscape. Tablet/desktop are unaffected.
-function idealCameraScale(){
-  const base = Math.min(1.5, viewW / 1050);
-  const isPhoneTier = window.matchMedia('(max-width:600px) and (orientation:portrait), (max-height:500px) and (orientation:landscape)').matches;
-  if(!isPhoneTier) return base;
-  const isLandscape = window.matchMedia('(orientation:landscape)').matches;
-  return isLandscape ? base * 0.82 : Math.min(1.5, base * 1.25);
-}
-
 // The board should never let the user scroll/pan/zoom-drag past the very
 // top of page 1 — only downward scrolling (toward later writing) is
 // allowed manually. This is the camera.y value at which world-y 0 (the
@@ -2380,7 +2362,7 @@ function resetRegionCursors(){
   panToken++;
   
   if (viewW > 0) {
-      camera.scale = idealCameraScale();
+      camera.scale = Math.min(1.5, viewW / 1050);
       camera.x = idealCameraX(camera.scale);
       camera.y = idealCameraY(camera.scale);
   }
@@ -2413,7 +2395,7 @@ function animateCameraPan(targetX, targetY, duration, onDone){
 }
 
 function panCameraToCursor(targetY, onDone){
-  const idealScale = idealCameraScale();
+  const idealScale = Math.min(1.5, viewW / 1050);
   if (Math.abs(camera.scale - idealScale) > 0.01 && !userIsScrolledAway) {
       camera.scale = idealScale;
   }
@@ -2449,7 +2431,7 @@ function resizeCanvas(){
   // recalculating scale/x on every resize (including mid-lesson rotations),
   // and only gate the vertical recenter-to-top behind userIsScrolledAway.
   if (viewW > 0) {
-      camera.scale = idealCameraScale();
+      camera.scale = Math.min(1.5, viewW / 1050);
       camera.x = idealCameraX(camera.scale);
       if (!userIsScrolledAway) {
           camera.y = idealCameraY(camera.scale);
@@ -2917,7 +2899,6 @@ function renderCommand(cmd){
           ctx.fillText(curve.label, lx+sw(8), ly+sw(4));
         }
       });
-      drawPlotMarkers(ox, oy, w, h, cmd, scaleX, scaleY, color);
       break;
     }
     case 'highlight': {
@@ -2999,48 +2980,6 @@ function drawAxesTicksAndLabels(ox, oy, w, h, cmd, color){
   ctx.restore();
 }
 
-// Marks a specific data point on a "plot" (e.g. the equilibrium point
-// where supply meets demand) with a dot plus dashed guide lines dropping
-// straight down to the x-axis and across to the y-axis — the standard
-// textbook way of reading a coordinate off a graph — and labels each
-// intercept (e.g. "Q*", "P*") right on the axis instead of just leaving
-// the point floating with no readable value. cmd.markers is an array of
-// {x, y, label, xLabel, yLabel, color}, all in the plot's own data units
-// (same space as curve points), which is why this needs the same
-// scaleX/scaleY the curves themselves were drawn with.
-function drawPlotMarkers(ox, oy, w, h, cmd, scaleX, scaleY, color){
-  if(!Array.isArray(cmd.markers)) return;
-  cmd.markers.forEach(m => {
-    if(typeof m.x !== 'number' || typeof m.y !== 'number') return;
-    const mColor = COLORS[m.color] || color;
-    const [px, py] = [scaleX(m.x), scaleY(m.y)];
-    ctx.save();
-    ctx.strokeStyle = mColor;
-    ctx.lineWidth = sw(1.5);
-    ctx.setLineDash([sw(5), sw(5)]);
-    ctx.beginPath(); ctx.moveTo(px, oy); ctx.lineTo(px, py); ctx.lineTo(ox, py); ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle = mColor;
-    ctx.beginPath(); ctx.arc(px, py, sw(4), 0, Math.PI*2); ctx.fill();
-
-    ctx.font = `700 ${sw(14)}px 'Caveat', cursive`;
-    if(m.xLabel){
-      ctx.textAlign = 'center';
-      ctx.fillText(String(m.xLabel), px, oy+sw(18));
-    }
-    if(m.yLabel){
-      ctx.textAlign = 'right';
-      ctx.fillText(String(m.yLabel), ox-sw(8), py+sw(4));
-    }
-    if(m.label){
-      ctx.font = `700 ${sw(15)}px 'Caveat', cursive`;
-      ctx.textAlign = 'left';
-      ctx.fillText(String(m.label), px+sw(9), py-sw(9));
-    }
-    ctx.restore();
-  });
-}
-
 function strokeSmoothCurve(pts){
   ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
   for(let i=1;i<pts.length-1;i++){
@@ -3087,6 +3026,7 @@ let isPanning = false, panStart=null, camStart=null;
 canvas.addEventListener('mousedown', (e)=>{ 
   panToken++; isPanning=true; canvas.classList.add('grabbing'); 
   panStart=[e.clientX,e.clientY]; camStart={x:camera.x,y:camera.y}; 
+  if(typeof stopHoverReplay==='function') stopHoverReplay(); 
 });
 window.addEventListener('mousemove', (e)=>{
   if(!isPanning) return;
@@ -3111,7 +3051,7 @@ let pinchStartDist = 0, pinchStartScale = 1, pinchWorldMid = null;
 function touchDist(t0,t1){ return Math.hypot(t1.clientX-t0.clientX, t1.clientY-t0.clientY); }
 function touchMid(t0,t1){ return { x:(t0.clientX+t1.clientX)/2, y:(t0.clientY+t1.clientY)/2 }; }
 canvas.addEventListener('touchstart', (e)=>{
-  panToken++;
+  panToken++; stopHoverReplay();
   if(e.touches.length === 1){
     touchMode = 'pan';
     panStart = [e.touches[0].clientX, e.touches[0].clientY];
@@ -3156,13 +3096,32 @@ canvas.addEventListener('touchend', (e)=>{
 });
 canvas.addEventListener('touchcancel', ()=>{ touchMode = null; checkIfScrolledAway(); });
 
-/* ---------- HOVER ----------
-   Hovering used to re-animate (re-draw stroke-by-stroke) whatever was
-   under the cursor. Intended as a "replay" affordance, but in practice
-   it meant simply moving the mouse across the page made already-written
-   text redraw itself, which read as broken rather than helpful — so
-   hovering no longer triggers any redraw/animation, just a pointer
-   cursor change over drawn content. */
+/* ---------- HOVER-TO-REPLAY ---------- */
+const hoverAnim = { cmd:null, raf:null };
+
+function stopHoverReplay(){
+  if(hoverAnim.raf) cancelAnimationFrame(hoverAnim.raf);
+  hoverAnim.raf = null;
+  if(hoverAnim.cmd){ hoverAnim.cmd = null; redrawAll(); }
+}
+
+function startHoverReplay(cmd){
+  if(hoverAnim.cmd === cmd) return;
+  if(hoverAnim.raf) cancelAnimationFrame(hoverAnim.raf);
+  hoverAnim.cmd = cmd;
+  const duration = estimateDuration(cmd);
+  const start = performance.now();
+  function frame(now){
+    if(hoverAnim.cmd !== cmd) return;
+    const t = Math.min(1, (now-start)/duration);
+    redrawAllExcept(cmd);
+    renderPartialCommand(cmd, t);
+    if(t < 1){ hoverAnim.raf = requestAnimationFrame(frame); }
+    else { hoverAnim.raf = null; redrawAll(); }
+  }
+  hoverAnim.raf = requestAnimationFrame(frame);
+}
+
 canvas.addEventListener('mousemove', (e)=>{
   if(isPanning || drawing) return;
   const rect = canvas.getBoundingClientRect();
@@ -3175,10 +3134,13 @@ canvas.addEventListener('mousemove', (e)=>{
     if(mx>=x0 && mx<=x1 && my>=y0 && my<=y1){ hit = cmd; break; }
   }
   canvas.classList.toggle('hoverable', !!hit);
+  if(hit) startHoverReplay(hit); else stopHoverReplay();
 });
+canvas.addEventListener('mouseleave', stopHoverReplay);
 canvas.addEventListener('wheel', (e)=>{
   e.preventDefault();
   panToken++;
+  stopHoverReplay();
   const rect = canvas.getBoundingClientRect();
   const mx = e.clientX-rect.left, my = e.clientY-rect.top;
   // Pinch-to-zoom on a trackpad (and ctrl+wheel) reports as a wheel event
@@ -3223,6 +3185,7 @@ async function exportBoardAsPDF(){
   if(drawing || drawQueue.length){ setStatus('wait for current drawing to finish'); return; }
 
   setStatus('exporting pdf…');
+  stopHoverReplay();
   const savedCam = { ...camera }, savedW = viewW, savedH = viewH, savedCtx = ctx;
 
   try{
@@ -3845,7 +3808,6 @@ function renderPartialCommand(cmd, t){
             }
           } else { penX=cx; penY=cy; }
         });
-        if(t>=1) drawPlotMarkers(ox, oy, w, h, cmd, scaleX, scaleY, color);
       }
       drawPen(penX,penY,0);
       break;
@@ -4342,10 +4304,20 @@ Available command types:
 - {"type":"polygon","points":[[x,y],[x,y],[x,y],...],"color":"ink","width":2.5,"fill":false,"fillColor":"ink","fillOpacity":0.10,"dash":false} — a CLOSED shape made of dead-straight edges between each listed point (auto-closes back to the first point). This is the precision tool for anything with flat sides and exact corners: triangles, right-angle wedges, hexagonal benzene rings, crystal lattices, circuit-diagram boxes, polygons in geometry proofs, Punnett-square-style grids, molecular skeletal structures. Prefer this over "path" whenever every edge is straight — it's exact and compact, no control points to get wrong.
 - {"type":"polyline","points":[[x,y],[x,y],[x,y],...],"color":"ink","width":2.5,"dash":false} — like "polygon" but OPEN (does not connect the last point back to the first). Use for a multi-segment straight path that isn't a closed shape: a zigzag potential-energy diagram, a staircase, a folded protein backbone schematic, a piecewise-linear graph traced by hand instead of via "plot".
 - {"type":"axes","x":..,"y":..,"w":..,"h":..,"xlabel":"...","ylabel":"...","title":"...","grid":true,"xTicks":[...],"yTicks":[...]}
-- {"type":"plot","x":..,"y":..,"w":..,"h":..,"xRange":[0,10],"yRange":[0,10],"xlabel":"...","ylabel":"...","title":"...","grid":true,"xTicks":["0","2","4","6","8","10"],"yTicks":["0","5","10"],"curves":[{"points":[[dataX,dataY],...],"color":"brick","width":2.75,"label":"SRPC"}],"markers":[{"x":dataX,"y":dataY,"label":"Equilibrium","xLabel":"Q*","yLabel":"P*","color":"ochre"}]} — "markers" drops a dot at a specific data point plus dashed guide lines to both axes, with "xLabel"/"yLabel" printed right at the axis intercepts. ALWAYS use a marker for any named point the lesson is actually about — the equilibrium point where a supply and demand curve cross, a maximum/minimum, a break-even point, an intersection — rather than leaving the reader to eyeball where a point lands on the axes.
+- {"type":"plot","x":..,"y":..,"w":..,"h":..,"xRange":[0,10],"yRange":[0,10],"xlabel":"...","ylabel":"...","title":"...","grid":true,"xTicks":["0","2","4","6","8","10"],"yTicks":["0","5","10"],"curves":[{"points":[[dataX,dataY],...],"color":"brick","width":2.75,"label":"SRPC"}]}
 - {"type":"highlight","x":..,"y":..,"w":..,"h":26,"color":"ochre"}
 Any shape command above accepts "dash":true for a dashed stroke (equilibrium/reference lines, hidden edges in a 3D sketch, a boundary that's conceptual rather than solid, an asymptote). Leave it false/omitted for a normal solid line — don't dash everything, only where a dashed line has actual meaning.
-EVERY "plot"/"axes" needs real "xTicks"/"yTicks" (the actual values the axis spans, not decorative) and "xlabel"/"ylabel" — a graph with a bare unlabeled axis is not acceptable output.
+
+GRAPH PRECISION STANDARD — EVERY "plot"/"axes" diagram (not just economics) must read as a precise, university-level figure, not a rough sketch:
+- Before drawing, work out the actual shape of each curve analytically (where it's linear vs curved, where it crosses axes or other curves, its intercepts, asymptotes, max/min) rather than eyeballing points. A linear relationship gets a curve with exactly 2 points (a perfectly straight line); a genuinely curved relationship (parabola, exponential, logistic, supply/demand with curvature, indifference curve, PPF) gets 8-15 points densely sampled along the real function so it renders as a smooth, correctly-shaped curve, not a faceted polyline.
+- Pick xRange/yRange so the meaningful part of every curve — including any intersection point you plan to mark — sits well inside the box (roughly the middle 60-80%), never crammed against an edge or clipped.
+- Whenever two curves intersect at a meaningful point (equilibrium, break-even, market clearing, steady state, optimum, root of an equation, etc.), solve for that intersection's exact data coordinates algebraically first — never guess it visually — then mark it PRECISELY using this conversion (using the same plot.x/y/w/h and xRange/yRange you put in the "plot" command): localX = plot.x + ((dataX - xRange[0]) / (xRange[1] - xRange[0])) * plot.w, localY = plot.y - ((dataY - yRange[0]) / (yRange[1] - yRange[0])) * plot.h. As part of the SAME unbroken diagram run: add a small filled "circle" at that exact (localX, localY); add a dashed "line" from (localX, localY) straight down to (localX, plot.y) and a dashed "line" straight left to (plot.x, localY) so the reader can read the value off each axis; add a small diagramLabel (a letter like "A" or "E") right by the point; and, if the point has a name worth calling out, a short "arrow" plus a diagramLabel naming it. This dashed-guide-line treatment applies to any single important marked point on any graph, not only supply/demand.
+- Set "yTicks"/"xTicks" to include the specific value(s) a marked point lands on, in addition to or instead of a generic even range — the tick values should always corroborate anything you've dashed a line to.
+- Always title the plot and label both axes with their real quantity and units inside the "plot"/"axes" properties (never as separate paragraph text) — e.g. "xlabel":"Quantity (units)","ylabel":"Price ($)" rather than bare "x"/"y".
+- Give every curve on a multi-curve plot a "label" (the curve name, e.g. "Supply", "MR", "AVC", "f(x)=x²") via the curve's own "label" property so it's self-identifying without extra text commands.
+- Never put a curve's name, an intersection's name, or an axis value in a separate paragraph "text" command — the curve "label" property, the plot's own title/xlabel/ylabel, and the diagramLabel/arrow on a marked point are the only places that wording belongs.
+
+SUPPLY & DEMAND / ECONOMICS GRAPHS (Price vs Quantity, or any two-straight-line intersecting-curves econ graph): apply the GRAPH PRECISION STANDARD above. Draw this as ONE "plot" command with exactly two curves, each given ONLY 2 points so the line is perfectly straight — a Supply curve sloping up left-to-right and a Demand curve sloping down left-to-right — e.g. "curves":[{"points":[[xMin,lowP],[xMax,highP]],"color":"sage","width":2.75,"label":"Supply"},{"points":[[xMin,highP],[xMax,lowP]],"color":"brick","width":2.75,"label":"Demand"}]. Choose lowP/highP so the two lines visibly cross roughly in the middle third of the box, never off to one edge. Before drawing, solve algebraically for the exact equilibrium point (Qe, Pe) where the two lines cross. Then, as part of the SAME unbroken diagram run as the plot, mark equilibrium PRECISELY using this conversion (plot.x/y/w/h and xRange/yRange are the same values you put in the "plot" command): localX = plot.x + ((Qe - xRange[0]) / (xRange[1] - xRange[0])) * plot.w, localY = plot.y - ((Pe - yRange[0]) / (yRange[1] - yRange[0])) * plot.h. Using that exact (localX, localY): (1) add a small filled "circle" there (rx/ry ~4) to mark the point, (2) add a dashed "line" from (localX, localY) straight down to (localX, plot.y), and a dashed "line" from (localX, localY) straight left to (plot.x, localY) — "dash":true on both, mirroring the textbook look of dropping dashed guides to each axis, (3) label the point itself with a small "diagramLabel" text like "A" right next to the circle, and a short "arrow" plus a "diagramLabel" text reading "Equilibrium" pointing in at the same point. Also set "yTicks" to include Pe's value (e.g. ["100"]) and "xTicks" to include Qe's value (e.g. ["20000"]) so the axes echo the dashed lines' landing values, the way a real supply-and-demand diagram calls out the equilibrium price/quantity on the axes. Do NOT put "Supply"/"Demand"/"Equilibrium" wording in separate paragraph "text" commands — the curve "label" property and the diagramLabel arrow above are the only place those words belong.
 
 DRAWING ACTUAL PICTURES (cells, leaves, animals, organs, diagrams, maps, anything representational):
 - Build the picture out of several layered primitives rather than one shape: an outer outline ("path" or filled "circle"/"curve"), then inner structures on top (smaller filled "circle"/"path"/"polygon" shapes for a nucleus, mitochondria, veins, crystal facets, etc.), then label the parts with a short "arrow" pointing from the label to the structure plus a small "text" command (with "diagramLabel":true) for the label word — exactly like a real teacher labels a diagram they've just drawn.
@@ -4558,10 +4530,13 @@ COMMAND TYPES:
 - {"type":"polygon","points":[[x,y],...],"color":"ink","width":2.5,"fill":false,"fillColor":"ink","fillOpacity":0.10} — CLOSED straight-edge shape (auto-closes), for anything with flat sides/exact corners.
 - {"type":"polyline","points":[[x,y],...],"color":"ink","width":2.5,"dash":false} — like polygon but OPEN.
 - {"type":"axes","x":..,"y":..,"w":..,"h":..,"xlabel":"...","ylabel":"...","title":"...","grid":true,"xTicks":[...],"yTicks":[...]}
-- {"type":"plot","x":..,"y":..,"w":..,"h":..,"xRange":[0,10],"yRange":[0,10],"xlabel":"...","ylabel":"...","title":"...","grid":true,"xTicks":[...],"yTicks":[...],"curves":[{"points":[[x,y],...],"color":"brick","width":2.75,"label":"..."}],"markers":[{"x":dataX,"y":dataY,"label":"Equilibrium","xLabel":"Q*","yLabel":"P*","color":"ochre"}]} — "markers" pins a specific point (e.g. where supply meets demand) with dashed guide lines dropping to both axes and labels at the intercepts. Use one for any named point the lesson is about.
+- {"type":"plot","x":..,"y":..,"w":..,"h":..,"xRange":[0,10],"yRange":[0,10],"xlabel":"...","ylabel":"...","title":"...","grid":true,"xTicks":[...],"yTicks":[...],"curves":[{"points":[[x,y],...],"color":"brick","width":2.75,"label":"..."}]}
 - {"type":"highlight","x":..,"y":..,"w":..,"h":26,"color":"ochre"}
 Any shape accepts "dash":true for reference/equilibrium/hidden lines only — not everything.
-EVERY "plot"/"axes" needs real "xTicks"/"yTicks" and "xlabel"/"ylabel" — never a bare unlabeled axis.
+
+GRAPH PRECISION STANDARD — every "plot"/"axes" diagram (not just economics) must read as a precise, university-level figure: work out each curve's real shape first (linear gets exactly 2 points for a dead-straight line; a genuinely curved function gets 8-15 points sampled along the real curve, not a faceted guess). Pick xRange/yRange so curves and any marked point sit well inside the box (middle 60-80%), never clipped at an edge. Whenever two curves cross at a meaningful point (equilibrium, break-even, optimum, root), solve for its exact data coordinates algebraically, then in the SAME diagram run: convert to local coords via localX = plot.x + ((dataX-xRange[0])/(xRange[1]-xRange[0]))*plot.w, localY = plot.y - ((dataY-yRange[0])/(yRange[1]-yRange[0]))*plot.h, and add a small filled "circle" there, dashed "line"s straight down to (localX,plot.y) and straight left to (plot.x,localY), a diagramLabel letter by the point, and (if it has a name) an arrow+diagramLabel naming it. Set xTicks/yTicks to include that point's values. Title the plot and give both axes real units via xlabel/ylabel (never separate text commands). Give every curve a "label" via its own property. Never name a curve, intersection, or axis value in a separate paragraph "text" command.
+
+SUPPLY & DEMAND / ECONOMICS GRAPHS: apply the standard above. One "plot" command, exactly two curves of 2 points each (dead straight lines) — Supply sloping up, Demand sloping down, crossing in the middle third of the box, e.g. "curves":[{"points":[[xMin,lowP],[xMax,highP]],"color":"sage","label":"Supply"},{"points":[[xMin,highP],[xMax,lowP]],"color":"brick","label":"Demand"}]. Solve for the exact equilibrium (Qe,Pe) where they cross. In the SAME diagram run, compute localX = plot.x + ((Qe-xRange[0])/(xRange[1]-xRange[0]))*plot.w and localY = plot.y - ((Pe-yRange[0])/(yRange[1]-yRange[0]))*plot.h, then add: a small filled "circle" there, a dashed "line" straight down to (localX, plot.y), a dashed "line" straight left to (plot.x, localY), a small diagramLabel "A" by the point, and an "arrow"+diagramLabel reading "Equilibrium" pointing at it. Set yTicks to include Pe and xTicks to include Qe so the axes echo those dashed lines. Never put "Supply"/"Demand"/"Equilibrium" in separate paragraph text commands — only in curve labels / the diagramLabel arrow.
 
 TABLES/GRIDS/MATRICES: build as one diagram (rect for outer border + line for each row/column divider), size to fit content, size a header row/col slightly larger and bold. EVERY cell's content (headers and body) must be a "diagramLabel":true text with x/y placed exactly inside that cell in the SAME unbroken run as the grid lines — NEVER draw an empty grid then list the contents afterward as plain sequential text, that produces a disconnected list below the table which is a total failure. NO DUPLICATE ROWS/LABELS EVER: plan the exact row list once, emit each row exactly once. A multi-column layout (e.g. Assets | Liabilities | Equity) can have different row counts per column — leave short columns' extra cells blank rather than repeating rows to fill space.
 CRITICAL TABLE SIZING RULE: every cell's text MUST fit on ONE line at its given "size" — never let a cell's text wrap or run tall enough to spill into the row below. To guarantee this: (a) keep cell content SHORT — a word or a tight 2-4 word phrase, NEVER a full sentence or clause with semicolons/multiple facts crammed in (e.g. write "Aerobic respiration" not "Aerobic respiration; produces ATP; controls gene expression"); if a concept needs more than ~4 words, split it into two separate table rows instead of cramming it into one cell; (b) make each row's height at least 1.7× the text "size" (e.g. size 18 text needs row height ≥32px) so there's clear vertical breathing room even with tall glyphs; (c) before finalizing, check the widest word in a column against that column's width (~word length × size × 0.62) and widen the column if it's close — never let text run past its cell's right boundary into the next column. A table where every row is short, single-line, and generously spaced beats a denser one that overlaps.
