@@ -3263,6 +3263,20 @@ function renderCommand(cmd){
       drawArrowhead(ox + w, oy, 0, color);
       drawAxesTicksAndLabels(ox, oy, w, h, cmd, color);
       const [scaleX, scaleY] = plotScalers(ox, oy, w, h, cmd);
+      // Defense-in-depth clip: the AI occasionally supplies curve points
+      // whose data values fall outside the plot's own declared
+      // xRange/yRange (a generation slip, not something this renderer
+      // can prevent upstream) — without a clip, those points still get
+      // linearly mapped by plotScalers and drawn exactly where the math
+      // says, which is outside the box: the line visibly shoots past
+      // the axes/arrowheads, as if the frame were the wrong size for
+      // its own data. Clipping to the exact axes rectangle here means a
+      // stray out-of-range point gets trimmed at the boundary instead
+      // of blowing out of the figure, no matter what the source data says.
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(ox, oy - h, w, h);
+      ctx.clip();
       (cmd.curves || []).forEach(curve => {
         const pts = (curve.points || []).map(p => [scaleX(p[0]), scaleY(p[1])]);
         if(pts.length < 2) return;
@@ -3276,14 +3290,32 @@ function renderCommand(cmd){
         strokeSmoothCurve(pts);
         ctx.restore();
         ctx.fillStyle = curveColor;
+        // Point markers and the end-of-curve label are drawn OUTSIDE the
+        // clip region below (see after ctx.restore()) — a marker sitting
+        // exactly on the plot boundary looks fine clipped, but the label
+        // text for a curve ending at the right edge (e.g. "Supply")
+        // must stay fully readable rather than being sliced by the clip.
         pts.forEach(p => { ctx.beginPath(); ctx.arc(p[0], p[1], sw(2.75), 0, Math.PI*2); ctx.fill(); });
-        if(curve.label){
-          ctx.fillStyle = curveColor;
-          ctx.font = `700 ${sw(18)}px 'Caveat', cursive`;
-          ctx.textAlign = 'left';
-          const [lx,ly] = pts[pts.length-1];
-          ctx.fillText(curve.label, lx+sw(8), ly+sw(4));
-        }
+      });
+      ctx.restore();
+      (cmd.curves || []).forEach(curve => {
+        if(!curve.label) return;
+        const pts = (curve.points || []).map(p => [scaleX(p[0]), scaleY(p[1])]);
+        if(pts.length < 2) return;
+        const curveColor = COLORS[curve.color] || color;
+        ctx.fillStyle = curveColor;
+        ctx.font = `700 ${sw(18)}px 'Caveat', cursive`;
+        ctx.textAlign = 'left';
+        // Clamp the label's anchor point to just inside the box too —
+        // otherwise a curve whose last data point is outside xRange/yRange
+        // (the same slip the clip above guards against) would still park
+        // its label off in empty space alongside the now-invisible
+        // clipped tail, exactly like the "Equilibrium" annotation
+        // floating disconnected from the graph in the reported bug.
+        const rawX = pts[pts.length-1][0], rawY = pts[pts.length-1][1];
+        const lx = Math.min(Math.max(rawX, ox), ox+w);
+        const ly = Math.min(Math.max(rawY, oy-h), oy);
+        ctx.fillText(curve.label, lx+sw(8), ly+sw(4));
       });
       break;
     }
@@ -5098,9 +5130,11 @@ COMMAND TYPES:
 - {"type":"highlight","x":..,"y":..,"w":..,"h":26,"color":"ochre"}
 Any shape accepts "dash":true for reference/equilibrium/hidden lines only — not everything.
 
-GRAPH PRECISION STANDARD — every "plot"/"axes" diagram (not just economics) must read as a precise, university-level figure: work out each curve's real shape first (linear gets exactly 2 points for a dead-straight line; a genuinely curved function gets 8-15 points sampled along the real curve, not a faceted guess). Pick xRange/yRange so curves and any marked point sit well inside the box (middle 60-80%), never clipped at an edge. Whenever two curves cross at a meaningful point (equilibrium, break-even, optimum, root), solve for its exact data coordinates algebraically, then in the SAME diagram run: convert to local coords via localX = plot.x + ((dataX-xRange[0])/(xRange[1]-xRange[0]))*plot.w, localY = plot.y - ((dataY-yRange[0])/(yRange[1]-yRange[0]))*plot.h, and add a small filled "circle" there, dashed "line"s straight down to (localX,plot.y) and straight left to (plot.x,localY), a diagramLabel letter by the point, and (if it has a name) an arrow+diagramLabel naming it. Set xTicks/yTicks to include that point's values. Title the plot and give both axes real units via xlabel/ylabel (never separate text commands). Give every curve a "label" via its own property. Never name a curve, intersection, or axis value in a separate paragraph "text" command.
+GRAPH PRECISION STANDARD — every "plot"/"axes" diagram (not just economics) must read as a precise, university-level figure: work out each curve's real shape first (linear gets exactly 2 points for a dead-straight line; a genuinely curved function gets 8-15 points sampled along the real curve, not a faceted guess). Pick xRange/yRange so curves and any marked point sit well inside the box (middle 60-80%), never clipped at an edge — and double check every point you give a curve actually falls inside the xRange/yRange you chose; a point outside that range draws outside the axes box, which must never happen.
 
-SUPPLY & DEMAND / ECONOMICS GRAPHS: apply the standard above. One "plot" command, exactly two curves of 2 points each (dead straight lines) — Supply sloping up, Demand sloping down, crossing in the middle third of the box, e.g. "curves":[{"points":[[xMin,lowP],[xMax,highP]],"color":"sage","label":"Supply"},{"points":[[xMin,highP],[xMax,lowP]],"color":"brick","label":"Demand"}]. Solve for the exact equilibrium (Qe,Pe) where they cross. In the SAME diagram run, compute localX = plot.x + ((Qe-xRange[0])/(xRange[1]-xRange[0]))*plot.w and localY = plot.y - ((Pe-yRange[0])/(yRange[1]-yRange[0]))*plot.h, then add: a small filled "circle" there, a dashed "line" straight down to (localX, plot.y), a dashed "line" straight left to (plot.x, localY), a small diagramLabel "A" by the point, and an "arrow"+diagramLabel reading "Equilibrium" pointing at it. Set yTicks to include Pe and xTicks to include Qe so the axes echo those dashed lines. Never put "Supply"/"Demand"/"Equilibrium" in separate paragraph text commands — only in curve labels / the diagramLabel arrow.
+MARKING AN INTERSECTION POINT (equilibrium, break-even, optimum, root) — YOU ARE THE FALLBACK MODEL, SO USE THE SIMPLE METHOD, NOT A COORDINATE CONVERSION: do not attempt the localX/localY plot-to-pixel conversion formula — getting that arithmetic right in one shot is exactly the kind of multi-step precision task you are less reliable at, and a wrong conversion sends the mark, its dashed guide-lines, and its label somewhere off the actual plot, disconnected from the graph. Instead: solve for the intersection's exact DATA coordinates (Qe, Pe) algebraically, then just include that point as the LAST point of both curves' own "points" arrays (both curves already pass through it, since it's where they cross) and set "xTicks"/"yTicks" to include Qe/Pe so the axes call out its value — that alone marks it precisely, with zero risk of a coordinate error, and needs no separate circle/dashed-line/arrow group at all. Only add a circle+diagramLabel at the intersection if you are confident in the plot.x/y/w/h → local pixel conversion; if in any doubt, skip the circle/arrow/dashed-lines entirely rather than risk placing them wrong — a plain, correctly-drawn plot with no extra annotation beats one with a disconnected annotation floating off it.
+
+SUPPLY & DEMAND / ECONOMICS GRAPHS: apply the standard above. One "plot" command, exactly two curves of 2 points each (dead straight lines) — Supply sloping up, Demand sloping down, crossing in the middle third of the box, e.g. "curves":[{"points":[[xMin,lowP],[xMax,highP]],"color":"sage","label":"Supply"},{"points":[[xMin,highP],[xMax,lowP]],"color":"brick","label":"Demand"}]. Solve for the exact equilibrium (Qe,Pe) where they cross, and set xTicks to include Qe and yTicks to include Pe. Per the MARKING AN INTERSECTION POINT rule above, that's enough on its own to call out equilibrium precisely — do not attempt the circle/dashed-line/arrow annotation group unless you are fully confident in the plot.x/y/w/h conversion; a clean two-line plot with equilibrium visible at the crossing and echoed on the ticks is the safe, reliable version of this diagram for you specifically. Never put "Supply"/"Demand"/"Equilibrium" in separate paragraph text commands — only in curve labels.
 
 TABLES/GRIDS/MATRICES: build as one diagram (rect for outer border + line for each row/column divider), size to fit content, size a header row/col slightly larger and bold. EVERY cell's content (headers and body) must be a "diagramLabel":true text with x/y placed exactly inside that cell in the SAME unbroken run as the grid lines — NEVER draw an empty grid then list the contents afterward as plain sequential text, that produces a disconnected list below the table which is a total failure. NO DUPLICATE ROWS/LABELS EVER: plan the exact row list once, emit each row exactly once. A multi-column layout (e.g. Assets | Liabilities | Equity) can have different row counts per column — leave short columns' extra cells blank rather than repeating rows to fill space.
 CRITICAL TABLE SIZING RULE: every cell's text MUST fit on ONE line at its given "size" — never let a cell's text wrap or run tall enough to spill into the row below. To guarantee this: (a) keep cell content SHORT — a word or a tight 2-4 word phrase, NEVER a full sentence or clause with semicolons/multiple facts crammed in (e.g. write "Aerobic respiration" not "Aerobic respiration; produces ATP; controls gene expression"); if a concept needs more than ~4 words, split it into two separate table rows instead of cramming it into one cell; (b) make each row's height at least 1.7× the text "size" (e.g. size 18 text needs row height ≥32px) so there's clear vertical breathing room even with tall glyphs; (c) before finalizing, check the widest word in a column against that column's width (~word length × size × 0.62) and widen the column if it's close — never let text run past its cell's right boundary into the next column. A table where every row is short, single-line, and generously spaced beats a denser one that overlaps.
