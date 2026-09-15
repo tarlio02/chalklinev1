@@ -3892,12 +3892,51 @@ function enqueueCommands(commands){
 
 function commandWorldAnchor(cmd){
   if(cmd.type === 'plot' || cmd.type === 'axes') {
-      return [cmd.x + (cmd.w||0)/2, cmd.y - (cmd.h||0)/2];
+      // The BOTTOM of the box, not the vertical center: a plot/axes can
+      // be tall enough to span most of the viewport, and centering the
+      // one-time pre-draw scroll check on its middle means the top of a
+      // freshly-scrolled-to plot (its title, its highest curve points)
+      // can still start out cut off above the visible area, with nothing
+      // to correct it until the NEXT command fires its own anchor check —
+      // which for a plot is often a diagram-cluster label sitting well
+      // below the whole plot, producing the big sudden jump this anchor
+      // choice is meant to prevent. Anchoring at the bottom instead means
+      // a single pre-draw scroll already reveals the whole box.
+      return [cmd.x + (cmd.w||0)/2, cmd.y];
   }
   if('x' in cmd && 'y' in cmd) return [cmd.x, cmd.y];
   if('x1' in cmd && 'y1' in cmd) return [(cmd.x1+cmd.x2)/2, (cmd.y1+cmd.y2)/2];
   if(Array.isArray(cmd.points) && cmd.points.length) return cmd.points[Math.floor(cmd.points.length/2)];
   return null;
+}
+
+// Runs the same "is the thing we're drawing still comfortably on screen"
+// check used before a command starts, but from WITHIN a long-running
+// command's own animation loop — a multi-curve "plot"/"axes" or a
+// many-segment "path"/"polygon" can take several seconds to draw as one
+// single queued command (see baseDurationFor), so without this, the one
+// pre-draw check in processQueue() is the ONLY scroll correction that
+// command ever gets: if its bottom anchor was on-screen at the start but
+// the plot is tall enough that its top is still off-screen, or if the
+// user's viewport changed size mid-draw, nothing corrects it until the
+// NEXT queued command fires — which for a diagram is often a label placed
+// well past the whole cluster, producing one big disorienting jump right
+// after the diagram finishes instead of the smooth, continuous following
+// that plain text gets letter by letter. Throttled the same way as the
+// per-command check (lastMidDrawPanAt), so this and that check share one
+// cooldown rather than compounding into extra corrective scrolls.
+function maybeCorrectScrollMidAnimation(anchor){
+  if(!anchor || isUserScrolling) return;
+  const sy = worldYToViewportY(anchor[1]);
+  const marginTop = PAGE_TOP_GUTTER_PX + 20;
+  const marginBottom = PAGE_BOTTOM_GUTTER_PX;
+  const now = performance.now();
+  if((sy < marginTop || sy > viewH-marginBottom) && (now - lastMidDrawPanAt > 320)){
+    lastMidDrawPanAt = now;
+    lastAutoFollowTargetY = anchor[1];
+    applyCanvasHeight();
+    panCameraToCursor(anchor[1], null);
+  }
 }
 
 let lastMidDrawPanAt = 0;
@@ -3906,45 +3945,24 @@ function processQueue(){
   drawing=true;
   const cmd = drawQueue.shift();
   const anchor = commandWorldAnchor(cmd);
-  
-  if(anchor && !isUserScrolling){
-    const sx = (anchor[0] - camera.x) * camera.scale + viewW/2;
-    const sy = worldYToViewportY(anchor[1]);
-    // Directional margins instead of one fixed number: the safe area
-    // that matters is "don't draw under the top bar" and "don't draw
-    // under the bottom dock", and those two are rarely the same height
-    // as each other or as the left/right margins.
-    const marginX = 80;
-    const marginTop = PAGE_TOP_GUTTER_PX + 20;
-    const marginBottom = PAGE_BOTTOM_GUTTER_PX;
-    // Corrective scrolls must be throttled, since this check runs per
-    // queued command (i.e. roughly per stroke/letter). Without a
-    // cooldown, a fast run of small commands near an edge would each
-    // restart a fresh scroll tween before the last one finished, so the
-    // viewport never actually settled and visibly juddered while writing.
-    // Horizontal position never needs correcting anymore since camera.x
-    // is a fixed anchor, not something that drifts — only vertical
-    // scroll can need a corrective nudge.
-    const now = performance.now();
-    if((sy < marginTop || sy > viewH-marginBottom)
-       && (now - lastMidDrawPanAt > 320)){
-      lastMidDrawPanAt = now;
-      lastAutoFollowTargetY = anchor[1];
-      applyCanvasHeight();
-      panCameraToCursor(anchor[1], null);
-    }
-  }
-  
+  maybeCorrectScrollMidAnimation(anchor);
   animateCommand(cmd, ()=>{ drawnCommands.push(cmd); processQueue(); });
 }
 
 function animateCommand(cmd, onDone){
   const duration = estimateDuration(cmd);
   const start = performance.now();
+  const anchor = commandWorldAnchor(cmd);
   function frame(now){
     const t = Math.min(1,(now-start)/duration);
     redrawAll();
     renderPartialCommand(cmd, t);
+    // For anything that takes a while to draw (a multi-curve plot, a
+    // many-segment path), keep checking scroll position throughout the
+    // animation, not just once before it started — see
+    // maybeCorrectScrollMidAnimation for why the one-time pre-draw check
+    // alone isn't enough for a command this size.
+    maybeCorrectScrollMidAnimation(anchor);
     if(t<1) requestAnimationFrame(frame); else onDone();
   }
   requestAnimationFrame(frame);
