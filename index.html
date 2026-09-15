@@ -2613,9 +2613,7 @@ function resetRegionCursors(){
   // A brand-new session always starts writing at the literal top-left
   // of the whiteboard, per spec — jump (not animate) scroll back to 0.
   applyCanvasHeight();
-  isProgrammaticScroll = true;
-  boardWrap.scrollTop = 0;
-  isProgrammaticScroll = false;
+  setScrollTopProgrammatically(0);
 }
 
 function getMaxYWorld(){
@@ -2634,16 +2632,26 @@ let panToken = 0; // still used as a general "cancel in-flight animation" token
 const MANUAL_SCROLL_RESUME_MS = 2000;
 let manualScrollResumeAt = 0;      // performance.now() timestamp when auto-follow may resume
 let isUserScrolling = false;       // true only while a manual gesture is actively in progress
-let isProgrammaticScroll = false;  // true while OUR OWN scrollTo animation is writing scrollTop,
-                                    // so the 'scroll' event listener doesn't mistake it for manual input
 
 // Any real user-initiated scroll (wheel, touch-drag, trackpad, scrollbar
-// drag, keyboard) fires the container's native 'scroll' event. We can't
-// always distinguish "user scrolled" from "we scrolled programmatically"
-// from the event alone, so isProgrammaticScroll is set around every
-// programmatic scroll call below and checked here.
+// drag, keyboard) fires the container's native 'scroll' event — but so
+// does every scrollTop write WE make while animating auto-follow, and
+// that event is dispatched asynchronously (often a tick or more after
+// the assignment), so a simple "set a flag, write scrollTop, clear the
+// flag" guard misses events that land after the flag's already been
+// cleared. Instead: every programmatic write increments
+// pendingProgrammaticScrollEvents first; the scroll handler decrements
+// it and treats the event as our own if the count was positive,
+// ignoring the flag's timing entirely. This is exact rather than
+// timing-dependent, and manual input during a pending count is still
+// counted as manual the moment the count reaches zero again.
+let pendingProgrammaticScrollEvents = 0;
+function setScrollTopProgrammatically(v){
+  pendingProgrammaticScrollEvents++;
+  boardWrap.scrollTop = v;
+}
 function noteManualScrollActivity(){
-  if(isProgrammaticScroll) return;
+  if(pendingProgrammaticScrollEvents > 0){ pendingProgrammaticScrollEvents--; return; }
   isUserScrolling = true;
   manualScrollResumeAt = performance.now() + MANUAL_SCROLL_RESUME_MS;
   panToken++; // cancel any in-flight auto-follow animation immediately — never fight the user's scroll
@@ -2676,9 +2684,9 @@ boardWrap.addEventListener('scroll', ()=>{ noteManualScrollActivity(); repositio
 // rare case scrollTop drifts negative (elastic overscroll on some
 // browsers) by re-clamping explicitly.
 function clampScrollLimits(){
-  if(boardWrap.scrollTop < 0) boardWrap.scrollTop = 0;
+  if(boardWrap.scrollTop < 0) setScrollTopProgrammatically(0);
   const maxScroll = Math.max(0, boardWrap.scrollHeight - boardWrap.clientHeight);
-  if(boardWrap.scrollTop > maxScroll) boardWrap.scrollTop = maxScroll;
+  if(boardWrap.scrollTop > maxScroll) setScrollTopProgrammatically(maxScroll);
 }
 
 function animateScrollTo(targetScrollTop, duration, onDone){
@@ -2693,14 +2701,10 @@ function animateScrollTo(targetScrollTop, duration, onDone){
     if(myToken !== panToken || isUserScrolling){ finish(); return; }
     const raw = Math.min(1, (now-start)/duration);
     const t = ease(raw);
-    isProgrammaticScroll = true;
-    boardWrap.scrollTop = startTop + dy*t;
-    isProgrammaticScroll = false;
+    setScrollTopProgrammatically(startTop + dy*t);
     if(raw < 1) requestAnimationFrame(frame);
     else {
-      isProgrammaticScroll = true;
-      boardWrap.scrollTop = targetScrollTop;
-      isProgrammaticScroll = false;
+      setScrollTopProgrammatically(targetScrollTop);
       finish();
     }
   }
@@ -2904,11 +2908,19 @@ function hexToRgba(hex, alpha){
 let drawnCommands = [];
 
 function drawBG(){
-  const grad = ctx.createLinearGradient(0, 0, viewW, viewH);
+  // Must cover the FULL canvas element height, not just the viewport —
+  // the canvas is made much taller than the viewport as content grows
+  // (see applyCanvasHeight), and only ever filling the first viewH
+  // pixels left everything below that transparent, letting the page's
+  // own background gradient (body{background:...}) show through as a
+  // wrong-colored band once the user scrolled past one screenful.
+  const dpr = window.devicePixelRatio || 1;
+  const fullHeightCss = canvas.height / dpr; // canvas.height is device px; ctx is already dpr-scaled via setTransform
+  const grad = ctx.createLinearGradient(0, 0, viewW, Math.min(fullHeightCss, viewH * 3));
   grad.addColorStop(0, '#EAF4FD');
   grad.addColorStop(1, '#FFFFFF');
   ctx.fillStyle = grad;
-  ctx.fillRect(0,0,viewW,viewH);
+  ctx.fillRect(0, 0, viewW, fullHeightCss);
 }
 
 function clearBoard(record=true){
@@ -5771,9 +5783,7 @@ function loadSession(item){
   // Restored sessions resume scrolled to wherever the pen last was, not
   // forced back to the top — only a brand-new session (resetRegionCursors)
   // jumps to y=0.
-  isProgrammaticScroll = true;
-  boardWrap.scrollTop = Math.max(0, globalCursorY * camera.scale - (viewH - PAGE_BOTTOM_GUTTER_PX));
-  isProgrammaticScroll = false;
+  setScrollTopProgrammatically(Math.max(0, globalCursorY * camera.scale - (viewH - PAGE_BOTTOM_GUTTER_PX)));
   clampScrollLimits();
   setStatus('session loaded');
   closePanel();
