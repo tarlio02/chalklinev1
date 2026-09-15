@@ -2302,6 +2302,7 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
   </button>
   <div class="top-right-cluster">
     <button class="exit-lesson-btn" id="btn-exit-lesson" title="Exit lesson">🚪 Exit Lesson</button>
+    <div class="status-chip" id="voice-status-chip" style="display:none;"></div>
     <div class="status-chip" id="status-line" onclick="showBackendDebug()" style="cursor:pointer;" title="Tap to see AI backend details">idle</div>
   </div>
 </div>
@@ -3943,7 +3944,21 @@ function maybeCorrectScrollMidAnimation(anchor){
 
 let lastMidDrawPanAt = 0;
 function processQueue(){
-  if(drawQueue.length===0){ drawing=false; redrawAll(); return; }
+  if(drawQueue.length===0){
+    drawing=false; redrawAll();
+    // The turn-end autosave in runTeachingTurn() fires the instant new
+    // commands are queued — before the pen has actually finished writing
+    // them (drawing is paced to match narration length, see drawPaceScale).
+    // That save can lock in a `drawnCommands` snapshot that's several
+    // topics behind an already-advanced `globalCursorY`, and nothing
+    // used to correct it once the queue caught up — so a refresh could
+    // reload the board scrolled/labeled as "caught up" while actually
+    // missing everything drawn after that early save. Saving again here,
+    // once the queue is truly empty, re-syncs the persisted state to
+    // what's actually on the board.
+    autoSaveSession();
+    return;
+  }
   drawing=true;
   const cmd = drawQueue.shift();
   const anchor = commandWorldAnchor(cmd);
