@@ -1483,36 +1483,39 @@ body{
    repositioned via worldToViewport-style math whenever it moves or the
    user scrolls — never via canvas drawing, so it's cheap to animate
    smoothly every frame without a full canvas redraw. */
-#board-pointer{
-  position:fixed;
-  z-index: 5;
-  width:16px; height:16px;
-  margin-left:-8px; margin-top:-8px;
-  border-radius:50%;
-  background: var(--halo-blue, #0099FF);
-  box-shadow: 0 0 0 4px rgba(0,153,255,0.25), 0 0 14px 4px rgba(0,153,255,0.35);
-  pointer-events:none;
-  opacity:0;
-  transition: opacity 160ms ease;
-  will-change: transform, opacity;
-}
-#board-pointer.visible{ opacity:1; }
-
-/* The highlight box drawn behind whichever word/region the pointer is
-   currently on. Removed (opacity 0) the instant the tutor moves on to
-   the next word, per spec ("remove the highlight before moving to the
-   next word"). */
+/* The "hovering highlighter" used when the tutor points back at a word,
+   symbol, or region already on the board (see runPointToSequence). This
+   IS the pointer — there's no separate dot/cursor glyph riding alongside
+   it, the same way a real highlighter doesn't need one: the highlighted
+   patch itself is what draws the eye. It glides smoothly from one word
+   to the next (a slower, eased left/top/width/height transition, not an
+   instant jump) so a multi-word sequence reads as a highlighter sliding
+   across the line, and fades in/out cleanly at the start/end of a
+   sequence. Lives in viewport-fixed coordinates (like the quiz overlay)
+   and is repositioned via worldYToViewportY-style math on every
+   scroll/resize — never via canvas drawing — so it can animate at a full,
+   smooth frame rate independent of any redraw. */
 #board-pointer-highlight{
   position:fixed;
-  z-index: 4;
-  border-radius:4px;
-  background: rgba(255, 224, 102, 0.55);
+  z-index: 5;
+  border-radius:5px;
+  background: rgba(255, 216, 74, 0.5);
+  box-shadow: 0 0 0 1px rgba(255, 190, 40, 0.35), 0 2px 10px rgba(255, 190, 40, 0.25);
   pointer-events:none;
   opacity:0;
-  transition: opacity 120ms ease, left 90ms ease, top 90ms ease, width 90ms ease, height 90ms ease;
+  transition: opacity 200ms ease, left 380ms cubic-bezier(.4,0,.2,1), top 380ms cubic-bezier(.4,0,.2,1), width 380ms cubic-bezier(.4,0,.2,1), height 380ms cubic-bezier(.4,0,.2,1);
   will-change: transform, opacity, left, top, width, height;
 }
 #board-pointer-highlight.visible{ opacity:1; }
+#board-pointer-highlight.jumping{
+  /* A jump ACROSS content that isn't the natural next word (e.g. the
+     very first highlight of a new sequence, or the app scrolled to
+     reveal a far-off target) skips the slide animation and repositions
+     instantly instead of gliding across everything in between — a
+     highlighter visibly sweeping across unrelated text/diagrams on its
+     way to the real target would read as a glitch, not as pointing. */
+  transition: opacity 200ms ease;
+}
 
 .ambient-halo{
   position:fixed;
@@ -2278,7 +2281,6 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
   <canvas id="board"></canvas>
 </div>
 <div id="board-quiz-overlay"></div>
-<div id="board-pointer" aria-hidden="true"></div>
 <div id="board-pointer-highlight" aria-hidden="true"></div>
 
 <div class="topbar">
@@ -4714,47 +4716,50 @@ function findWordOnBoard(needle, occurrence){
   return null;
 }
 
-const pointerEl = document.getElementById('board-pointer');
 const pointerHighlightEl = document.getElementById('board-pointer-highlight');
 let pointerToken = 0;
 
-// Moves the pointer dot (viewport-fixed) to world coordinates, scrolling
-// it into view first if it's currently off-screen — WITHOUT ever moving
-// the camera/canvas, exactly like the quiz card's own positioning.
-function movePointerToWorld(wx, wy, opts){
-  opts = opts || {};
+// Positions the highlighter box (viewport-fixed) over a world-space
+// region — this element IS the "hovering highlighter" pointer, there's
+// no separate dot riding alongside it (see CSS notes). `instant` skips
+// the glide transition for the very first highlight of a sequence or
+// after a scroll jump, so the highlighter appears directly on its target
+// instead of visibly sliding in from wherever it last was/from off-screen.
+function showHighlightAtWorld(wx, wy, ww, wh, instant){
   const sx = (wx - camera.x) * camera.scale + viewW/2;
   const sy = worldYToViewportY(wy);
-  pointerEl.style.transform = `translate(${sx}px, ${sy}px)`;
-  pointerEl.classList.add('visible');
-  if(!opts.keepHighlight) pointerHighlightEl.classList.remove('visible');
-}
-
-function showHighlightAtWorld(wx, wy, ww, wh){
-  const sx = (wx - camera.x) * camera.scale + viewW/2;
-  const sy = worldYToViewportY(wy);
+  pointerHighlightEl.classList.toggle('jumping', !!instant);
   pointerHighlightEl.style.left = sx + 'px';
   pointerHighlightEl.style.top = sy + 'px';
   pointerHighlightEl.style.width = (ww*camera.scale) + 'px';
   pointerHighlightEl.style.height = (wh*camera.scale) + 'px';
   pointerHighlightEl.classList.add('visible');
+  if(instant){
+    // Force the instant (no-transition) position to actually apply
+    // before switching back to the glide transition for the NEXT move —
+    // without this reflow, the browser can coalesce both class/style
+    // changes into one paint and the following word would glide from
+    // the pre-jump position instead of this freshly-jumped-to one.
+    void pointerHighlightEl.offsetWidth;
+    pointerHighlightEl.classList.remove('jumping');
+  }
 }
 
 function hidePointer(){
-  pointerEl.classList.remove('visible');
   pointerHighlightEl.classList.remove('visible');
 }
 
-// Keep the pointer/highlight glued to the right screen position as the
-// user scrolls, same reasoning as repositionQuizOverlay — they're
-// viewport-fixed elements sitting over content whose scroll position
-// keeps changing.
+// Keep the highlighter glued to the right screen position as the user
+// scrolls, same reasoning as repositionQuizOverlay — it's a
+// viewport-fixed element sitting over content whose scroll position
+// keeps changing. Repositioning from a scroll event is itself a "jump"
+// (the highlighter shouldn't visibly slide during someone else's
+// scroll), so this always uses the instant path.
 let lastPointerWorldTarget = null; // { x, y, w, h } of whatever is currently pointed at, or null
 function repositionPointerOverlay(){
   if(!lastPointerWorldTarget) return;
   const t = lastPointerWorldTarget;
-  movePointerToWorld(t.x + (t.w||0)/2, t.y + (t.h||0)/2, { keepHighlight:true });
-  if(t.w && t.h) showHighlightAtWorld(t.x, t.y, t.w, t.h);
+  showHighlightAtWorld(t.x, t.y, t.w||0, t.h||0, true);
 }
 
 // Scrolls (if needed) so a world-y is comfortably visible, then resolves.
@@ -4774,15 +4779,27 @@ function scrollToWorldYIfNeeded(wy, onDone){
 
 // Point at an arbitrary world-space region (a diagram element, an
 // equation, a whole sentence's bounding box, etc). Scrolls it into view
-// first if necessary, then shows the pointer + highlight on it.
+// first if necessary, then glides the highlighter onto it — unless a
+// scroll was needed to reveal it (or this is the first highlight of a
+// fresh sequence), in which case it appears instantly at the new
+// position rather than visibly sweeping there across whatever sits
+// between the old and new spot (see CSS .jumping notes).
 function pointToRegion(wx, wy, ww, wh){
   const myToken = ++pointerToken;
+  const hadPriorTarget = !!lastPointerWorldTarget;
   lastPointerWorldTarget = { x:wx, y:wy, w:ww||0, h:wh||0 };
+  let calledSynchronously = true;
   scrollToWorldYIfNeeded(wy + (wh||0)/2, ()=>{
     if(myToken !== pointerToken) return;
-    movePointerToWorld(wx + (ww||0)/2, wy + (wh||0)/2, { keepHighlight:true });
-    if(ww && wh) showHighlightAtWorld(wx, wy, ww, wh);
+    // If this callback runs asynchronously (a scroll animation actually
+    // played), calledSynchronously is already false by the time it
+    // fires, since the assignment below it executes immediately after
+    // the call returns — so "did a scroll happen" is just "was onDone
+    // deferred past that point", with no extra state needed.
+    const isJump = !calledSynchronously || !hadPriorTarget;
+    if(ww && wh) showHighlightAtWorld(wx, wy, ww, wh, isJump);
   });
+  calledSynchronously = false;
 }
 
 // Point at a specific already-written word by text lookup (see
@@ -4839,6 +4856,44 @@ function returnToCurrentWritingPosition(){
   panCameraToCursor(lastAutoFollowTargetY, null);
 }
 
+// Drives the AI's "pointTo" turn field: an ordered list of words already
+// on the board that the tutor wants to highlight in sequence while this
+// turn's speech plays, then automatically return to the current writing
+// position — e.g. re-explaining a formula or term from earlier without
+// re-drawing it. Paced proportionally across the estimated speech
+// duration (there's no reliable word-level timestamp from either the
+// browser's speechSynthesis or the Cloudflare TTS path, so exact
+// phoneme-sync isn't available — evenly spacing the highlights across
+// the same duration estimate used elsewhere for pacing is what actually
+// keeps them visually in step with the narration without overclaiming
+// precision the audio pipeline can't provide).
+let pointToSequenceToken = 0;
+function runPointToSequence(pointTo, speechMs){
+  const myToken = ++pointToSequenceToken;
+  if(!Array.isArray(pointTo) || !pointTo.length) return;
+  const resolved = pointTo
+    .map(p => findWordOnBoard(p && p.word, p && p.occurrence))
+    .filter(Boolean);
+  if(!resolved.length) return; // none of the requested words are actually on the board — nothing to do
+  // Leave a little headroom at the very start/end so the first highlight
+  // doesn't flash before the student has even started listening and the
+  // last one doesn't linger oddly past the end of speech.
+  const perStepMs = Math.max(500, Math.min(2400, (speechMs || resolved.length*900) / resolved.length));
+  let i = 0;
+  function step(){
+    if(myToken !== pointToSequenceToken) return; // a newer turn/pointTo call superseded this one
+    if(i >= resolved.length){
+      returnToCurrentWritingPosition();
+      return;
+    }
+    const w = resolved[i];
+    pointToRegion(w.x, w.y, w.w, w.h);
+    i++;
+    setTimeout(step, perStepMs);
+  }
+  step();
+}
+
 function addQuizCard(quiz){
   dismissQuizCard();
   const overlayLayer = document.getElementById('board-quiz-overlay');
@@ -4890,10 +4945,13 @@ You must respond with ONLY a JSON object (no markdown fences, no prose outside t
   "speech": "the spoken explanation, natural spoken lecture language for text-to-speech (spell out symbols, e.g. 'delta' not the character)",
   "board": [ ...array of drawing command objects... ],
   "quiz": null OR { "question":"...", "options":["...","...","...","..."], "correctIndex":0, "explanation":"..." },
-  "needsLookup": null OR "a short, specific search query"
+  "needsLookup": null OR "a short, specific search query",
+  "pointTo": null OR [ {"word":"...", "occurrence":1}, ... ]
 }
 
 WEB LOOKUP (use sparingly): set "needsLookup" ONLY when the next thing you need to teach depends on a current fact, statistic, date, or detail you are not confident you know precisely (e.g. "current US federal funds rate", "population of Lagos 2025"). When you set it, keep "board" and "speech" minimal (a brief natural "let me check that" line, no board content) — you will be given the lookup result and asked to continue for real on the next turn. Do NOT set "needsLookup" for ordinary concepts, definitions, or anything textbook-stable — that costs an extra round trip, so only spend it when accuracy genuinely requires fresh info. Leave it null almost all the time.
+
+POINTING BACK AT EARLIER CONTENT ("pointTo"): use this when explaining something you (or an earlier turn) already wrote on the board, rather than writing it again — e.g. the student asks "what does inflation mean again" and the word "inflation" is already up there, or you want to walk through a formula/diagram you drew a moment ago by calling out its parts one at a time. Set "pointTo" to an ordered list of the exact words to highlight, in the order you want them highlighted as "speech" plays — e.g. explaining the equation "P = MC" you might set "pointTo":[{"word":"P"},{"word":"MC"}] while "speech" walks through what each stands for in that order. Each entry's "word" must be copied EXACTLY (same spelling/case) from text you already wrote earlier via a "text" or "diagramLabel" board command in this session — pointTo can only highlight something already on the board, never something new. If the same word appears more than once on the board and you mean a specific occurrence (e.g. the second time "equilibrium" was written), add "occurrence":2 (1-based, defaults to 1 = the first match). Leave "pointTo" null for an ordinary new-content turn — only use it when you are specifically directing attention back to something already drawn. Do not also rewrite that content in "board" in the same turn; pointTo is for referring back, not for redrawing. After the pointTo sequence finishes, the view automatically returns to wherever you're currently writing — you don't need to handle that yourself.
 
 ALL TEXT, HEADINGS, EQUATIONS, AND EXPLANATIONS ON THE BOARD ARE RENDERED IN REALISTIC HANDWRITING.
 
@@ -5149,9 +5207,11 @@ Respond with ONLY a JSON object (no markdown fences, no outside prose):
   "speech": "spoken explanation, natural TTS language (spell out symbols e.g. 'delta' not the character)",
   "board": [ ...drawing command objects... ],
   "quiz": null OR { "question":"...", "options":["...","...","...","..."], "correctIndex":0, "explanation":"..." },
-  "needsLookup": null OR "a short search query"
+  "needsLookup": null OR "a short search query",
+  "pointTo": null OR [ {"word":"...", "occurrence":1}, ... ]
 }
 Set "needsLookup" ONLY when you need a current fact/stat/date you're unsure of; keep board/speech minimal that turn. Leave null almost always.
+Set "pointTo" ONLY when referring back to a word already written on the board earlier (not new content this turn) — an ordered list of exact words (copied exactly as written) to highlight in sequence while "speech" plays, e.g. re-explaining something the student asked about again. Add "occurrence":2 if you mean the 2nd time that word appears. Leave null for ordinary turns; never redraw the same content in "board" when using pointTo.
 
 LAYOUT: For a diagram (path/curve/circle/rect/line/arrow/halo/highlight), use a small self-contained local coordinate box near (0,0) (e.g. x:0-300,y:0-300) — the app auto-places the whole block on the page. Emit ALL of one diagram's shapes as one unbroken run in "board" (heading text before, then all shapes+labels together, then resume normal text after). Any text labeling a diagram PART must have "diagramLabel":true with local coords so it moves with the diagram.
 
@@ -5423,6 +5483,13 @@ async function runTeachingTurn(userMessage, displayText, imageAttachment){
   const finalSpeech = result.quiz ? result.speech : ensureEngagementCheckin(result.speech);
   if(finalSpeech){ addTranscriptMsg('tutor', finalSpeech); speak(finalSpeech); }
   if(result.quiz) addQuizCard(result.quiz);
+  // "pointTo" refers back to words already on the board (see prompt) —
+  // run it after any new board content this turn so a freshly-written
+  // word is actually findable, timed against this turn's own speech so
+  // the highlight sequence tracks roughly with the narration.
+  if(result.pointTo && result.pointTo.length){
+    runPointToSequence(result.pointTo, speechMs);
+  }
   autoSaveSession();
 }
 
