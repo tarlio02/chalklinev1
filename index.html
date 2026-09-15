@@ -4405,6 +4405,7 @@ async function fetchCloudflareVoice(text){
         const errJson = await resp.json();
         if(errJson.azureError) detail += `\n\nAzure error: ${JSON.stringify(errJson.azureError)}`;
         if(errJson.error && errJson.error.message) detail += `\n\n${errJson.error.message}`;
+        if(errJson.debug) detail += `\n\nDEBUG: ${JSON.stringify(errJson.debug)}`;
       } catch(e){
         try{ const errText = await resp.text(); if(errText) detail += ' — ' + errText.slice(0,300); } catch(e2){}
       }
