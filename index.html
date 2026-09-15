@@ -4375,13 +4375,13 @@ function setVoiceStatus(mode, detail){
   chip.style.cursor = 'pointer';
   chip._voiceDetail = detail || '';
   chip.onclick = () => { if(chip._voiceDetail) alert(chip._voiceDetail); };
-  if(mode === 'elevenlabs'){
-    chip.textContent = '🔊 ElevenLabs voice';
+  if(mode === 'azure'){
+    chip.textContent = '🔊 Azure voice';
     chip.style.color = '#1E7B4D';
   } else if(mode === 'fallback'){
     chip.textContent = '🔊 Browser voice (fallback) — tap for details';
     chip.style.color = '#B8860B';
-    if(!chip._voiceDetail) chip._voiceDetail = 'ElevenLabs voice unavailable (no further detail).';
+    if(!chip._voiceDetail) chip._voiceDetail = 'Azure voice unavailable (no further detail).';
   } else if(mode === 'error'){
     chip.textContent = '🔇 Voice error — tap for details';
     chip.style.color = '#C0392B';
@@ -4394,21 +4394,21 @@ async function fetchCloudflareVoice(text){
     return null;
   }
   try{
-    const resp = await fetch(`${PROXY_URL}/tts`, {
+    const resp = await fetch(`${PROXY_URL}/azure-tts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, lang: 'en' })
+      body: JSON.stringify({ text, voice: 'en-US-AriaNeural' })
     });
     if(!resp.ok){
       let detail = `HTTP ${resp.status}`;
       try{
         const errJson = await resp.json();
-        if(errJson.elevenLabsError) detail += `\n\nElevenLabs error: ${JSON.stringify(errJson.elevenLabsError)}`;
+        if(errJson.azureError) detail += `\n\nAzure error: ${JSON.stringify(errJson.azureError)}`;
         if(errJson.error && errJson.error.message) detail += `\n\n${errJson.error.message}`;
       } catch(e){
         try{ const errText = await resp.text(); if(errText) detail += ' — ' + errText.slice(0,300); } catch(e2){}
       }
-      console.warn('ElevenLabs voice request failed:', detail);
+      console.warn('Azure voice request failed:', detail);
       setVoiceStatus('fallback', detail);
       return null;
     }
@@ -4417,7 +4417,7 @@ async function fetchCloudflareVoice(text){
       setVoiceStatus('fallback', 'empty audio response');
       return null;
     }
-    setVoiceStatus('elevenlabs');
+    setVoiceStatus('azure');
     return URL.createObjectURL(blob);
   } catch(e){
     console.warn('AI voice request failed, falling back to browser voice:', e);
@@ -4486,7 +4486,7 @@ function speak(text){
       ttsAudioEl.onerror = () => {
         URL.revokeObjectURL(audioUrl);
         if(myToken === currentSpeechToken){
-          setVoiceStatus('fallback', 'Audio element failed to decode/play the ElevenLabs response.');
+          setVoiceStatus('fallback', 'Audio element failed to decode/play the Azure response.');
           speakChunkBrowser(i);
         }
       };
