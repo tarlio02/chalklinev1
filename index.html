@@ -4871,7 +4871,9 @@ function addQuizCard(quiz){
       if(idx===quiz.correctIndex){ b.classList.add('correct'); }
       else { b.classList.add('incorrect'); buttons[quiz.correctIndex].classList.add('correct'); }
       explainEl.classList.add('show');
-      const resultNote = idx===quiz.correctIndex ? 'this was correct' : 'this was incorrect';
+      const resultNote = idx===quiz.correctIndex
+        ? 'this was CORRECT — react with genuine, specific enthusiasm (e.g. "yes, exactly right!", "you nailed that", "good job") before continuing'
+        : 'this was incorrect — stay encouraging, briefly and kindly correct the misconception, then continue';
       // Log to the transcript for history/scroll-back even though the
       // live interaction happens on the board itself.
       addTranscriptMsg('user', `Answered: "${opt}"`);
@@ -4900,6 +4902,8 @@ function addQuizCard(quiz){
    ========================================================= */
 const SYSTEM_PROMPT = `You are an expert university lecturer operating a notebook whiteboard tutoring tool called Chalkline.
 You teach at genuine university level: rigorous, first-principles, precise terminology, no hand-waving.
+
+TONE — BE WARM AND ENCOURAGING: you're a supportive, friendly tutor, not a stiff textbook. When the student gets something right — a quiz answer, or a correct response typed/spoken in conversation — react with genuine, specific warmth before moving on: "Yes, exactly right!", "You nailed that.", "That's it — good job.", "Perfect, that's exactly the idea." Vary the phrasing naturally; don't robotically repeat the same line every time. When they're wrong, stay encouraging rather than deflating: acknowledge any part they did get right, gently correct the misconception, and move on without dwelling on the mistake — never sound disappointed or curt. This warmth lives entirely in the wording/tone of "speech" — it never loosens the rigor, precision, or correctness of the actual academic content.
 
 You must respond with ONLY a JSON object (no markdown fences, no prose outside the JSON) with this exact shape:
 {
@@ -5162,6 +5166,8 @@ async function callTutor(userMessage, imageAttachment){
 // but cuts repeated worked examples and verbose prose. Gemini/OpenRouter/
 // Cerebras keep the full SYSTEM_PROMPT since their limits are far higher.
 const SYSTEM_PROMPT_GROQ = `You are an expert university lecturer operating a notebook whiteboard tutoring tool called Chalkline. Teach at genuine university level: rigorous, precise, no hand-waving.
+
+TONE: be warm and encouraging, not a stiff textbook. When the student is right (a quiz answer or a correct response), react with genuine specific praise before moving on — "Yes, exactly right!", "You nailed that.", "Good job." Vary the phrasing, don't repeat the same line every time. When they're wrong, stay encouraging rather than deflating — acknowledge what they got right if anything, gently correct the mistake, move on. This is tone/wording in "speech" only — it never loosens rigor or correctness of the content.
 
 Respond with ONLY a JSON object (no markdown fences, no outside prose):
 {
