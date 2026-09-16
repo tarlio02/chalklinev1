@@ -4723,6 +4723,11 @@ function repositionPointerOverlay(){
 // smaller/faster tween than the writing auto-follow one, since it's a
 // deliberate jump-to-reference rather than a continuous following motion.
 function scrollToWorldYIfNeeded(wy, onDone){
+  // Auto-scroll should only happen while the AI is actively writing/
+  // drawing something new — pointing at or narrating already-written
+  // content (the case this function is used for) shouldn't yank the
+  // viewport around by itself while the AI is just talking.
+  if(!drawing){ if(onDone) onDone(); return; }
   const viewportY = worldYToViewportY(wy);
   const margin = PAGE_TOP_GUTTER_PX + 40;
   const bottomLimit = viewH - PAGE_BOTTOM_GUTTER_PX - 40;
