@@ -2618,14 +2618,15 @@ function getMaxYWorld(){
 // AUTO-FOLLOW VIA REAL CAMERA PANNING
 // ---------------------------------------------------------------------
 // The tutor auto-follows its current writing position by animating
-// camera.y (and redrawing the fixed-size canvas every frame), and the
-// user can grab manual pan control at any time — dragging/wheeling the
-// board directly moves camera.y — after which auto-follow pauses for a
-// rolling 2-second window and then resumes on its own.
+// camera.y (and redrawing the fixed-size canvas every frame). The user
+// can grab manual pan control at any time — dragging/wheeling the board
+// directly moves camera.y — and once they do, auto-follow stays off
+// indefinitely; there's no timer that silently snaps the camera back.
+// The only thing that re-engages auto-follow is the tutor actually
+// writing something new (see runTeachingTurn/enqueue paths below,
+// which explicitly clear isUserScrolling when a fresh turn starts).
 let panToken = 0; // cancels any in-flight camera animation
-const MANUAL_SCROLL_RESUME_MS = 2000;
-let manualScrollResumeAt = 0;      // performance.now() timestamp when auto-follow may resume
-let isUserScrolling = false;       // true only while a manual gesture is actively in progress
+let isUserScrolling = false; // true from the user's first manual pan until the next AI-writing turn
 
 // setCameraYProgrammatically is how every non-user-driven code path
 // moves the camera (auto-follow animation, reset, session restore). It
@@ -2636,26 +2637,8 @@ function setCameraYProgrammatically(v){
 }
 function noteManualScrollActivity(){
   isUserScrolling = true;
-  manualScrollResumeAt = performance.now() + MANUAL_SCROLL_RESUME_MS;
   panToken++; // cancel any in-flight auto-follow animation immediately — never fight the user's drag
   clampScrollLimits();
-  scheduleResumeCheck();
-}
-
-let resumeCheckTimer = null;
-function scheduleResumeCheck(){
-  if(resumeCheckTimer) clearTimeout(resumeCheckTimer);
-  const wait = Math.max(50, manualScrollResumeAt - performance.now());
-  resumeCheckTimer = setTimeout(()=>{
-    if(performance.now() >= manualScrollResumeAt){
-      isUserScrolling = false;
-      // Resume following wherever the pen currently is, if writing is
-      // still in progress or the pen ended up off-screen while paused.
-      followCurrentWritingPosition();
-    } else {
-      scheduleResumeCheck();
-    }
-  }, wait);
 }
 
 // CAMERA LIMITS: never above the top of page 1 (camera.y can't go
@@ -2764,15 +2747,7 @@ function panCameraToCursor(targetY, onDone){
   animateScrollTo(targetCameraY, 900, onDone);
 }
 
-// Re-follow whatever the tutor is currently doing: if actively writing,
-// panCameraToCursor already gets called per-batch and per-command, so
-// this just re-centers on the most recent target immediately on resume
-// rather than waiting for the next queued command.
 let lastAutoFollowTargetY = TOP_MARGIN;
-function followCurrentWritingPosition(){
-  if(isUserScrolling) return;
-  panCameraToCursor(lastAutoFollowTargetY, null);
-}
 
 function resizeCanvas(){
   const rect = boardWrap.getBoundingClientRect();
@@ -3742,6 +3717,12 @@ const DIAGRAM_LEFT = 160;
 const DIAGRAM_BBOX_PAD = 18;
 
 function enqueueCommandsAtCursor(commands){
+    // The AI is actively writing a new batch of content — this is the
+    // one and only place auto-follow re-engages after a manual pan.
+    // There's no timer: the camera stays wherever the user left it,
+    // for as long as they like, until the tutor actually writes again.
+    isUserScrolling = false;
+
     let placedAll = [];
     const testCanvas = document.createElement('canvas');
     const tCtx = testCanvas.getContext('2d');
@@ -3892,11 +3873,7 @@ function enqueueCommandsAtCursor(commands){
 
     redrawAll();
 
-    if(!isUserScrolling){
-        panCameraToCursor(panTargetY, () => enqueueCommands(placedAll));
-    } else {
-        enqueueCommands(placedAll);
-    }
+    panCameraToCursor(panTargetY, () => enqueueCommands(placedAll));
 }
 
 function enqueueCommands(commands){
