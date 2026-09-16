@@ -1467,7 +1467,6 @@ body{
      "none" hands the whole gesture to our own handlers. */
   touch-action: none;
 }
-#board.hoverable{cursor:pointer;}
 
 /* Pointer used for "point to the exact word/symbol currently being
    explained" (see runTeachingTurn's use of pointToWord/pointToRegion).
@@ -3464,47 +3463,8 @@ function plotScalers(ox, oy, w, h, cmd){
    changes automatically and canvas scale is preserved; there is no
    camera scale left to pinch. */
 
-/* ---------- HOVER-TO-REPLAY ---------- */
-const hoverAnim = { cmd:null, raf:null };
-
-function stopHoverReplay(){
-  if(hoverAnim.raf) cancelAnimationFrame(hoverAnim.raf);
-  hoverAnim.raf = null;
-  if(hoverAnim.cmd){ hoverAnim.cmd = null; redrawAll(); }
-}
-
-function startHoverReplay(cmd){
-  if(hoverAnim.cmd === cmd) return;
-  if(hoverAnim.raf) cancelAnimationFrame(hoverAnim.raf);
-  hoverAnim.cmd = cmd;
-  const duration = estimateDuration(cmd);
-  const start = performance.now();
-  function frame(now){
-    if(hoverAnim.cmd !== cmd) return;
-    const t = Math.min(1, (now-start)/duration);
-    redrawAllExcept(cmd);
-    renderPartialCommand(cmd, t);
-    if(t < 1){ hoverAnim.raf = requestAnimationFrame(frame); }
-    else { hoverAnim.raf = null; redrawAll(); }
-  }
-  hoverAnim.raf = requestAnimationFrame(frame);
-}
-
-canvas.addEventListener('mousemove', (e)=>{
-  if(drawing) return;
-  const rect = canvas.getBoundingClientRect();
-  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
-  let hit = null;
-  for(let i = drawnCommands.length - 1; i >= 0; i--){
-    const cmd = drawnCommands[i];
-    if(cmd.type === 'highlight' || cmd.type === 'halo') continue;
-    const [x0,y0,x1,y1] = commandScreenBBox(cmd);
-    if(mx>=x0 && mx<=x1 && my>=y0 && my<=y1){ hit = cmd; break; }
-  }
-  canvas.classList.toggle('hoverable', !!hit);
-  if(hit) startHoverReplay(hit); else stopHoverReplay();
-});
-canvas.addEventListener('mouseleave', stopHoverReplay);
+// Hover-to-replay has been removed: hovering over written content no
+// longer triggers any redraw or animation.
 // Manual panning (wheel, touch-drag, mouse-drag) is handled by the
 // pointerdown/pointermove/wheel listeners on #board-wrap above, which
 // move camera.y directly. Zoom-by-wheel/pinch is still not implemented —
@@ -3536,7 +3496,6 @@ async function exportBoardAsPDF(){
   if(drawing || drawQueue.length){ setStatus('wait for current drawing to finish'); return; }
 
   setStatus('exporting pdf…');
-  stopHoverReplay();
   const savedCam = { ...camera }, savedW = viewW, savedH = viewH, savedCtx = ctx, savedOffset = exportYOffset;
 
   try{
