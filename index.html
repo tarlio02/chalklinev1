@@ -1447,34 +1447,25 @@ body{
   inset:0;
   z-index: 2;
   /* Must receive pointer events itself (wheel/touch/drag) or none of
-     that input ever reaches it to trigger native scrolling — pointer
-     events are NOT inherited by children needing scroll the way visual
-     properties are. This was left over from the old design, where
-     #board-wrap was just an inert positioning shell and #board (the
-     canvas) handled its own custom pan/zoom via mouse events instead
-     of the wrapper scrolling natively. */
+     that input ever reaches it. There is no native scrolling here at
+     all anymore — the canvas is fixed at viewport size and a real
+     camera (camera.y, see the tutor script) pans through the world by
+     redrawing, so this wrapper is back to being an inert positioning
+     shell; JS reads wheel/touch gestures directly off it instead of
+     letting the browser scroll it. */
   pointer-events: auto;
-  /* This is now a genuine native-scrolling container — the canvas
-     inside it is made much taller than the viewport as content grows
-     (see applyCanvasHeight in the tutor script), and the browser scrolls
-     it natively (finger-drag, wheel, trackpad, scrollbar) exactly like
-     any tall page. There is no custom JS pan/zoom left; this replaces
-     it entirely. */
-  overflow-y: auto;
-  overflow-x: hidden;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior-y: contain; /* stop scroll chaining/rubber-banding past our own top/bottom limits into the page behind it */
+  overflow: hidden;
 }
 #board{
   width:100%;
   display:block;
   cursor:default;
   pointer-events: auto;
-  /* Custom drag-to-pan and pinch-to-zoom gesture handling has been
-     removed, so the browser is now allowed to handle scroll gestures on
-     this element itself (pan-y), instead of us calling
-     preventDefault() on every touch move to do it ourselves. */
-  touch-action: pan-y;
+  /* We handle drag-to-pan ourselves (see manual pan handling in the
+     tutor script) and call preventDefault() on the touch gesture, so
+     the browser must not also try to scroll/pan this element itself —
+     "none" hands the whole gesture to our own handlers. */
+  touch-action: none;
 }
 #board.hoverable{cursor:pointer;}
 
@@ -2495,25 +2486,19 @@ ctx.lineJoin = 'round';
 let viewW = 0, viewH = 0;
 
 // ---------------------------------------------------------------------
-// FIXED WHITEBOARD / NATIVE SCROLL MODEL
+// TRUE CAMERA MODEL
 // ---------------------------------------------------------------------
-// The old model was an "infinite canvas": a single fixed-size <canvas>
-// painted through a camera transform (camera.x/y/scale) that panned and
-// zoomed to follow the pen. That's been removed entirely. The new model:
-//   - The canvas is drawn at a FIXED scale (camera.scale) that is set
-//     once (on load/resize, to fit the page width) and never changes
-//     from panning, pinching, or auto-follow. Zoom-out-to-fit is gone.
-//   - The canvas element itself is made as TALL as the content requires
-//     (canvas.height world-units == current max written y), and the
-//     page uses real, native browser scrolling (#board-wrap scrolls)
-//     to move which part of that tall canvas is visible. There is no
-//     camera.y pan anymore — "where we're looking" is just scrollTop.
-//   - camera.x stays as a fixed horizontal anchor (left-gutter position)
-//     exactly as before, since horizontal position never needs to move.
-// `camera` is kept as an object (rather than separate variables) purely
-// so every existing worldToScreen/sw() call site below keeps working
-// unmodified — only camera.y's *meaning* has changed (see worldToScreen).
-const camera = { x: 500, scale: 1 };
+// The canvas element is a FIXED size, always exactly the viewport's
+// size — it never grows tall with content the way an <img> would. What
+// the user sees is controlled entirely by `camera`: x/scale for
+// horizontal centering and zoom (as before), and now a real `camera.y`
+// again — the world-y coordinate that sits at the very top of the
+// viewport. Moving the camera means changing camera.y and redrawing the
+// (still viewport-sized) canvas from scratch; there is no native
+// scrolling of a tall element involved anywhere. camera.scale is still
+// set once per resize/session (fit-to-width, capped) and never changes
+// from panning/auto-follow/manual drag — only camera.y moves.
+const camera = { x: 500, y: 0, scale: 1 };
 
 // The board is a fixed-width "page" (PAGE_W world units) that used to
 // always sit horizontally centered on screen. That's fine on a narrow
@@ -2568,11 +2553,6 @@ function measureLayoutInsets(){
 
 function idealCameraX(scale){ return (viewW/2 - PAGE_LEFT_GUTTER_PX) / scale; }
 
-// idealCameraY / minCameraY / clampCameraToTop are gone along with camera
-// panning — there is no camera.y to clamp anymore. The equivalent "never
-// scroll above the top of page 1" guarantee is now just scrollTop >= 0,
-// which the browser already enforces natively (see clampScrollLimits()).
-
 // Kick off loading the handwriting webfonts immediately at page load
 // (rather than waiting for the first canvas draw to implicitly trigger
 // it), so by the time the first AI response comes back over the network
@@ -2624,9 +2604,10 @@ function resetRegionCursors(){
       camera.x = idealCameraX(camera.scale);
   }
   // A brand-new session always starts writing at the literal top-left
-  // of the whiteboard, per spec — jump (not animate) scroll back to 0.
-  applyCanvasHeight();
-  setScrollTopProgrammatically(0);
+  // of the whiteboard, per spec — jump (not animate) the camera back to
+  // world-y 0.
+  setCameraYProgrammatically(0);
+  redrawAll();
 }
 
 function getMaxYWorld(){
@@ -2634,40 +2615,29 @@ function getMaxYWorld(){
 }
 
 // ---------------------------------------------------------------------
-// AUTO-FOLLOW VIA NATIVE SCROLL (replaces camera panning entirely)
+// AUTO-FOLLOW VIA REAL CAMERA PANNING
 // ---------------------------------------------------------------------
-// Core rule: the camera/canvas never moves. The PAGE scrolls. The tutor
-// auto-follows its current writing position by animating scrollTop, and
-// the user can grab manual scroll control at any time; auto-follow
-// pauses for a rolling 2-second window after their last scroll input
-// and then resumes on its own.
-let panToken = 0; // still used as a general "cancel in-flight animation" token
+// The tutor auto-follows its current writing position by animating
+// camera.y (and redrawing the fixed-size canvas every frame), and the
+// user can grab manual pan control at any time — dragging/wheeling the
+// board directly moves camera.y — after which auto-follow pauses for a
+// rolling 2-second window and then resumes on its own.
+let panToken = 0; // cancels any in-flight camera animation
 const MANUAL_SCROLL_RESUME_MS = 2000;
 let manualScrollResumeAt = 0;      // performance.now() timestamp when auto-follow may resume
 let isUserScrolling = false;       // true only while a manual gesture is actively in progress
 
-// Any real user-initiated scroll (wheel, touch-drag, trackpad, scrollbar
-// drag, keyboard) fires the container's native 'scroll' event — but so
-// does every scrollTop write WE make while animating auto-follow, and
-// that event is dispatched asynchronously (often a tick or more after
-// the assignment), so a simple "set a flag, write scrollTop, clear the
-// flag" guard misses events that land after the flag's already been
-// cleared. Instead: every programmatic write increments
-// pendingProgrammaticScrollEvents first; the scroll handler decrements
-// it and treats the event as our own if the count was positive,
-// ignoring the flag's timing entirely. This is exact rather than
-// timing-dependent, and manual input during a pending count is still
-// counted as manual the moment the count reaches zero again.
-let pendingProgrammaticScrollEvents = 0;
-function setScrollTopProgrammatically(v){
-  pendingProgrammaticScrollEvents++;
-  boardWrap.scrollTop = v;
+// setCameraYProgrammatically is how every non-user-driven code path
+// moves the camera (auto-follow animation, reset, session restore). It
+// never itself counts as "manual" activity — only the direct drag/wheel
+// handlers below call noteManualScrollActivity().
+function setCameraYProgrammatically(v){
+  camera.y = v;
 }
 function noteManualScrollActivity(){
-  if(pendingProgrammaticScrollEvents > 0){ pendingProgrammaticScrollEvents--; return; }
   isUserScrolling = true;
   manualScrollResumeAt = performance.now() + MANUAL_SCROLL_RESUME_MS;
-  panToken++; // cancel any in-flight auto-follow animation immediately — never fight the user's scroll
+  panToken++; // cancel any in-flight auto-follow animation immediately — never fight the user's drag
   clampScrollLimits();
   scheduleResumeCheck();
 }
@@ -2688,24 +2658,20 @@ function scheduleResumeCheck(){
   }, wait);
 }
 
-boardWrap.addEventListener('scroll', ()=>{ noteManualScrollActivity(); repositionQuizOverlay(); repositionPointerOverlay(); }, {passive:true});
-
-// SCROLL LIMITS: never above the top of page 1; never far below the
-// latest written content. Native overflow already prevents scrolling
-// past [0, scrollHeight-clientHeight], and applyCanvasHeight() keeps
-// scrollHeight tracking content growth, so this just guards against the
-// rare case scrollTop drifts negative (elastic overscroll on some
-// browsers) by re-clamping explicitly.
+// CAMERA LIMITS: never above the top of page 1 (camera.y can't go
+// negative); never further below the latest written content than one
+// viewport's worth of empty space.
 function clampScrollLimits(){
-  if(boardWrap.scrollTop < 0) setScrollTopProgrammatically(0);
-  const maxScroll = Math.max(0, boardWrap.scrollHeight - boardWrap.clientHeight);
-  if(boardWrap.scrollTop > maxScroll) setScrollTopProgrammatically(maxScroll);
+  const maxY = Math.max(0, getMaxYWorld() + 400 - viewH/camera.scale);
+  if(camera.y < 0) setCameraYProgrammatically(0);
+  if(camera.y > maxY) setCameraYProgrammatically(maxY);
+  redrawAll();
 }
 
-function animateScrollTo(targetScrollTop, duration, onDone){
+function animateScrollTo(targetCameraY, duration, onDone){
   const myToken = ++panToken;
-  const startTop = boardWrap.scrollTop;
-  const dy = targetScrollTop - startTop;
+  const startY = camera.y;
+  const dy = targetCameraY - startY;
   const start = performance.now();
   let finished = false;
   function finish(){ if(!finished){ finished = true; if(onDone) onDone(); } }
@@ -2714,24 +2680,88 @@ function animateScrollTo(targetScrollTop, duration, onDone){
     if(myToken !== panToken || isUserScrolling){ finish(); return; }
     const raw = Math.min(1, (now-start)/duration);
     const t = ease(raw);
-    setScrollTopProgrammatically(startTop + dy*t);
+    setCameraYProgrammatically(startY + dy*t);
+    redrawAll();
     if(raw < 1) requestAnimationFrame(frame);
     else {
-      setScrollTopProgrammatically(targetScrollTop);
+      setCameraYProgrammatically(targetCameraY);
+      redrawAll();
       finish();
     }
   }
   requestAnimationFrame(frame);
 }
 
+// ---------------------------------------------------------------------
+// MANUAL PANNING (drag / wheel / trackpad) — replaces native scrolling
+// ---------------------------------------------------------------------
+// #board-wrap no longer scrolls natively (see CSS: overflow:hidden), so
+// these are the only source of user-driven vertical movement. Both
+// paths just adjust camera.y directly and redraw; noteManualScrollActivity()
+// marks the gesture as manual so auto-follow steps aside for it.
+let dragPan = null; // { pointerId, lastY } while a touch/mouse drag is active
+
+boardWrap.addEventListener('pointerdown', (e)=>{
+  if(drawing && drawQueue.length){ /* still allow grabbing control mid-write */ }
+  dragPan = { pointerId: e.pointerId, lastY: e.clientY };
+  try{ boardWrap.setPointerCapture(e.pointerId); }catch(err){}
+});
+boardWrap.addEventListener('pointermove', (e)=>{
+  if(!dragPan || e.pointerId !== dragPan.pointerId) return;
+  const dy = e.clientY - dragPan.lastY;
+  dragPan.lastY = e.clientY;
+  if(dy === 0) return;
+  noteManualScrollActivity();
+  setCameraYProgrammatically(camera.y - dy / camera.scale);
+  clampScrollLimits();
+  repositionQuizOverlay();
+  repositionPointerOverlay();
+});
+function endDragPan(e){
+  if(!dragPan || (e && e.pointerId !== dragPan.pointerId)) return;
+  dragPan = null;
+}
+boardWrap.addEventListener('pointerup', endDragPan);
+boardWrap.addEventListener('pointercancel', endDragPan);
+boardWrap.addEventListener('pointerleave', endDragPan);
+
+boardWrap.addEventListener('wheel', (e)=>{
+  e.preventDefault();
+  noteManualScrollActivity();
+  setCameraYProgrammatically(camera.y + e.deltaY / camera.scale);
+  clampScrollLimits();
+  repositionQuizOverlay();
+  repositionPointerOverlay();
+}, {passive:false});
+
 // Auto-follow entry point: scroll so that world-y `targetY` sits at a
 // comfortable position in the viewport (used both for "keep up with the
 // pen while writing" and for "resume following after the 2s pause").
 // Never touches camera.scale/camera.x — no zooming, ever.
+//
+// PAGE-THEN-FOLLOW MODEL: the camera does nothing at all while the pen is
+// still somewhere on the first page (world-y <= PAGE_H) — the page just
+// fills up in place, exactly like watching someone write on a static
+// sheet of paper, with no scrolling motion to distract from that. Once
+// the writing crosses onto the second page, auto-follow switches on and
+// keeps `targetY` vertically CENTERED in the viewport from then on
+// (rather than pinned near the bottom, which is what happens today) —
+// that's what makes it read as "the camera follows the pen" rather than
+// "the page grows to reveal more room below the pen".
 function panCameraToCursor(targetY, onDone){
   if(isUserScrolling){ if(onDone) onDone(); return; }
-  const targetScrollTop = Math.max(0, targetY * camera.scale - (viewH - PAGE_BOTTOM_GUTTER_PX));
-  animateScrollTo(targetScrollTop, 900, onDone);
+
+  if(targetY <= PAGE_H){
+    // Still on the first page: never move the camera. Let the page fill
+    // up statically at camera.y 0 — no auto-follow yet.
+    if(onDone) onDone();
+    return;
+  }
+
+  // Past the first page: keep the pen vertically centered in the
+  // viewport as it writes, rather than anchored near the bottom.
+  const targetCameraY = Math.max(0, targetY - (viewH/2)/camera.scale);
+  animateScrollTo(targetCameraY, 900, onDone);
 }
 
 // Re-follow whatever the tutor is currently doing: if actively writing,
@@ -2742,20 +2772,6 @@ let lastAutoFollowTargetY = TOP_MARGIN;
 function followCurrentWritingPosition(){
   if(isUserScrolling) return;
   panCameraToCursor(lastAutoFollowTargetY, null);
-}
-
-// The canvas element is now sized to the FULL page content height (in
-// device pixels), not just the viewport — #board-wrap is a normal
-// scrolling container (overflow-y:auto) and the browser scrolls the tall
-// canvas within it, exactly like scrolling a tall image or a long
-// notebook page. viewH below still means "viewport height" (how much of
-// the tall canvas is visible at once) since several existing layout
-// calculations (bottom-dock clearance, etc.) need that, not the full
-// canvas height.
-function currentContentHeightWorld(){
-  // At least one viewport-height tall so there's always something to
-  // scroll within on a fresh/empty board, growing as content is added.
-  return Math.max(getMaxYWorld() + 400, (viewH || 600) / (camera.scale || 1));
 }
 
 function resizeCanvas(){
@@ -2780,30 +2796,26 @@ function resizeCanvas(){
   }
 
   applyCanvasHeight();
-  redrawAll();
-  clampScrollLimits();
+  clampScrollLimits(); // also redraws
   repositionQuizOverlay();
   repositionPointerOverlay();
 }
 window.addEventListener('resize', resizeCanvas);
 
-// Grows the canvas element (and its backing pixel buffer) to match
-// however much has been written so far, and never shrinks below the
-// viewport height. Called after every batch of new content and on
-// resize. This — not camera panning — is what makes "the page a large
-// notebook that extends vertically": the DOM element is genuinely that
-// tall, and the browser's own scrollbar/scroll physics take it from there.
-let lastAppliedCanvasHeightPx = 0;
+// Sizes the canvas element (and its backing pixel buffer) to exactly the
+// viewport — it never grows with content anymore, since the camera
+// (camera.y) is what moves through the content now, not a native
+// scrollbar over a tall element. Called on load and resize.
+let lastAppliedCanvasWpx = 0, lastAppliedCanvasHpx = 0;
 function applyCanvasHeight(){
   const dpr = window.devicePixelRatio || 1;
-  const heightWorld = currentContentHeightWorld();
-  const heightPx = Math.ceil(heightWorld * camera.scale);
-  if (Math.abs(heightPx - lastAppliedCanvasHeightPx) < 2 && canvas.width === Math.round(viewW*dpr)) return;
-  lastAppliedCanvasHeightPx = heightPx;
-  canvas.width = Math.round(viewW * dpr);
-  canvas.height = Math.round(heightPx * dpr);
+  const wPx = Math.round(viewW * dpr), hPx = Math.round(viewH * dpr);
+  if (wPx === lastAppliedCanvasWpx && hPx === lastAppliedCanvasHpx) return;
+  lastAppliedCanvasWpx = wPx; lastAppliedCanvasHpx = hPx;
+  canvas.width = wPx;
+  canvas.height = hPx;
   canvas.style.width = viewW + 'px';
-  canvas.style.height = heightPx + 'px';
+  canvas.style.height = viewH + 'px';
   ctx.setTransform(dpr,0,0,dpr,0,0);
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
@@ -2869,35 +2881,32 @@ if ('ResizeObserver' in window) {
   if (bottomDockEl) dockResizeObserver.observe(bottomDockEl);
 }
 
-// worldToScreen/screenToWorld now describe position WITHIN THE CANVAS
-// ELEMENT ITSELF (which is what every renderCommand()/hit-test call site
-// actually needs — the canvas 2D context's own coordinate space), not
-// position within the visible viewport. Since the canvas no longer pans,
-// this is a simple fixed scale+offset with no vertical camera term at
-// all: world-y 0 always sits at the same pixel inside the (now very
-// tall) canvas element; scrolling the container is what changes which
-// slice of that canvas the user currently sees, exactly like scrolling
-// a tall <img>. Horizontal centering still uses the fixed camera.x
-// anchor from resizeCanvas(), same as before.
-// worldToScreen no longer has a y-panning term (see camera model notes),
-// so PDF export — which needs to render successive vertical "pages" of
-// world content into a fixed-size offscreen canvas — uses this explicit
-// offset instead of repurposing camera.y. It's 0 during normal on-screen
+// worldToScreen/screenToWorld convert between world coordinates and the
+// canvas's own pixel space, which — since the canvas is exactly
+// viewport-sized and camera.y now genuinely pans through the world — IS
+// the visible viewport. Horizontal centering still uses the fixed
+// camera.x anchor from resizeCanvas(), same as before; vertical
+// position now subtracts camera.y, the real pan offset.
+// PDF export needs to render successive vertical "pages" of world
+// content into a fixed-size offscreen canvas independently of whatever
+// the live camera is doing, so it still uses this separate explicit
+// offset rather than touching camera.y. It's 0 during normal on-screen
 // rendering and only non-zero while exportBoardAsPDF() is mid-render.
 let exportYOffset = 0;
 function worldToScreen(wx, wy){
-  return [(wx - camera.x) * camera.scale + viewW/2, (wy - exportYOffset) * camera.scale];
+  return [(wx - camera.x) * camera.scale + viewW/2, (wy - camera.y - exportYOffset) * camera.scale];
 }
 function screenToWorld(sx, sy){
-  return [(sx - viewW/2) / camera.scale + camera.x, sy / camera.scale];
+  return [(sx - viewW/2) / camera.scale + camera.x, sy / camera.scale + camera.y];
 }
 
-// Convert a world-y into the current VIEWPORT-relative y (i.e. accounting
-// for scroll position) — used by auto-follow/scroll-targeting code, which
-// cares about "where is this on screen right now", unlike worldToScreen
-// above which is scroll-independent canvas-local space.
+// Convert a world-y into the current VIEWPORT-relative y — used by
+// auto-follow/pan-targeting code, which cares about "where is this on
+// screen right now". Since the canvas is the viewport now, this is
+// exactly the y worldToScreen would produce (with exportYOffset excluded,
+// as export never runs concurrently with live viewing).
 function worldYToViewportY(wy){
-  return wy * camera.scale - boardWrap.scrollTop;
+  return (wy - camera.y) * camera.scale;
 }
 
 const INK = '#1E2B3A';
@@ -2921,19 +2930,14 @@ function hexToRgba(hex, alpha){
 let drawnCommands = [];
 
 function drawBG(){
-  // Must cover the FULL canvas element height, not just the viewport —
-  // the canvas is made much taller than the viewport as content grows
-  // (see applyCanvasHeight), and only ever filling the first viewH
-  // pixels left everything below that transparent, letting the page's
-  // own background gradient (body{background:...}) show through as a
-  // wrong-colored band once the user scrolled past one screenful.
-  const dpr = window.devicePixelRatio || 1;
-  const fullHeightCss = canvas.height / dpr; // canvas.height is device px; ctx is already dpr-scaled via setTransform
-  const grad = ctx.createLinearGradient(0, 0, viewW, Math.min(fullHeightCss, viewH * 3));
+  // The canvas is exactly viewport-sized now, so this just fills it —
+  // no need to account for content below the fold the way a tall,
+  // natively-scrolled canvas used to.
+  const grad = ctx.createLinearGradient(0, 0, viewW, viewH);
   grad.addColorStop(0, '#EAF4FD');
   grad.addColorStop(1, '#FFFFFF');
   ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, viewW, fullHeightCss);
+  ctx.fillRect(0, 0, viewW, viewH);
 }
 
 function clearBoard(record=true){
@@ -3526,11 +3530,11 @@ canvas.addEventListener('mousemove', (e)=>{
   if(hit) startHoverReplay(hit); else stopHoverReplay();
 });
 canvas.addEventListener('mouseleave', stopHoverReplay);
-// No custom wheel handler: mouse wheel / trackpad scroll now falls
-// through to #board-wrap's native overflow-y:auto scrolling, same as
-// touch-drag and scrollbar-drag. Zoom-by-wheel/pinch has been removed
-// entirely — scale is fixed per "never automatically zoom, preserve
-// canvas scale" (see resizeCanvas()).
+// Manual panning (wheel, touch-drag, mouse-drag) is handled by the
+// pointerdown/pointermove/wheel listeners on #board-wrap above, which
+// move camera.y directly. Zoom-by-wheel/pinch is still not implemented —
+// scale is fixed per "never automatically zoom, preserve canvas scale"
+// (see resizeCanvas()).
 // Reset-view and Clear-board buttons were removed from the toolbar
 // (they were being covered by the account menu) — clearBoard() itself
 // is still used internally (e.g. resetTutorBoardState on New session).
@@ -3540,7 +3544,7 @@ canvas.addEventListener('mouseleave', stopHoverReplay);
    ========================================================= */
 function worldContentBounds(){
   const savedCam = { ...camera }, savedW = viewW, savedH = viewH, savedOffset = exportYOffset;
-  camera.scale = 1; camera.x = viewW/2; exportYOffset = 0;
+  camera.scale = 1; camera.x = viewW/2; camera.y = 0; exportYOffset = 0;
   let minX=0, minY=0, maxX=PAGE_W, maxY=1;
   drawnCommands.forEach(cmd=>{
     const [x0,y0,x1,y1] = commandScreenBBox(cmd);
@@ -3582,6 +3586,7 @@ async function exportBoardAsPDF(){
       viewW = pxW; viewH = pxH;
       camera.scale = PX_PER_WORLD_UNIT;
       camera.x = minX + pageWorldW/2;
+      camera.y = 0;
       exportYOffset = (minY + i*pageWorldH);
 
       drawBG();
@@ -3885,12 +3890,8 @@ function enqueueCommandsAtCursor(commands){
     if (panTargetY < TOP_MARGIN) panTargetY = TOP_MARGIN;
     lastAutoFollowTargetY = panTargetY;
 
-    // The canvas element must grow to fit the newly-placed content BEFORE
-    // we try to scroll to it — otherwise scrollHeight hasn't caught up
-    // yet and the scroll gets clamped short of where we're aiming.
-    applyCanvasHeight();
     redrawAll();
-    
+
     if(!isUserScrolling){
         panCameraToCursor(panTargetY, () => enqueueCommands(placedAll));
     } else {
@@ -3947,7 +3948,6 @@ function maybeCorrectScrollMidAnimation(anchor){
   if((sy < marginTop || sy > viewH-marginBottom) && (now - lastMidDrawPanAt > 320)){
     lastMidDrawPanAt = now;
     lastAutoFollowTargetY = anchor[1];
-    applyCanvasHeight();
     panCameraToCursor(anchor[1], null);
   }
 }
@@ -5954,13 +5954,18 @@ function loadSession(item){
     uploadZone.classList.add('has-file');
     uploadZone.innerHTML = `<div class="file-name">📄 ${escapeHtml(pdfFileName)}</div><div class="file-meta">restored from saved session</div>`;
   } else { resetUploadZoneUI(); }
-  applyCanvasHeight();
-  redrawAll();
-  // Restored sessions resume scrolled to wherever the pen last was, not
-  // forced back to the top — only a brand-new session (resetRegionCursors)
-  // jumps to y=0.
-  setScrollTopProgrammatically(Math.max(0, globalCursorY * camera.scale - (viewH - PAGE_BOTTOM_GUTTER_PX)));
-  clampScrollLimits();
+  // Restored sessions resume with the camera wherever the pen last was,
+  // not forced back to the top — only a brand-new session
+  // (resetRegionCursors) jumps to camera.y=0. Matches the live
+  // page-then-follow model: if the saved session never made it past
+  // page 1, stay at the top (page 1 is always shown in full); otherwise
+  // resume centered on the pen's last position, same as live auto-follow.
+  lastAutoFollowTargetY = globalCursorY;
+  const resumeCameraY = (globalCursorY <= PAGE_H)
+    ? 0
+    : Math.max(0, globalCursorY - (viewH/2)/camera.scale);
+  setCameraYProgrammatically(resumeCameraY);
+  clampScrollLimits(); // also redraws
   setStatus('session loaded');
   closePanel();
   rememberActiveSession();
