@@ -1659,6 +1659,23 @@ body{
 @media (max-width:600px){
   .exit-lesson-btn{ font-size:9.5px; padding:6px 10px; }
 }
+.ai-engine-select{
+  font-family:'JetBrains Mono', monospace;
+  font-size:11px;
+  font-weight:700;
+  color:var(--ink);
+  background:rgba(255,255,255,0.9);
+  border:1px solid #D3E6F5;
+  border-radius:999px;
+  padding:6px 10px;
+  cursor:pointer;
+  white-space:nowrap;
+  align-self:center;
+}
+.ai-engine-select:hover{ border-color:#2E7DBE; }
+@media (max-width:600px){
+  .ai-engine-select{ font-size:9.5px; padding:5px 8px; }
+}
 
 .btn-label{
   font-family:'JetBrains Mono', monospace;
@@ -2305,6 +2322,10 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
   </button>
   <div class="top-right-cluster">
     <button class="exit-lesson-btn" id="btn-exit-lesson" title="Exit lesson">🚪 Exit Lesson</button>
+    <select class="ai-engine-select" id="btn-ai-engine" title="Choose which AI engine teaches this lesson" onchange="setAiBackend(this.value)">
+      <option value="azure">Azure</option>
+      <option value="gemini">Gemini</option>
+    </select>
     <div class="status-chip" id="voice-status-chip" style="display:none;"></div>
     <div class="status-chip" id="status-line" onclick="showBackendDebug()" style="cursor:pointer;" title="Tap to see AI backend details">idle</div>
   </div>
@@ -4993,6 +5014,20 @@ DRAWING ORGANIC / ANATOMICAL SYSTEMS (airway, digestive tract, blood vessels, an
 - Vary stroke "width" deliberately: thicker (3-3.5) for major outer outlines (lung boundary, trachea walls), thinner (1.5-2) for internal texture (cartilage rings, alveolar clusters, vessel branching), so the diagram has visual hierarchy instead of every line reading the same weight.
 - Never rely on perfect circles/ellipses/rectangles for any of this — every organ and tube wall should come from "path"/"curve" with asymmetric, unevenly-spaced control points, the way a hand-drawn anatomical sketch actually looks. Reserve perfectly regular shapes ("circle","rect","polygon") for the rare cases in a biological diagram where something really is regular (e.g. a schematic alveolus sac can be a small circle cluster) — everything else should be organic.
 
+DRAWING CELLS (plant/animal cell diagrams, and any cross-section made of nested membrane-bound compartments) — a cell diagram built from plain concentric "rect"s and a bare "circle" for the nucleus is the single most common failure mode and reads as a primitive clip-art icon, not a scientific illustration. NEVER draw a cell this way. Instead:
+- THE OUTER BOUNDARY IS NEVER AN AXIS-ALIGNED RECTANGLE. For an animal cell, the whole cell is one closed "path" outline built from several "C"/"Q" segments tracing a soft, slightly lumpy oval/blob — nudge at least 2-3 of the control points off a perfect ellipse so the silhouette is gently irregular, the way a real cell membrane never sits as a geometric shape. For a plant cell, draw the SAME kind of soft irregular blob but flattened toward rectangular proportions with rounded, unevenly-rounded corners (still built from "C"/"Q" segments, never straight "rect" edges or crisp 90° corners) — this is what distinguishes a plant cell's more structured shape from an animal cell's fully organic one without resorting to a literal rectangle.
+- CELL WALL vs PLASMA MEMBRANE ARE TWO INDEPENDENT OUTLINES, NOT ONE SHAPE SCALED DOWN. For a plant cell: draw the cell wall as the outer path (thicker stroke, width 3-3.5, a firm structural color like "ochre" or "ink"), then draw the plasma membrane as its OWN separate "path" just inside it with its own independently-wobbled control points (not the same outline shrunk by a fixed margin) — the gap between wall and membrane should vary slightly around the perimeter, never a perfectly even ring. Give the plasma membrane a thinner stroke (1.5-2) in a different color (e.g. "sky" or "teal") so the two boundaries read as distinct structures at a glance, and add 2-4 short paired short "line" tick-marks straddling a stretch of the membrane (the classic phospholipid-bilayer texture cue) rather than trying to draw individual phospholipids.
+- CYTOPLASM is a low-opacity fill (fillOpacity 0.05-0.08) on the plasma-membrane path itself, in a neutral warm tint (e.g. "ochre" or a very light fill) — this must visually read as a background wash the organelles sit inside, never the same strong fill color/opacity as any organelle.
+- EVERY ORGANELLE GETS ITS OWN OUTLINE SHAPE AND ITS OWN CONSISTENT COLOR — never a bare unfilled circle with a text label floating in it. Use this color mapping every time so the board never looks randomly recolored: nucleus/nuclear envelope = "violet", nucleolus = "violet" filled darker/solid, mitochondria = "brick" or "coral", chloroplasts (plant only) = "sage", central vacuole (plant only) = "teal", rough ER = "sky", Golgi apparatus = "ochre", ribosomes = small solid "ink" dots. Each organelle shape is filled at low-moderate opacity (0.12-0.2) with a slightly darker/saturated stroke of the same color family — never leave an organelle as an outline only, and never fill an organelle the same faint opacity as the cytoplasm wash.
+- NUCLEUS: a "path" ellipse-like blob (not a perfect "circle") with 2-3 control points nudged for asymmetry, drawn as a DOUBLE outline (nuclear envelope = two close concentric "path" traces, not one line) with 1-2 small gaps left in the outer trace (nuclear pores — don't label every one, 2-3 gap marks is enough to read as pored). Inside it, place one smaller filled "circle" or small "path" blob off-center for the nucleolus, plus a handful of short faint squiggly "curve" strokes for chromatin texture. Size it roughly 20-30% of the cell's width — never smaller than any other organelle, and never larger than about a third of the cell.
+- MITOCHONDRIA: a bean/kidney-shaped "path" (an oval with one concave side, built with "C" segments, not a plain oval) with 3-6 short wavy internal "curve" folds (cristae) running across the short axis — draw 2-4 of these scattered around the cytoplasm at consistent small scale relative to the nucleus (each roughly 1/6 to 1/4 the nucleus's width), each independently rotated/angled rather than all lying the same direction, since real mitochondria scatter at random orientations.
+- CENTRAL VACUOLE (plant cells only): one large, irregular "path" blob occupying roughly 40-50% of the cell's interior, pushed toward one side or center per real plant cell anatomy, with a thin single-line membrane (the tonoplast) and a very light fill — this is normally the single largest interior structure in a mature plant cell, so if it is drawn the same size as the nucleus that is a proportion error.
+- CHLOROPLASTS (plant cells only): several (3-6) small lens-shaped "path" ovals scattered near the cell's edge just inside the membrane, each with 3-5 short parallel internal "line" or "curve" strokes (thylakoid stacks) — vary their size and rotation slightly rather than stamping identical copies.
+- ROUGH ER / GOLGI (if included — optional for an introductory diagram, include for a more advanced one): rough ER is a cluster of 3-5 wavy parallel "curve" strokes near the nuclear envelope with a scatter of small "ink" dots along them (ribosomes); Golgi apparatus is 4-6 stacked, gently curved crescent "curve" shapes nested with a small consistent offset between them, like a stack of shallow parentheses.
+- LABELS: leader-arrow every organelle from OUTSIDE the cell boundary per the universal no-overlap rule — never place diagramLabel text inside a small organelle where it would obscure the shading/texture you just drew. Stagger label distances (shorter/longer leader arrows) where several organelles sit close together (e.g. nucleus and a nearby mitochondrion) so leader lines and labels don't cross or collide.
+- DRAW ORDER for the whole cell (one unbroken run): (1) cell wall outline if plant (2) plasma membrane outline + bilayer tick-marks (3) cytoplasm fill (4) central vacuole if plant, since it's large and sits low in the layering (5) each organelle's outline + fill, largest structures (nucleus) before smaller ones (mitochondria, chloroplasts) (6) internal texture strokes on each organelle (cristae, thylakoids, chromatin, nuclear pores) (7) leader arrows (8) diagramLabel text last. This is the same universal layering discipline as every other complex diagram — background/structural shapes first, fine detail and labels last.
+- This is a textbook COMPLEX DIAGRAM MODE subject: budget 30-60+ commands for a properly labeled plant or animal cell (outline + membrane + cytoplasm + 4-8 organelles each with their own texture strokes + labels) rather than the handful of shapes a first attempt might default to.
+
 DRAWING TABLES, LEDGERS/JOURNALS, AND MATRICES (accounting T-accounts, general journal entries, trial balances, game-theory payoff matrices, truth tables, any row/column grid) — these must look like a real, precisely ruled ledger page or textbook table, not text loosely scattered near some lines. Tables are the single most important place to get right, because misaligned or spilling text is far more obviously wrong here than anywhere else on the board. Follow this as a strict, numbered procedure every time — do not skip steps or do them out of order:
 - STEP 1 — NEVER approximate a table with "path"/"curve". Every grid line is a straight "line" command (or the outer border as one "rect"), computed at exact coordinates — this is a precision technical drawing, same mindset as the straight-edged-figures rule below.
 - STEP 2 — LIST THE EXACT CONTENT FIRST, IN YOUR HEAD, BEFORE ANY ARITHMETIC: write out the literal final row list and column list once (e.g. for a balance sheet: rows = Current Assets, Non-current Assets, Total Assets, Current Liabilities, Non-current Liabilities, Total Liabilities, Common Stock, Retained Earnings, Total Liabilities & Equity; columns = Line Item, Amount). This exact list is what steps 3-8 size the grid around — do not add, drop, or reorder anything from it once you start computing coordinates.
@@ -5044,19 +5079,36 @@ const PROXY_URL = "https://api.takundamambudzi02.workers.dev";
 // being sent — only read by callGemini() for that one turn, then cleared.
 let currentTurnImage = null;
 
-// AI backend selection: Azure AI Foundry is now the PRIMARY backend —
-// it's the "main AI brain" the rest of this chain falls back away from.
-// Gemini is the fallback if Foundry fails/is rate-limited, then Groq
-// (whose own instructions, SYSTEM_PROMPT_GROQ below, tell it to stick to
-// simple structured drawing rather than the freeform organic illustrations
-// it tends to botch), then OpenRouter's free tier as the last resort if
-// everything else is down. No manual switching.
-const AI_BACKEND_CHAIN = [
-  { name: 'Azure Foundry', call: () => callAzureFoundry() },
-  { name: 'Gemini', call: () => callGemini() },
-  { name: 'Groq', call: () => callGroq() },
-  { name: 'OpenRouter', call: () => callOpenRouter() }
-];
+// AI backend selection: the student/teacher picks Azure Foundry or Gemini
+// as the PRIMARY engine via the dropdown in the topbar (persisted in
+// localStorage so it sticks across sessions) — see #btn-ai-engine below.
+// Whichever one is picked is tried first; Groq (whose own instructions,
+// SYSTEM_PROMPT_GROQ below, tell it to stick to simple structured drawing
+// rather than the freeform organic illustrations it tends to botch), then
+// OpenRouter's free tier, remain as automatic last-resort fallbacks if the
+// chosen primary engine is down or rate-limited — this is a safety net,
+// not a second vote on the user's choice, so it only kicks in on an actual
+// failure of the selected engine.
+let selectedAiBackend = localStorage.getItem('chalkline_ai_backend') || 'azure';
+(function(){ const sel = document.getElementById('btn-ai-engine'); if(sel) sel.value = selectedAiBackend; })();
+
+function setAiBackend(id){
+  selectedAiBackend = (id === 'gemini') ? 'gemini' : 'azure';
+  localStorage.setItem('chalkline_ai_backend', selectedAiBackend);
+  const sel = document.getElementById('btn-ai-engine');
+  if(sel) sel.value = selectedAiBackend;
+}
+
+function getBackendChain(){
+  const primary = (selectedAiBackend === 'gemini')
+    ? { name: 'Gemini', call: () => callGemini() }
+    : { name: 'Azure Foundry', call: () => callAzureFoundry() };
+  return [
+    primary,
+    { name: 'Groq', call: () => callGroq() },
+    { name: 'OpenRouter', call: () => callOpenRouter() }
+  ];
+}
 
 // Records exactly what happened with each AI backend on the most recent
 // turn, so it can be inspected without a dev console (tap the status
@@ -5100,8 +5152,9 @@ async function callTutor(userMessage, imageAttachment){
   currentTurnImage = imageAttachment || null;
 
   let result = null;
-  for(const engine of AI_BACKEND_CHAIN){
-    setStatus(AI_BACKEND_CHAIN.indexOf(engine)===0 ? 'thinking…' : `thinking… (trying ${engine.name})`);
+  const backendChain = getBackendChain();
+  for(const engine of backendChain){
+    setStatus(backendChain.indexOf(engine)===0 ? 'thinking…' : `thinking… (trying ${engine.name})`);
     try{
       result = await engine.call();
     } catch(e){
