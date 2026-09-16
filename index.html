@@ -5057,15 +5057,15 @@ const PROXY_URL = "https://api.takundamambudzi02.workers.dev";
 // being sent — only read by callGemini() for that one turn, then cleared.
 let currentTurnImage = null;
 
-// AI backend selection: Gemini is now the PRIMARY backend for everything —
-// it's the one actually good at open-ended tutoring, freeform diagrams,
-// and pacing. Groq only comes in as the fallback if Gemini fails/is
-// rate-limited, and its own instructions (SYSTEM_PROMPT_GROQ below) tell
-// it to stick to simple structured drawing (tables, plots, axes, grids)
-// rather than attempting the freeform organic illustrations it tends to
-// botch — that's Gemini's job. OpenRouter's free tier is the last resort
-// if both are down. No manual switching.
+// AI backend selection: Azure AI Foundry is now the PRIMARY backend —
+// it's the "main AI brain" the rest of this chain falls back away from.
+// Gemini is the fallback if Foundry fails/is rate-limited, then Groq
+// (whose own instructions, SYSTEM_PROMPT_GROQ below, tell it to stick to
+// simple structured drawing rather than the freeform organic illustrations
+// it tends to botch), then OpenRouter's free tier as the last resort if
+// everything else is down. No manual switching.
 const AI_BACKEND_CHAIN = [
+  { name: 'Azure Foundry', call: () => callAzureFoundry() },
   { name: 'Gemini', call: () => callGemini() },
   { name: 'Groq', call: () => callGroq() },
   { name: 'OpenRouter', call: () => callOpenRouter() }
@@ -5331,6 +5331,67 @@ async function callCerebras(){
   const raw = choice && choice.message && choice.message.content;
   if(!raw){
     return { ok:false, status:'unexpected response', errorSpeech:"Cerebras response shape was unexpected." };
+  }
+  return { ok:true, raw: raw.trim() };
+}
+
+// Azure AI Foundry's unified Models API is OpenAI-chat-compatible, so this
+// reuses conversationHistory's existing {role, content} shape (same as
+// Groq/OpenRouter below) rather than Gemini's contents/parts shape — the
+// worker picks which deployed model (e.g. "claude-opus-5", "gpt-5.6-sol")
+// answers via the AZURE_FOUNDRY_MODEL secret, so nothing here needs to
+// know or care which one it is.
+async function callAzureFoundry(){
+  if(PROXY_URL.includes('YOUR-WORKER-SUBDOMAIN')){
+    return { ok:false, status:'proxy not configured', errorSpeech:"The AI proxy hasn't been set up yet." };
+  }
+  const history = recentHistoryForApi(12);
+  const messages = history.map((m, idx) => {
+    if(idx === history.length-1 && currentTurnImage){
+      return {
+        role: m.role,
+        content: [
+          { type:"text", text: m.content },
+          { type:"image_url", image_url:{ url:`data:${currentTurnImage.mimeType};base64,${currentTurnImage.base64}` } }
+        ]
+      };
+    }
+    return { role: m.role, content: m.content };
+  });
+
+  let response, data;
+  try{
+    response = await fetch(`${PROXY_URL}/azure-foundry`, {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        response_format:{ type:"json_object" },
+        max_tokens:14000,
+        messages: [
+          { role:"system", content: SYSTEM_PROMPT },
+          ...messages
+        ]
+      })
+    });
+  } catch(networkErr){
+    console.error('Network failure calling proxy (Azure Foundry):', networkErr);
+    return { ok:false, status:'network error', errorSpeech:"The request never reached the proxy." };
+  }
+
+  try{ data = await response.json(); }
+  catch(parseErr){
+    return { ok:false, status:'bad response', errorSpeech:"The proxy responded with invalid JSON." };
+  }
+
+  if(!response.ok){
+    const msg = (data && data.error && data.error.message) ? data.error.message : JSON.stringify(data);
+    return { ok:false, status:`API error ${response.status}`, errorSpeech:`Azure AI Foundry returned an error: ${msg}` };
+  }
+
+  const choice = data.choices && data.choices[0];
+  const raw = choice && choice.message && choice.message.content;
+  if(!raw){
+    return { ok:false, status:'unexpected response', errorSpeech:"Azure AI Foundry response shape was unexpected." };
   }
   return { ok:true, raw: raw.trim() };
 }
@@ -6495,6 +6556,51 @@ ${lengthInstruction(mode)}`;
 
   const userMsg = `Extracted PDF text (file: ${pdfFileName}):\n\n${text.slice(0, 60000)}`;
 
+  // Azure AI Foundry is the primary backend (same "main AI brain" the
+  // tutor page now uses); Gemini is kept only as the fallback if Foundry
+  // fails or isn't configured.
+  const foundryResult = await summarizeViaAzureFoundry(system, userMsg);
+  if(foundryResult.ok) return foundryResult;
+  return summarizeViaGemini(system, userMsg);
+}
+
+async function summarizeViaAzureFoundry(system, userMsg){
+  let response, data;
+  try{
+    response = await fetch(`${PROXY_URL}/azure-foundry`, {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        max_tokens: 3000,
+        messages: [
+          { role:"system", content: system },
+          { role:"user", content: userMsg }
+        ]
+      })
+    });
+  } catch(networkErr){
+    return { ok:false, error:"The request never reached the proxy." };
+  }
+
+  try{ data = await response.json(); }
+  catch(parseErr){
+    return { ok:false, error:"The server responded, but not with valid JSON." };
+  }
+
+  if(!response.ok){
+    const msg = (data && data.error && data.error.message) ? data.error.message : JSON.stringify(data);
+    return { ok:false, error:`The model returned an error: ${msg}` };
+  }
+
+  const choice = data.choices && data.choices[0];
+  const raw = choice && choice.message && choice.message.content;
+  if(!raw){
+    return { ok:false, error:"The response came back in an unexpected shape." };
+  }
+  return { ok:true, html: raw.trim().replace(/^```html\s*/i,'').replace(/^```\s*/,'').replace(/```\s*$/,'') };
+}
+
+async function summarizeViaGemini(system, userMsg){
   let response, data;
   try{
     response = await fetch(`${PROXY_URL}/gemini`, {
