@@ -7322,12 +7322,12 @@ refreshSummaryHistory();
 </html>
 </script>
 
-<script type="text/plain" id="src-notes"><!DOCTYPE html>
-<html lang="en">
+<script type="text/plain" id="src-notes"><html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>Notes — Chalkline</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"><\/script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
@@ -7419,29 +7419,87 @@ body{
 .notes-editor-pane{ flex:1; display:flex; flex-direction:column; height:100vh; min-width:0; }
 .ne-topbar{
   display:flex; align-items:center; justify-content:space-between;
-  padding:14px 26px; border-bottom:1px solid var(--border); flex-shrink:0;
+  padding:12px 26px; border-bottom:1px solid var(--border); flex-shrink:0; gap:10px;
 }
-.ne-status{ font-size:11.5px; color:var(--muted); font-family:'JetBrains Mono',monospace; }
+.ne-topbar-left{ display:flex; align-items:center; gap:10px; min-width:0; flex:1; }
+.ne-title-input{
+  border:none; outline:none; background:transparent;
+  font-family:'Fraunces','Source Serif 4',serif; font-weight:700; font-size:19px;
+  color:var(--ink); padding:0; min-width:0; flex:1;
+}
+.ne-title-input::placeholder{ color:#C9C2AA; }
+.ne-status{ font-size:11.5px; color:var(--muted); font-family:'JetBrains Mono',monospace; flex-shrink:0; }
 .ne-delete-btn{
   border:none; background:none; color:var(--danger); cursor:pointer; font-size:13px;
-  font-family:'JetBrains Mono',monospace; padding:6px 10px; border-radius:7px;
+  font-family:'JetBrains Mono',monospace; padding:6px 10px; border-radius:7px; flex-shrink:0;
 }
 .ne-delete-btn:hover{ background:rgba(192,57,43,0.08); }
 
-.ne-body{ flex:1; overflow-y:auto; padding:28px 40px 60px; }
-.ne-title-input{
-  width:100%; border:none; outline:none; background:transparent;
-  font-family:'Fraunces','Source Serif 4',serif; font-weight:700; font-size:28px;
-  color:var(--ink); margin-bottom:6px; padding:0;
+/* ---------- toolbar ---------- */
+.ne-toolbar{
+  display:flex; flex-wrap:wrap; align-items:center; gap:14px;
+  padding:9px 26px; border-bottom:1px solid var(--border); flex-shrink:0;
+  background:#FBF9F3; font-family:'JetBrains Mono',monospace; font-size:12px;
 }
-.ne-title-input::placeholder{ color:#C9C2AA; }
-.ne-timestamp{ font-size:12px; color:var(--muted); margin-bottom:18px; font-family:'JetBrains Mono',monospace; }
-.ne-content{
-  width:100%; min-height:60vh; border:none; outline:none; resize:none; background:transparent;
-  font-family:'Source Serif 4', Georgia, serif; font-size:16px; line-height:1.7; color:var(--ink);
+.ne-tool-group{ display:flex; align-items:center; gap:6px; }
+.ne-tool-sep{ width:1px; align-self:stretch; background:var(--border); }
+.ne-tool-btn{
+  border:1px solid var(--border); background:#fff; color:var(--ink);
+  padding:6px 10px; border-radius:8px; cursor:pointer; font-size:12px;
+  font-family:inherit; display:flex; align-items:center; gap:5px;
+}
+.ne-tool-btn:hover{ background:#F3EFE3; }
+.ne-tool-btn.active{ background:var(--accent); color:#fff; border-color:var(--accent); }
+.ne-color-row{ display:flex; align-items:center; gap:5px; }
+.ne-color-swatch{
+  width:19px; height:19px; border-radius:50%; cursor:pointer;
+  border:2px solid transparent; box-shadow:0 0 0 1px rgba(0,0,0,0.15) inset;
   padding:0;
 }
-.ne-content::placeholder{ color:#C9C2AA; }
+.ne-color-swatch.active{ border-color:#333; }
+.ne-size-slider{ width:70px; }
+.ne-select, .ne-num{
+  border:1px solid var(--border); background:#fff; color:var(--ink);
+  padding:5px 7px; border-radius:7px; font-family:inherit; font-size:12px;
+}
+.ne-num{ width:52px; }
+.ne-tool-label{ color:var(--muted); }
+
+.ne-body{ flex:1; overflow-y:auto; overflow-x:hidden; background:#DCD6C4; padding:26px 0 60px;
+  display:flex; flex-direction:column; align-items:center; gap:22px; -webkit-overflow-scrolling:touch; }
+
+.note-page{
+  position:relative; width:min(92vw,780px); aspect-ratio:780/1010;
+  background:#fff; box-shadow:0 3px 14px rgba(0,0,0,0.18); border-radius:3px; flex-shrink:0;
+}
+.note-page canvas{ position:absolute; top:0; left:0; width:100%; height:100%; display:block; }
+.note-page .np-bg{ z-index:1; }
+.note-page .np-ink{ z-index:2; touch-action:none; }
+.note-page .np-text-layer{ position:absolute; inset:0; z-index:3; }
+.note-page .np-page-tools{
+  position:absolute; top:6px; right:6px; z-index:4; display:none; gap:4px;
+}
+.note-page:hover .np-page-tools{ display:flex; }
+.np-page-tools button{
+  border:none; background:rgba(0,0,0,0.45); color:#fff; width:22px; height:22px;
+  border-radius:6px; cursor:pointer; font-size:11px;
+}
+.note-textbox{
+  position:absolute; min-width:36px; min-height:22px; font-family:'Source Serif 4',serif;
+  font-size:16px; line-height:1.4; color:var(--ink); background:transparent; outline:none;
+  padding:2px 4px; border:1px dashed transparent; white-space:pre-wrap; word-break:break-word;
+  cursor:text;
+}
+.note-textbox:hover{ border-color:rgba(0,0,0,0.08); }
+.note-textbox:focus{ border-color:var(--accent-soft); background:rgba(255,255,255,0.72); }
+.note-textbox:empty:before{ content:attr(data-placeholder); color:#C9C2AA; }
+
+.ne-add-page-row{ width:min(92vw,780px); display:flex; justify-content:center; }
+.ne-add-page-btn{
+  border:1px dashed var(--border); background:transparent; color:var(--muted);
+  padding:10px 18px; border-radius:10px; cursor:pointer; font-family:'JetBrains Mono',monospace; font-size:12px;
+}
+.ne-add-page-btn:hover{ background:rgba(0,0,0,0.03); color:var(--ink); }
 
 .ne-empty-state{
   flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
@@ -7459,7 +7517,8 @@ body{
   .notes-editor-pane{ width:100%; }
   .notes-shell.editing .notes-list-pane{ display:none; }
   .notes-shell:not(.editing) .notes-editor-pane{ display:none; }
-  .ne-body{ padding:20px; }
+  .ne-toolbar{ padding:8px 12px; gap:10px; }
+  .ne-topbar{ padding:10px 12px; }
 }
 </style>
 </head>
@@ -7487,13 +7546,60 @@ body{
 
     <div id="notes-editor" style="display:none; flex-direction:column; height:100%;">
       <div class="ne-topbar">
+        <div class="ne-topbar-left">
+          <input type="text" id="notes-title-input" class="ne-title-input" placeholder="Title">
+        </div>
         <span class="ne-status" id="notes-status">Saved</span>
         <button type="button" class="ne-delete-btn" id="notes-delete-btn">Delete</button>
       </div>
-      <div class="ne-body">
-        <input type="text" id="notes-title-input" class="ne-title-input" placeholder="Title">
-        <div class="ne-timestamp" id="notes-timestamp"></div>
-        <textarea id="notes-content-input" class="ne-content" placeholder="Start writing..."></textarea>
+
+      <div class="ne-toolbar">
+        <div class="ne-tool-group">
+          <button type="button" class="ne-tool-btn active" id="tool-pen" title="Pen">✏️ Pen</button>
+          <button type="button" class="ne-tool-btn" id="tool-eraser" title="Eraser">🧽 Eraser</button>
+        </div>
+        <div class="ne-tool-sep"></div>
+        <div class="ne-tool-group ne-color-row" id="ne-color-row">
+          <button type="button" class="ne-color-swatch active" data-color="#2A2410" style="background:#2A2410;"></button>
+          <button type="button" class="ne-color-swatch" data-color="#2E6DBE" style="background:#2E6DBE;"></button>
+          <button type="button" class="ne-color-swatch" data-color="#C0392B" style="background:#C0392B;"></button>
+          <button type="button" class="ne-color-swatch" data-color="#2E8B57" style="background:#2E8B57;"></button>
+        </div>
+        <div class="ne-tool-group">
+          <span class="ne-tool-label">Size</span>
+          <input type="range" class="ne-size-slider" id="pen-size" min="1" max="12" value="3">
+        </div>
+        <div class="ne-tool-sep"></div>
+        <div class="ne-tool-group">
+          <button type="button" class="ne-tool-btn" id="tool-undo" title="Undo">↺ Undo</button>
+        </div>
+        <div class="ne-tool-sep"></div>
+        <div class="ne-tool-group">
+          <span class="ne-tool-label">Style</span>
+          <select class="ne-select" id="style-scope">
+            <option value="default">App default</option>
+            <option value="override">This note</option>
+          </select>
+          <select class="ne-select" id="style-type">
+            <option value="ruled">Lined</option>
+            <option value="grid">Grid</option>
+            <option value="dotted">Dotted</option>
+            <option value="blank">Blank</option>
+          </select>
+          <input type="number" class="ne-num" id="style-spacing" min="10" max="90" step="1" title="Line spacing (px)">
+        </div>
+        <div class="ne-tool-sep"></div>
+        <div class="ne-tool-group">
+          <button type="button" class="ne-tool-btn" id="tool-import-pdf" title="Import PDF">📄 Import PDF</button>
+          <input type="file" id="pdf-file-input" accept="application/pdf" style="display:none;">
+        </div>
+      </div>
+
+      <div class="ne-body" id="ne-body">
+        <div id="ne-pages-container" style="display:contents;"></div>
+        <div class="ne-add-page-row">
+          <button type="button" class="ne-add-page-btn" id="add-page-btn">+ Add blank page</button>
+        </div>
       </div>
     </div>
   </div>
@@ -7544,6 +7650,10 @@ function notesKeyPrefix(){
   const sub = notesShellUser ? notesShellUser.sub : 'guest';
   return 'notes:' + sub + ':';
 }
+function settingsKey(){
+  const sub = notesShellUser ? notesShellUser.sub : 'guest';
+  return 'notes-settings:' + sub;
+}
 window.addEventListener('message', (e)=>{
   const d = e.data;
   if(!d || !d.chalklineAuth) return;
@@ -7552,9 +7662,16 @@ window.addEventListener('message', (e)=>{
 });
 
 // ---------- state ----------
-let notesCache = [];       // [{id, title, content, updatedAt}]
+let notesCache = [];       // [{id, title, updatedAt, ruledOverride, pages:[...]}]
 let currentNoteId = null;
 let saveTimer = null;
+let globalSettings = { ruledType:'ruled', ruledSpacing:28 };
+let currentTool = 'pen';   // 'pen' | 'eraser'
+let penColor = '#2A2410';
+let penSize = 3;
+
+const PAGE_W = 780, PAGE_H = 1010;   // note-unit coordinate space (matches CSS aspect ratio)
+const RENDER_SCALE = 2;              // canvas backing-store multiplier for crisp pencil strokes
 
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
 
@@ -7564,6 +7681,36 @@ function formatTimestamp(ms){
          d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
 }
 
+async function loadGlobalSettings(){
+  try{
+    const rec = await window.storage.get(settingsKey(), false);
+    if(rec) globalSettings = Object.assign(globalSettings, JSON.parse(rec.value));
+  } catch(e){ /* use defaults */ }
+}
+async function saveGlobalSettings(){
+  try{ await window.storage.set(settingsKey(), JSON.stringify(globalSettings), false); }
+  catch(e){ console.error('Saving global style settings failed:', e); }
+}
+
+function blankPage(){
+  return { id: uid(), pdfImage: null, strokes: [], textBoxes: [] };
+}
+
+// Older notes only had a plain-text `content` field with no drawing
+// canvas at all. Migrate them the first time they're opened so nothing
+// the user already wrote is lost: their text becomes a text box on a
+// single new page.
+function migrateNoteIfNeeded(note){
+  if(note.pages) return note;
+  note.pages = [blankPage()];
+  note.ruledOverride = null;
+  if(note.content && note.content.trim()){
+    note.pages[0].textBoxes.push({ id: uid(), x:36, y:36, w:PAGE_W-72, text: note.content, fontSize:16 });
+  }
+  delete note.content;
+  return note;
+}
+
 async function loadAllNotes(){
   try{
     const result = await window.storage.list(notesKeyPrefix(), false);
@@ -7571,7 +7718,7 @@ async function loadAllNotes(){
     for(const key of (result.keys || [])){
       try{
         const rec = await window.storage.get(key, false);
-        if(rec) items.push(JSON.parse(rec.value));
+        if(rec) items.push(migrateNoteIfNeeded(JSON.parse(rec.value)));
       } catch(e){ /* skip corrupt entry */ }
     }
     items.sort((a,b)=> b.updatedAt - a.updatedAt);
@@ -7585,19 +7732,22 @@ async function loadAllNotes(){
 async function refreshNotesList(){
   notesCache = await loadAllNotes();
   renderNotesList();
-  // If the currently open note no longer exists (e.g. deleted elsewhere),
-  // fall back to the empty state.
   if(currentNoteId && !notesCache.find(n=>n.id===currentNoteId)){
     currentNoteId = null;
     showEmptyState();
   }
 }
 
+function textPreview(note){
+  const tb = (note.pages && note.pages[0] && note.pages[0].textBoxes) || [];
+  return tb.map(t=>t.text).join(' ');
+}
+
 function renderNotesList(){
   const container = document.getElementById('notes-items');
   const query = (document.getElementById('notes-search').value || '').toLowerCase().trim();
   const filtered = query
-    ? notesCache.filter(n => (n.title||'').toLowerCase().includes(query) || (n.content||'').toLowerCase().includes(query))
+    ? notesCache.filter(n => (n.title||'').toLowerCase().includes(query) || textPreview(n).toLowerCase().includes(query))
     : notesCache;
 
   if(filtered.length === 0){
@@ -7650,37 +7800,36 @@ async function openNote(id){
   currentNoteId = id;
   showEditor();
   document.getElementById('notes-title-input').value = note.title || '';
-  document.getElementById('notes-content-input').value = note.content || '';
-  document.getElementById('notes-timestamp').textContent = 'Edited ' + formatTimestamp(note.updatedAt);
   document.getElementById('notes-status').textContent = 'Saved';
+  syncStyleControlsFromNote(note);
+  renderAllPages(note);
   renderNotesList();
 }
 
 function createNote(){
-  const note = { id: uid(), title:'', content:'', updatedAt: Date.now() };
+  const note = { id: uid(), title:'', updatedAt: Date.now(), ruledOverride:null, pages:[blankPage()] };
   notesCache.unshift(note);
   currentNoteId = note.id;
   showEditor();
   document.getElementById('notes-title-input').value = '';
-  document.getElementById('notes-content-input').value = '';
-  document.getElementById('notes-timestamp').textContent = 'Edited ' + formatTimestamp(note.updatedAt);
   document.getElementById('notes-status').textContent = 'Saved';
+  syncStyleControlsFromNote(note);
+  renderAllPages(note);
   renderNotesList();
-  persistCurrentNote(); // save immediately so it survives a refresh even if empty
+  persistCurrentNote();
   setTimeout(()=> document.getElementById('notes-title-input').focus(), 50);
 }
 
+function currentNote(){ return notesCache.find(n=>n.id===currentNoteId); }
+
 async function persistCurrentNote(){
-  if(!currentNoteId) return;
-  const note = notesCache.find(n=>n.id===currentNoteId);
+  const note = currentNote();
   if(!note) return;
   note.title = document.getElementById('notes-title-input').value;
-  note.content = document.getElementById('notes-content-input').value;
   note.updatedAt = Date.now();
   try{
     await window.storage.set(notesKeyPrefix() + note.id, JSON.stringify(note), false);
     document.getElementById('notes-status').textContent = 'Saved';
-    document.getElementById('notes-timestamp').textContent = 'Edited ' + formatTimestamp(note.updatedAt);
     renderNotesList();
   } catch(e){
     console.error('Saving note failed:', e);
@@ -7709,7 +7858,6 @@ async function deleteNote(id){
 
 document.getElementById('notes-new-btn').addEventListener('click', createNote);
 document.getElementById('notes-title-input').addEventListener('input', scheduleSave);
-document.getElementById('notes-content-input').addEventListener('input', scheduleSave);
 document.getElementById('notes-search').addEventListener('input', renderNotesList);
 document.getElementById('notes-delete-btn').addEventListener('click', ()=>{
   if(!currentNoteId) return;
@@ -7717,7 +7865,472 @@ document.getElementById('notes-delete-btn').addEventListener('click', ()=>{
   deleteNote(currentNoteId);
 });
 
-refreshNotesList();
+/* =================================================================
+   PAGE BACKGROUND (ruled / grid / dotted / blank, or an imported
+   PDF page rendered as an image).
+   ================================================================= */
+function effectiveStyle(note){
+  return note.ruledOverride || { type: globalSettings.ruledType, spacing: globalSettings.ruledSpacing };
+}
+
+function drawBackground(canvas, page, note){
+  const ctx = canvas.getContext('2d');
+  canvas.width = PAGE_W * RENDER_SCALE;
+  canvas.height = PAGE_H * RENDER_SCALE;
+  ctx.setTransform(RENDER_SCALE,0,0,RENDER_SCALE,0,0);
+  ctx.clearRect(0,0,PAGE_W,PAGE_H);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0,0,PAGE_W,PAGE_H);
+
+  if(page.pdfImage){
+    const img = new Image();
+    img.onload = ()=>{ ctx.drawImage(img,0,0,PAGE_W,PAGE_H); };
+    img.src = page.pdfImage;
+    return;
+  }
+
+  const style = effectiveStyle(note);
+  const spacing = Math.max(10, Number(style.spacing) || 28);
+  ctx.strokeStyle = 'rgba(46,80,120,0.18)';
+  ctx.fillStyle = 'rgba(46,80,120,0.28)';
+  ctx.lineWidth = 1;
+
+  if(style.type === 'ruled'){
+    for(let y = spacing; y < PAGE_H; y += spacing){
+      ctx.beginPath(); ctx.moveTo(0,y+0.5); ctx.lineTo(PAGE_W,y+0.5); ctx.stroke();
+    }
+  } else if(style.type === 'grid'){
+    for(let y = spacing; y < PAGE_H; y += spacing){
+      ctx.beginPath(); ctx.moveTo(0,y+0.5); ctx.lineTo(PAGE_W,y+0.5); ctx.stroke();
+    }
+    for(let x = spacing; x < PAGE_W; x += spacing){
+      ctx.beginPath(); ctx.moveTo(x+0.5,0); ctx.lineTo(x+0.5,PAGE_H); ctx.stroke();
+    }
+  } else if(style.type === 'dotted'){
+    for(let y = spacing; y < PAGE_H; y += spacing){
+      for(let x = spacing; x < PAGE_W; x += spacing){
+        ctx.beginPath(); ctx.arc(x,y,1.2,0,Math.PI*2); ctx.fill();
+      }
+    }
+  }
+  // 'blank' -> nothing further to draw
+}
+
+function redrawInk(canvas, page){
+  const ctx = canvas.getContext('2d');
+  canvas.width = PAGE_W * RENDER_SCALE;
+  canvas.height = PAGE_H * RENDER_SCALE;
+  ctx.setTransform(RENDER_SCALE,0,0,RENDER_SCALE,0,0);
+  ctx.clearRect(0,0,PAGE_W,PAGE_H);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  page.strokes.forEach(s=>{
+    if(s.points.length < 2){
+      if(s.points.length === 1){
+        ctx.beginPath();
+        ctx.fillStyle = s.color;
+        ctx.arc(s.points[0].x, s.points[0].y, s.size/2, 0, Math.PI*2);
+        ctx.fill();
+      }
+      return;
+    }
+    ctx.strokeStyle = s.color;
+    ctx.lineWidth = s.size;
+    ctx.beginPath();
+    ctx.moveTo(s.points[0].x, s.points[0].y);
+    for(let i=1;i<s.points.length;i++) ctx.lineTo(s.points[i].x, s.points[i].y);
+    ctx.stroke();
+  });
+}
+
+/* =================================================================
+   TEXT BOXES
+   ================================================================= */
+function renderTextBoxes(layerEl, page){
+  layerEl.innerHTML = '';
+  page.textBoxes.forEach(tb=>{
+    const el = document.createElement('div');
+    el.className = 'note-textbox';
+    el.contentEditable = 'true';
+    el.dataset.placeholder = 'Type…';
+    el.style.left = tb.x + 'px';
+    el.style.top = tb.y + 'px';
+    el.style.width = (tb.w || 200) + 'px';
+    el.style.fontSize = (tb.fontSize || 16) + 'px';
+    el.textContent = tb.text || '';
+    el.addEventListener('input', ()=>{
+      tb.text = el.textContent;
+      scheduleSave();
+    });
+    el.addEventListener('pointerdown', (e)=> e.stopPropagation());
+    el.addEventListener('blur', ()=>{
+      if(!el.textContent.trim()){
+        page.textBoxes = page.textBoxes.filter(t=>t.id!==tb.id);
+        layerEl.removeChild(el);
+      }
+    });
+    layerEl.appendChild(el);
+  });
+}
+
+function addTextBoxAt(page, layerEl, xNote, yNote){
+  const tb = { id: uid(), x: xNote, y: yNote, w: 220, text: '', fontSize: 16 };
+  page.textBoxes.push(tb);
+  renderTextBoxes(layerEl, page);
+  const el = layerEl.lastChild;
+  if(el){ el.focus(); }
+  scheduleSave();
+}
+
+/* =================================================================
+   PAGE RENDERING / EVENT WIRING
+   ================================================================= */
+function renderAllPages(note){
+  const container = document.getElementById('ne-pages-container');
+  container.innerHTML = '';
+  note.pages.forEach((page, idx)=> container.appendChild(buildPageEl(note, page, idx)));
+}
+
+function buildPageEl(note, page, idx){
+  const wrap = document.createElement('div');
+  wrap.className = 'note-page';
+
+  const bg = document.createElement('canvas'); bg.className = 'np-bg';
+  const ink = document.createElement('canvas'); ink.className = 'np-ink';
+  const textLayer = document.createElement('div'); textLayer.className = 'np-text-layer';
+  const tools = document.createElement('div'); tools.className = 'np-page-tools';
+  tools.innerHTML = '<button type="button" title="Delete page">✕</button>';
+  tools.querySelector('button').addEventListener('click', ()=>{
+    if(note.pages.length <= 1){ alert('A note needs at least one page.'); return; }
+    if(!confirm('Delete this page?')) return;
+    note.pages.splice(idx,1);
+    renderAllPages(note);
+    scheduleSave();
+  });
+
+  wrap.appendChild(bg); wrap.appendChild(ink); wrap.appendChild(textLayer); wrap.appendChild(tools);
+
+  drawBackground(bg, page, note);
+  redrawInk(ink, page);
+  renderTextBoxes(textLayer, page);
+  wirePageInput(wrap, ink, textLayer, page);
+
+  return wrap;
+}
+
+function notePointFromEvent(ink, e){
+  const rect = ink.getBoundingClientRect();
+  const scaleX = PAGE_W / rect.width;
+  const scaleY = PAGE_H / rect.height;
+  return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+}
+
+const ERASE_RADIUS = 14;
+
+function eraseNear(page, x, y){
+  let changed = false;
+  page.strokes = page.strokes.filter(s=>{
+    const hit = s.points.some(p => Math.hypot(p.x-x, p.y-y) < ERASE_RADIUS + s.size/2);
+    if(hit) changed = true;
+    return !hit;
+  });
+  return changed;
+}
+
+// Detects a small back-and-forth "scribbling" motion (as opposed to a
+// normal, mostly-one-direction pen stroke or a swipe-to-scroll), so a
+// scribble over existing ink erases it even when the Eraser tool isn't
+// explicitly toggled on.
+function isScribbleMotion(pts){
+  if(pts.length < 6) return false;
+  const recent = pts.slice(-10);
+  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+  recent.forEach(p=>{ minX=Math.min(minX,p.x); maxX=Math.max(maxX,p.x); minY=Math.min(minY,p.y); maxY=Math.max(maxY,p.y); });
+  const bboxDiag = Math.hypot(maxX-minX, maxY-minY);
+  if(bboxDiag > 46) return false; // too spread out to be a small scrub
+  let reversals = 0;
+  for(let i=2;i<recent.length;i++){
+    const v1x = recent[i-1].x-recent[i-2].x, v1y = recent[i-1].y-recent[i-2].y;
+    const v2x = recent[i].x-recent[i-1].x, v2y = recent[i].y-recent[i-1].y;
+    const dot = v1x*v2x + v1y*v2y;
+    if(dot < 0) reversals++;
+  }
+  return reversals >= 3;
+}
+
+let activePenPointerId = null; // used for palm rejection while pencil is drawing
+
+function wirePageInput(pageWrap, ink, textLayer, page){
+  let drawing = false;
+  let stroke = null;
+  let scribbleErasing = false;
+  let touchScrollStartY = 0;
+  let touchScrollStartTop = 0;
+  let touchStartPoint = null;
+  let touchMoved = false;
+  const scrollParent = document.getElementById('ne-body');
+
+  function isStylusLike(e){
+    // Apple Pencil reports as 'pen'. Mouse is treated the same way so the
+    // app is still usable/testable on a laptop trackpad — only a bare
+    // finger ('touch') is limited to navigation + placing text.
+    return e.pointerType === 'pen' || e.pointerType === 'mouse';
+  }
+
+  ink.addEventListener('pointerdown', (e)=>{
+    if(isStylusLike(e)){
+      // Palm rejection: while the pencil is actively drawing, any
+      // concurrent touch point is the palm resting on the glass, not
+      // an intentional finger gesture — ignored entirely below.
+      activePenPointerId = e.pointerId;
+      ink.setPointerCapture(e.pointerId);
+      drawing = true;
+      scribbleErasing = (currentTool === 'eraser');
+      const p = notePointFromEvent(ink, e);
+      stroke = { color: penColor, size: penSize, points: [p] };
+      if(scribbleErasing){ eraseNear(page, p.x, p.y); redrawInk(ink, page); }
+      e.preventDefault();
+      return;
+    }
+
+    // touch (finger)
+    if(activePenPointerId !== null){ e.preventDefault(); return; } // palm during pencil use
+    ink.setPointerCapture(e.pointerId);
+    touchStartPoint = notePointFromEvent(ink, e);
+    touchMoved = false;
+    touchScrollStartY = e.clientY;
+    touchScrollStartTop = scrollParent.scrollTop;
+    drawing = true;
+    scribbleErasing = false;
+    stroke = { color: penColor, size: penSize, points: [touchStartPoint] };
+    e.preventDefault();
+  });
+
+  ink.addEventListener('pointermove', (e)=>{
+    if(!drawing || e.pointerId !== (stroke && e.pointerId)) { /* fallthrough handled below */ }
+    if(!drawing) return;
+
+    if(isStylusLike(e)){
+      const p = notePointFromEvent(ink, e);
+      if(currentTool === 'eraser' || scribbleErasing){
+        eraseNear(page, p.x, p.y);
+        redrawInk(ink, page);
+      } else {
+        stroke.points.push(p);
+        if(isScribbleMotion(stroke.points)){
+          // Mid-stroke scribble detected: treat the rest of this
+          // gesture as erasing rather than inking, and discard the
+          // ink drawn so far for this stroke.
+          scribbleErasing = true;
+          stroke = null;
+          eraseNear(page, p.x, p.y);
+        }
+        redrawInk(ink, page);
+        if(stroke){
+          // live preview of the in-progress stroke
+          const ctx = ink.getContext('2d');
+          ctx.setTransform(RENDER_SCALE,0,0,RENDER_SCALE,0,0);
+          ctx.strokeStyle = stroke.color; ctx.lineWidth = stroke.size;
+          ctx.lineCap='round'; ctx.lineJoin='round';
+          ctx.beginPath();
+          ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+          for(let i=1;i<stroke.points.length;i++) ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
+          ctx.stroke();
+        }
+      }
+      e.preventDefault();
+      return;
+    }
+
+    // touch (finger): scroll the page, or scribble-erase if the motion
+    // looks like a small scrub rather than a swipe.
+    if(activePenPointerId !== null){ e.preventDefault(); return; }
+    const p = notePointFromEvent(ink, e);
+    stroke.points.push(p);
+    touchMoved = touchMoved || Math.hypot(p.x-touchStartPoint.x, p.y-touchStartPoint.y) > 6;
+    if(isScribbleMotion(stroke.points)){
+      eraseNear(page, p.x, p.y);
+      redrawInk(ink, page);
+    } else if(touchMoved){
+      const dy = e.clientY - touchScrollStartY;
+      scrollParent.scrollTop = touchScrollStartTop - dy;
+    }
+    e.preventDefault();
+  });
+
+  function finishStroke(e){
+    if(!drawing) return;
+    drawing = false;
+    if(isStylusLike(e)){
+      activePenPointerId = null;
+      if(stroke && !scribbleErasing && currentTool !== 'eraser' && stroke.points.length){
+        page.strokes.push(stroke);
+      }
+      redrawInk(ink, page);
+      scheduleSave();
+    } else {
+      // touch lifted: if it never moved and wasn't a scribble, treat it
+      // as a tap that places a text box (only fingers place text boxes).
+      if(!touchMoved && touchStartPoint){
+        addTextBoxAt(page, textLayer, touchStartPoint.x, touchStartPoint.y);
+      }
+    }
+    stroke = null;
+    touchStartPoint = null;
+  }
+  ink.addEventListener('pointerup', finishStroke);
+  ink.addEventListener('pointercancel', finishStroke);
+}
+
+/* =================================================================
+   TOOLBAR WIRING
+   ================================================================= */
+function setTool(tool){
+  currentTool = tool;
+  document.getElementById('tool-pen').classList.toggle('active', tool==='pen');
+  document.getElementById('tool-eraser').classList.toggle('active', tool==='eraser');
+}
+document.getElementById('tool-pen').addEventListener('click', ()=> setTool('pen'));
+document.getElementById('tool-eraser').addEventListener('click', ()=> setTool('eraser'));
+
+document.querySelectorAll('.ne-color-swatch').forEach(sw=>{
+  sw.addEventListener('click', ()=>{
+    penColor = sw.dataset.color;
+    document.querySelectorAll('.ne-color-swatch').forEach(s=>s.classList.remove('active'));
+    sw.classList.add('active');
+    setTool('pen');
+  });
+});
+document.getElementById('pen-size').addEventListener('input', (e)=>{ penSize = Number(e.target.value); });
+
+document.getElementById('tool-undo').addEventListener('click', ()=>{
+  const note = currentNote();
+  if(!note) return;
+  // Undo the most recent stroke across all pages (simple global undo).
+  let latestPageIdx = -1, latestStrokeIdx = -1, latestTime = -1;
+  note.pages.forEach((p, pi)=>{ if(p.strokes.length){ latestPageIdx = pi; latestStrokeIdx = p.strokes.length-1; } });
+  if(latestPageIdx === -1) return;
+  note.pages[latestPageIdx].strokes.pop();
+  renderAllPages(note);
+  scheduleSave();
+});
+
+document.getElementById('add-page-btn').addEventListener('click', ()=>{
+  const note = currentNote();
+  if(!note) return;
+  note.pages.push(blankPage());
+  renderAllPages(note);
+  scheduleSave();
+});
+
+function syncStyleControlsFromNote(note){
+  const isOverride = !!note.ruledOverride;
+  document.getElementById('style-scope').value = isOverride ? 'override' : 'default';
+  const active = note.ruledOverride || { type: globalSettings.ruledType, spacing: globalSettings.ruledSpacing };
+  document.getElementById('style-type').value = active.type;
+  document.getElementById('style-spacing').value = active.spacing;
+}
+
+function applyStyleChange(){
+  const note = currentNote();
+  if(!note) return;
+  const scope = document.getElementById('style-scope').value;
+  const type = document.getElementById('style-type').value;
+  const spacing = Math.max(10, Number(document.getElementById('style-spacing').value) || 28);
+  if(scope === 'default'){
+    globalSettings.ruledType = type;
+    globalSettings.ruledSpacing = spacing;
+    note.ruledOverride = null;
+    saveGlobalSettings();
+  } else {
+    note.ruledOverride = { type, spacing };
+  }
+  renderAllPages(note);
+  scheduleSave();
+}
+document.getElementById('style-scope').addEventListener('change', ()=>{
+  const note = currentNote();
+  if(note){
+    // switching the scope selector alone (before touching type/spacing)
+    // shouldn't blow away an existing override or default silently —
+    // re-sync the shown values for the newly selected scope first.
+    if(document.getElementById('style-scope').value === 'override' && !note.ruledOverride){
+      note.ruledOverride = { type: globalSettings.ruledType, spacing: globalSettings.ruledSpacing };
+    } else if(document.getElementById('style-scope').value === 'default'){
+      note.ruledOverride = null;
+    }
+    syncStyleControlsFromNote(note);
+    renderAllPages(note);
+    scheduleSave();
+  }
+});
+document.getElementById('style-type').addEventListener('change', applyStyleChange);
+document.getElementById('style-spacing').addEventListener('change', applyStyleChange);
+
+/* =================================================================
+   PDF IMPORT — rendered pages become part of the note canvas itself
+   (ink/text can be added directly on top of them), not a separate
+   attachment viewer.
+   ================================================================= */
+if(window['pdfjsLib']){
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
+document.getElementById('tool-import-pdf').addEventListener('click', ()=>{
+  if(!currentNote()) return;
+  document.getElementById('pdf-file-input').click();
+});
+
+document.getElementById('pdf-file-input').addEventListener('change', async (e)=>{
+  const file = e.target.files[0];
+  e.target.value = '';
+  const note = currentNote();
+  if(!file || !note) return;
+  if(!window['pdfjsLib']){ alert('PDF support failed to load — check your connection and try again.'); return; }
+
+  document.getElementById('notes-status').textContent = 'Importing PDF…';
+  try{
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    const newPages = [];
+    for(let i=1;i<=pdf.numPages;i++){
+      const pdfPage = await pdf.getPage(i);
+      const viewport = pdfPage.getViewport({ scale: 1 });
+      const scale = Math.min(PAGE_W / viewport.width, PAGE_H / viewport.height) * RENDER_SCALE;
+      const scaledViewport = pdfPage.getViewport({ scale });
+      const canvas = document.createElement('canvas');
+      canvas.width = PAGE_W * RENDER_SCALE;
+      canvas.height = PAGE_H * RENDER_SCALE;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0,0,canvas.width,canvas.height);
+      const offsetX = (canvas.width - scaledViewport.width)/2;
+      const offsetY = (canvas.height - scaledViewport.height)/2;
+      ctx.translate(offsetX, offsetY);
+      await pdfPage.render({ canvasContext: ctx, viewport: scaledViewport }).promise;
+      const page = blankPage();
+      page.pdfImage = canvas.toDataURL('image/png');
+      newPages.push(page);
+    }
+    // If the note is currently just a single empty page, replace it;
+    // otherwise append the imported pages after existing content.
+    const onlyPage = note.pages.length === 1 && note.pages[0].strokes.length===0 &&
+                      note.pages[0].textBoxes.length===0 && !note.pages[0].pdfImage;
+    note.pages = onlyPage ? newPages : note.pages.concat(newPages);
+    renderAllPages(note);
+    document.getElementById('notes-status').textContent = 'Saving…';
+    await persistCurrentNote();
+  } catch(err){
+    console.error('PDF import failed:', err);
+    alert('Could not import that PDF.');
+    document.getElementById('notes-status').textContent = 'Saved';
+  }
+});
+
+loadGlobalSettings().then(refreshNotesList);
+<\/script>
+
+</body>
+</html>
 <\/script>
 
 </body>
