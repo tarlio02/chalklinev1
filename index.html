@@ -1773,6 +1773,21 @@ body{
 .ask-zone button:hover{background:var(--violet);}
 .ask-zone{ border-color:var(--violet-deep); }
 
+/* Inside the Transcript side panel, .ask-zone sits in a vertical flex
+   column (.panel-body) instead of the horizontal bottom-bar it was
+   designed for — its flex:1 1 auto there means "grow to fill the row",
+   but in a column that reads as "grow to fill all remaining height",
+   which is what was blowing the ask box up into a giant tinted panel.
+   Pin it back down to its natural pill height and full width instead. */
+.panel-body .ask-zone{
+  flex:0 0 auto;
+  width:calc(100% - 32px);
+  max-width:none;
+  height:44px;
+  margin:0 16px 16px;
+  box-sizing:border-box;
+}
+
 .overlay{
   position:fixed;inset:0;
   background:rgba(20,18,12,0.25);
