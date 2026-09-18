@@ -849,8 +849,11 @@ body{
   <div class="main-area">
     <!-- ---------- Course list view ---------- -->
     <div id="dash-list-view">
-      <div class="dash-head fade-up" style="display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;">
+      <div class="dash-head fade-up">
         <h1 style="margin:0;">Dashboard</h1>
+      </div>
+
+      <div style="display:flex;justify-content:center;margin:0 0 40px;">
         <button type="button" id="add-course-btn" onclick="handleAddCourseClick();">
           <span style="font-size:16px;line-height:1;">＋</span> Add new course
         </button>
@@ -2216,6 +2219,18 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
     <div class="sm-actions">
       <button class="sm-skip" id="btn-leave-continue">Continue lesson</button>
       <button class="sm-go" id="btn-leave-save">Save &amp; go home</button>
+    </div>
+  </div>
+</div>
+<div class="subject-modal" id="leave-confirm-modal">
+  <div class="sm-scrim"></div>
+  <div class="sm-card">
+    <p class="sm-eyebrow">BEFORE YOU GO</p>
+    <h2 id="leave-confirm-title">Leave this lesson?</h2>
+    <p>Your progress is saved automatically — you can pick it back up later from Previous tutorials.</p>
+    <div class="sm-actions">
+      <button class="sm-skip" id="btn-leave-confirm-continue">Continue lesson</button>
+      <button class="sm-go" id="btn-leave-confirm-go">Leave lesson</button>
     </div>
   </div>
 </div>
@@ -5497,6 +5512,7 @@ courseTopicInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preve
 /* ------------------- leave-lesson prompt (Home button) -------------- */
 const leaveModal = document.getElementById('leave-modal');
 const leaveNameInput = document.getElementById('leave-name-input');
+const leaveConfirmModal = document.getElementById('leave-confirm-modal');
 
 function goHomeNow(){
   parent.postMessage({ nav:'home' }, '*');
@@ -5504,20 +5520,28 @@ function goHomeNow(){
 
 // Clicking Home mid-lesson shouldn't silently save (or silently lose)
 // whatever's on the board — ask. Nothing to ask about if the board is
-// still blank (no conversation yet), so just leave in that case.
+// still blank (no conversation yet), so just leave in that case. If a
+// topic has already been named (typed into the topic/subject modal, or
+// picked up from the conversation), there's nothing left to name here —
+// just confirm leaving vs continuing, without asking for a title again.
 function handleHomeClick(){
   if(conversationHistory.length === 0){
     goHomeNow();
     return;
   }
-  const fallback = (currentTopicLabel && currentTopicLabel !== 'Topic')
-    ? currentTopicLabel
-    : (currentSessionTitle || (pdfFileName ? pdfFileName.replace(/\.pdf$/i,'') : ''));
+  const topicKnown = currentTopicLabel && currentTopicLabel !== 'Topic';
+  if(topicKnown){
+    document.getElementById('leave-confirm-title').textContent = `Leave "${currentTopicLabel}"?`;
+    leaveConfirmModal.classList.add('open');
+    return;
+  }
+  const fallback = currentSessionTitle || (pdfFileName ? pdfFileName.replace(/\.pdf$/i,'') : '');
   leaveNameInput.value = currentSessionTitle || fallback || '';
   leaveModal.classList.add('open');
   setTimeout(()=> leaveNameInput.focus(), 50);
 }
 function closeLeaveModal(){ leaveModal.classList.remove('open'); }
+function closeLeaveConfirmModal(){ leaveConfirmModal.classList.remove('open'); }
 
 document.getElementById('btn-leave-continue').addEventListener('click', closeLeaveModal);
 document.getElementById('btn-leave-save').addEventListener('click', async ()=>{
@@ -5529,6 +5553,13 @@ document.getElementById('btn-leave-save').addEventListener('click', async ()=>{
 });
 leaveNameInput.addEventListener('keydown', (e)=>{
   if(e.key==='Enter'){ e.preventDefault(); document.getElementById('btn-leave-save').click(); }
+});
+
+document.getElementById('btn-leave-confirm-continue').addEventListener('click', closeLeaveConfirmModal);
+document.getElementById('btn-leave-confirm-go').addEventListener('click', async ()=>{
+  try{ await persistSession(); } catch(e){ console.error('Save on leave failed:', e); }
+  closeLeaveConfirmModal();
+  goHomeNow();
 });
 
 // Ask for a subject the first time this tab lands on a brand-new,
