@@ -2162,6 +2162,7 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
   <div class="top-right-cluster">
     <button class="exit-lesson-btn" id="btn-exit-lesson" title="Exit lesson">🚪 Exit Lesson</button>
     <select class="ai-engine-select" id="btn-ai-engine" title="Choose which AI engine teaches this lesson" onchange="setAiBackend(this.value)">
+      <option value="apinex">Apinex</option>
       <option value="azure">Azure</option>
       <option value="gemini">Gemini</option>
     </select>
@@ -4956,22 +4957,31 @@ let currentTurnImage = null;
 // chosen primary engine is down or rate-limited — this is a safety net,
 // not a second vote on the user's choice, so it only kicks in on an actual
 // failure of the selected engine.
-let selectedAiBackend = localStorage.getItem('chalkline_ai_backend') || 'azure';
+let selectedAiBackend = localStorage.getItem('chalkline_ai_backend') || 'apinex';
 (function(){ const sel = document.getElementById('btn-ai-engine'); if(sel) sel.value = selectedAiBackend; })();
 
 function setAiBackend(id){
-  selectedAiBackend = (id === 'gemini') ? 'gemini' : 'azure';
+  selectedAiBackend = (id === 'gemini') ? 'gemini' : (id === 'azure') ? 'azure' : 'apinex';
   localStorage.setItem('chalkline_ai_backend', selectedAiBackend);
   const sel = document.getElementById('btn-ai-engine');
   if(sel) sel.value = selectedAiBackend;
 }
 
+// Apinex is the default/primary brain. Whichever engine the picker isn't
+// currently on still lives in the fallback chain, so switching to Azure or
+// Gemini as primary doesn't remove Apinex as a safety net either.
+const ENGINES = {
+  apinex: { name: 'Apinex', call: () => callApinex() },
+  azure:  { name: 'Azure Foundry', call: () => callAzureFoundry() },
+  gemini: { name: 'Gemini', call: () => callGemini() }
+};
+
 function getBackendChain(){
-  const primary = (selectedAiBackend === 'gemini')
-    ? { name: 'Gemini', call: () => callGemini() }
-    : { name: 'Azure Foundry', call: () => callAzureFoundry() };
+  const primary = ENGINES[selectedAiBackend] || ENGINES.apinex;
+  const rest = Object.keys(ENGINES).filter(k => ENGINES[k] !== primary).map(k => ENGINES[k]);
   return [
     primary,
+    ...rest,
     { name: 'Groq', call: () => callGroq() },
     { name: 'OpenRouter', call: () => callOpenRouter() }
   ];
@@ -5250,6 +5260,65 @@ async function callCerebras(){
 // worker picks which deployed model (e.g. "claude-opus-5", "gpt-5.6-sol")
 // answers via the AZURE_FOUNDRY_MODEL secret, so nothing here needs to
 // know or care which one it is.
+async function callApinex(){
+  if(PROXY_URL.includes('YOUR-WORKER-SUBDOMAIN')){
+    return { ok:false, status:'proxy not configured', errorSpeech:"The AI proxy hasn't been set up yet." };
+  }
+  const history = recentHistoryForApi(12);
+  const messages = history.map((m, idx) => {
+    if(idx === history.length-1 && currentTurnImage){
+      return {
+        role: m.role,
+        content: [
+          { type:"text", text: m.content },
+          { type:"image_url", image_url:{ url:`data:${currentTurnImage.mimeType};base64,${currentTurnImage.base64}` } }
+        ]
+      };
+    }
+    return { role: m.role, content: m.content };
+  });
+
+  let response, data;
+  try{
+    // APInex speaks the same OpenAI-compatible chat/completions shape as
+    // Azure Foundry, so the request body matches callAzureFoundry() —
+    // the actual sk-apx… key and model id live server-side on the
+    // Worker's /apinex route, never in this page.
+    response = await fetch(`${PROXY_URL}/apinex`, {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        response_format:{ type:"json_object" },
+        max_tokens:14000,
+        messages: [
+          { role:"system", content: SYSTEM_PROMPT },
+          ...messages
+        ]
+      })
+    });
+  } catch(networkErr){
+    console.error('Network failure calling proxy (Apinex):', networkErr);
+    return { ok:false, status:'network error', errorSpeech:"The request never reached the proxy." };
+  }
+
+  try{ data = await response.json(); }
+  catch(parseErr){
+    return { ok:false, status:'bad response', errorSpeech:"The proxy responded with invalid JSON." };
+  }
+
+  if(!response.ok){
+    const msg = (data && data.error && data.error.message) ? data.error.message : JSON.stringify(data);
+    return { ok:false, status:`API error ${response.status}`, errorSpeech:`Apinex returned an error: ${msg}` };
+  }
+
+  const choice = data.choices && data.choices[0];
+  const raw = choice && choice.message && choice.message.content;
+  if(!raw){
+    return { ok:false, status:'unexpected response', errorSpeech:"Apinex response shape was unexpected." };
+  }
+  return { ok:true, raw: raw.trim() };
+}
+
 async function callAzureFoundry(){
   if(PROXY_URL.includes('YOUR-WORKER-SUBDOMAIN')){
     return { ok:false, status:'proxy not configured', errorSpeech:"The AI proxy hasn't been set up yet." };
