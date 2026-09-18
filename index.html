@@ -2162,9 +2162,9 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
   <div class="top-right-cluster">
     <button class="exit-lesson-btn" id="btn-exit-lesson" title="Exit lesson">🚪 Exit Lesson</button>
     <select class="ai-engine-select" id="btn-ai-engine" title="Choose which AI engine teaches this lesson" onchange="setAiBackend(this.value)">
-      <option value="apinex">Apinex</option>
-      <option value="azure">Azure</option>
       <option value="gemini">Gemini</option>
+      <option value="groq">Groq</option>
+      <option value="apinex">Apinex</option>
     </select>
     <div class="status-chip" id="voice-status-chip" style="display:none;"></div>
     <div class="status-chip" id="status-line" onclick="showBackendDebug()" style="cursor:pointer;" title="Tap to see AI backend details">idle</div>
@@ -4947,44 +4947,38 @@ const PROXY_URL = "https://api.takundamambudzi02.workers.dev";
 // being sent — only read by callGemini() for that one turn, then cleared.
 let currentTurnImage = null;
 
-// AI backend selection: the student/teacher picks Azure Foundry or Gemini
+// AI backend selection: the student/teacher picks Gemini, Groq, or Apinex
 // as the PRIMARY engine via the dropdown in the topbar (persisted in
 // localStorage so it sticks across sessions) — see #btn-ai-engine below.
-// Whichever one is picked is tried first; Groq (whose own instructions,
-// SYSTEM_PROMPT_GROQ below, tell it to stick to simple structured drawing
-// rather than the freeform organic illustrations it tends to botch), then
-// OpenRouter's free tier, remain as automatic last-resort fallbacks if the
-// chosen primary engine is down or rate-limited — this is a safety net,
-// not a second vote on the user's choice, so it only kicks in on an actual
+// Whichever one is picked is tried first; the other two (in Gemini, Groq,
+// Apinex order) remain as automatic last-resort fallbacks if the chosen
+// primary engine is down or rate-limited — this is a safety net, not a
+// second vote on the user's choice, so it only kicks in on an actual
 // failure of the selected engine.
-let selectedAiBackend = localStorage.getItem('chalkline_ai_backend') || 'apinex';
+let selectedAiBackend = localStorage.getItem('chalkline_ai_backend') || 'gemini';
 (function(){ const sel = document.getElementById('btn-ai-engine'); if(sel) sel.value = selectedAiBackend; })();
 
 function setAiBackend(id){
-  selectedAiBackend = (id === 'gemini') ? 'gemini' : (id === 'azure') ? 'azure' : 'apinex';
+  selectedAiBackend = (id === 'apinex') ? 'apinex' : (id === 'groq') ? 'groq' : 'gemini';
   localStorage.setItem('chalkline_ai_backend', selectedAiBackend);
   const sel = document.getElementById('btn-ai-engine');
   if(sel) sel.value = selectedAiBackend;
 }
 
-// Apinex is the default/primary brain. Whichever engine the picker isn't
-// currently on still lives in the fallback chain, so switching to Azure or
-// Gemini as primary doesn't remove Apinex as a safety net either.
+// Gemini is the default/primary brain (official, documented, cheap,
+// large-context). Groq and Apinex remain as fallbacks in that order —
+// whichever engine the picker isn't currently on still lives in the
+// fallback chain, so switching the primary doesn't remove the others.
 const ENGINES = {
-  apinex: { name: 'Apinex', call: () => callApinex() },
-  azure:  { name: 'Azure Foundry', call: () => callAzureFoundry() },
-  gemini: { name: 'Gemini', call: () => callGemini() }
+  gemini: { name: 'Gemini', call: () => callGemini() },
+  groq:   { name: 'Groq', call: () => callGroq() },
+  apinex: { name: 'Apinex', call: () => callApinex() }
 };
 
 function getBackendChain(){
-  const primary = ENGINES[selectedAiBackend] || ENGINES.apinex;
+  const primary = ENGINES[selectedAiBackend] || ENGINES.gemini;
   const rest = Object.keys(ENGINES).filter(k => ENGINES[k] !== primary).map(k => ENGINES[k]);
-  return [
-    primary,
-    ...rest,
-    { name: 'Groq', call: () => callGroq() },
-    { name: 'OpenRouter', call: () => callOpenRouter() }
-  ];
+  return [primary, ...rest];
 }
 
 // Records exactly what happened with each AI backend on the most recent
@@ -5071,8 +5065,8 @@ async function callTutor(userMessage, imageAttachment){
 // history/pdf context were trimmed, since the fixed prompt cost already
 // exceeded the ceiling before anything else was added. This trimmed prompt
 // (~1,500 tokens) keeps every rule that affects output correctness/quality
-// but cuts repeated worked examples and verbose prose. Gemini/OpenRouter/
-// Cerebras keep the full SYSTEM_PROMPT since their limits are far higher.
+// but cuts repeated worked examples and verbose prose. Gemini and Apinex
+// keep the full SYSTEM_PROMPT since their limits are far higher.
 const SYSTEM_PROMPT_GROQ = `You are an expert university lecturer operating a notebook whiteboard tutoring tool called Chalkline. Teach at genuine university level: rigorous, precise, no hand-waving.
 
 TONE: be warm and encouraging, not a stiff textbook. When the student is right (a quiz answer or a correct response), react with genuine specific praise before moving on — "Yes, exactly right!", "You nailed that.", "Good job." Vary the phrasing, don't repeat the same line every time. When they're wrong, stay encouraging rather than deflating — acknowledge what they got right if anything, gently correct the mistake, move on. This is tone/wording in "speech" only — it never loosens rigor or correctness of the content.
@@ -5170,96 +5164,6 @@ async function callGroq(){
   return { ok:true, raw: raw.trim() };
 }
 
-async function callOpenRouter(){
-  if(PROXY_URL.includes('YOUR-WORKER-SUBDOMAIN')){
-    return { ok:false, status:'proxy not configured', errorSpeech:"The AI proxy hasn't been set up yet." };
-  }
-  let response, data;
-  try{
-    response = await fetch(`${PROXY_URL}/openrouter`, {
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({
-        model:"openrouter/free",
-        response_format:{ type:"json_object" },
-        max_tokens:12000,
-        messages: [
-          { role:"system", content: SYSTEM_PROMPT },
-          ...recentHistoryForApi()
-        ]
-      })
-    });
-  } catch(networkErr){
-    console.error('Network failure calling proxy (OpenRouter):', networkErr);
-    return { ok:false, status:'network error', errorSpeech:"The request never reached the proxy." };
-  }
-
-  try{ data = await response.json(); }
-  catch(parseErr){
-    return { ok:false, status:'bad response', errorSpeech:"The proxy responded with invalid JSON." };
-  }
-
-  if(!response.ok){
-    const msg = (data && data.error && data.error.message) ? data.error.message : JSON.stringify(data);
-    return { ok:false, status:`API error ${response.status}`, errorSpeech:`OpenRouter returned an error: ${msg}` };
-  }
-
-  const choice = data.choices && data.choices[0];
-  const raw = choice && choice.message && choice.message.content;
-  if(!raw){
-    return { ok:false, status:'unexpected response', errorSpeech:"OpenRouter response shape was unexpected." };
-  }
-  return { ok:true, raw: raw.trim() };
-}
-
-async function callCerebras(){
-  if(PROXY_URL.includes('YOUR-WORKER-SUBDOMAIN')){
-    return { ok:false, status:'proxy not configured', errorSpeech:"The AI proxy hasn't been set up yet." };
-  }
-  let response, data;
-  try{
-    response = await fetch(`${PROXY_URL}/cerebras`, {
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({
-        model:"llama-3.3-70b",
-        response_format:{ type:"json_object" },
-        max_tokens:12000,
-        messages: [
-          { role:"system", content: SYSTEM_PROMPT },
-          ...recentHistoryForApi()
-        ]
-      })
-    });
-  } catch(networkErr){
-    console.error('Network failure calling proxy (Cerebras):', networkErr);
-    return { ok:false, status:'network error', errorSpeech:"The request never reached the proxy." };
-  }
-
-  try{ data = await response.json(); }
-  catch(parseErr){
-    return { ok:false, status:'bad response', errorSpeech:"The proxy responded with invalid JSON." };
-  }
-
-  if(!response.ok){
-    const msg = (data && data.error && data.error.message) ? data.error.message : JSON.stringify(data);
-    return { ok:false, status:`API error ${response.status}`, errorSpeech:`Cerebras returned an error: ${msg}` };
-  }
-
-  const choice = data.choices && data.choices[0];
-  const raw = choice && choice.message && choice.message.content;
-  if(!raw){
-    return { ok:false, status:'unexpected response', errorSpeech:"Cerebras response shape was unexpected." };
-  }
-  return { ok:true, raw: raw.trim() };
-}
-
-// Azure AI Foundry's unified Models API is OpenAI-chat-compatible, so this
-// reuses conversationHistory's existing {role, content} shape (same as
-// Groq/OpenRouter below) rather than Gemini's contents/parts shape — the
-// worker picks which deployed model (e.g. "claude-opus-5", "gpt-5.6-sol")
-// answers via the AZURE_FOUNDRY_MODEL secret, so nothing here needs to
-// know or care which one it is.
 async function callApinex(){
   if(PROXY_URL.includes('YOUR-WORKER-SUBDOMAIN')){
     return { ok:false, status:'proxy not configured', errorSpeech:"The AI proxy hasn't been set up yet." };
@@ -5281,8 +5185,7 @@ async function callApinex(){
   let response, data;
   try{
     // APInex speaks the same OpenAI-compatible chat/completions shape as
-    // Azure Foundry, so the request body matches callAzureFoundry() —
-    // the actual sk-apx… key and model id live server-side on the
+    // Groq — the actual sk-apx… key and model id live server-side on the
     // Worker's /apinex route, never in this page.
     response = await fetch(`${PROXY_URL}/apinex`, {
       method:"POST",
@@ -5315,61 +5218,6 @@ async function callApinex(){
   const raw = choice && choice.message && choice.message.content;
   if(!raw){
     return { ok:false, status:'unexpected response', errorSpeech:"Apinex response shape was unexpected." };
-  }
-  return { ok:true, raw: raw.trim() };
-}
-
-async function callAzureFoundry(){
-  if(PROXY_URL.includes('YOUR-WORKER-SUBDOMAIN')){
-    return { ok:false, status:'proxy not configured', errorSpeech:"The AI proxy hasn't been set up yet." };
-  }
-  const history = recentHistoryForApi(12);
-  const messages = history.map((m, idx) => {
-    if(idx === history.length-1 && currentTurnImage){
-      return {
-        role: m.role,
-        content: [
-          { type:"text", text: m.content },
-          { type:"image_url", image_url:{ url:`data:${currentTurnImage.mimeType};base64,${currentTurnImage.base64}` } }
-        ]
-      };
-    }
-    return { role: m.role, content: m.content };
-  });
-
-  let response, data;
-  try{
-    response = await fetch(`${PROXY_URL}/azure-foundry`, {
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({
-        response_format:{ type:"json_object" },
-        max_tokens:14000,
-        messages: [
-          { role:"system", content: SYSTEM_PROMPT },
-          ...messages
-        ]
-      })
-    });
-  } catch(networkErr){
-    console.error('Network failure calling proxy (Azure Foundry):', networkErr);
-    return { ok:false, status:'network error', errorSpeech:"The request never reached the proxy." };
-  }
-
-  try{ data = await response.json(); }
-  catch(parseErr){
-    return { ok:false, status:'bad response', errorSpeech:"The proxy responded with invalid JSON." };
-  }
-
-  if(!response.ok){
-    const msg = (data && data.error && data.error.message) ? data.error.message : JSON.stringify(data);
-    return { ok:false, status:`API error ${response.status}`, errorSpeech:`Azure AI Foundry returned an error: ${msg}` };
-  }
-
-  const choice = data.choices && data.choices[0];
-  const raw = choice && choice.message && choice.message.content;
-  if(!raw){
-    return { ok:false, status:'unexpected response', errorSpeech:"Azure AI Foundry response shape was unexpected." };
   }
   return { ok:true, raw: raw.trim() };
 }
@@ -6609,18 +6457,57 @@ ${lengthInstruction(mode)}`;
 
   const userMsg = `Extracted PDF text (file: ${pdfFileName}):\n\n${text.slice(0, 60000)}`;
 
-  // Azure AI Foundry is the primary backend (same "main AI brain" the
-  // tutor page now uses); Gemini is kept only as the fallback if Foundry
-  // fails or isn't configured.
-  const foundryResult = await summarizeViaAzureFoundry(system, userMsg);
-  if(foundryResult.ok) return foundryResult;
-  return summarizeViaGemini(system, userMsg);
+  // Gemini is the primary backend (same "main AI brain" the tutor page
+  // now uses); Groq, then Apinex, are kept as fallbacks in that order if
+  // Gemini fails or isn't configured.
+  const geminiResult = await summarizeViaGemini(system, userMsg);
+  if(geminiResult.ok) return geminiResult;
+  const groqResult = await summarizeViaGroq(system, userMsg);
+  if(groqResult.ok) return groqResult;
+  return summarizeViaApinex(system, userMsg);
 }
 
-async function summarizeViaAzureFoundry(system, userMsg){
+async function summarizeViaGroq(system, userMsg){
   let response, data;
   try{
-    response = await fetch(`${PROXY_URL}/azure-foundry`, {
+    response = await fetch(`${PROXY_URL}/groq`, {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        model:"openai/gpt-oss-120b",
+        max_tokens: 3000,
+        messages: [
+          { role:"system", content: system },
+          { role:"user", content: userMsg }
+        ]
+      })
+    });
+  } catch(networkErr){
+    return { ok:false, error:"The request never reached the proxy." };
+  }
+
+  try{ data = await response.json(); }
+  catch(parseErr){
+    return { ok:false, error:"The server responded, but not with valid JSON." };
+  }
+
+  if(!response.ok){
+    const msg = (data && data.error && data.error.message) ? data.error.message : JSON.stringify(data);
+    return { ok:false, error:`The model returned an error: ${msg}` };
+  }
+
+  const choice = data.choices && data.choices[0];
+  const raw = choice && choice.message && choice.message.content;
+  if(!raw){
+    return { ok:false, error:"The response came back in an unexpected shape." };
+  }
+  return { ok:true, html: raw.trim().replace(/^```html\s*/i,'').replace(/^```\s*/,'').replace(/```\s*$/,'') };
+}
+
+async function summarizeViaApinex(system, userMsg){
+  let response, data;
+  try{
+    response = await fetch(`${PROXY_URL}/apinex`, {
       method:"POST",
       headers:{"Content-Type":"application/json"},
       body: JSON.stringify({
