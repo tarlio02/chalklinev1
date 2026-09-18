@@ -2155,6 +2155,20 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
   </div>
 </div>
 
+<div class="subject-modal" id="topic-modal">
+  <div class="sm-scrim"></div>
+  <div class="sm-card">
+    <p class="sm-eyebrow" id="topic-modal-course-label">COURSE</p>
+    <h2>What topic today?</h2>
+    <p>Tell your tutor what you want to learn under this course.</p>
+    <input type="text" id="course-topic-input" placeholder="e.g. ANOVA, Price elasticity of demand…" autocomplete="off">
+    <div class="sm-actions">
+      <button class="sm-skip" id="btn-topic-skip">Skip for now</button>
+      <button class="sm-go" id="btn-topic-go">Start lesson</button>
+    </div>
+  </div>
+</div>
+
 <div class="subject-modal" id="leave-modal">
   <div class="sm-scrim"></div>
   <div class="sm-card">
@@ -5414,6 +5428,35 @@ subjectInput.addEventListener('input', ()=>{
   });
 });
 
+/* ------------- topic-only prompt (entering an existing course) ------- */
+const topicModal = document.getElementById('topic-modal');
+const courseTopicInput = document.getElementById('course-topic-input');
+const topicModalCourseLabel = document.getElementById('topic-modal-course-label');
+
+function openTopicModal(courseName){
+  currentSubject = courseName;
+  topicModalCourseLabel.textContent = courseName.toUpperCase();
+  courseTopicInput.value = '';
+  topicModal.classList.add('open');
+  setTimeout(()=> courseTopicInput.focus(), 50);
+}
+function closeTopicModal(){ topicModal.classList.remove('open'); }
+
+function confirmTopic(){
+  const val = courseTopicInput.value.trim();
+  closeTopicModal();
+  if(val){
+    currentTopicLabel = val.length > 60 ? val.slice(0,57)+'…' : val;
+    runTeachingTurn(val);
+  }
+  // No topic entered: leave the board idle under this course, same as
+  // "Skip for now" on the regular subject prompt — nothing to teach yet,
+  // so no session is created until the first real exchange happens.
+}
+document.getElementById('btn-topic-go').addEventListener('click', confirmTopic);
+document.getElementById('btn-topic-skip').addEventListener('click', closeTopicModal);
+courseTopicInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); confirmTopic(); } });
+
 /* ------------------- leave-lesson prompt (Home button) -------------- */
 const leaveModal = document.getElementById('leave-modal');
 const leaveNameInput = document.getElementById('leave-name-input');
@@ -5458,8 +5501,8 @@ leaveNameInput.addEventListener('keydown', (e)=>{
 // prompting for a new subject.
 let pendingSessionLoad = false;
 // A course-name preset from the Home dashboard ("Start new lesson" inside
-// a course) skips the subject prompt entirely — the course is already
-// named, so just start teaching under it.
+// a course) means the course is already named — but we still ask what
+// specific topic to study under it, via the topic-only modal below.
 let presetSubjectFromShell = null;
 let pendingPresetSubject = false;
 // If the shell's loadSessionId message arrives before we've heard back
@@ -5483,7 +5526,11 @@ window.addEventListener('message', (e)=>{
     currentSubject = d.presetSubject;
   }
 });
-setTimeout(()=>{ if(!pendingSessionLoad && !pendingPresetSubject) openSubjectModal(); }, 260);
+setTimeout(()=>{
+  if(pendingSessionLoad) return;
+  if(pendingPresetSubject) openTopicModal(presetSubjectFromShell);
+  else openSubjectModal();
+}, 260);
 
 async function loadSessionById(id){
   if(!currentUser){ queuedShellSessionId = id; return; }
