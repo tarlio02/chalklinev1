@@ -851,12 +851,12 @@ body{
     <!-- ---------- Course list view ---------- -->
     <div id="dash-list-view">
       <div class="dash-head fade-up">
-        <h1 style="margin:0;">Dashboard</h1>
+        <h1 style="margin:0;">📊 Dashboard</h1>
       </div>
 
       <div style="display:flex;justify-content:center;margin:0 0 40px;">
         <button type="button" id="add-course-btn" onclick="handleAddCourseClick();">
-          <span style="font-size:16px;line-height:1;">＋</span> Add new course
+          <span style="font-size:16px;line-height:1;">✨＋</span> Add new course
         </button>
       </div>
 
@@ -6307,8 +6307,8 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
       <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M10 12.5 5 8l5-4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       Back to home
     </a>
-    <h1>Summarize your notes</h1>
-    <p>Upload a PDF — a chapter, slide deck, or your own notes — and get back a clear, structured summary of what's actually in it.</p>
+    <h1>📝 Summarize your notes</h1>
+    <p>Upload a PDF — a chapter, slide deck, or your own notes — and get back a clear, structured summary of what's actually in it. ✨ No fluff, just the good stuff.</p>
   </div>
 
   <div class="p-section" style="margin-bottom:22px;">
@@ -6932,10 +6932,10 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
   <div class="page-head">
     <div>
       <a href="#" class="back-link" id="th-back" style="display:none;" onclick="goBackToCourseTH();return false;">&#8249; <span id="th-back-name"></span></a>
-      <h1 id="th-title">Previous tutorials</h1>
-      <p id="th-sub">Your saved whiteboard lessons, grouped by subject or course.</p>
+      <h1 id="th-title">🎓 Previous tutorials</h1>
+      <p id="th-sub">Your saved whiteboard lessons, grouped by subject or course. 💡 Pick up right where you left off.</p>
     </div>
-    <button class="btn-primary" id="th-new-btn" onclick="startNewTH();">Start new lesson</button>
+    <button class="btn-primary" id="th-new-btn" onclick="startNewTH();">✏️ Start new lesson</button>
   </div>
 
   <div id="th-content">
@@ -7294,10 +7294,10 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
   <div class="page-head">
     <div>
       <a href="#" class="back-link" id="sh-back" style="display:none;" onclick="goBackToCourseSH();return false;">&#8249; <span id="sh-back-name"></span></a>
-      <h1 id="sh-title">Previous summaries</h1>
-      <p id="sh-sub">Every PDF summary you've saved to your account.</p>
+      <h1 id="sh-title">📚 Previous summaries</h1>
+      <p id="sh-sub">Every PDF summary you've saved to your account. ⚡ Instant recall, zero rereading.</p>
     </div>
-    <button class="btn-primary" id="sh-new-btn" onclick="startNewSH();">Start new summary</button>
+    <button class="btn-primary" id="sh-new-btn" onclick="startNewSH();">📝 Start new summary</button>
   </div>
 
   <div id="sh-content">
@@ -7589,8 +7589,8 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
   <div class="page-head">
     <div>
       <a href="#" class="back-link" id="qh-back" style="display:none;" onclick="goBackToCourseQH();return false;">&#8249; <span id="qh-back-name"></span></a>
-      <h1 id="qh-title">Quizzes</h1>
-      <p id="qh-sub">Every quiz you have taken, across all your courses.</p>
+      <h1 id="qh-title">🧠 Quizzes</h1>
+      <p id="qh-sub">Every quiz you have taken, across all your courses. 🔥 Keep the streak going.</p>
     </div>
     <button class="btn-primary" id="qh-new-btn" onclick="startNewQH();">Start new quiz</button>
   </div>
@@ -7969,7 +7969,7 @@ body{
   <div class="notes-list-pane">
     <div class="nl-topbar">
       <button type="button" class="nl-back" title="Back to Dashboard" onclick="parent.postMessage({nav:'home'},'*');">←</button>
-      <span class="nl-title" id="nl-title">Notes</span>
+      <span class="nl-title" id="nl-title">🗒️ Notes</span>
     </div>
     <div class="nl-search">
       <input type="text" id="notes-search" placeholder="Search notes">
@@ -8798,38 +8798,119 @@ loadGlobalSettings().then(refreshNotesList);
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>Chalkline — Quiz</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@600&display=swap');
-  html,body{ margin:0; height:100%; font-family:-apple-system,Segoe UI,sans-serif; background:#BFDCF7; }
-  .quiz-wrap{
-    height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center;
-    text-align:center; padding:40px; box-sizing:border-box;
-  }
-  .quiz-badge{
-    width:64px; height:64px; border-radius:20px; display:flex; align-items:center; justify-content:center;
-    font-size:30px; margin-bottom:18px;
-    background:linear-gradient(140deg, #2E7DBE, #A66A1E);
-    box-shadow:0 10px 24px -10px rgba(30,43,58,0.35);
-  }
-  .quiz-wrap h1{
-    font-family:'Fraunces','Source Serif 4',Georgia,serif; font-size:28px; margin:0 0 10px; color:#1E2B3A;
-  }
-  .quiz-wrap p{ font-size:15px; color:#5c6f80; max-width:380px; line-height:1.6; margin:0 0 26px; }
-  .quiz-back{
-    border:none; border-radius:999px; padding:12px 24px; font-size:14.5px; font-weight:600;
-    color:#fff; cursor:pointer; font-family:inherit;
-    background:linear-gradient(140deg, #2E7DBE, #A66A1E);
-    box-shadow:0 6px 14px -6px rgba(120,90,20,0.35);
-  }
-  .quiz-back:hover{ transform:translateY(-2px); }
+@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&family=Caveat:wght@600;700&display=swap');
+
+:root{
+  --board-bg:#BFDCF7;
+  --ink:#1E2B3A;
+  --ochre:#2E7DBE;
+  --highlight:#A6D0F2;
+  --sage:#3E8FA6;
+  --brick:#3D6B93;
+  --panel-border:#D3E6F5;
+  --muted:#7C93A8;
+  --halo-blue:#6EA8FE;
+  --halo-blue-soft:#A5C8FF;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;height:100%;}
+body{
+  font-family:'Source Serif 4', Georgia, serif;
+  color:var(--ink); background:var(--board-bg);
+  min-height:100vh; position:relative;
+}
+.ambient-halo{ position:fixed; inset:0; z-index:0; overflow:hidden; pointer-events:none; }
+.ambient-halo::before,.ambient-halo::after{
+  content:''; position:absolute; width:58vmax;height:58vmax;
+  border-radius:50%; filter:blur(100px); opacity:0.22; mix-blend-mode:multiply;
+}
+.ambient-halo::before{ top:-24%; left:-16%; background:radial-gradient(circle, var(--halo-blue) 0%, rgba(110,168,254,0) 70%); animation:d1 24s ease-in-out infinite; }
+.ambient-halo::after{ bottom:-26%; right:-14%; background:radial-gradient(circle, var(--halo-blue-soft) 0%, rgba(165,200,255,0) 70%); animation:d2 28s ease-in-out infinite; }
+@keyframes d1{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(9%,7%) scale(1.13);}}
+@keyframes d2{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(-7%,-6%) scale(1.1);}}
+
+.wrap{ position:relative; z-index:1; max-width:760px; margin:0 auto; padding:0 28px 80px; }
+
+nav{ display:flex; align-items:center; justify-content:space-between; padding:26px 0 10px; }
+.brand{ font-family:'Caveat', cursive; font-weight:700; font-size:28px; color:var(--ink); text-decoration:none; display:flex; align-items:center; gap:8px; }
+.brand .dot{ width:9px;height:9px;border-radius:50%; background:var(--sage); display:inline-block; }
+.nav-links{ display:flex; gap:26px; font-family:'JetBrains Mono', monospace; font-size:13px; }
+.nav-links a{ color:var(--muted); text-decoration:none; }
+.nav-links a:hover{ color:var(--ink); }
+.nav-links a.active{ color:var(--ink); border-bottom:1.5px solid var(--ochre); padding-bottom:2px; }
+
+.icon-link{
+  font-family:'JetBrains Mono', monospace; font-size:11.5px; color:var(--ochre);
+  text-decoration:none; cursor:pointer; background:none; border:none; padding:0;
+  display:inline-flex; align-items:center; gap:4px; margin-bottom:14px;
+}
+.icon-link:hover{ text-decoration:underline; }
+
+.quiz-mid{
+  min-height:calc(100vh - 220px);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  text-align:center; padding:30px 0 60px;
+}
+.quiz-badge{
+  width:66px; height:66px; border-radius:20px; display:flex; align-items:center; justify-content:center;
+  font-size:30px; margin-bottom:18px;
+  background:linear-gradient(140deg, #2E7DBE, #A66A1E);
+  box-shadow:0 10px 24px -10px rgba(30,43,58,0.35);
+}
+.quiz-mid h1{
+  font-size:30px; margin:0 0 6px; font-weight:600; display:flex; align-items:center; gap:8px; justify-content:center;
+}
+.quiz-eyebrow{
+  font-family:'JetBrains Mono', monospace; font-size:11.5px; letter-spacing:.04em;
+  color:var(--ochre); text-transform:uppercase; margin:0 0 10px;
+}
+.quiz-mid p{ font-size:15.5px; color:var(--muted); max-width:420px; line-height:1.6; margin:0 0 26px; }
+.btn-primary{
+  font-family:'Source Serif 4', serif; font-size:15.5px; font-weight:600;
+  background:var(--ink); color:#fff; border:none; border-radius:9px;
+  padding:12px 24px; cursor:pointer; transition:background .15s ease, transform .15s ease;
+}
+.btn-primary:hover{ background:#0f1c2c; transform:translateY(-1px); }
+.quiz-chips{ display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin-top:22px; }
+.quiz-chip{
+  font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--muted);
+  background:#fff; border:1px solid var(--panel-border); border-radius:999px; padding:6px 12px;
+  display:inline-flex; align-items:center; gap:5px;
+}
 </style>
 </head>
 <body>
-<div class="quiz-wrap">
-  <div class="quiz-badge">🧠</div>
-  <h1>Quizzes are on the way</h1>
-  <p id="quiz-course-line">This is where you'll be quizzed on what you've learned.</p>
-  <button class="quiz-back" id="quiz-back-btn">Back to Dashboard</button>
+
+<div class="ambient-halo"></div>
+
+<div class="wrap">
+  <nav>
+    <a class="brand" href="#" onclick="parent.postMessage({nav:'home'},'*');return false;"><span class="dot"></span>Chalkline</a>
+    <div class="nav-links">
+      <a href="#" onclick="parent.postMessage({nav:'tutor'},'*');return false;">Tutor</a>
+      <a href="#" onclick="parent.postMessage({nav:'summary'},'*');return false;">Summary</a>
+      <a href="#" class="active" onclick="return false;">Quiz</a>
+    </div>
+  </nav>
+
+  <div class="quiz-mid">
+    <a href="#" class="icon-link" id="quiz-back-link" onclick="goBackFromQuiz();return false;">
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M10 12.5 5 8l5-4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Back to dashboard
+    </a>
+    <div class="quiz-badge">🧠⚡</div>
+    <p class="quiz-eyebrow">🔥 Coming soon</p>
+    <h1>Quizzes are warming up</h1>
+    <p id="quiz-course-line">This is where you'll get put on the spot — quick-fire questions pulled straight from what you've studied.</p>
+    <button class="btn-primary" id="quiz-back-btn">✨ Back to Dashboard</button>
+    <div class="quiz-chips">
+      <span class="quiz-chip">🎯 Instant feedback</span>
+      <span class="quiz-chip">📈 Tracks your progress</span>
+      <span class="quiz-chip">🃏 Made from your notes</span>
+    </div>
+  </div>
 </div>
+
 <script>
   let quizSubject = null;
   window.addEventListener('message', (e)=>{
@@ -8838,14 +8919,15 @@ loadGlobalSettings().then(refreshNotesList);
       quizSubject = d.presetSubject;
       document.getElementById('quiz-course-line').textContent =
         'Quizzes for "' + d.presetSubject + '" will show up here once they\'re ready.';
-      document.getElementById('quiz-back-btn').textContent = 'Back to quizzes';
+      document.getElementById('quiz-back-btn').textContent = '✨ Back to quizzes';
     }
   });
-  document.getElementById('quiz-back-btn').addEventListener('click', ()=>{
+  function goBackFromQuiz(){
     parent.postMessage(quizSubject
       ? { nav:'quiz-history', presetSubject: quizSubject }
       : { nav:'home' }, '*');
-  });
+  }
+  document.getElementById('quiz-back-btn').addEventListener('click', goBackFromQuiz);
 <\/script>
 </body>
 </html>
