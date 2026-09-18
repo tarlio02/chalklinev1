@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <title>Chalkline — AI Study Tools</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&display=swap');
@@ -26,7 +26,10 @@
      iframe reports location.origin as "null", and Google's Identity
      script refuses to authenticate from a null origin. */
   #shell-auth{
-    position:fixed; top:16px; right:20px; z-index:9999;
+    position:fixed;
+    top:calc(16px + env(safe-area-inset-top, 0px));
+    right:calc(20px + env(safe-area-inset-right, 0px));
+    z-index:9999;
     display:flex; align-items:center; gap:8px;
     font-family:-apple-system,Segoe UI,sans-serif;
   }
@@ -425,12 +428,16 @@ window.addEventListener('message', (e)=>{
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <title>Chalkline — AI Study Tools</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&family=Caveat:wght@600;700&display=swap');
 
 :root{
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
   --board-bg:#FDFBF6;
   --paper:#FFFFFF;
   --ink:#2A2410;
@@ -456,6 +463,7 @@ body{
     radial-gradient(ellipse 900px 600px at 100% 0%, rgba(46,125,190,0.10), transparent 60%),
     linear-gradient(165deg, #FFFDF6 0%, #FFF7E0 55%, #FBEFD0 130%);
   min-height:100vh;
+  min-height:100dvh;
   position:relative;
   overflow-x:hidden;
 }
@@ -483,16 +491,16 @@ body{
 @keyframes fadeUp{ from{ opacity:0; transform:translateY(16px); } to{ opacity:1; transform:translateY(0); } }
 .fade-up{ opacity:0; animation:fadeUp .7s cubic-bezier(.2,.7,.2,1) forwards; }
 
-.app-shell{ position:relative; z-index:1; display:flex; min-height:100vh; perspective:1800px; }
+.app-shell{ position:relative; z-index:1; display:flex; min-height:100vh; min-height:100dvh; perspective:1800px; }
 
 /* ---------- SIDEBAR (open by default, toggleable, with a physical
    "panel" feel: layered elevation shadow + a darker spine along the
    right edge + a slight 3D swing as it opens/closes) ---------- */
 .sidebar{
   width:252px; flex-shrink:0;
-  height:100vh; position:fixed; left:0; top:0; z-index:45;
+  height:100vh; height:100dvh; position:fixed; left:0; top:0; z-index:45;
   display:flex; flex-direction:column;
-  padding:22px 16px 18px;
+  padding:calc(22px + var(--safe-top)) 16px 18px calc(16px + var(--safe-left));
   background:linear-gradient(165deg, #FFFFFF 0%, #FFF7E0 55%, #F5E6B8 130%);
   backdrop-filter:blur(18px) saturate(160%);
   -webkit-backdrop-filter:blur(18px) saturate(160%);
@@ -600,8 +608,8 @@ body{
 .app-shell.sidebar-closed .sidebar-toggle{ left:16px; }
 
 @media (max-width:900px){
-  .sidebar-toggle{ left:16px; top:16px; }
-  .app-shell.sidebar-closed .sidebar-toggle{ left:16px; }
+  .sidebar-toggle{ left:calc(16px + var(--safe-left)); top:calc(16px + var(--safe-top)); }
+  .app-shell.sidebar-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); }
 }
 
 .sidebar-scrim{
@@ -618,7 +626,7 @@ body{
   /* Narrow screens: the sidebar floats over the content instead of
      pushing it (there's no room to spare), so content never reflows
      here — only the scrim (and the sidebar itself) toggles. */
-  .main-area{ margin-left:0 !important; padding-top:66px; }
+  .main-area{ margin-left:0 !important; padding-top:calc(66px + var(--safe-top)); padding-left:calc(16px + var(--safe-left)); padding-right:calc(16px + var(--safe-right)); }
   .app-shell:not(.sidebar-closed) .sidebar-scrim{ opacity:1; }
   .app-shell.sidebar-closed .sidebar-scrim{ display:none; }
 }
@@ -6187,7 +6195,7 @@ refreshSessionList();
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <title>Chalkline — Summary</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"><\/script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"><\/script>
@@ -6195,6 +6203,10 @@ refreshSessionList();
 @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&family=Caveat:wght@600;700&display=swap');
 
 :root{
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
   --board-bg:#FDFBF6;
   --ink:#2A2410;
   --ochre:#2E7DBE;
@@ -6217,7 +6229,8 @@ body{
     radial-gradient(ellipse 900px 500px at 15% -10%, rgba(240,185,77,0.22), transparent 60%),
     radial-gradient(ellipse 900px 600px at 100% 0%, rgba(46,125,190,0.10), transparent 60%),
     linear-gradient(165deg, #FFFDF6 0%, #FFF7E0 55%, #FBEFD0 130%);
-  min-height:100vh; position:relative;
+  min-height:100vh; min-height:100dvh; position:relative;
+  overflow-x:hidden;
 }
 .ambient-halo{ position:fixed; inset:0; z-index:0; overflow:hidden; pointer-events:none; }
 .ambient-halo::before,.ambient-halo::after{
@@ -6312,12 +6325,12 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 .session-item .s-delete{border:none;background:none;color:var(--muted);cursor:pointer;font-size:12px;padding:2px 4px;margin-left:6px;flex-shrink:0;border-radius:4px;}
 .session-item .s-delete:hover{color:#b3452f;background:#FBEDE9;}
 
-.app-shell{ position:relative; z-index:1; display:flex; min-height:100vh; }
+.app-shell{ position:relative; z-index:1; display:flex; min-height:100vh; min-height:100dvh; }
 .sidebar{
   width:230px; flex-shrink:0;
-  height:100vh; position:fixed; left:0; top:0; z-index:45;
+  height:100vh; height:100dvh; position:fixed; left:0; top:0; z-index:45;
   display:flex; flex-direction:column;
-  padding:22px 16px 18px;
+  padding:calc(22px + var(--safe-top)) 16px 18px calc(16px + var(--safe-left));
   background:linear-gradient(165deg, #FFFFFF 0%, #FFF7E0 55%, #F5E6B8 130%);
   backdrop-filter:blur(18px) saturate(160%);
   -webkit-backdrop-filter:blur(18px) saturate(160%);
@@ -6367,13 +6380,13 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 .sidebar-toggle:hover{ box-shadow:0 5px 16px rgba(120,90,20,0.24), 0 0 0 1px rgba(120,90,20,0.1); }
 .sidebar-toggle:active{ transform:scale(0.94); }
 .app-shell.sidebar-closed .sidebar-toggle{ left:16px; }
-@media (max-width:900px){ .sidebar-toggle{ left:16px; top:16px; } .app-shell.sidebar-closed .sidebar-toggle{ left:16px; } }
+@media (max-width:900px){ .sidebar-toggle{ left:calc(16px + var(--safe-left)); top:calc(16px + var(--safe-top)); } .app-shell.sidebar-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 .sidebar-scrim{ display:none; position:fixed; inset:0; background:rgba(42,36,16,0.22); z-index:39; opacity:0; transition:opacity .3s ease; }
 .app-shell:not(.sidebar-closed) .sidebar-scrim{ display:block; opacity:0; }
 .main-area{ flex:1; min-width:0; transition:margin-left .38s cubic-bezier(.22,.9,.32,1.1); margin-left:230px; padding:8px 0 0; }
 .app-shell.sidebar-closed .main-area{ margin-left:0; }
 @media (max-width:900px){
-  .main-area{ margin-left:0 !important; padding-top:66px; }
+  .main-area{ margin-left:0 !important; padding-top:calc(66px + var(--safe-top)); padding-left:calc(16px + var(--safe-left)); padding-right:calc(16px + var(--safe-right)); }
   .app-shell:not(.sidebar-closed) .sidebar-scrim{ opacity:1; }
   .app-shell.sidebar-closed .sidebar-scrim{ display:none; }
 }
@@ -6918,12 +6931,16 @@ document.getElementById('btn-download').addEventListener('click', ()=>{
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <title>Chalkline — Previous Tutorials</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&family=Caveat:wght@600;700&display=swap');
 
 :root{
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
   --board-bg:#FDFBF6;
   --ink:#2A2410;
   --ochre:#2E7DBE;
@@ -6946,7 +6963,8 @@ body{
     radial-gradient(ellipse 900px 500px at 15% -10%, rgba(240,185,77,0.22), transparent 60%),
     radial-gradient(ellipse 900px 600px at 100% 0%, rgba(46,125,190,0.10), transparent 60%),
     linear-gradient(165deg, #FFFDF6 0%, #FFF7E0 55%, #FBEFD0 130%);
-  min-height:100vh; position:relative;
+  min-height:100vh; min-height:100dvh; position:relative;
+  overflow-x:hidden;
 }
 .ambient-halo{ position:fixed; inset:0; z-index:0; overflow:hidden; pointer-events:none; }
 .ambient-halo::before,.ambient-halo::after{
@@ -7050,12 +7068,12 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
   .tutorial-row .t-date{ order:4; }
 }
 
-.app-shell{ position:relative; z-index:1; display:flex; min-height:100vh; }
+.app-shell{ position:relative; z-index:1; display:flex; min-height:100vh; min-height:100dvh; }
 .sidebar{
   width:230px; flex-shrink:0;
-  height:100vh; position:fixed; left:0; top:0; z-index:45;
+  height:100vh; height:100dvh; position:fixed; left:0; top:0; z-index:45;
   display:flex; flex-direction:column;
-  padding:22px 16px 18px;
+  padding:calc(22px + var(--safe-top)) 16px 18px calc(16px + var(--safe-left));
   background:linear-gradient(165deg, #FFFFFF 0%, #FFF7E0 55%, #F5E6B8 130%);
   backdrop-filter:blur(18px) saturate(160%);
   -webkit-backdrop-filter:blur(18px) saturate(160%);
@@ -7105,13 +7123,13 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 .sidebar-toggle:hover{ box-shadow:0 5px 16px rgba(120,90,20,0.24), 0 0 0 1px rgba(120,90,20,0.1); }
 .sidebar-toggle:active{ transform:scale(0.94); }
 .app-shell.sidebar-closed .sidebar-toggle{ left:16px; }
-@media (max-width:900px){ .sidebar-toggle{ left:16px; top:16px; } .app-shell.sidebar-closed .sidebar-toggle{ left:16px; } }
+@media (max-width:900px){ .sidebar-toggle{ left:calc(16px + var(--safe-left)); top:calc(16px + var(--safe-top)); } .app-shell.sidebar-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 .sidebar-scrim{ display:none; position:fixed; inset:0; background:rgba(42,36,16,0.22); z-index:39; opacity:0; transition:opacity .3s ease; }
 .app-shell:not(.sidebar-closed) .sidebar-scrim{ display:block; opacity:0; }
 .main-area{ flex:1; min-width:0; transition:margin-left .38s cubic-bezier(.22,.9,.32,1.1); margin-left:230px; padding:8px 0 0; }
 .app-shell.sidebar-closed .main-area{ margin-left:0; }
 @media (max-width:900px){
-  .main-area{ margin-left:0 !important; padding-top:66px; }
+  .main-area{ margin-left:0 !important; padding-top:calc(66px + var(--safe-top)); padding-left:calc(16px + var(--safe-left)); padding-right:calc(16px + var(--safe-right)); }
   .app-shell:not(.sidebar-closed) .sidebar-scrim{ opacity:1; }
   .app-shell.sidebar-closed .sidebar-scrim{ display:none; }
 }
@@ -7415,12 +7433,16 @@ refreshTutorHistory();
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <title>Chalkline — Previous Summaries</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&family=Caveat:wght@600;700&display=swap');
 
 :root{
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
   --board-bg:#FDFBF6;
   --ink:#2A2410;
   --ochre:#2E7DBE;
@@ -7443,7 +7465,8 @@ body{
     radial-gradient(ellipse 900px 500px at 15% -10%, rgba(240,185,77,0.22), transparent 60%),
     radial-gradient(ellipse 900px 600px at 100% 0%, rgba(46,125,190,0.10), transparent 60%),
     linear-gradient(165deg, #FFFDF6 0%, #FFF7E0 55%, #FBEFD0 130%);
-  min-height:100vh; position:relative;
+  min-height:100vh; min-height:100dvh; position:relative;
+  overflow-x:hidden;
 }
 .ambient-halo{ position:fixed; inset:0; z-index:0; overflow:hidden; pointer-events:none; }
 .ambient-halo::before,.ambient-halo::after{
@@ -7523,12 +7546,12 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
   .summary-row .r-date{ order:4; }
 }
 
-.app-shell{ position:relative; z-index:1; display:flex; min-height:100vh; }
+.app-shell{ position:relative; z-index:1; display:flex; min-height:100vh; min-height:100dvh; }
 .sidebar{
   width:230px; flex-shrink:0;
-  height:100vh; position:fixed; left:0; top:0; z-index:45;
+  height:100vh; height:100dvh; position:fixed; left:0; top:0; z-index:45;
   display:flex; flex-direction:column;
-  padding:22px 16px 18px;
+  padding:calc(22px + var(--safe-top)) 16px 18px calc(16px + var(--safe-left));
   background:linear-gradient(165deg, #FFFFFF 0%, #FFF7E0 55%, #F5E6B8 130%);
   backdrop-filter:blur(18px) saturate(160%);
   -webkit-backdrop-filter:blur(18px) saturate(160%);
@@ -7578,13 +7601,13 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 .sidebar-toggle:hover{ box-shadow:0 5px 16px rgba(120,90,20,0.24), 0 0 0 1px rgba(120,90,20,0.1); }
 .sidebar-toggle:active{ transform:scale(0.94); }
 .app-shell.sidebar-closed .sidebar-toggle{ left:16px; }
-@media (max-width:900px){ .sidebar-toggle{ left:16px; top:16px; } .app-shell.sidebar-closed .sidebar-toggle{ left:16px; } }
+@media (max-width:900px){ .sidebar-toggle{ left:calc(16px + var(--safe-left)); top:calc(16px + var(--safe-top)); } .app-shell.sidebar-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 .sidebar-scrim{ display:none; position:fixed; inset:0; background:rgba(42,36,16,0.22); z-index:39; opacity:0; transition:opacity .3s ease; }
 .app-shell:not(.sidebar-closed) .sidebar-scrim{ display:block; opacity:0; }
 .main-area{ flex:1; min-width:0; transition:margin-left .38s cubic-bezier(.22,.9,.32,1.1); margin-left:230px; padding:8px 0 0; }
 .app-shell.sidebar-closed .main-area{ margin-left:0; }
 @media (max-width:900px){
-  .main-area{ margin-left:0 !important; padding-top:66px; }
+  .main-area{ margin-left:0 !important; padding-top:calc(66px + var(--safe-top)); padding-left:calc(16px + var(--safe-left)); padding-right:calc(16px + var(--safe-right)); }
   .app-shell:not(.sidebar-closed) .sidebar-scrim{ opacity:1; }
   .app-shell.sidebar-closed .sidebar-scrim{ display:none; }
 }
@@ -7821,12 +7844,16 @@ refreshSummaryHistory();
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <title>Chalkline — Quizzes</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&family=Caveat:wght@600;700&display=swap');
 
 :root{
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
   --board-bg:#FDFBF6;
   --ink:#2A2410;
   --ochre:#2E7DBE;
@@ -7849,7 +7876,8 @@ body{
     radial-gradient(ellipse 900px 500px at 15% -10%, rgba(240,185,77,0.22), transparent 60%),
     radial-gradient(ellipse 900px 600px at 100% 0%, rgba(46,125,190,0.10), transparent 60%),
     linear-gradient(165deg, #FFFDF6 0%, #FFF7E0 55%, #FBEFD0 130%);
-  min-height:100vh; position:relative;
+  min-height:100vh; min-height:100dvh; position:relative;
+  overflow-x:hidden;
 }
 .ambient-halo{ position:fixed; inset:0; z-index:0; overflow:hidden; pointer-events:none; }
 .ambient-halo::before,.ambient-halo::after{
@@ -7929,12 +7957,12 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
   .quiz-row .r-date{ order:4; }
 }
 
-.app-shell{ position:relative; z-index:1; display:flex; min-height:100vh; }
+.app-shell{ position:relative; z-index:1; display:flex; min-height:100vh; min-height:100dvh; }
 .sidebar{
   width:230px; flex-shrink:0;
-  height:100vh; position:fixed; left:0; top:0; z-index:45;
+  height:100vh; height:100dvh; position:fixed; left:0; top:0; z-index:45;
   display:flex; flex-direction:column;
-  padding:22px 16px 18px;
+  padding:calc(22px + var(--safe-top)) 16px 18px calc(16px + var(--safe-left));
   background:linear-gradient(165deg, #FFFFFF 0%, #FFF7E0 55%, #F5E6B8 130%);
   backdrop-filter:blur(18px) saturate(160%);
   -webkit-backdrop-filter:blur(18px) saturate(160%);
@@ -7984,13 +8012,13 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 .sidebar-toggle:hover{ box-shadow:0 5px 16px rgba(120,90,20,0.24), 0 0 0 1px rgba(120,90,20,0.1); }
 .sidebar-toggle:active{ transform:scale(0.94); }
 .app-shell.sidebar-closed .sidebar-toggle{ left:16px; }
-@media (max-width:900px){ .sidebar-toggle{ left:16px; top:16px; } .app-shell.sidebar-closed .sidebar-toggle{ left:16px; } }
+@media (max-width:900px){ .sidebar-toggle{ left:calc(16px + var(--safe-left)); top:calc(16px + var(--safe-top)); } .app-shell.sidebar-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 .sidebar-scrim{ display:none; position:fixed; inset:0; background:rgba(42,36,16,0.22); z-index:39; opacity:0; transition:opacity .3s ease; }
 .app-shell:not(.sidebar-closed) .sidebar-scrim{ display:block; opacity:0; }
 .main-area{ flex:1; min-width:0; transition:margin-left .38s cubic-bezier(.22,.9,.32,1.1); margin-left:230px; padding:8px 0 0; }
 .app-shell.sidebar-closed .main-area{ margin-left:0; }
 @media (max-width:900px){
-  .main-area{ margin-left:0 !important; padding-top:66px; }
+  .main-area{ margin-left:0 !important; padding-top:calc(66px + var(--safe-top)); padding-left:calc(16px + var(--safe-left)); padding-right:calc(16px + var(--safe-right)); }
   .app-shell:not(.sidebar-closed) .sidebar-scrim{ opacity:1; }
   .app-shell.sidebar-closed .sidebar-scrim{ display:none; }
 }
@@ -8226,13 +8254,17 @@ refreshQuizHistory();
 <script type="text/plain" id="src-notes"><html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <title>Notes — Chalkline</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"><\/script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 :root{
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
   --paper:#FDFBF6;
   --list-bg:#F4F1E9;
   --border:#E4DECE;
@@ -8249,19 +8281,20 @@ body{
   color:var(--ink);
   background:var(--paper);
   height:100vh;
+  height:100dvh;
   overflow:hidden;
 }
-.notes-shell{ display:flex; height:100vh; }
+.notes-shell{ display:flex; height:100vh; height:100dvh; }
 
 /* ---------- LEFT: note list ---------- */
 .notes-list-pane{
-  width:280px; flex-shrink:0; height:100vh;
+  width:280px; flex-shrink:0; height:100vh; height:100dvh;
   background:var(--list-bg); border-right:1px solid var(--border);
   display:flex; flex-direction:column;
 }
 .nl-topbar{
   display:flex; align-items:center; gap:8px;
-  padding:14px 14px 10px;
+  padding:calc(14px + var(--safe-top)) 14px 10px calc(14px + var(--safe-left));
 }
 .nl-back{
   border:none; background:rgba(0,0,0,0.05); color:var(--ink);
@@ -8317,10 +8350,11 @@ body{
 .nl-empty-hint{ padding:24px 14px; color:var(--muted); font-size:13px; line-height:1.5; text-align:center; }
 
 /* ---------- RIGHT: editor ---------- */
-.notes-editor-pane{ flex:1; display:flex; flex-direction:column; height:100vh; min-width:0; }
+.notes-editor-pane{ flex:1; display:flex; flex-direction:column; height:100vh; height:100dvh; min-width:0; }
 .ne-topbar{
   display:flex; align-items:center; justify-content:space-between;
-  padding:12px 26px; border-bottom:1px solid var(--border); flex-shrink:0; gap:10px;
+  padding:calc(12px + var(--safe-top)) calc(26px + var(--safe-right)) 12px calc(26px + var(--safe-left));
+  border-bottom:1px solid var(--border); flex-shrink:0; gap:10px;
 }
 .ne-topbar-left{ display:flex; align-items:center; gap:10px; min-width:0; flex:1; }
 .ne-title-input{
@@ -8418,8 +8452,14 @@ body{
   .notes-editor-pane{ width:100%; }
   .notes-shell.editing .notes-list-pane{ display:none; }
   .notes-shell:not(.editing) .notes-editor-pane{ display:none; }
-  .ne-toolbar{ padding:8px 12px; gap:10px; }
-  .ne-topbar{ padding:10px 12px; }
+  .ne-toolbar{ padding:8px calc(12px + var(--safe-right)) 8px calc(12px + var(--safe-left)); gap:10px; }
+  .ne-topbar{ padding:calc(10px + var(--safe-top)) calc(12px + var(--safe-right)) 10px calc(12px + var(--safe-left)); }
+  /* Touch targets: bump tappable controls toward the 44px guideline on
+     phones without changing their visual size/appearance on desktop,
+     where a mouse pointer doesn't need the extra hit area. */
+  .nl-back{ width:40px; height:40px; }
+  .ne-tool-btn{ min-height:36px; }
+  .ne-delete-btn{ padding:8px 6px; }
 }
 </style>
 </head>
@@ -9255,12 +9295,16 @@ loadGlobalSettings().then(refreshNotesList);
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <title>Chalkline — Quiz</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&family=Caveat:wght@600;700&display=swap');
 
 :root{
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
   --board-bg:#FDFBF6;
   --ink:#2A2410;
   --ochre:#2E7DBE;
@@ -9283,7 +9327,8 @@ body{
     radial-gradient(ellipse 900px 500px at 15% -10%, rgba(240,185,77,0.22), transparent 60%),
     radial-gradient(ellipse 900px 600px at 100% 0%, rgba(46,125,190,0.10), transparent 60%),
     linear-gradient(165deg, #FFFDF6 0%, #FFF7E0 55%, #FBEFD0 130%);
-  min-height:100vh; position:relative;
+  min-height:100vh; min-height:100dvh; position:relative;
+  overflow-x:hidden;
 }
 .ambient-halo{ position:fixed; inset:0; z-index:0; overflow:hidden; pointer-events:none; }
 .ambient-halo::before,.ambient-halo::after{
@@ -9345,12 +9390,12 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
   display:inline-flex; align-items:center; gap:5px;
 }
 
-.app-shell{ position:relative; z-index:1; display:flex; min-height:100vh; }
+.app-shell{ position:relative; z-index:1; display:flex; min-height:100vh; min-height:100dvh; }
 .sidebar{
   width:230px; flex-shrink:0;
-  height:100vh; position:fixed; left:0; top:0; z-index:45;
+  height:100vh; height:100dvh; position:fixed; left:0; top:0; z-index:45;
   display:flex; flex-direction:column;
-  padding:22px 16px 18px;
+  padding:calc(22px + var(--safe-top)) 16px 18px calc(16px + var(--safe-left));
   background:linear-gradient(165deg, #FFFFFF 0%, #FFF7E0 55%, #F5E6B8 130%);
   backdrop-filter:blur(18px) saturate(160%);
   -webkit-backdrop-filter:blur(18px) saturate(160%);
@@ -9400,13 +9445,13 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 .sidebar-toggle:hover{ box-shadow:0 5px 16px rgba(120,90,20,0.24), 0 0 0 1px rgba(120,90,20,0.1); }
 .sidebar-toggle:active{ transform:scale(0.94); }
 .app-shell.sidebar-closed .sidebar-toggle{ left:16px; }
-@media (max-width:900px){ .sidebar-toggle{ left:16px; top:16px; } .app-shell.sidebar-closed .sidebar-toggle{ left:16px; } }
+@media (max-width:900px){ .sidebar-toggle{ left:calc(16px + var(--safe-left)); top:calc(16px + var(--safe-top)); } .app-shell.sidebar-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 .sidebar-scrim{ display:none; position:fixed; inset:0; background:rgba(42,36,16,0.22); z-index:39; opacity:0; transition:opacity .3s ease; }
 .app-shell:not(.sidebar-closed) .sidebar-scrim{ display:block; opacity:0; }
 .main-area{ flex:1; min-width:0; transition:margin-left .38s cubic-bezier(.22,.9,.32,1.1); margin-left:230px; padding:8px 0 0; }
 .app-shell.sidebar-closed .main-area{ margin-left:0; }
 @media (max-width:900px){
-  .main-area{ margin-left:0 !important; padding-top:66px; }
+  .main-area{ margin-left:0 !important; padding-top:calc(66px + var(--safe-top)); padding-left:calc(16px + var(--safe-left)); padding-right:calc(16px + var(--safe-right)); }
   .app-shell:not(.sidebar-closed) .sidebar-scrim{ opacity:1; }
   .app-shell.sidebar-closed .sidebar-scrim{ display:none; }
 }
