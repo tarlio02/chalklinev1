@@ -892,6 +892,43 @@ body{
 </div>
 
 <script>
+  /* ---------------------------------------------------------------
+     window.storage shim: the real window.storage API only exists
+     inside the Claude.ai artifact preview sandbox — on a real
+     deployed site (like this one) it doesn't exist at all, so calls
+     from this page (loading/saving courses) would throw silently.
+     Same shim as the tutor/summary/notes pages, backed by
+     localStorage, so course data actually persists once deployed.
+     ------------------------------------------------------------- */
+  if(!window.storage || !window.storage.__isRealBackend){
+    const STORAGE_NS = 'chalkline:';
+    window.storage = {
+      __isRealBackend: false,
+      async get(key){
+        const raw = localStorage.getItem(STORAGE_NS + key);
+        return raw === null ? null : { key, value: raw, shared: false };
+      },
+      async set(key, value){
+        try{ localStorage.setItem(STORAGE_NS + key, value); return { key, value, shared: false }; }
+        catch(e){ console.error('localStorage set failed:', e); return null; }
+      },
+      async delete(key){
+        const existed = localStorage.getItem(STORAGE_NS + key) !== null;
+        localStorage.removeItem(STORAGE_NS + key);
+        return { key, deleted: existed, shared: false };
+      },
+      async list(prefix){
+        const keys = [];
+        const full = STORAGE_NS + (prefix || '');
+        for(let i=0;i<localStorage.length;i++){
+          const k = localStorage.key(i);
+          if(k && k.startsWith(full)) keys.push(k.slice(STORAGE_NS.length));
+        }
+        return { keys, prefix, shared: false };
+      }
+    };
+  }
+
   const shell = document.getElementById('app-shell');
   const sbScrim = document.getElementById('sidebar-scrim');
   function closeSidebar(){ shell.classList.add('sidebar-closed'); }
