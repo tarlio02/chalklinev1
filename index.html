@@ -1026,7 +1026,7 @@ body{
     const sub = homeShellUser.sub;
     const courses = {};
     function ensure(name){
-      if(!courses[name]) courses[name] = { lessons:0, quizzes:0, summaries:0 };
+      if(!courses[name]) courses[name] = { lessons:0, quizzes:0, summaries:0, notes:0 };
       return courses[name];
     }
     const explicitNames = await loadCourseNames();
@@ -1056,6 +1056,18 @@ body{
         } catch(e){ /* skip corrupt entry */ }
       }
     } catch(e){ console.error('Loading summaries for dashboard failed:', e); }
+    try{
+      const noteResult = await window.storage.list('notes:' + sub + ':', false);
+      for(const key of (noteResult.keys || [])){
+        try{
+          const rec = await window.storage.get(key, false);
+          if(!rec) continue;
+          const item = JSON.parse(rec.value);
+          const c = ensure(item.subject || 'Unsorted');
+          c.notes++;
+        } catch(e){ /* skip corrupt entry */ }
+      }
+    } catch(e){ console.error('Loading notes for dashboard failed:', e); }
 
     currentCourseStats = courses;
     const names = Object.keys(courses).sort((a,b)=>{
@@ -1077,12 +1089,19 @@ body{
       const lessonWord = c.lessons===1 ? 'lesson' : 'lessons';
       const quizWord = c.quizzes===1 ? 'quiz' : 'quizzes';
       const summaryWord = c.summaries===1 ? 'summary' : 'summaries';
-      return `<div class="dash-card course fade-up" style="animation-delay:${(idx*0.06).toFixed(2)}s;--card-a:${a};--card-b:${b};" onclick="openCourseDetail(${JSON.stringify(name)});">
+      const noteWord = c.notes===1 ? 'note' : 'notes';
+      return `<div class="dash-card course fade-up" data-course-name="${escapeHtmlHome(name)}" style="animation-delay:${(idx*0.06).toFixed(2)}s;--card-a:${a};--card-b:${b};">
         <span class="icon-badge">📘</span>
         <h2>${escapeHtmlHome(name)}</h2>
-        <p>${c.lessons} ${lessonWord} · ${c.quizzes} ${quizWord} · ${c.summaries} ${summaryWord}</p>
+        <p>${c.lessons} ${lessonWord} · ${c.quizzes} ${quizWord} · ${c.summaries} ${summaryWord} · ${c.notes||0} ${noteWord}</p>
       </div>`;
     }).join('');
+    // Delegated via addEventListener rather than an inline onclick= attribute:
+    // more reliable for course names containing quotes/special characters,
+    // and avoids re-binding issues after innerHTML is replaced.
+    grid.querySelectorAll('.dash-card.course').forEach(card=>{
+      card.addEventListener('click', ()=> openCourseDetail(card.getAttribute('data-course-name')));
+    });
   }
 
   /* ---------------- Course detail view ---------------- */
@@ -1093,12 +1112,13 @@ body{
   function openCourseDetail(name){
     openCourseName = name;
     document.getElementById('course-detail-title').textContent = name;
-    const c = currentCourseStats[name] || { lessons:0, quizzes:0, summaries:0 };
+    const c = currentCourseStats[name] || { lessons:0, quizzes:0, summaries:0, notes:0 };
     const lessonWord = c.lessons===1 ? 'lesson' : 'lessons';
     const quizWord = c.quizzes===1 ? 'quiz' : 'quizzes';
     const summaryWord = c.summaries===1 ? 'summary' : 'summaries';
+    const noteWord = c.notes===1 ? 'note' : 'notes';
     document.getElementById('course-detail-sub').textContent =
-      `${c.lessons} ${lessonWord} · ${c.quizzes} ${quizWord} · ${c.summaries} ${summaryWord}`;
+      `${c.lessons} ${lessonWord} · ${c.quizzes} ${quizWord} · ${c.summaries} ${summaryWord} · ${c.notes||0} ${noteWord}`;
 
     const actionGrid = document.getElementById('course-action-grid');
     const encName = escapeHtmlHome(name);
@@ -1117,6 +1137,11 @@ body{
         <span class="icon-badge">📄</span>
         <h2>Summarize PDF</h2>
         <p>Upload a PDF and get a summary saved under ${encName}.</p>
+      </div>
+      <div class="dash-card course-action-card fade-up" style="animation-delay:.18s;--card-a:var(--brick);--card-b:var(--gold-deep);" onclick="startCourseAction('notes');">
+        <span class="icon-badge">🗒️</span>
+        <h2>Notes</h2>
+        <p>Open notes saved under ${encName}.</p>
       </div>`;
 
     dashListView.style.display = 'none';
@@ -7433,7 +7458,7 @@ body{
   <div class="notes-list-pane">
     <div class="nl-topbar">
       <button type="button" class="nl-back" title="Back to Dashboard" onclick="parent.postMessage({nav:'home'},'*');">←</button>
-      <span class="nl-title">Notes</span>
+      <span class="nl-title" id="nl-title">Notes</span>
     </div>
     <div class="nl-search">
       <input type="text" id="notes-search" placeholder="Search notes">
@@ -7551,6 +7576,11 @@ if(!window.storage || !window.storage.__isRealBackend){
 // back to a shared "guest" bucket when not signed in, so one device's
 // localStorage doesn't mix notes across different signed-in accounts.
 let notesShellUser = null;
+// When arrived at from a course's detail page, notes are scoped to that
+// course: the list only shows notes tagged with it, new notes are
+// tagged with it automatically, and the header shows the course name
+// instead of the generic "Notes" title.
+let currentNotesSubject = null;
 function notesKeyPrefix(){
   const sub = notesShellUser ? notesShellUser.sub : 'guest';
   return 'notes:' + sub + ':';
@@ -7561,6 +7591,10 @@ function settingsKey(){
 }
 window.addEventListener('message', (e)=>{
   const d = e.data;
+  if(d && d.presetSubject){
+    currentNotesSubject = d.presetSubject;
+    document.getElementById('nl-title').textContent = d.presetSubject;
+  }
   if(!d || !d.chalklineAuth) return;
   notesShellUser = d.signedIn ? d.user : null;
   refreshNotesList();
@@ -7606,6 +7640,7 @@ function blankPage(){
 // the user already wrote is lost: their text becomes a text box on a
 // single new page.
 function migrateNoteIfNeeded(note){
+  if(!note.subject) note.subject = 'Unsorted';
   if(note.pages) return note;
   note.pages = [blankPage()];
   note.ruledOverride = null;
@@ -7651,9 +7686,12 @@ function textPreview(note){
 function renderNotesList(){
   const container = document.getElementById('notes-items');
   const query = (document.getElementById('notes-search').value || '').toLowerCase().trim();
-  const filtered = query
-    ? notesCache.filter(n => (n.title||'').toLowerCase().includes(query) || textPreview(n).toLowerCase().includes(query))
+  const scoped = currentNotesSubject
+    ? notesCache.filter(n => n.subject === currentNotesSubject)
     : notesCache;
+  const filtered = query
+    ? scoped.filter(n => (n.title||'').toLowerCase().includes(query) || textPreview(n).toLowerCase().includes(query))
+    : scoped;
 
   if(filtered.length === 0){
     container.innerHTML = `<div class="nl-empty-hint">${query ? 'No notes match your search.' : 'No notes yet — create your first one.'}</div>`;
@@ -7712,7 +7750,7 @@ async function openNote(id){
 }
 
 function createNote(){
-  const note = { id: uid(), title:'', updatedAt: Date.now(), ruledOverride:null, pages:[blankPage()] };
+  const note = { id: uid(), title:'', updatedAt: Date.now(), ruledOverride:null, pages:[blankPage()], subject: currentNotesSubject || 'Unsorted' };
   notesCache.unshift(note);
   currentNoteId = note.id;
   showEditor();
@@ -8332,7 +8370,7 @@ function ensureLoaded(page){
 // scratch. Arriving WITH a loadSessionId/loadSummaryId means the user
 // picked a specific saved item from history, so that one is left alone —
 // its own message handler (d.loadSessionId) resets its state anyway.
-const FRESH_ON_ENTRY = { tutor:true, summary:true, quiz:true };
+const FRESH_ON_ENTRY = { tutor:true, summary:true, quiz:true, notes:true };
 
 function navTo(page, pushHistory, navPayload, isInitialLoad){
   if(!frames[page]) page = 'home';
