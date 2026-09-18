@@ -142,6 +142,7 @@
 <iframe id="frame-home" class="shell-page"></iframe>
 <iframe id="frame-tutor" class="shell-page"></iframe>
 <iframe id="frame-summary" class="shell-page"></iframe>
+<iframe id="frame-quiz" class="shell-page"></iframe>
 <iframe id="frame-tutor-history" class="shell-page"></iframe>
 <iframe id="frame-summary-history" class="shell-page"></iframe>
 <iframe id="frame-notes" class="shell-page"></iframe>
@@ -750,6 +751,56 @@ body{
 .dash-feature:nth-child(3) .f-ic{ background:linear-gradient(140deg, var(--gold-deep), var(--gold)); }
 .dash-feature h4{ font-size:14.5px; font-weight:600; color:var(--ink); margin:0 0 6px; font-family:'Fraunces','Source Serif 4',Georgia,serif; }
 .dash-feature p{ font-size:12.5px; line-height:1.5; color:rgba(42,36,16,0.6); margin:0; }
+
+/* ---------- Add-course modal (same visual language as the tutor
+   page's subject-name modal, duplicated here since this page is a
+   separate srcdoc document and can't share the tutor page's styles) --- */
+.subject-modal{
+  position:fixed; inset:0; z-index:50;
+  display:flex; align-items:center; justify-content:center;
+  opacity:0; pointer-events:none;
+  transition:opacity .2s ease;
+}
+.subject-modal.open{ opacity:1; pointer-events:auto; }
+.subject-modal .sm-scrim{
+  position:absolute; inset:0; background:rgba(20,18,12,0.45); backdrop-filter:blur(2px);
+}
+.subject-modal .sm-card{
+  position:relative; z-index:1;
+  width:min(420px, calc(100vw - 48px));
+  background:#fff; border-radius:18px;
+  box-shadow:0 24px 60px rgba(0,0,0,0.25);
+  padding:34px 30px 28px;
+  font-family:'Source Serif 4', Georgia, serif;
+  color:var(--ink);
+  transform:translateY(8px) scale(0.98);
+  transition:transform .22s cubic-bezier(.2,.8,.2,1);
+}
+.subject-modal.open .sm-card{ transform:translateY(0) scale(1); }
+.subject-modal .sm-eyebrow{
+  font-family:'JetBrains Mono', monospace; font-size:10.5px; letter-spacing:0.4px;
+  color:var(--ochre); margin:0 0 10px;
+}
+.subject-modal h2{ font-size:22px; margin:0 0 8px; font-weight:600; }
+.subject-modal p{ font-size:14px; color:var(--muted); line-height:1.5; margin:0 0 20px; }
+.subject-modal input{
+  width:100%; font-family:'Source Serif 4', serif; font-size:16px;
+  border:1.5px solid var(--panel-border); border-radius:10px;
+  padding:12px 14px; color:var(--ink); outline:none;
+  transition:border-color .15s ease; box-sizing:border-box;
+}
+.subject-modal input:focus{ border-color:var(--ochre); }
+.subject-modal .sm-actions{ display:flex; justify-content:flex-end; gap:10px; margin-top:20px; }
+.subject-modal .sm-skip{
+  border:none; background:none; font-family:inherit; font-size:14px; color:var(--muted); cursor:pointer; padding:10px 6px;
+}
+.subject-modal .sm-skip:hover{ color:var(--ink); }
+.subject-modal .sm-go{
+  border:none; border-radius:999px; font-family:inherit; font-size:14px; font-weight:600;
+  color:#fff; background:var(--ink); padding:10px 22px; cursor:pointer;
+}
+.subject-modal .sm-go:hover{ background:#0f1c2c; }
+.course-action-card p{ max-width:none !important; }
 </style>
 </head>
 <body>
@@ -796,16 +847,46 @@ body{
   <div class="sidebar-scrim" id="sidebar-scrim"></div>
 
   <div class="main-area">
-    <div class="dash-head fade-up" style="display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;">
-      <h1 style="margin:0;">Dashboard</h1>
-      <button type="button" id="add-course-btn" onclick="handleAddCourseClick();">
-        <span style="font-size:16px;line-height:1;">＋</span> Add new course
-      </button>
+    <!-- ---------- Course list view ---------- -->
+    <div id="dash-list-view">
+      <div class="dash-head fade-up" style="display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;">
+        <h1 style="margin:0;">Dashboard</h1>
+        <button type="button" id="add-course-btn" onclick="handleAddCourseClick();">
+          <span style="font-size:16px;line-height:1;">＋</span> Add new course
+        </button>
+      </div>
+
+      <div class="dash-grid" id="course-grid"></div>
+      <div id="course-empty-state" class="dash-empty fade-up" style="display:none;">
+        <p>No courses yet — add a new course to begin your journey! 🚀</p>
+      </div>
     </div>
 
-    <div class="dash-grid" id="course-grid"></div>
-    <div id="course-empty-state" class="dash-empty fade-up" style="display:none;">
-      <p>No courses yet — add a new course to begin your journey! 🚀</p>
+    <!-- ---------- Course detail view ---------- -->
+    <div id="dash-course-view" style="display:none;">
+      <div class="dash-head fade-up" style="display:flex;align-items:center;gap:14px;">
+        <button type="button" id="course-back-btn" title="Back to Dashboard"
+          style="border:none;background:rgba(255,255,255,0.75);border:1px solid rgba(0,0,0,0.06);width:38px;height:38px;border-radius:12px;font-size:16px;cursor:pointer;flex-shrink:0;color:var(--ink);">←</button>
+        <h1 style="margin:0;" id="course-detail-title">Course</h1>
+      </div>
+      <p id="course-detail-sub" style="font-size:14.5px;color:rgba(42,36,16,0.6);margin:-18px 0 30px 52px;"></p>
+
+      <div class="dash-grid" id="course-action-grid" style="max-width:780px;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ---------- Add course modal ---------- -->
+<div class="subject-modal" id="add-course-modal">
+  <div class="sm-scrim" onclick="closeAddCourseModal();"></div>
+  <div class="sm-card">
+    <div class="sm-eyebrow">New course</div>
+    <h2>Name your course</h2>
+    <p>Give it a name — e.g. Managerial Accounting, STA2020. You can start lessons, quizzes, and summaries under it.</p>
+    <input type="text" id="new-course-input" placeholder="e.g. Managerial Accounting, STA2020…" autocomplete="off">
+    <div class="sm-actions">
+      <button class="sm-skip" id="btn-course-cancel">Cancel</button>
+      <button class="sm-go" id="btn-course-create">Create course</button>
     </div>
   </div>
 </div>
@@ -854,15 +935,6 @@ body{
   }
   window.handleHomeSidebarAccountClick = handleHomeSidebarAccountClick;
 
-  // "Add new course" — a course here is just a subject tag applied to a
-  // lesson or summary (see loadCourses() below), so the natural way to
-  // start a new one is to jump into a fresh tutor session where the
-  // subject gets set.
-  function handleAddCourseClick(){
-    parent.postMessage({nav:'tutor'}, '*');
-  }
-  window.handleAddCourseClick = handleAddCourseClick;
-
   /* ---------------- "My Courses" dashboard grid -----------------
      A "course" here is just a subject name: tutor sessions already
      tag themselves with one (see the tutor page's subject modal),
@@ -880,6 +952,28 @@ body{
     ['var(--gold-deep)','var(--gold)'],
     ['var(--brick)','var(--gold-deep)']
   ];
+  let currentCourseStats = {}; // name -> {lessons, quizzes, summaries}, refreshed by loadCourses()
+
+  function coursesKeyPrefix(){
+    return 'courses:' + homeShellUser.sub;
+  }
+
+  // Explicit course list, stored separately from lessons/summaries so a
+  // freshly-named course (no lessons or summaries under it yet) still
+  // shows up on the dashboard instead of only appearing once something
+  // gets tagged with its name.
+  async function loadCourseNames(){
+    try{
+      const rec = await window.storage.get(coursesKeyPrefix(), false);
+      if(!rec) return [];
+      return JSON.parse(rec.value) || [];
+    } catch(e){ return []; }
+  }
+  async function saveCourseNames(names){
+    try{ await window.storage.set(coursesKeyPrefix(), JSON.stringify(names), false); }
+    catch(e){ console.error('Could not save course list:', e); }
+  }
+
   async function loadCourses(){
     const grid = document.getElementById('course-grid');
     const emptyEl = document.getElementById('course-empty-state');
@@ -895,6 +989,8 @@ body{
       if(!courses[name]) courses[name] = { lessons:0, quizzes:0, summaries:0 };
       return courses[name];
     }
+    const explicitNames = await loadCourseNames();
+    explicitNames.forEach(n => ensure(n));
     try{
       const sessResult = await window.storage.list('session:' + sub + ':', false);
       for(const key of (sessResult.keys || [])){
@@ -921,6 +1017,7 @@ body{
       }
     } catch(e){ console.error('Loading summaries for dashboard failed:', e); }
 
+    currentCourseStats = courses;
     const names = Object.keys(courses).sort((a,b)=>{
       if(a==='Unsorted') return 1;
       if(b==='Unsorted') return -1;
@@ -940,13 +1037,105 @@ body{
       const lessonWord = c.lessons===1 ? 'lesson' : 'lessons';
       const quizWord = c.quizzes===1 ? 'quiz' : 'quizzes';
       const summaryWord = c.summaries===1 ? 'summary' : 'summaries';
-      return `<div class="dash-card course fade-up" style="animation-delay:${(idx*0.06).toFixed(2)}s;--card-a:${a};--card-b:${b};" onclick="parent.postMessage({nav:'tutor-history'},'*');">
+      return `<div class="dash-card course fade-up" style="animation-delay:${(idx*0.06).toFixed(2)}s;--card-a:${a};--card-b:${b};" onclick="openCourseDetail(${JSON.stringify(name)});">
         <span class="icon-badge">📘</span>
         <h2>${escapeHtmlHome(name)}</h2>
         <p>${c.lessons} ${lessonWord} · ${c.quizzes} ${quizWord} · ${c.summaries} ${summaryWord}</p>
       </div>`;
     }).join('');
   }
+
+  /* ---------------- Course detail view ---------------- */
+  const dashListView = document.getElementById('dash-list-view');
+  const dashCourseView = document.getElementById('dash-course-view');
+  let openCourseName = null;
+
+  function openCourseDetail(name){
+    openCourseName = name;
+    document.getElementById('course-detail-title').textContent = name;
+    const c = currentCourseStats[name] || { lessons:0, quizzes:0, summaries:0 };
+    const lessonWord = c.lessons===1 ? 'lesson' : 'lessons';
+    const quizWord = c.quizzes===1 ? 'quiz' : 'quizzes';
+    const summaryWord = c.summaries===1 ? 'summary' : 'summaries';
+    document.getElementById('course-detail-sub').textContent =
+      `${c.lessons} ${lessonWord} · ${c.quizzes} ${quizWord} · ${c.summaries} ${summaryWord}`;
+
+    const actionGrid = document.getElementById('course-action-grid');
+    const encName = escapeHtmlHome(name);
+    actionGrid.innerHTML = `
+      <div class="dash-card course-action-card fade-up" style="--card-a:var(--ochre);--card-b:var(--gold-deep);" onclick="startCourseAction('tutor');">
+        <span class="icon-badge">🎓</span>
+        <h2>Start new lesson</h2>
+        <p>Open the whiteboard tutor for ${encName}.</p>
+      </div>
+      <div class="dash-card course-action-card fade-up" style="animation-delay:.06s;--card-a:var(--sage);--card-b:var(--emerald);" onclick="startCourseAction('quiz');">
+        <span class="icon-badge">🧠</span>
+        <h2>Start new quiz</h2>
+        <p>Test yourself on ${encName}.</p>
+      </div>
+      <div class="dash-card course-action-card fade-up" style="animation-delay:.12s;--card-a:var(--gold-deep);--card-b:var(--gold);" onclick="startCourseAction('summary');">
+        <span class="icon-badge">📄</span>
+        <h2>Summarize PDF</h2>
+        <p>Upload a PDF and get a summary saved under ${encName}.</p>
+      </div>`;
+
+    dashListView.style.display = 'none';
+    dashCourseView.style.display = 'block';
+  }
+  window.openCourseDetail = openCourseDetail;
+
+  function startCourseAction(page){
+    parent.postMessage({ nav: page, presetSubject: openCourseName }, '*');
+  }
+  window.startCourseAction = startCourseAction;
+
+  function backToCourseList(){
+    dashCourseView.style.display = 'none';
+    dashListView.style.display = 'block';
+    openCourseName = null;
+  }
+  document.getElementById('course-back-btn').addEventListener('click', backToCourseList);
+
+  // Returning to Dashboard from elsewhere in the app (sidebar / brand
+  // click) should land on the course list, not leave you stuck on
+  // whichever course you last had open — this frame isn't torn down
+  // and reloaded on re-entry the way tutor/summary are.
+  window.addEventListener('message', (e)=>{
+    if(e.data && e.data.chalklineShowHome) backToCourseList();
+  });
+
+  /* ---------------- Add-course modal ---------------- */
+  const addCourseModal = document.getElementById('add-course-modal');
+  const newCourseInput = document.getElementById('new-course-input');
+
+  function openAddCourseModal(){
+    if(!homeShellUser){
+      alert('Sign in to create and save courses.');
+      return;
+    }
+    newCourseInput.value = '';
+    addCourseModal.classList.add('open');
+    setTimeout(()=> newCourseInput.focus(), 50);
+  }
+  function closeAddCourseModal(){ addCourseModal.classList.remove('open'); }
+  window.closeAddCourseModal = closeAddCourseModal;
+
+  async function confirmNewCourse(){
+    const name = newCourseInput.value.trim();
+    if(!name) return;
+    const names = await loadCourseNames();
+    if(!names.includes(name)) names.push(name);
+    await saveCourseNames(names);
+    closeAddCourseModal();
+    await loadCourses();
+    openCourseDetail(name);
+  }
+  document.getElementById('btn-course-create').addEventListener('click', confirmNewCourse);
+  document.getElementById('btn-course-cancel').addEventListener('click', closeAddCourseModal);
+  newCourseInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); confirmNewCourse(); } });
+
+  function handleAddCourseClick(){ openAddCourseModal(); }
+  window.handleAddCourseClick = handleAddCourseClick;
 
   window.addEventListener('message', (e)=>{
     const d = e.data;
@@ -5268,6 +5457,11 @@ leaveNameInput.addEventListener('keydown', (e)=>{
 // page — wait briefly for that message and load it rather than
 // prompting for a new subject.
 let pendingSessionLoad = false;
+// A course-name preset from the Home dashboard ("Start new lesson" inside
+// a course) skips the subject prompt entirely — the course is already
+// named, so just start teaching under it.
+let presetSubjectFromShell = null;
+let pendingPresetSubject = false;
 // If the shell's loadSessionId message arrives before we've heard back
 // from applyAuthState (currentUser still null — sessionKeyPrefix() would
 // throw), queue the id here instead of loading immediately. applyAuthState
@@ -5283,8 +5477,13 @@ window.addEventListener('message', (e)=>{
     if(currentUser) loadSessionById(d.loadSessionId);
     else queuedShellSessionId = d.loadSessionId;
   }
+  if(d && d.presetSubject){
+    pendingPresetSubject = true;
+    presetSubjectFromShell = d.presetSubject;
+    currentSubject = d.presetSubject;
+  }
 });
-setTimeout(()=>{ if(!pendingSessionLoad) openSubjectModal(); }, 260);
+setTimeout(()=>{ if(!pendingSessionLoad && !pendingPresetSubject) openSubjectModal(); }, 260);
 
 async function loadSessionById(id){
   if(!currentUser){ queuedShellSessionId = id; return; }
@@ -6061,6 +6260,9 @@ window.addEventListener('message', (e)=>{
   if(d && d.loadSummaryId){
     pendingSummaryLoad = d.loadSummaryId;
     loadSummarySessionById(d.loadSummaryId);
+  }
+  if(d && d.presetSubject){
+    summarySubjectInput.value = d.presetSubject;
   }
 });
 
@@ -7925,6 +8127,58 @@ loadGlobalSettings().then(refreshNotesList);
 </html>
 </script>
 
+<script type="text/plain" id="src-quiz"><!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Chalkline — Quiz</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@600&display=swap');
+  html,body{ margin:0; height:100%; font-family:-apple-system,Segoe UI,sans-serif; background:#BFDCF7; }
+  .quiz-wrap{
+    height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; padding:40px; box-sizing:border-box;
+  }
+  .quiz-badge{
+    width:64px; height:64px; border-radius:20px; display:flex; align-items:center; justify-content:center;
+    font-size:30px; margin-bottom:18px;
+    background:linear-gradient(140deg, #2E7DBE, #A66A1E);
+    box-shadow:0 10px 24px -10px rgba(30,43,58,0.35);
+  }
+  .quiz-wrap h1{
+    font-family:'Fraunces','Source Serif 4',Georgia,serif; font-size:28px; margin:0 0 10px; color:#1E2B3A;
+  }
+  .quiz-wrap p{ font-size:15px; color:#5c6f80; max-width:380px; line-height:1.6; margin:0 0 26px; }
+  .quiz-back{
+    border:none; border-radius:999px; padding:12px 24px; font-size:14.5px; font-weight:600;
+    color:#fff; cursor:pointer; font-family:inherit;
+    background:linear-gradient(140deg, #2E7DBE, #A66A1E);
+    box-shadow:0 6px 14px -6px rgba(120,90,20,0.35);
+  }
+  .quiz-back:hover{ transform:translateY(-2px); }
+</style>
+</head>
+<body>
+<div class="quiz-wrap">
+  <div class="quiz-badge">🧠</div>
+  <h1>Quizzes are on the way</h1>
+  <p id="quiz-course-line">This is where you'll be quizzed on what you've learned.</p>
+  <button class="quiz-back" onclick="parent.postMessage({nav:'home'},'*');">Back to Dashboard</button>
+</div>
+<script>
+  window.addEventListener('message', (e)=>{
+    const d = e.data;
+    if(d && d.presetSubject){
+      document.getElementById('quiz-course-line').textContent =
+        'Quizzes for "' + d.presetSubject + '" will show up here once they\'re ready.';
+    }
+  });
+<\/script>
+</body>
+</html>
+</script>
+
 <script>
 
 function unwrap(id){
@@ -7934,11 +8188,12 @@ const frames = {
   home: document.getElementById('frame-home'),
   tutor: document.getElementById('frame-tutor'),
   summary: document.getElementById('frame-summary'),
+  quiz: document.getElementById('frame-quiz'),
   'tutor-history': document.getElementById('frame-tutor-history'),
   'summary-history': document.getElementById('frame-summary-history'),
   notes: document.getElementById('frame-notes')
 };
-const loaded = { home:false, tutor:false, summary:false, 'tutor-history':false, 'summary-history':false, notes:false };
+const loaded = { home:false, tutor:false, summary:false, quiz:false, 'tutor-history':false, 'summary-history':false, notes:false };
 let current = 'home';
 
 function ensureLoaded(page){
@@ -7962,10 +8217,17 @@ function ensureLoaded(page){
 // scratch. Arriving WITH a loadSessionId/loadSummaryId means the user
 // picked a specific saved item from history, so that one is left alone —
 // its own message handler (d.loadSessionId) resets its state anyway.
-const FRESH_ON_ENTRY = { tutor:true, summary:true };
+const FRESH_ON_ENTRY = { tutor:true, summary:true, quiz:true };
 
 function navTo(page, pushHistory, navPayload, isInitialLoad){
   if(!frames[page]) page = 'home';
+  // Coming back to the Dashboard (sidebar/brand click, or "home" with no
+  // specific payload) should reset it to the course list, not leave the
+  // frame sitting on whatever course detail view it was last showing —
+  // the home frame doesn't get torn down and reloaded like tutor/summary do.
+  if(page === 'home' && !navPayload && loaded.home){
+    try{ frames.home.contentWindow.postMessage({ chalklineShowHome:true }, '*'); }catch(e){}
+  }
   // Only force a fresh tutor/summary reload for an actual in-app
   // navigation (clicking Tutor/Summary from Home, etc). A page refresh
   // re-runs this same function for whatever page the URL hash says we
@@ -8043,6 +8305,7 @@ window.addEventListener('message', (e)=>{
     let payload = null;
     if(d.loadSessionId) payload = { loadSessionId: d.loadSessionId };
     else if(d.loadSummaryId) payload = { loadSummaryId: d.loadSummaryId };
+    else if(d.presetSubject) payload = { presetSubject: d.presetSubject };
     navTo(d.nav, true, payload);
     return;
   }
