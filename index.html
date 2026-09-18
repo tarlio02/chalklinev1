@@ -630,6 +630,16 @@ body{
   letter-spacing:-0.015em; color:var(--ink);
 }
 .dash-head p{ font-size:16.5px; line-height:1.65; color:rgba(42,36,16,0.65); max-width:520px; margin:0; }
+#add-course-btn{
+  display:inline-flex; align-items:center; gap:6px; flex-shrink:0;
+  font-family:inherit; font-size:14.5px; font-weight:600; color:#fff;
+  background:linear-gradient(140deg, var(--ochre), var(--gold-deep));
+  border:none; border-radius:999px; padding:11px 20px 11px 16px; cursor:pointer;
+  box-shadow:0 6px 14px -6px rgba(120,90,20,0.35), 0 1px 0 rgba(255,255,255,0.25) inset;
+  transition:transform .18s cubic-bezier(.2,.8,.3,1.1), box-shadow .18s ease;
+}
+#add-course-btn:hover{ transform:translateY(-2px); box-shadow:0 10px 20px -8px rgba(120,90,20,0.42), 0 1px 0 rgba(255,255,255,0.25) inset; }
+#add-course-btn:active{ transform:translateY(0); }
 .dash-empty{
   max-width:480px; padding:22px 24px; border-radius:16px;
   background:rgba(255,255,255,0.75); border:1px solid rgba(0,0,0,0.06);
@@ -786,14 +796,16 @@ body{
   <div class="sidebar-scrim" id="sidebar-scrim"></div>
 
   <div class="main-area">
-    <div class="dash-head fade-up">
-      <h1>Dashboard</h1>
-      <p>Your courses and subjects, all in one place — each one tracks the lessons, quizzes, and summaries saved under it.</p>
+    <div class="dash-head fade-up" style="display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;">
+      <h1 style="margin:0;">Dashboard</h1>
+      <button type="button" id="add-course-btn" onclick="handleAddCourseClick();">
+        <span style="font-size:16px;line-height:1;">＋</span> Add new course
+      </button>
     </div>
 
     <div class="dash-grid" id="course-grid"></div>
     <div id="course-empty-state" class="dash-empty fade-up" style="display:none;">
-      <p>No courses yet. Start a lesson or a summary from the sidebar and give it a subject — it'll show up here.</p>
+      <p>No courses yet — add a new course to begin your journey! 🚀</p>
     </div>
   </div>
 </div>
@@ -841,6 +853,15 @@ body{
     parent.postMessage(homeShellUser ? { requestSignOut:true } : { navLoginClick:true }, '*');
   }
   window.handleHomeSidebarAccountClick = handleHomeSidebarAccountClick;
+
+  // "Add new course" — a course here is just a subject tag applied to a
+  // lesson or summary (see loadCourses() below), so the natural way to
+  // start a new one is to jump into a fresh tutor session where the
+  // subject gets set.
+  function handleAddCourseClick(){
+    parent.postMessage({nav:'tutor'}, '*');
+  }
+  window.handleAddCourseClick = handleAddCourseClick;
 
   /* ---------------- "My Courses" dashboard grid -----------------
      A "course" here is just a subject name: tutor sessions already
@@ -908,7 +929,7 @@ body{
 
     if(names.length === 0){
       grid.innerHTML = '';
-      emptyEl.textContent = 'No courses yet. Start a lesson or a summary from the sidebar and give it a subject — it\'ll show up here.';
+      emptyEl.textContent = 'No courses yet — add a new course to begin your journey! 🚀';
       emptyEl.style.display = 'block';
       return;
     }
