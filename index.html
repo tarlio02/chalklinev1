@@ -145,6 +145,7 @@
 <iframe id="frame-quiz" class="shell-page"></iframe>
 <iframe id="frame-tutor-history" class="shell-page"></iframe>
 <iframe id="frame-summary-history" class="shell-page"></iframe>
+<iframe id="frame-quiz-history" class="shell-page"></iframe>
 <iframe id="frame-notes" class="shell-page"></iframe>
 
 <div id="start-modal-overlay">
@@ -1057,6 +1058,18 @@ body{
       }
     } catch(e){ console.error('Loading summaries for dashboard failed:', e); }
     try{
+      const quizResult = await window.storage.list('quiz:' + sub + ':', false);
+      for(const key of (quizResult.keys || [])){
+        try{
+          const rec = await window.storage.get(key, false);
+          if(!rec) continue;
+          const item = JSON.parse(rec.value);
+          const c = ensure(item.subject || 'Unsorted');
+          c.quizzes++;
+        } catch(e){ /* skip corrupt entry */ }
+      }
+    } catch(e){ console.error('Loading quizzes for dashboard failed:', e); }
+    try{
       const noteResult = await window.storage.list('notes:' + sub + ':', false);
       for(const key of (noteResult.keys || [])){
         try{
@@ -1123,20 +1136,20 @@ body{
     const actionGrid = document.getElementById('course-action-grid');
     const encName = escapeHtmlHome(name);
     actionGrid.innerHTML = `
-      <div class="dash-card course-action-card fade-up" style="--card-a:var(--ochre);--card-b:var(--gold-deep);" onclick="startCourseAction('tutor');">
+      <div class="dash-card course-action-card fade-up" style="--card-a:var(--ochre);--card-b:var(--gold-deep);" onclick="startCourseAction('tutor-history');">
         <span class="icon-badge">🎓</span>
-        <h2>Start new lesson</h2>
-        <p>Open the whiteboard tutor for ${encName}.</p>
+        <h2>Live tutor</h2>
+        <p>Your previous lessons for ${encName}, or start a new one.</p>
       </div>
-      <div class="dash-card course-action-card fade-up" style="animation-delay:.06s;--card-a:var(--sage);--card-b:var(--emerald);" onclick="startCourseAction('quiz');">
+      <div class="dash-card course-action-card fade-up" style="animation-delay:.06s;--card-a:var(--sage);--card-b:var(--emerald);" onclick="startCourseAction('quiz-history');">
         <span class="icon-badge">🧠</span>
-        <h2>Start new quiz</h2>
-        <p>Test yourself on ${encName}.</p>
+        <h2>Quizzes</h2>
+        <p>Your previous quizzes for ${encName}, or start a new one.</p>
       </div>
-      <div class="dash-card course-action-card fade-up" style="animation-delay:.12s;--card-a:var(--gold-deep);--card-b:var(--gold);" onclick="startCourseAction('summary');">
+      <div class="dash-card course-action-card fade-up" style="animation-delay:.12s;--card-a:var(--gold-deep);--card-b:var(--gold);" onclick="startCourseAction('summary-history');">
         <span class="icon-badge">📄</span>
-        <h2>Summarize PDF</h2>
-        <p>Upload a PDF and get a summary saved under ${encName}.</p>
+        <h2>Summaries</h2>
+        <p>Your previous summaries for ${encName}, or summarize a new PDF.</p>
       </div>
       <div class="dash-card course-action-card fade-up" style="animation-delay:.18s;--card-a:var(--brick);--card-b:var(--gold-deep);" onclick="startCourseAction('notes');">
         <span class="icon-badge">🗒️</span>
@@ -1167,6 +1180,7 @@ body{
   // and reloaded on re-entry the way tutor/summary are.
   window.addEventListener('message', (e)=>{
     if(e.data && e.data.chalklineShowHome) backToCourseList();
+    if(e.data && e.data.openCourse) openCourseDetail(e.data.openCourse);
   });
 
   /* ---------------- Add-course modal ---------------- */
@@ -1207,7 +1221,9 @@ body{
     if(!d || !d.chalklineAuth) return;
     homeShellUser = d.signedIn ? d.user : null;
     renderHomeSidebarAccount();
-    loadCourses();
+    loadCourses().then(()=>{
+      if(openCourseName && currentCourseStats[openCourseName]) openCourseDetail(openCourseName);
+    });
   });
 <\/script>
 
@@ -4188,13 +4204,13 @@ function renderCaption(fullText, chunkStartIndex, chunkText){
   captionText.innerHTML = `<span class="fading">${escapeHtml(fadedPart)}</span><span>${escapeHtml(freshPart)}</span>`;
 }
 
-// Cloudflare Workers AI voice (MeloTTS), proxied through the same worker
-// as the text models — used ONLY for speaking the tutor's explanations
-// aloud, never for generating lesson text/content itself. If the
-// Cloudflare call fails for any reason (rate limit, network, proxy not
-// deployed yet), speakChunk() below falls back to the browser's built-in
-// speechSynthesis so the tutor never goes silent.
-let currentAudioEl = null;
+// Gemini's native TTS, proxied through the same worker as the text
+// models, is the MAIN voice — used ONLY for speaking the tutor's
+// explanations aloud, never for generating lesson text/content itself.
+// Every chunk is fetched with retries (and fetched one chunk ahead of
+// playback, and cached for Replay), so a single hiccup doesn't change the
+// voice. The browser's built-in speechSynthesis is only a last resort for
+// a chunk Gemini genuinely can't deliver, so the tutor never goes silent.
 
 // iOS Safari only allows audio to play if it was started directly inside
 // a user gesture (a tap), not from code running after an async fetch —
@@ -4245,17 +4261,103 @@ function setVoiceStatus(mode, detail){
   if(mode === 'error'){
     chip.textContent = '🔇 Voice error — tap for details';
     chip.style.color = '#C0392B';
+  } else if(mode === 'gemini'){
+    chip.textContent = '🔊 Gemini voice';
+    chip.style.color = '#1E7B4D';
   } else {
     chip.textContent = '🔊 Browser voice';
     chip.style.color = '#1E7B4D';
   }
 }
-// Azure/Cloudflare-proxied TTS has been removed — speech now always uses
-// the browser's own built-in speechSynthesis voice (see speakChunkBrowser).
+
+// Fetches one chunk of speech audio from the Gemini TTS proxy route and
+// returns an object URL for it. Throws on failure; the caller decides
+// whether to retry or fall back.
+const GEMINI_TTS_TIMEOUT_MS = 20000;
+async function fetchGeminiTTSOnce(text){
+  const ctrl = new AbortController();
+  const timer = setTimeout(()=> ctrl.abort(), GEMINI_TTS_TIMEOUT_MS);
+  try{
+    const response = await fetch(`${PROXY_URL}/gemini-tts`, {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ text }),
+      signal: ctrl.signal
+    });
+    if(!response.ok){
+      let msg = `HTTP ${response.status}`;
+      try{ const errJson = await response.json(); msg = (errJson.error && errJson.error.message) || msg; } catch(e){ /* body wasn't JSON */ }
+      const err = new Error(msg);
+      err.status = response.status;
+      throw err;
+    }
+    const blob = await response.blob();
+    if(!blob || !blob.size) throw new Error('Empty audio response');
+    return URL.createObjectURL(blob);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Gemini is the main voice, so a hiccup (dropped connection, timeout, 429
+// rate limit, 5xx from the worker) gets up to 3 tries with a short backoff
+// before anyone hears the browser voice. Other 4xx errors won't fix
+// themselves, so those fail straight away.
+async function fetchGeminiTTS(text){
+  const MAX_ATTEMPTS = 3;
+  let lastErr;
+  for(let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++){
+    try{ return await fetchGeminiTTSOnce(text); }
+    catch(err){
+      lastErr = err;
+      const retryable = !err.status || err.status === 429 || err.status >= 500;
+      if(!retryable || attempt === MAX_ATTEMPTS) break;
+      await new Promise(r => setTimeout(r, 400 * attempt));
+    }
+  }
+  throw lastErr;
+}
+
+// chunk text -> Promise<object URL>. Lets speak() start fetching the next
+// chunk while the current one plays (no silent gap between sentences) and
+// makes Replay instant, with no new API calls. Failed fetches are dropped
+// so a later attempt starts fresh.
+const ttsCache = new Map();
+const TTS_CACHE_MAX = 60;
+function getGeminiAudioUrl(text){
+  let p = ttsCache.get(text);
+  if(!p){
+    p = fetchGeminiTTS(text);
+    ttsCache.set(text, p);
+    p.catch(()=>{ if(ttsCache.get(text) === p) ttsCache.delete(text); });
+    while(ttsCache.size > TTS_CACHE_MAX){
+      const oldestKey = ttsCache.keys().next().value;
+      const oldest = ttsCache.get(oldestKey);
+      ttsCache.delete(oldestKey);
+      oldest.then(u => URL.revokeObjectURL(u)).catch(()=>{});
+    }
+  }
+  return p;
+}
+
+// Plays one already-fetched Gemini clip through ttsAudioEl. Resolves true
+// on a clean finish, false on any playback failure — never rejects.
+function playGeminiChunk(url){
+  return new Promise((resolve) => {
+    ttsAudioEl.onended = () => resolve(true);
+    ttsAudioEl.onerror = () => resolve(false);
+    ttsAudioEl.src = url;
+    avatar.classList.add('speaking');
+    const p = ttsAudioEl.play();
+    if(p && p.catch) p.catch(()=> resolve(false));
+  });
+}
 
 function speak(text){
   window.speechSynthesis && window.speechSynthesis.cancel();
-  if(currentAudioEl){ currentAudioEl.pause(); currentAudioEl = null; }
+  ttsAudioEl.pause();
+  ttsAudioEl.onended = null;
+  ttsAudioEl.onerror = null;
   const myToken = ++currentSpeechToken;
   currentUtteranceText = text;
   const chunks = splitIntoSpeechChunks(text);
@@ -4267,6 +4369,21 @@ function speak(text){
   });
 
   const voice = getSelectedVoice();
+  // Gemini is tried for every chunk. If it fails a chunk even after
+  // retries, only THAT chunk uses the browser voice and Gemini is tried
+  // again on the next one. Only if it fails several chunks in a row (the
+  // proxy is clearly down) do we stop trying for the rest of this turn,
+  // so the tutor doesn't stall on retries before every sentence.
+  const GEMINI_GIVE_UP_STREAK = 3;
+  let geminiFailStreak = 0;
+
+  function prefetch(i){
+    if(i < chunks.length && geminiFailStreak < GEMINI_GIVE_UP_STREAK){
+      getGeminiAudioUrl(chunks[i]).catch(()=>{});
+    }
+  }
+  prefetch(0);
+  prefetch(1);
 
   function speakChunkBrowser(i){
     if(!('speechSynthesis' in window)){
@@ -4293,6 +4410,26 @@ function speak(text){
     if(myToken !== currentSpeechToken) return;
     if(i >= chunks.length){ avatar.classList.remove('speaking'); return; }
     renderCaption(text, chunkOffsets[i], chunks[i]);
+
+    if(geminiFailStreak < GEMINI_GIVE_UP_STREAK){
+      let ok = false;
+      try{
+        const url = await getGeminiAudioUrl(chunks[i]);
+        if(myToken !== currentSpeechToken) return;
+        prefetch(i+1); // fetch the next sentence while this one plays
+        ok = await playGeminiChunk(url);
+      } catch(err){ ok = false; }
+      if(myToken !== currentSpeechToken) return;
+      if(ok){
+        geminiFailStreak = 0;
+        setVoiceStatus('gemini');
+        const pause = /\?\s*$/.test(chunks[i]) ? 260 : 140;
+        setTimeout(()=> speakChunk(i+1), pause);
+        return;
+      }
+      geminiFailStreak++;
+      console.warn('Gemini TTS failed for this sentence after retries; using browser voice for it.');
+    }
     setVoiceStatus('browser');
     speakChunkBrowser(i);
   }
@@ -6708,6 +6845,13 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 }
 .btn-primary:hover{ background:#0f1c2c; }
 
+.back-link{
+  display:inline-flex; align-items:center; gap:6px; margin-bottom:14px;
+  font-family:'JetBrains Mono', monospace; font-size:12.5px; color:var(--muted);
+  text-decoration:none; cursor:pointer;
+}
+.back-link:hover{ color:var(--ink); }
+
 .signin-note{
   background:#fff; border:1px solid var(--panel-border); border-radius:14px;
   padding:26px 28px; font-size:14.5px; color:var(--muted); margin-top:10px;
@@ -6760,6 +6904,16 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
   background:#fff; border:1px dashed var(--panel-border); border-radius:14px;
   padding:44px 28px; text-align:center; color:var(--muted); font-size:14.5px;
 }
+
+/* Phones: give the title its own line so it isn't squeezed to "Intro to li…";
+   topic/file and date sit underneath, delete stays top-right. */
+@media (max-width:520px){
+  .tutorial-row{ flex-wrap:wrap; row-gap:4px; padding:14px 16px; }
+  .tutorial-row .t-name{ order:1; flex:1 1 calc(100% - 44px); white-space:normal; }
+  .tutorial-row .t-delete{ order:2; margin-left:auto; }
+  .tutorial-row .t-topic{ order:3; flex:1 1 0; }
+  .tutorial-row .t-date{ order:4; }
+}
 </style>
 </head>
 <body>
@@ -6777,10 +6931,11 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 
   <div class="page-head">
     <div>
-      <h1>Previous tutorials</h1>
-      <p>Your saved whiteboard lessons, grouped by subject or course.</p>
+      <a href="#" class="back-link" id="th-back" style="display:none;" onclick="goBackToCourseTH();return false;">&#8249; <span id="th-back-name"></span></a>
+      <h1 id="th-title">Previous tutorials</h1>
+      <p id="th-sub">Your saved whiteboard lessons, grouped by subject or course.</p>
     </div>
-    <button class="btn-primary" onclick="parent.postMessage({nav:'tutor'},'*');">New lesson</button>
+    <button class="btn-primary" id="th-new-btn" onclick="startNewTH();">Start new lesson</button>
   </div>
 
   <div id="th-content">
@@ -6827,6 +6982,41 @@ if(!window.storage || !window.storage.__isRealBackend){
     }
   };
 }
+
+/* ---------------- Course scoping ----------------
+   Opened from a course card on the Dashboard, the shell sends
+   presetSubject and this page shows only that course's items, with a
+   back link to the course. Opened without one (sidebar link), it shows
+   everything, exactly as before. */
+let historySubjectTH = null;
+function applyScopeTH(){
+  const scoped = !!historySubjectTH;
+  document.getElementById('th-title').textContent = scoped ? "Live tutor" : "Previous tutorials";
+  document.getElementById('th-sub').textContent = scoped
+    ? "Your previous lessons for " + historySubjectTH + ". Pick one to continue, or start a new lesson."
+    : "Your saved whiteboard lessons, grouped by subject or course.";
+  document.getElementById('th-back').style.display = scoped ? 'inline-flex' : 'none';
+  document.getElementById('th-back-name').textContent = scoped ? historySubjectTH : '';
+}
+function startNewTH(){
+  parent.postMessage(historySubjectTH
+    ? { nav:'tutor', presetSubject: historySubjectTH }
+    : { nav:'tutor' }, '*');
+}
+function goBackToCourseTH(){
+  parent.postMessage(historySubjectTH
+    ? { nav:'home', openCourse: historySubjectTH }
+    : { nav:'home' }, '*');
+}
+window.addEventListener('message', (e)=>{
+  const d = e.data;
+  if(!d) return;
+  if(d.presetSubject){ historySubjectTH = d.presetSubject; }
+  else if(d.chalklineClearSubject){ historySubjectTH = null; }
+  else return;
+  applyScopeTH();
+  refreshTutorHistory();
+});
 
 let thUser = null;
 
@@ -6892,8 +7082,16 @@ async function refreshTutorHistory(){
     if(myReq !== sessionListReqTH) return;
     items.sort((a,b)=>(b.savedAt||0)-(a.savedAt||0));
 
+    const visibleItems = historySubjectTH
+      ? items.filter(i => (i.subject || 'Unsorted') === historySubjectTH)
+      : items;
+    if(visibleItems.length === 0){
+      content.innerHTML = '<div class="empty-state">No lessons for ' + escapeHtmlTH(historySubjectTH) + ' yet — start a new lesson and it will show up here.</div>';
+      return;
+    }
+
     const groups = {};
-    items.forEach(item=>{
+    visibleItems.forEach(item=>{
       const subj = item.subject || 'Unsorted';
       if(!groups[subj]) groups[subj] = [];
       groups[subj].push(item);
@@ -6943,8 +7141,9 @@ async function refreshTutorHistory(){
         });
         body.appendChild(row);
       });
-      folder.appendChild(head);
+      if(!historySubjectTH) folder.appendChild(head);
       folder.appendChild(body);
+      if(historySubjectTH){ folder.classList.add('open'); body.style.maxHeight = 'none'; folder.style.borderTop = '1px solid var(--panel-border)'; }
       content.appendChild(folder);
 
       // set an actual pixel max-height so the CSS transition can open it
@@ -7032,6 +7231,13 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 }
 .btn-primary:hover{ background:#0f1c2c; }
 
+.back-link{
+  display:inline-flex; align-items:center; gap:6px; margin-bottom:14px;
+  font-family:'JetBrains Mono', monospace; font-size:12.5px; color:var(--muted);
+  text-decoration:none; cursor:pointer;
+}
+.back-link:hover{ color:var(--ink); }
+
 .signin-note{
   background:#fff; border:1px solid var(--panel-border); border-radius:14px;
   padding:26px 28px; font-size:14.5px; color:var(--muted); margin-top:10px;
@@ -7060,6 +7266,16 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 .summary-row .r-date{ font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--muted); flex-shrink:0; }
 .summary-row .r-delete{ border:none; background:none; color:var(--muted); cursor:pointer; font-size:12px; padding:2px 4px; margin-left:6px; flex-shrink:0; border-radius:4px; }
 .summary-row .r-delete:hover{ color:#b3452f; background:#FBEDE9; }
+
+/* Phones: give the title its own line so it isn't squeezed to "Intro to li…";
+   topic/file and date sit underneath, delete stays top-right. */
+@media (max-width:520px){
+  .summary-row{ flex-wrap:wrap; row-gap:4px; padding:14px 16px; }
+  .summary-row .r-name{ order:1; flex:1 1 calc(100% - 44px); white-space:normal; }
+  .summary-row .r-delete{ order:2; margin-left:auto; }
+  .summary-row .r-file{ order:3; flex:1 1 0; }
+  .summary-row .r-date{ order:4; }
+}
 </style>
 </head>
 <body>
@@ -7077,10 +7293,11 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 
   <div class="page-head">
     <div>
-      <h1>Previous summaries</h1>
-      <p>Every PDF summary you've saved to your account.</p>
+      <a href="#" class="back-link" id="sh-back" style="display:none;" onclick="goBackToCourseSH();return false;">&#8249; <span id="sh-back-name"></span></a>
+      <h1 id="sh-title">Previous summaries</h1>
+      <p id="sh-sub">Every PDF summary you've saved to your account.</p>
     </div>
-    <button class="btn-primary" onclick="parent.postMessage({nav:'summary'},'*');">New summary</button>
+    <button class="btn-primary" id="sh-new-btn" onclick="startNewSH();">Start new summary</button>
   </div>
 
   <div id="sh-content">
@@ -7128,6 +7345,41 @@ if(!window.storage || !window.storage.__isRealBackend){
   };
 }
 
+/* ---------------- Course scoping ----------------
+   Opened from a course card on the Dashboard, the shell sends
+   presetSubject and this page shows only that course's items, with a
+   back link to the course. Opened without one (sidebar link), it shows
+   everything, exactly as before. */
+let historySubjectSH = null;
+function applyScopeSH(){
+  const scoped = !!historySubjectSH;
+  document.getElementById('sh-title').textContent = scoped ? "Summaries" : "Previous summaries";
+  document.getElementById('sh-sub').textContent = scoped
+    ? "Your previous summaries for " + historySubjectSH + ". Pick one to reopen it, or summarize a new PDF."
+    : "Every PDF summary you've saved to your account.";
+  document.getElementById('sh-back').style.display = scoped ? 'inline-flex' : 'none';
+  document.getElementById('sh-back-name').textContent = scoped ? historySubjectSH : '';
+}
+function startNewSH(){
+  parent.postMessage(historySubjectSH
+    ? { nav:'summary', presetSubject: historySubjectSH }
+    : { nav:'summary' }, '*');
+}
+function goBackToCourseSH(){
+  parent.postMessage(historySubjectSH
+    ? { nav:'home', openCourse: historySubjectSH }
+    : { nav:'home' }, '*');
+}
+window.addEventListener('message', (e)=>{
+  const d = e.data;
+  if(!d) return;
+  if(d.presetSubject){ historySubjectSH = d.presetSubject; }
+  else if(d.chalklineClearSubject){ historySubjectSH = null; }
+  else return;
+  applyScopeSH();
+  refreshSummaryHistory();
+});
+
 let shUser = null;
 
 function escapeHtmlSH(str){ const d=document.createElement('div'); d.textContent=str; return d.innerHTML; }
@@ -7169,9 +7421,17 @@ async function refreshSummaryHistory(){
     if(myReq !== summaryHistoryReqSH) return;
     items.sort((a,b)=>(b.savedAt||0)-(a.savedAt||0));
 
+    const visibleItems = historySubjectSH
+      ? items.filter(i => (i.subject || 'Unsorted') === historySubjectSH)
+      : items;
+    if(visibleItems.length === 0){
+      content.innerHTML = '<div class="empty-state">No summaries for ' + escapeHtmlSH(historySubjectSH) + ' yet — summarize a PDF and it will show up here.</div>';
+      return;
+    }
+
     const list = document.createElement('div');
     list.className = 'list';
-    items.forEach(item=>{
+    visibleItems.forEach(item=>{
       const row = document.createElement('div');
       row.className = 'summary-row';
       const date = new Date(item.savedAt);
@@ -7202,6 +7462,301 @@ async function refreshSummaryHistory(){
 }
 
 refreshSummaryHistory();
+<\/script>
+
+</body>
+</html>
+</script>
+
+<script type="text/plain" id="src-quiz-history"><!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Chalkline — Quizzes</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&family=Caveat:wght@600;700&display=swap');
+
+:root{
+  --board-bg:#BFDCF7;
+  --ink:#1E2B3A;
+  --ochre:#2E7DBE;
+  --highlight:#A6D0F2;
+  --sage:#3E8FA6;
+  --brick:#3D6B93;
+  --panel-border:#D3E6F5;
+  --muted:#7C93A8;
+  --halo-blue:#6EA8FE;
+  --halo-blue-soft:#A5C8FF;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:'Source Serif 4', Georgia, serif;
+  color:var(--ink); background:var(--board-bg);
+  min-height:100vh; position:relative;
+}
+.ambient-halo{ position:fixed; inset:0; z-index:0; overflow:hidden; pointer-events:none; }
+.ambient-halo::before,.ambient-halo::after{
+  content:''; position:absolute; width:58vmax;height:58vmax;
+  border-radius:50%; filter:blur(100px); opacity:0.22; mix-blend-mode:multiply;
+}
+.ambient-halo::before{ top:-24%; left:-16%; background:radial-gradient(circle, var(--halo-blue) 0%, rgba(110,168,254,0) 70%); animation:d1 24s ease-in-out infinite; }
+.ambient-halo::after{ bottom:-26%; right:-14%; background:radial-gradient(circle, var(--halo-blue-soft) 0%, rgba(165,200,255,0) 70%); animation:d2 28s ease-in-out infinite; }
+@keyframes d1{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(9%,7%) scale(1.13);}}
+@keyframes d2{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(-7%,-6%) scale(1.1);}}
+
+.wrap{ position:relative; z-index:1; max-width:820px; margin:0 auto; padding:0 28px 80px; }
+
+nav{ display:flex; align-items:center; justify-content:space-between; padding:26px 0 10px; }
+.brand{ font-family:'Caveat', cursive; font-weight:700; font-size:28px; color:var(--ink); text-decoration:none; display:flex; align-items:center; gap:8px; }
+.brand .dot{ width:9px;height:9px;border-radius:50%; background:var(--sage); display:inline-block; }
+.nav-links{ display:flex; gap:26px; font-family:'JetBrains Mono', monospace; font-size:13px; }
+.nav-links a{ color:var(--muted); text-decoration:none; }
+.nav-links a:hover{ color:var(--ink); }
+.nav-links a.active{ color:var(--ink); border-bottom:1.5px solid var(--sage); padding-bottom:2px; }
+
+.page-head{ padding:34px 0 26px; display:flex; align-items:flex-start; justify-content:space-between; gap:20px; flex-wrap:wrap; }
+.page-head h1{ font-size:32px; margin:0 0 10px; font-weight:600; }
+.page-head p{ font-size:16px; color:#5c5847; margin:0; max-width:480px; line-height:1.55; }
+.btn-primary{
+  font-family:'Source Serif 4', serif; font-size:14.5px; font-weight:600;
+  background:var(--ink); color:#fff; border:none; border-radius:9px;
+  padding:11px 20px; cursor:pointer; white-space:nowrap;
+}
+.btn-primary:hover{ background:#0f1c2c; }
+
+.back-link{
+  display:inline-flex; align-items:center; gap:6px; margin-bottom:14px;
+  font-family:'JetBrains Mono', monospace; font-size:12.5px; color:var(--muted);
+  text-decoration:none; cursor:pointer;
+}
+.back-link:hover{ color:var(--ink); }
+
+.signin-note{
+  background:#fff; border:1px solid var(--panel-border); border-radius:14px;
+  padding:26px 28px; font-size:14.5px; color:var(--muted); margin-top:10px;
+}
+.empty-state{
+  background:#fff; border:1px dashed var(--panel-border); border-radius:14px;
+  padding:44px 28px; text-align:center; color:var(--muted); font-size:14.5px;
+}
+.empty-hint{ font-family:'JetBrains Mono', monospace; font-size:11.5px; color:var(--muted); margin-top:8px; }
+
+.list{ background:#fff; border:1px solid var(--panel-border); border-radius:14px; overflow:hidden; }
+.quiz-row{
+  display:flex; align-items:center; gap:14px;
+  padding:16px 22px; cursor:pointer;
+  border-bottom:1px solid var(--panel-border);
+  transition:background .15s ease;
+}
+.quiz-row:last-child{ border-bottom:none; }
+.quiz-row:hover{ background:#FAFCFB; }
+.quiz-row .r-icon{
+  width:34px; height:34px; border-radius:9px; background:#E1F0F7;
+  display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0;
+}
+.quiz-row .r-name{ font-size:14.5px; font-weight:600; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.quiz-row .r-file{ font-size:12.5px; color:var(--muted); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.quiz-row .r-date{ font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--muted); flex-shrink:0; }
+.quiz-row .r-delete{ border:none; background:none; color:var(--muted); cursor:pointer; font-size:12px; padding:2px 4px; margin-left:6px; flex-shrink:0; border-radius:4px; }
+.quiz-row .r-delete:hover{ color:#b3452f; background:#FBEDE9; }
+
+/* Phones: give the title its own line so it isn't squeezed to "Intro to li…";
+   topic/file and date sit underneath, delete stays top-right. */
+@media (max-width:520px){
+  .quiz-row{ flex-wrap:wrap; row-gap:4px; padding:14px 16px; }
+  .quiz-row .r-name{ order:1; flex:1 1 calc(100% - 44px); white-space:normal; }
+  .quiz-row .r-delete{ order:2; margin-left:auto; }
+  .quiz-row .r-file{ order:3; flex:1 1 0; }
+  .quiz-row .r-date{ order:4; }
+}
+</style>
+</head>
+<body>
+
+<div class="ambient-halo"></div>
+
+<div class="wrap">
+  <nav>
+    <a class="brand" href="#" onclick="parent.postMessage({nav:'home'},'*');return false;"><span class="dot"></span>Chalkline</a>
+    <div class="nav-links">
+      <a href="#" onclick="parent.postMessage({nav:'tutor'},'*');return false;">Tutor</a>
+      <a href="#" onclick="parent.postMessage({nav:'summary'},'*');return false;">Summary</a>
+    </div>
+  </nav>
+
+  <div class="page-head">
+    <div>
+      <a href="#" class="back-link" id="qh-back" style="display:none;" onclick="goBackToCourseQH();return false;">&#8249; <span id="qh-back-name"></span></a>
+      <h1 id="qh-title">Quizzes</h1>
+      <p id="qh-sub">Every quiz you have taken, across all your courses.</p>
+    </div>
+    <button class="btn-primary" id="qh-new-btn" onclick="startNewQH();">Start new quiz</button>
+  </div>
+
+  <div id="qh-content">
+    <div class="empty-hint">Loading…</div>
+  </div>
+</div>
+
+<script>
+/* ---------------------------------------------------------------
+   window.storage shim: the real window.storage API only exists
+   inside the Claude.ai artifact preview sandbox — on a real
+   deployed site (like this one, on GitHub Pages) it doesn't exist
+   at all, so every call used to throw and autosave failed silently.
+   This shim gives the same get/set/list/delete interface, backed
+   by localStorage, so saving actually works once deployed. Swap
+   this out for real fetch() calls to your own backend later if you
+   want saves to sync across devices instead of staying per-browser.
+   ------------------------------------------------------------- */
+if(!window.storage || !window.storage.__isRealBackend){
+  const STORAGE_NS = 'chalkline:';
+  window.storage = {
+    __isRealBackend: false,
+    async get(key){
+      const raw = localStorage.getItem(STORAGE_NS + key);
+      return raw === null ? null : { key, value: raw, shared: false };
+    },
+    async set(key, value){
+      try{ localStorage.setItem(STORAGE_NS + key, value); return { key, value, shared: false }; }
+      catch(e){ console.error('localStorage set failed:', e); return null; }
+    },
+    async delete(key){
+      const existed = localStorage.getItem(STORAGE_NS + key) !== null;
+      localStorage.removeItem(STORAGE_NS + key);
+      return { key, deleted: existed, shared: false };
+    },
+    async list(prefix){
+      const keys = [];
+      const full = STORAGE_NS + (prefix || '');
+      for(let i=0;i<localStorage.length;i++){
+        const k = localStorage.key(i);
+        if(k && k.startsWith(full)) keys.push(k.slice(STORAGE_NS.length));
+      }
+      return { keys, prefix, shared: false };
+    }
+  };
+}
+
+/* ---------------- Course scoping ----------------
+   Opened from a course card on the Dashboard, the shell sends
+   presetSubject and this page shows only that course's items, with a
+   back link to the course. Opened without one (sidebar link), it shows
+   everything, exactly as before. */
+let historySubjectQH = null;
+function applyScopeQH(){
+  const scoped = !!historySubjectQH;
+  document.getElementById('qh-title').textContent = scoped ? "Quizzes" : "Quizzes";
+  document.getElementById('qh-sub').textContent = scoped
+    ? "Your previous quizzes for " + historySubjectQH + ". Pick one to review it, or start a new quiz."
+    : "Every quiz you have taken, across all your courses.";
+  document.getElementById('qh-back').style.display = scoped ? 'inline-flex' : 'none';
+  document.getElementById('qh-back-name').textContent = scoped ? historySubjectQH : '';
+}
+function startNewQH(){
+  parent.postMessage(historySubjectQH
+    ? { nav:'quiz', presetSubject: historySubjectQH }
+    : { nav:'quiz' }, '*');
+}
+function goBackToCourseQH(){
+  parent.postMessage(historySubjectQH
+    ? { nav:'home', openCourse: historySubjectQH }
+    : { nav:'home' }, '*');
+}
+window.addEventListener('message', (e)=>{
+  const d = e.data;
+  if(!d) return;
+  if(d.presetSubject){ historySubjectQH = d.presetSubject; }
+  else if(d.chalklineClearSubject){ historySubjectQH = null; }
+  else return;
+  applyScopeQH();
+  refreshQuizHistory();
+});
+
+let qhUser = null;
+
+function escapeHtmlQH(str){ const d=document.createElement('div'); d.textContent=str; return d.innerHTML; }
+
+function quizKeyPrefixQH(){
+  return 'quiz:' + qhUser.sub + ':';
+}
+
+window.addEventListener('message', (e)=>{
+  const d = e.data;
+  if(!d || !d.chalklineAuth) return;
+  qhUser = d.signedIn ? d.user : null;
+  refreshQuizHistory();
+});
+
+let quizHistoryReqQH = 0;
+async function refreshQuizHistory(){
+  const myReq = ++quizHistoryReqQH;
+  const content = document.getElementById('qh-content');
+  if(!qhUser){
+    // Nothing is ever saved while signed out, so there's nothing real
+    // to list — and we must not query a shared 'local' bucket that
+    // could surface a previous guest's leftover summaries.
+    content.innerHTML = '<div class="signin-note">Sign in to save quizzes to your account and see them here.</div>';
+    return;
+  }
+  try{
+    const result = await window.storage.list(quizKeyPrefixQH(), false);
+    if(myReq !== quizHistoryReqQH) return; // superseded by a newer auth state
+    const keys = (result && result.keys) ? result.keys : [];
+    if(keys.length===0){
+      content.innerHTML = '<div class="empty-state">No quizzes yet — start a new quiz and it will show up here.</div>';
+      return;
+    }
+    const items = [];
+    for(const key of keys){
+      try{ const rec = await window.storage.get(key, false); if(rec) items.push(JSON.parse(rec.value)); } catch(e){}
+    }
+    if(myReq !== quizHistoryReqQH) return;
+    items.sort((a,b)=>(b.savedAt||0)-(a.savedAt||0));
+
+    const visibleItems = historySubjectQH
+      ? items.filter(i => (i.subject || 'Unsorted') === historySubjectQH)
+      : items;
+    if(visibleItems.length === 0){
+      content.innerHTML = '<div class="empty-state">No quizzes for ' + escapeHtmlQH(historySubjectQH) + ' yet — start a new quiz and it will show up here.</div>';
+      return;
+    }
+
+    const list = document.createElement('div');
+    list.className = 'list';
+    visibleItems.forEach(item=>{
+      const row = document.createElement('div');
+      row.className = 'quiz-row';
+      const date = new Date(item.savedAt);
+      row.innerHTML = `
+        <div class="r-icon">🧠</div>
+        <span class="r-name">${escapeHtmlQH(item.title||'Untitled quiz')}</span>
+        <span class="r-file">${escapeHtmlQH(item.total ? ((item.score||0) + '/' + item.total) : '')}</span>
+        <span class="r-date">${date.toLocaleDateString()}</span>
+        <button type="button" class="r-delete" title="Delete">✕</button>
+      `;
+      row.addEventListener('click', ()=> parent.postMessage({nav:'quiz', loadQuizId:item.id}, '*'));
+      row.querySelector('.r-delete').addEventListener('click', async (ev)=>{
+        ev.stopPropagation();
+        if(!confirm('Delete this saved quiz? This can\'t be undone.')) return;
+        try{
+          await window.storage.delete(quizKeyPrefixQH() + item.id, false);
+          refreshQuizHistory();
+        } catch(e){ console.error('Delete quiz failed:', e); }
+      });
+      list.appendChild(row);
+    });
+    content.innerHTML = '';
+    content.appendChild(list);
+  } catch(err){
+    console.error('Loading quizzes failed:', err);
+    content.innerHTML = '<div class="empty-hint">Could not load saved quizzes.</div>';
+  }
+}
+
+refreshQuizHistory();
 <\/script>
 
 </body>
@@ -8273,15 +8828,23 @@ loadGlobalSettings().then(refreshNotesList);
   <div class="quiz-badge">🧠</div>
   <h1>Quizzes are on the way</h1>
   <p id="quiz-course-line">This is where you'll be quizzed on what you've learned.</p>
-  <button class="quiz-back" onclick="parent.postMessage({nav:'home'},'*');">Back to Dashboard</button>
+  <button class="quiz-back" id="quiz-back-btn">Back to Dashboard</button>
 </div>
 <script>
+  let quizSubject = null;
   window.addEventListener('message', (e)=>{
     const d = e.data;
     if(d && d.presetSubject){
+      quizSubject = d.presetSubject;
       document.getElementById('quiz-course-line').textContent =
         'Quizzes for "' + d.presetSubject + '" will show up here once they\'re ready.';
+      document.getElementById('quiz-back-btn').textContent = 'Back to quizzes';
     }
+  });
+  document.getElementById('quiz-back-btn').addEventListener('click', ()=>{
+    parent.postMessage(quizSubject
+      ? { nav:'quiz-history', presetSubject: quizSubject }
+      : { nav:'home' }, '*');
   });
 <\/script>
 </body>
@@ -8300,9 +8863,10 @@ const frames = {
   quiz: document.getElementById('frame-quiz'),
   'tutor-history': document.getElementById('frame-tutor-history'),
   'summary-history': document.getElementById('frame-summary-history'),
+  'quiz-history': document.getElementById('frame-quiz-history'),
   notes: document.getElementById('frame-notes')
 };
-const loaded = { home:false, tutor:false, summary:false, quiz:false, 'tutor-history':false, 'summary-history':false, notes:false };
+const loaded = { home:false, tutor:false, summary:false, quiz:false, 'tutor-history':false, 'summary-history':false, 'quiz-history':false, notes:false };
 let current = 'home';
 
 function ensureLoaded(page){
@@ -8328,6 +8892,12 @@ function ensureLoaded(page){
 // its own message handler (d.loadSessionId) resets its state anyway.
 const FRESH_ON_ENTRY = { tutor:true, summary:true, quiz:true, notes:true };
 
+// The three "previous ..." list pages are course-scoped when opened from a
+// course card (the shell sends presetSubject). Reaching one WITHOUT a
+// payload (sidebar link, browser back) means "show everything", so tell an
+// already-loaded frame to drop whichever course it was last scoped to.
+const HISTORY_PAGES = { 'tutor-history':true, 'summary-history':true, 'quiz-history':true };
+
 function navTo(page, pushHistory, navPayload, isInitialLoad){
   if(!frames[page]) page = 'home';
   // Coming back to the Dashboard (sidebar/brand click, or "home" with no
@@ -8336,6 +8906,9 @@ function navTo(page, pushHistory, navPayload, isInitialLoad){
   // the home frame doesn't get torn down and reloaded like tutor/summary do.
   if(page === 'home' && !navPayload && loaded.home){
     try{ frames.home.contentWindow.postMessage({ chalklineShowHome:true }, '*'); }catch(e){}
+  }
+  if(HISTORY_PAGES[page] && !navPayload && loaded[page]){
+    try{ frames[page].contentWindow.postMessage({ chalklineClearSubject:true }, '*'); }catch(e){}
   }
   // Only force a fresh tutor/summary reload for an actual in-app
   // navigation (clicking Tutor/Summary from Home, etc). A page refresh
@@ -8414,6 +8987,8 @@ window.addEventListener('message', (e)=>{
     let payload = null;
     if(d.loadSessionId) payload = { loadSessionId: d.loadSessionId };
     else if(d.loadSummaryId) payload = { loadSummaryId: d.loadSummaryId };
+    else if(d.loadQuizId) payload = { loadQuizId: d.loadQuizId };
+    else if(d.openCourse) payload = { openCourse: d.openCourse };
     else if(d.presetSubject) payload = { presetSubject: d.presetSubject };
     navTo(d.nav, true, payload);
     return;
