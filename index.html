@@ -1268,6 +1268,9 @@ body{
   --violet:#D98C2B;
   --violet-deep:#A66A1E;
   --violet-ring:rgba(217,140,43,0.35);
+  --speak-green:#2FA88A;
+  --speak-green-deep:#1E7B4D;
+  --speak-green-rgb:47,168,138;
 
   /* ============================================================
      RESPONSIVE ARCHITECTURE
@@ -1781,6 +1784,51 @@ body{
 .ask-zone button:hover{background:var(--violet);}
 .ask-zone{ border-color:var(--violet-deep); }
 
+/* While the tutor is speaking, the follow-up box itself turns green and
+   pulses so it visibly reads as "she's talking, but you can still jump
+   in here" — and settles back the instant she stops. --voice-amp is a
+   0..1 number the JS voice-level loop updates every frame from the
+   actual Gemini audio (real amplitude); when that audio path isn't
+   available (browser-voice fallback, or Web Audio blocked) --voice-amp
+   just stays 0 and the keyframe animation alone still gives a steady,
+   honest pulse rather than nothing at all. */
+.ask-zone.tutor-speaking{
+  --voice-amp:0;
+  border-color:var(--speak-green);
+  background:
+    linear-gradient(0deg, rgba(var(--speak-green-rgb),0.07), rgba(var(--speak-green-rgb),0.07)),
+    #fff;
+  box-shadow:
+    0 3px 14px rgba(0,0,0,0.08),
+    0 0 calc(10px + var(--voice-amp) * 22px) calc(1px + var(--voice-amp) * 5px) rgba(var(--speak-green-rgb), calc(0.28 + var(--voice-amp) * 0.32));
+  transition:border-color .25s ease, background .25s ease;
+  animation:ask-zone-breathe 1.7s ease-in-out infinite;
+}
+.ask-zone-halo{
+  position:absolute; inset:-7px;
+  border-radius:17px;
+  border:2px solid transparent;
+  opacity:0;
+  pointer-events:none;
+}
+.ask-zone.tutor-speaking .ask-zone-halo{
+  border-color:var(--speak-green);
+  opacity:0.5;
+  animation:ask-zone-ripple 1.5s ease-out infinite;
+}
+@keyframes ask-zone-breathe{
+  0%,100%{ transform:scale(1); }
+  50%{ transform:scale(calc(1.006 + var(--voice-amp) * 0.02)); }
+}
+@keyframes ask-zone-ripple{
+  0%{ transform:scale(0.96); opacity:0.55; }
+  100%{ transform:scale(1.05); opacity:0; }
+}
+@media (prefers-reduced-motion:reduce){
+  .ask-zone.tutor-speaking{ animation:none; }
+  .ask-zone.tutor-speaking .ask-zone-halo{ animation:none; opacity:0.35; }
+}
+
 /* Inside the Transcript side panel, .ask-zone sits in a vertical flex
    column (.panel-body) instead of the horizontal bottom-bar it was
    designed for — its flex:1 1 auto there means "grow to fill the row",
@@ -2224,7 +2272,8 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
       <span class="btn-label">Replay</span>
     </div>
 
-    <div class="ask-zone">
+    <div class="ask-zone" id="ask-zone">
+      <div class="ask-zone-halo"></div>
       <div class="attach-chip" id="attach-chip" style="display:none;"></div>
       <button class="ask-icon-btn" id="btn-attach" title="Attach a file">📎</button>
       <input type="file" id="attach-input" accept="image/*,.pdf,.txt,.md" style="display:none;">
@@ -4294,6 +4343,69 @@ function setVoiceStatus(mode, detail){
   }
 }
 
+// ---------- "Tutor is speaking" UI (avatar ring + ask-zone halo) ----------
+// Single choke point for the speaking on/off state so the avatar and the
+// follow-up ask box can never drift out of sync with each other or with
+// what's actually playing. When real Gemini audio is behind ttsAudioEl we
+// also drive --voice-amp from its actual amplitude (Web Audio API) each
+// frame, so the ask-zone's glow genuinely swells and settles with her
+// voice rather than just running on a fixed rhythm.
+const askZone = document.getElementById('ask-zone');
+let voiceAnalyser = null, voiceDataArray = null, voiceAudioCtx = null, voiceRafId = null;
+
+function ensureVoiceAnalyser(){
+  if(voiceAnalyser || !askZone) return voiceAnalyser;
+  try{
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    voiceAudioCtx = new Ctx();
+    const src = voiceAudioCtx.createMediaElementSource(ttsAudioEl);
+    voiceAnalyser = voiceAudioCtx.createAnalyser();
+    voiceAnalyser.fftSize = 256;
+    voiceAnalyser.smoothingTimeConstant = 0.55;
+    // Analyser must stay in the graph between the element and the
+    // speakers, or routing audio through Web Audio at all would go
+    // silent instead of just being "tapped" for its levels.
+    src.connect(voiceAnalyser);
+    voiceAnalyser.connect(voiceAudioCtx.destination);
+    voiceDataArray = new Uint8Array(voiceAnalyser.frequencyBinCount);
+  }catch(e){
+    // Web Audio unavailable/blocked (or ttsAudioEl already routed
+    // elsewhere) — the CSS keyframe pulse still runs fine without it.
+    voiceAnalyser = null;
+  }
+  return voiceAnalyser;
+}
+
+function voiceLevelLoop(){
+  if(!askZone || !askZone.classList.contains('tutor-speaking')){ voiceRafId = null; return; }
+  if(voiceAnalyser && !ttsAudioEl.paused){
+    voiceAnalyser.getByteFrequencyData(voiceDataArray);
+    let sum = 0;
+    for(let i=0;i<voiceDataArray.length;i++) sum += voiceDataArray[i];
+    const level = (sum / voiceDataArray.length) / 255; // 0..1
+    const prev = parseFloat(askZone.style.getPropertyValue('--voice-amp')) || 0;
+    // Ease toward the new reading instead of snapping — reads as a
+    // natural swell/settle rather than a jittery frame-to-frame flicker.
+    askZone.style.setProperty('--voice-amp', (prev + (level - prev) * 0.35).toFixed(3));
+  }
+  voiceRafId = requestAnimationFrame(voiceLevelLoop);
+}
+
+function setTutorSpeakingUI(active){
+  avatar.classList.toggle('speaking', active);
+  if(!askZone) return;
+  askZone.classList.toggle('tutor-speaking', active);
+  if(active){
+    ensureVoiceAnalyser();
+    if(voiceAudioCtx && voiceAudioCtx.state === 'suspended') voiceAudioCtx.resume().catch(()=>{});
+    if(!voiceRafId) voiceRafId = requestAnimationFrame(voiceLevelLoop);
+  } else if(voiceRafId){
+    cancelAnimationFrame(voiceRafId);
+    voiceRafId = null;
+    askZone.style.setProperty('--voice-amp', '0');
+  }
+}
+
 // Fetches one chunk of speech audio from the Gemini TTS proxy route and
 // returns an object URL for it. Throws on failure; the caller decides
 // whether to retry or fall back.
@@ -4371,7 +4483,7 @@ function playGeminiChunk(url){
     ttsAudioEl.onended = () => resolve(true);
     ttsAudioEl.onerror = () => resolve(false);
     ttsAudioEl.src = url;
-    avatar.classList.add('speaking');
+    setTutorSpeakingUI(true);
     const p = ttsAudioEl.play();
     if(p && p.catch) p.catch(()=> resolve(false));
   });
@@ -4411,7 +4523,7 @@ function speak(text){
 
   function speakChunkBrowser(i){
     if(!('speechSynthesis' in window)){
-      avatar.classList.remove('speaking');
+      setTutorSpeakingUI(false);
       setVoiceStatus('error', 'No speech synthesis available on this device/browser');
       return;
     }
@@ -4420,7 +4532,7 @@ function speak(text){
     utter.pitch = 1.0;
     utter.volume = 1.0; // Enforces maximum browser volume output
     if(voice) utter.voice = voice;
-    utter.onstart = () => avatar.classList.add('speaking');
+    utter.onstart = () => setTutorSpeakingUI(true);
     utter.onend = () => {
       if(myToken !== currentSpeechToken) return;
       const pause = /\?\s*$/.test(chunks[i]) ? 260 : 140;
@@ -4432,7 +4544,7 @@ function speak(text){
 
   async function speakChunk(i){
     if(myToken !== currentSpeechToken) return;
-    if(i >= chunks.length){ avatar.classList.remove('speaking'); return; }
+    if(i >= chunks.length){ setTutorSpeakingUI(false); return; }
     renderCaption(text, chunkOffsets[i], chunks[i]);
 
     if(geminiFailStreak < GEMINI_GIVE_UP_STREAK){
