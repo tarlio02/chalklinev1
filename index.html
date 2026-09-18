@@ -630,6 +630,11 @@ body{
   letter-spacing:-0.015em; color:var(--ink);
 }
 .dash-head p{ font-size:16.5px; line-height:1.65; color:rgba(42,36,16,0.65); max-width:520px; margin:0; }
+.dash-empty{
+  max-width:480px; padding:22px 24px; border-radius:16px;
+  background:rgba(255,255,255,0.75); border:1px solid rgba(0,0,0,0.06);
+  color:rgba(42,36,16,0.65); font-size:14.5px; line-height:1.6;
+}
 
 /* ---------- 3D LESSON BUTTONS ---------- */
 .dash-grid{
@@ -782,61 +787,13 @@ body{
 
   <div class="main-area">
     <div class="dash-head fade-up">
-      <h1>A study session, <span class="chalk" style="font-family:'Caveat',cursive;background:linear-gradient(100deg, var(--ochre), var(--gold-deep) 65%, var(--gold));-webkit-background-clip:text;background-clip:text;color:transparent;">drawn out loud.</span></h1>
-      <p>Bring a topic or a PDF. Chalkline either teaches it to you on a live whiteboard, or reads it and hands you back the version worth remembering.</p>
+      <h1>Dashboard</h1>
+      <p>Your courses and subjects, all in one place — each one tracks the lessons, quizzes, and summaries saved under it.</p>
     </div>
 
-    <div class="dash-grid">
-      <div class="dash-card tutor fade-up" style="animation-delay:.08s;" onclick="parent.postMessage({nav:'tutor'},'*');">
-        <span class="icon-badge">✏️</span>
-        <h2>New Tutorial</h2>
-        <p>Start a live lesson on the whiteboard</p>
-      </div>
-      <div class="dash-card tutor fade-up" style="animation-delay:.14s;" onclick="parent.postMessage({nav:'tutor-history'},'*');">
-        <span class="icon-badge">🗂️</span>
-        <h2>Tutorials</h2>
-        <p>Revisit past whiteboard sessions</p>
-      </div>
-      <div class="dash-card summary fade-up" style="animation-delay:.20s;" onclick="parent.postMessage({nav:'summary'},'*');">
-        <span class="icon-badge">📄</span>
-        <h2>New Summary</h2>
-        <p>Summarize a PDF, chapter, or notes</p>
-      </div>
-      <div class="dash-card summary fade-up" style="animation-delay:.26s;" onclick="parent.postMessage({nav:'summary-history'},'*');">
-        <span class="icon-badge">🗒️</span>
-        <h2>Summaries</h2>
-        <p>Revisit summaries you've saved</p>
-      </div>
-      <div class="dash-card tutor fade-up" style="animation-delay:.30s;" onclick="parent.postMessage({nav:'notes'},'*');">
-        <span class="icon-badge">📝</span>
-        <h2>Notes</h2>
-        <p>Jot down quick notes, Apple Notes style</p>
-      </div>
-    </div>
-
-    <div class="dash-more fade-up" style="animation-delay:.34s;">
-      <div class="dash-more-head">
-        <h3>Built to teach, not just answer</h3>
-        <span class="underline"></span>
-        <p>Every session runs like real office hours — worked through step by step, at a pace built for actually understanding it.</p>
-      </div>
-      <div class="dash-feature-row">
-        <div class="dash-feature">
-          <div class="f-ic">🖊️</div>
-          <h4>Live, worked-through lessons</h4>
-          <p>Watch each idea get drawn out and explained in order, not dumped as a wall of text.</p>
-        </div>
-        <div class="dash-feature">
-          <div class="f-ic">📚</div>
-          <h4>Grounded in your material</h4>
-          <p>Upload a PDF or chapter and get a summary that keeps the parts actually worth remembering.</p>
-        </div>
-        <div class="dash-feature">
-          <div class="f-ic">🕘</div>
-          <h4>Nothing gets lost</h4>
-          <p>Every tutorial and summary is saved, so you can pick a session back up right where you left it.</p>
-        </div>
-      </div>
+    <div class="dash-grid" id="course-grid"></div>
+    <div id="course-empty-state" class="dash-empty fade-up" style="display:none;">
+      <p>No courses yet. Start a lesson or a summary from the sidebar and give it a subject — it'll show up here.</p>
     </div>
   </div>
 </div>
@@ -884,11 +841,98 @@ body{
     parent.postMessage(homeShellUser ? { requestSignOut:true } : { navLoginClick:true }, '*');
   }
   window.handleHomeSidebarAccountClick = handleHomeSidebarAccountClick;
+
+  /* ---------------- "My Courses" dashboard grid -----------------
+     A "course" here is just a subject name: tutor sessions already
+     tag themselves with one (see the tutor page's subject modal),
+     and summaries now do too (see the subject field added to the
+     summary page). This groups both by that shared subject and
+     counts lessons, quizzes answered, and summaries under each. */
+  function escapeHtmlHome(s){
+    const div = document.createElement('div');
+    div.textContent = s;
+    return div.innerHTML;
+  }
+  const COURSE_PALETTES = [
+    ['var(--ochre)','var(--gold-deep)'],
+    ['var(--sage)','var(--emerald)'],
+    ['var(--gold-deep)','var(--gold)'],
+    ['var(--brick)','var(--gold-deep)']
+  ];
+  async function loadCourses(){
+    const grid = document.getElementById('course-grid');
+    const emptyEl = document.getElementById('course-empty-state');
+    if(!homeShellUser){
+      grid.innerHTML = '';
+      emptyEl.textContent = 'Sign in to see your saved courses and subjects here.';
+      emptyEl.style.display = 'block';
+      return;
+    }
+    const sub = homeShellUser.sub;
+    const courses = {};
+    function ensure(name){
+      if(!courses[name]) courses[name] = { lessons:0, quizzes:0, summaries:0 };
+      return courses[name];
+    }
+    try{
+      const sessResult = await window.storage.list('session:' + sub + ':', false);
+      for(const key of (sessResult.keys || [])){
+        try{
+          const rec = await window.storage.get(key, false);
+          if(!rec) continue;
+          const item = JSON.parse(rec.value);
+          const c = ensure(item.subject || 'Unsorted');
+          c.lessons++;
+          c.quizzes += item.quizCount || 0;
+        } catch(e){ /* skip corrupt entry */ }
+      }
+    } catch(e){ console.error('Loading lessons for dashboard failed:', e); }
+    try{
+      const sumResult = await window.storage.list('summary:' + sub + ':', false);
+      for(const key of (sumResult.keys || [])){
+        try{
+          const rec = await window.storage.get(key, false);
+          if(!rec) continue;
+          const item = JSON.parse(rec.value);
+          const c = ensure(item.subject || 'Unsorted');
+          c.summaries++;
+        } catch(e){ /* skip corrupt entry */ }
+      }
+    } catch(e){ console.error('Loading summaries for dashboard failed:', e); }
+
+    const names = Object.keys(courses).sort((a,b)=>{
+      if(a==='Unsorted') return 1;
+      if(b==='Unsorted') return -1;
+      return a.localeCompare(b);
+    });
+
+    if(names.length === 0){
+      grid.innerHTML = '';
+      emptyEl.textContent = 'No courses yet. Start a lesson or a summary from the sidebar and give it a subject — it\'ll show up here.';
+      emptyEl.style.display = 'block';
+      return;
+    }
+    emptyEl.style.display = 'none';
+    grid.innerHTML = names.map((name, idx)=>{
+      const c = courses[name];
+      const [a,b] = COURSE_PALETTES[idx % COURSE_PALETTES.length];
+      const lessonWord = c.lessons===1 ? 'lesson' : 'lessons';
+      const quizWord = c.quizzes===1 ? 'quiz' : 'quizzes';
+      const summaryWord = c.summaries===1 ? 'summary' : 'summaries';
+      return `<div class="dash-card course fade-up" style="animation-delay:${(idx*0.06).toFixed(2)}s;--card-a:${a};--card-b:${b};" onclick="parent.postMessage({nav:'tutor-history'},'*');">
+        <span class="icon-badge">📘</span>
+        <h2>${escapeHtmlHome(name)}</h2>
+        <p>${c.lessons} ${lessonWord} · ${c.quizzes} ${quizWord} · ${c.summaries} ${summaryWord}</p>
+      </div>`;
+    }).join('');
+  }
+
   window.addEventListener('message', (e)=>{
     const d = e.data;
     if(!d || !d.chalklineAuth) return;
     homeShellUser = d.signedIn ? d.user : null;
     renderHomeSidebarAccount();
+    loadCourses();
   });
 <\/script>
 
@@ -2130,6 +2174,7 @@ const TOP_MARGIN = 80; // must be a whole multiple of RULE_LINE_SPACING so the
 let globalCursorY = TOP_MARGIN;
 let currentTopicLabel = 'Topic';
 let currentSubject = '';
+let sessionQuizCount = 0; // how many quiz cards this lesson has shown — surfaced on the Dashboard's course cards
 
 function resetRegionCursors(){
   globalCursorY = TOP_MARGIN;
@@ -4366,6 +4411,7 @@ function runPointToSequence(pointTo, speechMs){
 }
 
 function addQuizCard(quiz){
+  sessionQuizCount++;
   dismissQuizCard();
   const overlayLayer = document.getElementById('board-quiz-overlay');
   const card = document.createElement('div');
@@ -5271,6 +5317,7 @@ function forgetActiveSession(){
 
 function resetTutorBoardState(){
   currentSessionId = 'session_' + Date.now(); currentSessionTitle = null; currentSubject = '';
+  sessionQuizCount = 0;
   pdfText=''; pdfFileName='';
   conversationHistory=[]; drawQueue=[]; drawnCommands=[];
   camera.x=500; camera.scale=1;
@@ -5382,6 +5429,7 @@ async function persistSession(){
     title: currentSessionTitle || derivedTitle,
     subject: currentSubject || 'Unsorted',
     savedAt: Date.now(),
+    quizCount: sessionQuizCount,
     pdfFileName, pdfText: pdfText ? pdfText.slice(0,15000) : '',
     conversationHistory, drawnCommands, camera,
     globalCursorY, currentTopicLabel,
@@ -5487,6 +5535,7 @@ function loadSession(item){
   dismissQuizCard();
   currentSessionId = item.id; currentSessionTitle = item.title;
   currentSubject = item.subject && item.subject!=='Unsorted' ? item.subject : '';
+  sessionQuizCount = item.quizCount || 0;
   pdfFileName = item.pdfFileName || ''; pdfText = item.pdfText || '';
   conversationHistory = item.conversationHistory || [];
   drawnCommands = item.drawnCommands || [];
@@ -5862,6 +5911,7 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
   </div>
 
   <div class="controls">
+    <input type="text" id="summary-subject-input" class="length-select" placeholder="Subject or course (optional)" style="flex:1;min-width:160px;">
     <select id="length-select" class="length-select">
       <option value="brief">Brief — key points only</option>
       <option value="standard" selected>Standard — sectioned summary</option>
@@ -5942,6 +5992,8 @@ const statusLine = document.getElementById('status-line');
 let currentUser = null;
 let currentSummarySessionId = 'summary_' + Date.now();
 let currentSummaryTitle = null;
+const summarySubjectInput = document.getElementById('summary-subject-input');
+function currentSummarySubject(){ return (summarySubjectInput.value || '').trim(); }
 
 function summarySessionKeyPrefix(){
   return 'summary:' + currentUser.sub + ':';
@@ -5949,7 +6001,7 @@ function summarySessionKeyPrefix(){
 
 function resetSummaryViewState(){
   currentSummarySessionId = 'summary_' + Date.now(); currentSummaryTitle = null;
-  pdfText=''; pdfFileName='';
+  pdfText=''; pdfFileName=''; summarySubjectInput.value = '';
   uploadZone.classList.remove('has-file');
   uploadZone.innerHTML = `Drop a PDF here, or click to choose a file.<input type="file" id="pdf-input" accept="application/pdf">`;
   document.getElementById('pdf-input').addEventListener('change', (e)=>{ if(e.target.files.length) handlePdfFile(e.target.files[0]); });
@@ -6007,6 +6059,7 @@ async function persistSummarySession(html){
   const payload = {
     id: currentSummarySessionId,
     title: currentSummaryTitle || (pdfFileName ? pdfFileName.replace(/\.pdf$/i,'') : 'Untitled summary'),
+    subject: currentSummarySubject() || 'Unsorted',
     savedAt: Date.now(),
     pdfFileName, html
   };
@@ -6056,6 +6109,7 @@ async function refreshSummarySessionList(){
 function loadSummarySession(item){
   currentSummarySessionId = item.id; currentSummaryTitle = item.title;
   pdfFileName = item.pdfFileName || '';
+  summarySubjectInput.value = (item.subject && item.subject !== 'Unsorted') ? item.subject : '';
   outputTitle.textContent = `Summary — ${(pdfFileName || item.title || '').replace(/\.pdf$/i,'')}`;
   summaryPanel.innerHTML = item.html || '';
   outputWrap.classList.add('show');
