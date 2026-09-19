@@ -6076,7 +6076,33 @@ function checkLessonAccess(){
   }catch(e){ return true; }
 }
 
+/* Per-lesson time cap for free users (PLAN_CONFIG.LESSON_MINUTES in the
+   shell). The timer covers time spent with this tutor page open, whether
+   it's a brand-new lesson or a resumed one — a subscriber never starts
+   this timer at all. Once it fires, the lesson is over: no more turns
+   until they come back later (new free lesson) or upgrade. */
+let freeLessonTimeUp = false;
+let freeLessonTimerId = null;
+function startFreeLessonTimerIfNeeded(){
+  if(freeLessonTimerId || freeLessonTimeUp) return;
+  let access, minutes;
+  try{
+    access = parent.chalklineAccess;
+    if(!access || !access.enabled() || access.isSubscriber()) return;
+    minutes = (typeof access.lessonMinutes === 'function' ? access.lessonMinutes() : null) || 15;
+  }catch(e){ return; }
+  freeLessonTimerId = setTimeout(()=>{
+    freeLessonTimeUp = true;
+    try{ access.showPaywall({ reason:'time', minutes }); }catch(e){}
+  }, minutes * 60000);
+}
+startFreeLessonTimerIfNeeded();
+
 async function runTeachingTurn(userMessage, displayText, imageAttachment){
+  if(freeLessonTimeUp){
+    try{ parent.chalklineAccess.showPaywall({ reason:'time' }); }catch(e){}
+    return;
+  }
   if(conversationHistory.length === 0 && !checkLessonAccess()) return;
   if(displayText !== null) addTranscriptMsg('user', displayText !== undefined ? displayText : userMessage);
   // Guarantee the handwriting webfonts are fully loaded BEFORE any text is
@@ -7519,6 +7545,13 @@ const outputTitle = document.getElementById('output-title');
 
 btnSummarize.addEventListener('click', async ()=>{
   if(!pdfText){ setStatus('upload a pdf first'); return; }
+  try{
+    const access = parent.chalklineAccess;
+    if(access && access.enabled() && !access.isSubscriber()){
+      access.showPaywall({ reason:'summary' });
+      return;
+    }
+  }catch(e){ /* if the shell can't be reached, don't block the feature */ }
   const mode = document.getElementById('length-select').value;
   btnSummarize.disabled = true;
   setStatus('reading and summarizing…');
@@ -10673,8 +10706,11 @@ if(shellUser) driveOnSignedIn();
 
 /* =====================================================================
    SUBSCRIBER ACCESS (free vs paid)
-   Free: PLAN_CONFIG.FREE_LESSONS new live-tutor lessons per rolling
-   PLAN_CONFIG.WINDOW_DAYS days. Subscribers: unlimited.
+   Free tier: PLAN_CONFIG.DAILY_LESSONS new live-tutor lessons per day,
+   capped further at PLAN_CONFIG.WEEKLY_LESSONS per rolling week (both
+   must pass), each lesson capped at PLAN_CONFIG.LESSON_MINUTES minutes;
+   PLAN_CONFIG.DAILY_QUIZZES quizzes per day; PLAN_CONFIG.FREE_SUMMARIES
+   summaries (0 = the summary feature is Pro-only). Subscribers: unlimited.
    Everything stays OFF until you paste your payment link into
    PLAN_CONFIG.CHECKOUT_URL, so nobody gets locked out before there is a
    way to pay. NOTE: this check runs in the browser, so a determined user
@@ -10684,8 +10720,11 @@ const PLAN_CONFIG = {
   CHECKOUT_URL: 'https://buy.polar.sh/polar_cl_95X31pSJf1H4WBklkGCdTUtSwgTVgBg1rfZyH0SI53V',  // Polar checkout link — limits are ON while this is set (empty string = OFF)
   PRICE_LABEL: '',                        // optional, e.g. '$6.99/month' — shown on the upgrade button
   VERIFY_URL: 'https://api.takundamambudzi02.workers.dev/subscription/verify',
-  FREE_LESSONS: 3,                        // free new lessons per window
-  WINDOW_DAYS: 7,
+  DAILY_LESSONS: 1,                       // free new lessons per rolling day
+  WEEKLY_LESSONS: 3,                      // free new lessons per rolling week (both caps apply)
+  LESSON_MINUTES: 15,                     // hard time cap per lesson, free users only
+  DAILY_QUIZZES: 1,                       // free quizzes per rolling day (quiz feature not built yet — see quiz template)
+  FREE_SUMMARIES: 0,                      // summaries are Pro-only for now
   GRACE_DAYS: 3,                          // keep working this long if we can't reach the server to re-check
   RECHECK_HOURS: 12
 };
@@ -10702,51 +10741,93 @@ function planIsSubscriber(){
   const p = planRead();
   return !!(p && p.activeUntil && Date.now() < p.activeUntil + PLAN_CONFIG.GRACE_DAYS * PLAN_DAY_MS);
 }
-// Lessons counted for this person: their own bucket plus anything started as
+// Events counted for this person: their own bucket plus anything logged as
 // a guest on this browser, so signing in doesn't reset the allowance.
-function planLessonsInWindow(){
-  const cutoff = Date.now() - PLAN_CONFIG.WINDOW_DAYS * PLAN_DAY_MS;
+// `kind` selects the storage namespace ('lessons' or 'quizzes').
+function planEventsInWindow(kind, windowMs){
+  const cutoff = Date.now() - windowMs;
   const seen = new Map();
   ['guest', planWho()].forEach(who=>{
-    planReadJSON('chalkline_lessons:' + who, []).forEach(x=>{
+    planReadJSON('chalkline_' + kind + ':' + who, []).forEach(x=>{
       if(x && x.id && x.t > cutoff && !seen.has(x.id)) seen.set(x.id, x.t);
     });
   });
   return Array.from(seen, ([id, t])=>({ id, t }));
 }
+function planRecordEvent(kind, id){
+  const key = 'chalkline_' + kind + ':' + planWho();
+  const list = planReadJSON(key, []);
+  if(!list.some(x=> x.id === id)) list.push({ id, t: Date.now() });
+  planWriteJSON(key, list.slice(-200));
+}
 
 const chalklineAccess = {
   enabled(){ return !!PLAN_CONFIG.CHECKOUT_URL; },
   isSubscriber: planIsSubscriber,
-  lessonsUsed(){ return planLessonsInWindow().length; },
+  lessonMinutes(){ return PLAN_CONFIG.LESSON_MINUTES; },
+  lessonsUsed(){ return planEventsInWindow('lessons', PLAN_CONFIG.WEEKLY_LESSONS * PLAN_DAY_MS).length; },
   canStartLesson(sessionId){
     if(!this.enabled() || planIsSubscriber()) return { allowed:true };
-    const used = planLessonsInWindow();
-    if(used.some(x=> x.id === sessionId)) return { allowed:true };   // already counted (e.g. a retry)
-    if(used.length < PLAN_CONFIG.FREE_LESSONS) return { allowed:true };
-    const oldest = Math.min.apply(null, used.map(x=> x.t));
-    return { allowed:false, reason:'limit', used: used.length, limit: PLAN_CONFIG.FREE_LESSONS,
-             resetAt: oldest + PLAN_CONFIG.WINDOW_DAYS * PLAN_DAY_MS };
+    const daily = planEventsInWindow('lessons', PLAN_DAY_MS);
+    const weekly = planEventsInWindow('lessons', 7 * PLAN_DAY_MS);
+    if(daily.some(x=> x.id === sessionId) || weekly.some(x=> x.id === sessionId)) return { allowed:true }; // already counted (e.g. a retry)
+    // Whichever cap is tighter right now decides the verdict and the reset time.
+    if(daily.length >= PLAN_CONFIG.DAILY_LESSONS){
+      const oldest = Math.min.apply(null, daily.map(x=> x.t));
+      return { allowed:false, reason:'limit', used: daily.length, limit: PLAN_CONFIG.DAILY_LESSONS, period:'day',
+               resetAt: oldest + PLAN_DAY_MS };
+    }
+    if(weekly.length >= PLAN_CONFIG.WEEKLY_LESSONS){
+      const oldest = Math.min.apply(null, weekly.map(x=> x.t));
+      return { allowed:false, reason:'limit', used: weekly.length, limit: PLAN_CONFIG.WEEKLY_LESSONS, period:'week',
+               resetAt: oldest + 7 * PLAN_DAY_MS };
+    }
+    return { allowed:true };
   },
   recordLesson(sessionId){
     if(!this.enabled() || planIsSubscriber()) return;
-    const key = 'chalkline_lessons:' + planWho();
-    const list = planReadJSON(key, []);
-    if(!list.some(x=> x.id === sessionId)) list.push({ id: sessionId, t: Date.now() });
-    planWriteJSON(key, list.slice(-200));
+    planRecordEvent('lessons', sessionId);
+  },
+  quizzesUsed(){ return planEventsInWindow('quizzes', PLAN_DAY_MS).length; },
+  canStartQuiz(quizId){
+    if(!this.enabled() || planIsSubscriber()) return { allowed:true };
+    const daily = planEventsInWindow('quizzes', PLAN_DAY_MS);
+    if(daily.some(x=> x.id === quizId)) return { allowed:true };
+    if(daily.length < PLAN_CONFIG.DAILY_QUIZZES) return { allowed:true };
+    const oldest = Math.min.apply(null, daily.map(x=> x.t));
+    return { allowed:false, reason:'quiz-limit', used: daily.length, limit: PLAN_CONFIG.DAILY_QUIZZES, period:'day',
+             resetAt: oldest + PLAN_DAY_MS };
+  },
+  recordQuiz(quizId){
+    if(!this.enabled() || planIsSubscriber()) return;
+    planRecordEvent('quizzes', quizId);
   },
   showPaywall(info){ planShowPaywall(info || {}); }
 };
 window.chalklineAccess = chalklineAccess;
 
 function planShowPaywall(info){
-  const limit = info.limit || PLAN_CONFIG.FREE_LESSONS;
-  document.getElementById('paywall-title').textContent = "You've used your " + limit + " free lessons";
+  const titleEl = document.getElementById('paywall-title');
+  const bodyEl = document.getElementById('paywall-body');
   const when = info.resetAt ? new Date(info.resetAt).toLocaleDateString(undefined, { weekday:'long', month:'short', day:'numeric' }) : null;
-  document.getElementById('paywall-body').textContent =
-    'Subscribers get unlimited live tutor lessons.' + (when ? ' Or come back on ' + when + ' for more free ones.' : '');
+  if(info.reason === 'time'){
+    titleEl.textContent = "Time's up for this lesson";
+    bodyEl.textContent = 'Subscribers get unlimited lesson time.' +
+      (info.minutes ? ' Free lessons are capped at ' + info.minutes + ' minutes.' : '');
+  } else if(info.reason === 'summary'){
+    titleEl.textContent = 'Summaries are a Pro feature';
+    bodyEl.textContent = 'Subscribe to generate unlimited PDF summaries.';
+  } else if(info.reason === 'quiz-limit'){
+    titleEl.textContent = "You've used today's free quiz";
+    bodyEl.textContent = 'Subscribers get unlimited quizzes.' + (when ? ' Or come back on ' + when + ' for another free one.' : '');
+  } else {
+    const limit = info.limit || PLAN_CONFIG.DAILY_LESSONS;
+    const periodWord = info.period === 'day' ? 'day' : 'week';
+    titleEl.textContent = "You've used your " + limit + ' free lesson' + (limit === 1 ? '' : 's') + ' this ' + periodWord;
+    bodyEl.textContent = 'Subscribers get unlimited live tutor lessons.' + (when ? ' Or come back on ' + when + ' for more free ones.' : '');
+  }
   document.getElementById('paywall-upgrade').textContent =
-    'Upgrade for unlimited lessons' + (PLAN_CONFIG.PRICE_LABEL ? ' — ' + PLAN_CONFIG.PRICE_LABEL : '');
+    'Upgrade for unlimited access' + (PLAN_CONFIG.PRICE_LABEL ? ' — ' + PLAN_CONFIG.PRICE_LABEL : '');
   const msg = document.getElementById('paywall-msg'); msg.textContent = ''; msg.classList.remove('ok');
   document.getElementById('paywall-overlay').classList.add('open');
 }
