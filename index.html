@@ -859,7 +859,8 @@ body{
     <!-- ---------- Course list view ---------- -->
     <div id="dash-list-view">
       <div class="dash-head fade-up">
-        <h1 style="margin:0;">📊 Dashboard</h1>
+        <h1 style="margin:0 0 6px;">📊 Dashboard</h1>
+        <p id="dash-welcome-text">Welcome back!</p>
       </div>
 
       <div style="display:flex;justify-content:center;margin:0 0 40px;">
@@ -977,6 +978,19 @@ body{
       avatarEl.outerHTML = `<span class="avatar" id="home-sidebar-avatar">👤</span>`;
       nameEl.textContent = 'Account';
       subEl.textContent = 'tap to sign in';
+    }
+    renderDashWelcomeText();
+  }
+  // Greets the signed-in person by first name under the Dashboard title;
+  // falls back to a generic line when nobody's signed in yet.
+  function renderDashWelcomeText(){
+    const el = document.getElementById('dash-welcome-text');
+    if(!el) return;
+    if(homeShellUser){
+      const firstName = homeShellUser.given_name || (homeShellUser.name ? homeShellUser.name.split(' ')[0] : '') || homeShellUser.email || '';
+      el.textContent = firstName ? `Welcome back, ${firstName} — let's get back to it.` : `Welcome back — let's get back to it.`;
+    } else {
+      el.textContent = `Let's get started.`;
     }
   }
   function handleHomeSidebarAccountClick(){
