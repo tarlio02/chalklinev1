@@ -13166,8 +13166,12 @@ async function planSyncFromAccount(){
       method:'POST', headers:{ 'Content-Type':'application/json' },
       body: JSON.stringify({ idToken: shellIdToken })
     });
+    const rawText = await res.text();
+    if(window.CHALKLINE_DEBUG_PLAN_SYNC){
+      alert('subscription/status\nstatus: ' + res.status + '\nbody: ' + rawText);
+    }
     if(!res.ok) return;                        // server trouble: keep whatever is cached
-    const data = await res.json();
+    const data = JSON.parse(rawText);
     const key = 'chalkline_plan:' + planWho();
     if(data && data.active){
       const prev = planRead() || {};
@@ -13176,7 +13180,10 @@ async function planSyncFromAccount(){
       try{ localStorage.removeItem(key); }catch(e){}
     }
     updateShellUpgradeButton();
-  }catch(e){ /* offline: cached plan + grace period still apply */ }
+  }catch(e){
+    if(window.CHALKLINE_DEBUG_PLAN_SYNC) alert('subscription/status threw: ' + (e && e.message));
+    /* offline: cached plan + grace period still apply */
+  }
   finally{ planSyncInFlight = false; }
 }
 document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState === 'visible') planRecheck().then(updateShellUpgradeButton); planSyncFromAccount(); });
