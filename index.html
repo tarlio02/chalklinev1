@@ -69,6 +69,7 @@
   }
   #paywall-msg{ margin-top:10px; min-height:18px; font-size:13px; color:#B42318; }
   #paywall-msg.ok{ color:#067647; }
+  .pw-hint{ margin-top:8px; font-size:12px; color:#7C93A8; }
   /* Google Drive sync pill: only visible when the person needs to act
      (connect / retry) or for a brief "saved" confirmation. */
   #drive-pill{
@@ -188,6 +189,7 @@
       <button type="button" id="paywall-activate">Activate</button>
     </div>
     <div id="paywall-msg"></div>
+    <div class="pw-hint">Your key is in the confirmation email Polar sends after you subscribe.</div>
   </div>
 </div>
 
@@ -10477,7 +10479,7 @@ if(shellUser) driveOnSignedIn();
    can bypass it — the server-side proxy check is the real protection.
    ===================================================================== */
 const PLAN_CONFIG = {
-  CHECKOUT_URL: '',                       // <- paste your checkout / payment link here to switch limits ON
+  CHECKOUT_URL: 'https://buy.polar.sh/polar_cl_95X31pSJf1H4WBklkGCdTUtSwgTVgBg1rfZyH0SI53V',  // Polar checkout link — limits are ON while this is set (empty string = OFF)
   PRICE_LABEL: '',                        // optional, e.g. '$6.99/month' — shown on the upgrade button
   VERIFY_URL: 'https://api.takundamambudzi02.workers.dev/subscription/verify',
   FREE_LESSONS: 3,                        // free new lessons per window
