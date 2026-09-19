@@ -607,7 +607,7 @@ body{
 .sidebar-toggle .arrow{ display:inline-block; font-size:13px; transition:transform .38s cubic-bezier(.22,.9,.32,1.1); }
 .app-shell.sidebar-closed .sidebar-toggle{ left:16px; }
 
-@media (max-width:900px){
+@media (max-width:700px){
   .sidebar-toggle{ left:calc(16px + var(--safe-left)); top:calc(16px + var(--safe-top)); }
   .app-shell.sidebar-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); }
 }
@@ -622,7 +622,7 @@ body{
 .main-area{ transition:margin-left .38s cubic-bezier(.22,.9,.32,1.1); margin-left:252px; }
 .app-shell.sidebar-closed .main-area{ margin-left:0; }
 
-@media (max-width:900px){
+@media (max-width:700px){
   /* Narrow screens: the sidebar floats over the content instead of
      pushing it (there's no room to spare), so content never reflows
      here — only the scrim (and the sidebar itself) toggles. */
@@ -814,7 +814,7 @@ body{
 /* Pill rides the sidebar edge: when the sidebar closes it returns to the corner.
    (The pill sits outside .app-shell, so the rule above could never match it.) */
 body.sb-closed .sidebar-toggle{ left:16px; }
-@media (max-width:900px){ body.sb-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
+@media (max-width:700px){ body.sb-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 </style>
 </head>
 <body>
@@ -959,7 +959,7 @@ body.sb-closed .sidebar-toggle{ left:16px; }
   // content over. On narrow phone widths it would swallow the whole
   // screen, so it starts closed there instead — the toggle still works
   // exactly the same either way.
-  if (window.innerWidth <= 900) closeSidebar();
+  if (window.innerWidth <= 700) closeSidebar();
 
   // Account row reflects real sign-in state (mirrors the shell's
   // chalklineAuth broadcast) instead of always saying "tap to sign in" —
@@ -1513,6 +1513,18 @@ body{
 @media (max-width:620px){
   .login-pill span.pill-full{display:none;}
   .login-pill span.pill-short{display:inline;}
+}
+/* With the sidebar docked (360px) the usable top bar is much narrower than the
+   screen, so switch to the short label / smaller pill before it collides with
+   Exit Lesson. Room needed: Export PDF (left) + pill + Exit Lesson (right). */
+@media (max-width:1180px) and (min-width:701px){
+  body.panel-open .login-pill span.pill-full{display:none;}
+  body.panel-open .login-pill span.pill-short{display:inline;}
+}
+@media (max-width:820px) and (min-width:701px){
+  /* Narrowest docked case (small tablets): tighten the pill so it clears Exit Lesson. */
+  body.panel-open .login-pill{ padding:7px 11px; font-size:11px; }
+  body.panel-open .topbar-left-stack{ gap:8px; }
 }
 .login-pill span.pill-short{display:none;}
 .topbar-btn-wrap{
@@ -2116,7 +2128,7 @@ body.panel-open .side-panel:not(.conv-panel){ box-shadow:
 
 /* Narrow screens (phones): the sidebar floats OVER the content instead of
    pushing it (no room to spare), exactly like the Home page. */
-@media (max-width:900px){
+@media (max-width:700px){
   body.panel-open{ --sb-offset:0px; }
   .side-panel{ width:min(320px, 86vw); }
   .sidebar-toggle{ left:calc(var(--safe-left) + 16px); top:calc(var(--safe-top) + 16px); }
@@ -6001,7 +6013,7 @@ window.addEventListener('message', (e)=>{
   const d = e.data;
   // Entering the tutor (fresh, preset course, or resuming a saved lesson) always
   // shows the sidebar open on tablet/desktop — even if this frame was reused.
-  if(d && (d.loadSessionId || d.presetSubject) && window.innerWidth > 900 && typeof openPanel === 'function'){
+  if(d && (d.loadSessionId || d.presetSubject) && window.innerWidth > 700 && typeof openPanel === 'function'){
     try{ openPanel(); }catch(e){}
   }
   if(d && d.loadSessionId){
@@ -6369,7 +6381,7 @@ const overlay = document.getElementById('overlay');
 // On tablet/desktop the panel DOCKS and pushes the whole view over (the board's own
 // measured width changes, so the camera is recomputed). On phones it floats over the
 // content with a dimming scrim instead — same split as the Home page.
-function isFloatingPanelLayout(){ return window.innerWidth <= 900; }
+function isFloatingPanelLayout(){ return window.innerWidth <= 700; }
 function openPanel(){
   sidePanel.classList.add('open');
   if(isFloatingPanelLayout()) overlay.classList.add('open');
@@ -6391,7 +6403,7 @@ document.getElementById('btn-panel-close').addEventListener('click', closePanel)
 // Open by default EVERY time the tutor is entered, on tablet/desktop — same as the
 // rest of the app. On phone widths it would swallow the screen, so it starts
 // closed there (the pill still toggles it the same way).
-if (window.innerWidth > 900) { openPanel(); }
+if (window.innerWidth > 700) { openPanel(); }
 overlay.addEventListener('click', ()=>{ closePanel(); closeConvPanel(); });
 
 /* Transcript panel: docks right, shows ONLY the AI conversation log
@@ -6731,12 +6743,12 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 .sidebar-toggle:hover{ box-shadow:0 5px 16px rgba(120,90,20,0.24), 0 0 0 1px rgba(120,90,20,0.1); }
 .sidebar-toggle:active{ transform:scale(0.94); }
 .app-shell.sidebar-closed .sidebar-toggle{ left:16px; }
-@media (max-width:900px){ .sidebar-toggle{ left:calc(16px + var(--safe-left)); top:calc(16px + var(--safe-top)); } .app-shell.sidebar-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
+@media (max-width:700px){ .sidebar-toggle{ left:calc(16px + var(--safe-left)); top:calc(16px + var(--safe-top)); } .app-shell.sidebar-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 .sidebar-scrim{ display:none; position:fixed; inset:0; background:rgba(42,36,16,0.22); z-index:39; opacity:0; transition:opacity .3s ease; }
 .app-shell:not(.sidebar-closed) .sidebar-scrim{ display:block; opacity:0; }
 .main-area{ flex:1; min-width:0; transition:margin-left .38s cubic-bezier(.22,.9,.32,1.1); margin-left:230px; padding:8px 0 0; }
 .app-shell.sidebar-closed .main-area{ margin-left:0; }
-@media (max-width:900px){
+@media (max-width:700px){
   .main-area{ margin-left:0 !important; padding-top:calc(66px + var(--safe-top)); padding-left:calc(16px + var(--safe-left)); padding-right:calc(16px + var(--safe-right)); }
   .app-shell:not(.sidebar-closed) .sidebar-scrim{ opacity:1; }
   .app-shell.sidebar-closed .sidebar-scrim{ display:none; }
@@ -6746,7 +6758,7 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 /* Pill rides the sidebar edge: when the sidebar closes it returns to the corner.
    (The pill sits outside .app-shell, so the rule above could never match it.) */
 body.sb-closed .sidebar-toggle{ left:16px; }
-@media (max-width:900px){ body.sb-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
+@media (max-width:700px){ body.sb-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 </style>
 </head>
 <body>
@@ -6841,7 +6853,7 @@ body.sb-closed .sidebar-toggle{ left:16px; }
     shell.classList.contains('sidebar-closed') ? openSidebar() : closeSidebar()
   );
   sbScrim.addEventListener('click', closeSidebar);
-  if (window.innerWidth <= 900) closeSidebar();
+  if (window.innerWidth <= 700) closeSidebar();
 })();
 
 /* ---------------------------------------------------------------
@@ -7479,12 +7491,12 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 .sidebar-toggle:hover{ box-shadow:0 5px 16px rgba(120,90,20,0.24), 0 0 0 1px rgba(120,90,20,0.1); }
 .sidebar-toggle:active{ transform:scale(0.94); }
 .app-shell.sidebar-closed .sidebar-toggle{ left:16px; }
-@media (max-width:900px){ .sidebar-toggle{ left:calc(16px + var(--safe-left)); top:calc(16px + var(--safe-top)); } .app-shell.sidebar-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
+@media (max-width:700px){ .sidebar-toggle{ left:calc(16px + var(--safe-left)); top:calc(16px + var(--safe-top)); } .app-shell.sidebar-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 .sidebar-scrim{ display:none; position:fixed; inset:0; background:rgba(42,36,16,0.22); z-index:39; opacity:0; transition:opacity .3s ease; }
 .app-shell:not(.sidebar-closed) .sidebar-scrim{ display:block; opacity:0; }
 .main-area{ flex:1; min-width:0; transition:margin-left .38s cubic-bezier(.22,.9,.32,1.1); margin-left:230px; padding:8px 0 0; }
 .app-shell.sidebar-closed .main-area{ margin-left:0; }
-@media (max-width:900px){
+@media (max-width:700px){
   .main-area{ margin-left:0 !important; padding-top:calc(66px + var(--safe-top)); padding-left:calc(16px + var(--safe-left)); padding-right:calc(16px + var(--safe-right)); }
   .app-shell:not(.sidebar-closed) .sidebar-scrim{ opacity:1; }
   .app-shell.sidebar-closed .sidebar-scrim{ display:none; }
@@ -7494,7 +7506,7 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 /* Pill rides the sidebar edge: when the sidebar closes it returns to the corner.
    (The pill sits outside .app-shell, so the rule above could never match it.) */
 body.sb-closed .sidebar-toggle{ left:16px; }
-@media (max-width:900px){ body.sb-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
+@media (max-width:700px){ body.sb-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 </style>
 </head>
 <body>
@@ -7558,7 +7570,7 @@ body.sb-closed .sidebar-toggle{ left:16px; }
     shell.classList.contains('sidebar-closed') ? openSidebar() : closeSidebar()
   );
   sbScrim.addEventListener('click', closeSidebar);
-  if (window.innerWidth <= 900) closeSidebar();
+  if (window.innerWidth <= 700) closeSidebar();
 })();
 
 /* ---------------------------------------------------------------
@@ -7962,12 +7974,12 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 .sidebar-toggle:hover{ box-shadow:0 5px 16px rgba(120,90,20,0.24), 0 0 0 1px rgba(120,90,20,0.1); }
 .sidebar-toggle:active{ transform:scale(0.94); }
 .app-shell.sidebar-closed .sidebar-toggle{ left:16px; }
-@media (max-width:900px){ .sidebar-toggle{ left:calc(16px + var(--safe-left)); top:calc(16px + var(--safe-top)); } .app-shell.sidebar-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
+@media (max-width:700px){ .sidebar-toggle{ left:calc(16px + var(--safe-left)); top:calc(16px + var(--safe-top)); } .app-shell.sidebar-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 .sidebar-scrim{ display:none; position:fixed; inset:0; background:rgba(42,36,16,0.22); z-index:39; opacity:0; transition:opacity .3s ease; }
 .app-shell:not(.sidebar-closed) .sidebar-scrim{ display:block; opacity:0; }
 .main-area{ flex:1; min-width:0; transition:margin-left .38s cubic-bezier(.22,.9,.32,1.1); margin-left:230px; padding:8px 0 0; }
 .app-shell.sidebar-closed .main-area{ margin-left:0; }
-@media (max-width:900px){
+@media (max-width:700px){
   .main-area{ margin-left:0 !important; padding-top:calc(66px + var(--safe-top)); padding-left:calc(16px + var(--safe-left)); padding-right:calc(16px + var(--safe-right)); }
   .app-shell:not(.sidebar-closed) .sidebar-scrim{ opacity:1; }
   .app-shell.sidebar-closed .sidebar-scrim{ display:none; }
@@ -7977,7 +7989,7 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 /* Pill rides the sidebar edge: when the sidebar closes it returns to the corner.
    (The pill sits outside .app-shell, so the rule above could never match it.) */
 body.sb-closed .sidebar-toggle{ left:16px; }
-@media (max-width:900px){ body.sb-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
+@media (max-width:700px){ body.sb-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 </style>
 </head>
 <body>
@@ -8041,7 +8053,7 @@ body.sb-closed .sidebar-toggle{ left:16px; }
     shell.classList.contains('sidebar-closed') ? openSidebar() : closeSidebar()
   );
   sbScrim.addEventListener('click', closeSidebar);
-  if (window.innerWidth <= 900) closeSidebar();
+  if (window.innerWidth <= 700) closeSidebar();
 })();
 
 /* ---------------------------------------------------------------
@@ -8378,12 +8390,12 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 .sidebar-toggle:hover{ box-shadow:0 5px 16px rgba(120,90,20,0.24), 0 0 0 1px rgba(120,90,20,0.1); }
 .sidebar-toggle:active{ transform:scale(0.94); }
 .app-shell.sidebar-closed .sidebar-toggle{ left:16px; }
-@media (max-width:900px){ .sidebar-toggle{ left:calc(16px + var(--safe-left)); top:calc(16px + var(--safe-top)); } .app-shell.sidebar-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
+@media (max-width:700px){ .sidebar-toggle{ left:calc(16px + var(--safe-left)); top:calc(16px + var(--safe-top)); } .app-shell.sidebar-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 .sidebar-scrim{ display:none; position:fixed; inset:0; background:rgba(42,36,16,0.22); z-index:39; opacity:0; transition:opacity .3s ease; }
 .app-shell:not(.sidebar-closed) .sidebar-scrim{ display:block; opacity:0; }
 .main-area{ flex:1; min-width:0; transition:margin-left .38s cubic-bezier(.22,.9,.32,1.1); margin-left:230px; padding:8px 0 0; }
 .app-shell.sidebar-closed .main-area{ margin-left:0; }
-@media (max-width:900px){
+@media (max-width:700px){
   .main-area{ margin-left:0 !important; padding-top:calc(66px + var(--safe-top)); padding-left:calc(16px + var(--safe-left)); padding-right:calc(16px + var(--safe-right)); }
   .app-shell:not(.sidebar-closed) .sidebar-scrim{ opacity:1; }
   .app-shell.sidebar-closed .sidebar-scrim{ display:none; }
@@ -8393,7 +8405,7 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 /* Pill rides the sidebar edge: when the sidebar closes it returns to the corner.
    (The pill sits outside .app-shell, so the rule above could never match it.) */
 body.sb-closed .sidebar-toggle{ left:16px; }
-@media (max-width:900px){ body.sb-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
+@media (max-width:700px){ body.sb-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 </style>
 </head>
 <body>
@@ -8457,7 +8469,7 @@ body.sb-closed .sidebar-toggle{ left:16px; }
     shell.classList.contains('sidebar-closed') ? openSidebar() : closeSidebar()
   );
   sbScrim.addEventListener('click', closeSidebar);
-  if (window.innerWidth <= 900) closeSidebar();
+  if (window.innerWidth <= 700) closeSidebar();
 })();
 
 /* ---------------------------------------------------------------
@@ -9816,12 +9828,12 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 .sidebar-toggle:hover{ box-shadow:0 5px 16px rgba(120,90,20,0.24), 0 0 0 1px rgba(120,90,20,0.1); }
 .sidebar-toggle:active{ transform:scale(0.94); }
 .app-shell.sidebar-closed .sidebar-toggle{ left:16px; }
-@media (max-width:900px){ .sidebar-toggle{ left:calc(16px + var(--safe-left)); top:calc(16px + var(--safe-top)); } .app-shell.sidebar-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
+@media (max-width:700px){ .sidebar-toggle{ left:calc(16px + var(--safe-left)); top:calc(16px + var(--safe-top)); } .app-shell.sidebar-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 .sidebar-scrim{ display:none; position:fixed; inset:0; background:rgba(42,36,16,0.22); z-index:39; opacity:0; transition:opacity .3s ease; }
 .app-shell:not(.sidebar-closed) .sidebar-scrim{ display:block; opacity:0; }
 .main-area{ flex:1; min-width:0; transition:margin-left .38s cubic-bezier(.22,.9,.32,1.1); margin-left:230px; padding:8px 0 0; }
 .app-shell.sidebar-closed .main-area{ margin-left:0; }
-@media (max-width:900px){
+@media (max-width:700px){
   .main-area{ margin-left:0 !important; padding-top:calc(66px + var(--safe-top)); padding-left:calc(16px + var(--safe-left)); padding-right:calc(16px + var(--safe-right)); }
   .app-shell:not(.sidebar-closed) .sidebar-scrim{ opacity:1; }
   .app-shell.sidebar-closed .sidebar-scrim{ display:none; }
@@ -9831,7 +9843,7 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 /* Pill rides the sidebar edge: when the sidebar closes it returns to the corner.
    (The pill sits outside .app-shell, so the rule above could never match it.) */
 body.sb-closed .sidebar-toggle{ left:16px; }
-@media (max-width:900px){ body.sb-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
+@media (max-width:700px){ body.sb-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 </style>
 </head>
 <body>
@@ -9899,7 +9911,7 @@ body.sb-closed .sidebar-toggle{ left:16px; }
     shell.classList.contains('sidebar-closed') ? openSidebar() : closeSidebar()
   );
   sbScrim.addEventListener('click', closeSidebar);
-  if (window.innerWidth <= 900) closeSidebar();
+  if (window.innerWidth <= 700) closeSidebar();
 })();
 
   let quizSubject = null;
