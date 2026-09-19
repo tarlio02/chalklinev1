@@ -516,7 +516,7 @@ document.getElementById('plan-modal-cta').addEventListener('click', ()=>{
   if(planModalSelectedTab === 'free'){ closePlanModal(); return; }
   // Pro and Max both go to the same Polar checkout link for now — split
   // them into separate links/prices in PLAN_CONFIG once those exist.
-  if(PLAN_CONFIG.CHECKOUT_URL) window.open(PLAN_CONFIG.CHECKOUT_URL, '_blank', 'noopener');
+  startCheckout();
   closePlanModal();
 });
 
@@ -10855,7 +10855,7 @@ async function planRecheck(){
 document.getElementById('paywall-close').addEventListener('click', planClosePaywall);
 document.getElementById('paywall-overlay').addEventListener('click', (e)=>{ if(e.target.id === 'paywall-overlay') planClosePaywall(); });
 document.getElementById('paywall-upgrade').addEventListener('click', ()=>{
-  if(PLAN_CONFIG.CHECKOUT_URL) window.open(PLAN_CONFIG.CHECKOUT_URL, '_blank', 'noopener');
+  startCheckout();
 });
 document.getElementById('paywall-activate').addEventListener('click', async ()=>{
   const btn = document.getElementById('paywall-activate'), msg = document.getElementById('paywall-msg');
@@ -10868,6 +10868,64 @@ document.getElementById('paywall-activate').addEventListener('click', async ()=>
     setTimeout(planClosePaywall, 1400);
   } else { msg.textContent = r.message; }
 });
+// Opens Polar checkout. When the person is signed in we first ask the worker
+// for a personalised link: the worker attaches a random, single-use reference
+// that ties this purchase to their Google account, so the plan switches on by
+// itself after payment (no license key to copy). If they're signed out, or the
+// worker can't be reached, we fall back to the plain link: they can still pay
+// and then activate with the emailed license key, exactly as before.
+async function startCheckout(){
+  const plain = PLAN_CONFIG.CHECKOUT_URL;
+  if(!plain) return;
+  // window.open must run synchronously inside the click, or popup blockers
+  // (Safari especially) kill it. Open a blank tab now, point it at the real
+  // URL once the worker answers.
+  const tab = window.open('', '_blank');
+  const go = (url)=>{
+    if(tab && !tab.closed){ try{ tab.opener = null; }catch(e){} tab.location.href = url; }
+    else window.open(url, '_blank', 'noopener');
+  };
+  if(!shellIdToken){ go(plain); return; }
+  try{
+    const res = await fetch(PLAN_CONFIG.VERIFY_URL.replace('/subscription/verify', '/checkout/start'), {
+      method:'POST', headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ idToken: shellIdToken, email: (shellUser && shellUser.email) || '' })
+    });
+    const data = res.ok ? await res.json() : null;
+    go(data && data.url ? data.url : plain);
+    if(data && data.url) watchForActivation();
+  }catch(e){ go(plain); }
+}
+
+// After sending someone to pay, keep checking whether the plan has switched
+// on. Polar tells the server a few seconds after payment, but the person is
+// often back in this tab before that lands, so a single check on return would
+// miss it. Polls gently (every 4s) for up to 10 minutes, then stops.
+let activationWatchId = null;
+function watchForActivation(){
+  if(activationWatchId) clearInterval(activationWatchId);
+  const startedAt = Date.now();
+  activationWatchId = setInterval(async ()=>{
+    if(Date.now() - startedAt > 10 * 60000){ clearInterval(activationWatchId); activationWatchId = null; return; }
+    if(document.visibilityState !== 'visible') return;      // don't poll from a background tab
+    await planSyncFromAccount();
+    if(planIsSubscriber()){
+      clearInterval(activationWatchId); activationWatchId = null;
+      updateShellUpgradeButton();
+      try{ planClosePaywall(); }catch(e){}
+      showPlanActivatedToast();
+    }
+  }, 4000);
+}
+function showPlanActivatedToast(){
+  const t = document.createElement('div');
+  t.textContent = "You're subscribed — unlimited access unlocked. Thank you!";
+  t.setAttribute('role', 'status');
+  t.style.cssText = 'position:fixed;left:50%;top:18px;transform:translateX(-50%);z-index:100000;background:#067647;color:#fff;padding:12px 18px;border-radius:10px;font:600 14px system-ui,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.25);max-width:90vw;text-align:center';
+  document.body.appendChild(t);
+  setTimeout(()=>{ t.style.transition = 'opacity .4s'; t.style.opacity = '0'; setTimeout(()=>t.remove(), 450); }, 5000);
+}
+
 // Pull this Google account's subscription from the server. This is what makes
 // a plan bought on one device show up on another with no key re-entry. The
 // server is the source of truth: if it says "not active", the local cache is
