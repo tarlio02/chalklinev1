@@ -34,6 +34,54 @@
     display:flex; align-items:center; gap:8px;
     font-family:-apple-system,Segoe UI,sans-serif;
   }
+  /* Paywall (free-lesson limit reached) */
+  #paywall-overlay{
+    position:fixed; inset:0; z-index:10002; display:none;
+    align-items:center; justify-content:center; padding:20px;
+    background:rgba(10,25,48,0.55);
+  }
+  #paywall-overlay.open{ display:flex; }
+  #paywall-card{
+    position:relative; width:100%; max-width:420px; box-sizing:border-box;
+    background:#fff; border-radius:18px; padding:26px 22px 22px;
+    box-shadow:0 12px 40px rgba(0,0,0,0.3);
+    font-family:-apple-system,Segoe UI,sans-serif; color:#1E2B3A;
+  }
+  #paywall-card h2{ margin:0 0 8px; font-size:21px; line-height:1.25; padding-right:24px; }
+  #paywall-card p{ margin:0 0 16px; font-size:14.5px; line-height:1.5; color:#41566B; }
+  #paywall-close{
+    position:absolute; top:10px; right:12px; border:none; background:none;
+    font-size:24px; line-height:1; color:#7C93A8; cursor:pointer;
+  }
+  .pw-primary{
+    width:100%; padding:13px 16px; border:none; border-radius:12px; cursor:pointer;
+    background:#1A56DB; color:#fff; font:700 15.5px -apple-system,Segoe UI,sans-serif;
+  }
+  .pw-or{ margin:16px 0 8px; font-size:12.5px; color:#7C93A8; text-align:center; }
+  .pw-row{ display:flex; gap:8px; }
+  .pw-row input{
+    flex:1; min-width:0; padding:10px 12px; border:1px solid #C9DAEA; border-radius:10px;
+    font-size:14px; font-family:inherit;
+  }
+  .pw-row button{
+    padding:10px 14px; border:1px solid #1A56DB; background:#fff; color:#1A56DB;
+    border-radius:10px; font:600 14px -apple-system,Segoe UI,sans-serif; cursor:pointer;
+  }
+  #paywall-msg{ margin-top:10px; min-height:18px; font-size:13px; color:#B42318; }
+  #paywall-msg.ok{ color:#067647; }
+  /* Google Drive sync pill: only visible when the person needs to act
+     (connect / retry) or for a brief "saved" confirmation. */
+  #drive-pill{
+    position:fixed; left:50%; bottom:calc(14px + env(safe-area-inset-bottom, 0px));
+    transform:translateX(-50%); z-index:10000;
+    display:none; align-items:center; gap:8px;
+    background:#fff; color:#1E2B3A; border:1px solid #D3E6F5; border-radius:999px;
+    padding:8px 16px; font:600 13.5px -apple-system,Segoe UI,sans-serif;
+    box-shadow:0 2px 10px rgba(0,0,0,0.14); cursor:pointer;
+  }
+  #drive-pill.show{ display:flex; }
+  #drive-pill.static{ cursor:default; }
+  #drive-pill.err{ border-color:#F2B8B5; }
   #shell-account-chip{
     display:none; position:relative;
   }
@@ -127,6 +175,23 @@
 </style>
 </head>
 <body>
+
+<div id="paywall-overlay">
+  <div id="paywall-card" role="dialog" aria-modal="true" aria-labelledby="paywall-title">
+    <button type="button" id="paywall-close" aria-label="Close">×</button>
+    <h2 id="paywall-title"></h2>
+    <p id="paywall-body"></p>
+    <button type="button" class="pw-primary" id="paywall-upgrade"></button>
+    <div class="pw-or">Already subscribed? Enter your license key</div>
+    <div class="pw-row">
+      <input type="text" id="paywall-key" placeholder="License key" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <button type="button" id="paywall-activate">Activate</button>
+    </div>
+    <div id="paywall-msg"></div>
+  </div>
+</div>
+
+<button type="button" id="drive-pill"></button>
 
 <div id="shell-auth">
   <div id="shell-signin-btn"></div>
@@ -246,6 +311,7 @@ function handleShellCredential(response){
   catch(e){ console.error('Could not persist sign-in:', e); }
   showSignedInChip(shellUser);
   broadcastAuthState();
+  if(typeof driveOnSignedIn === 'function') driveOnSignedIn();
   // If this credential came from the "Start for free" modal, finish that
   // flow now: close the modal and take the person into the app.
   const modal = document.getElementById('start-modal-overlay');
@@ -383,6 +449,7 @@ initShellGoogleSignIn();
 document.getElementById('shell-sign-out').addEventListener('click', signOutShell);
 
 function signOutShell(){
+  if(typeof driveOnSignedOut === 'function') driveOnSignedOut();
   shellUser = null;
   localStorage.removeItem(SHELL_AUTH_STORAGE_KEY);
   if(typeof google !== 'undefined' && google.accounts) google.accounts.id.disableAutoSelect();
@@ -5790,7 +5857,23 @@ function ensureEngagementCheckin(speech){
   return trimmed + ' ' + q;
 }
 
+// Free vs subscriber limit: only the FIRST turn of a brand-new lesson is
+// checked (continuing a lesson never counts again). The shell owns the plan
+// and usage state; if it can't be reached for any reason we let the lesson
+// run rather than lock someone out by mistake.
+function checkLessonAccess(){
+  try{
+    const access = parent.chalklineAccess;
+    if(!access || !access.enabled()) return true;
+    const verdict = access.canStartLesson(currentSessionId);
+    if(!verdict.allowed){ access.showPaywall(verdict); return false; }
+    access.recordLesson(currentSessionId);
+    return true;
+  }catch(e){ return true; }
+}
+
 async function runTeachingTurn(userMessage, displayText, imageAttachment){
+  if(conversationHistory.length === 0 && !checkLessonAccess()) return;
   if(displayText !== null) addTranscriptMsg('user', displayText !== undefined ? displayText : userMessage);
   // Guarantee the handwriting webfonts are fully loaded BEFORE any text is
   // measured for layout. Without this, the very first turn's line-wrap
@@ -10108,6 +10191,417 @@ window.addEventListener('popstate', (e)=>{
   const page = (e.state && e.state.page) || (location.hash ? location.hash.slice(1) : 'home');
   navTo(page, false);
 });
+
+
+/* =====================================================================
+   GOOGLE DRIVE CLOUD SAVING
+   Each person's lessons, summaries, quizzes, notes and course list are
+   copied into a hidden "app data" folder in THEIR OWN Google Drive
+   (scope drive.appdata — only this app can see it, and it doesn't show
+   up in their normal Drive). localStorage stays the fast local cache the
+   pages already read/write, so none of the page code had to change: the
+   pages all share this shell's origin, so a `storage` event here tells us
+   whenever one of them saves or deletes something.
+   Conflict rule: last writer wins; a local edit that hasn't synced yet
+   beats a remote copy. A brand-new device pulls everything down first.
+   ===================================================================== */
+const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
+const DRIVE_LS_NS = 'chalkline:';
+let driveToken = null, driveTokenExpiry = 0, driveTokenClient = null, driveTokenWaiter = null;
+let driveSyncing = false, driveSyncTimer = null, driveLastPull = 0, driveBooted = false, driveIntervalId = null;
+let drivePillTimer = null;
+
+function driveGrantedKey(){ return 'chalkline_drive_granted:' + (shellUser ? shellUser.sub : ''); }
+function driveMetaKey(){ return 'chalkline_drive_meta:' + (shellUser ? shellUser.sub : ''); }
+function driveLoadMeta(){
+  try{
+    const m = JSON.parse(localStorage.getItem(driveMetaKey()) || 'null');
+    if(m && m.files && m.dirty && m.deleted) return m;
+  }catch(e){}
+  return { files:{}, dirty:{}, deleted:{} };
+}
+function driveSaveMeta(m){ try{ localStorage.setItem(driveMetaKey(), JSON.stringify(m)); }catch(e){} }
+
+// Only this person's own data is ever synced (every key embeds the account id).
+function driveIsSyncKey(k){
+  if(!shellUser || !shellUser.sub) return false;
+  if(!/^(courses|session|summary|quiz|notes|notes-settings):/.test(k)) return false;
+  return k.split(':')[1] === String(shellUser.sub);
+}
+function driveLocalKeys(){
+  const out = [];
+  for(let i=0;i<localStorage.length;i++){
+    const k = localStorage.key(i);
+    if(k && k.startsWith(DRIVE_LS_NS)){
+      const key = k.slice(DRIVE_LS_NS.length);
+      if(driveIsSyncKey(key)) out.push(key);
+    }
+  }
+  return out;
+}
+
+/* ---------- pill UI ---------- */
+function driveShowPill(text, opts){
+  opts = opts || {};
+  const el = document.getElementById('drive-pill');
+  clearTimeout(drivePillTimer);
+  el.textContent = text;
+  el.classList.add('show');
+  el.classList.toggle('static', !!opts.static);
+  el.classList.toggle('err', !!opts.err);
+  el.onclick = opts.onClick || null;
+  if(opts.hideAfter) drivePillTimer = setTimeout(driveHidePill, opts.hideAfter);
+}
+function driveHidePill(){
+  const el = document.getElementById('drive-pill');
+  el.classList.remove('show'); el.onclick = null;
+}
+function driveShowConnect(err){
+  driveShowPill(err ? '☁️ Google Drive sync paused — tap to reconnect' : '☁️ Save my lessons to Google Drive',
+    { err, onClick: ()=> driveConnect(true) });
+}
+
+/* ---------- access token (Google Identity Services token model) ---------- */
+function driveRequestToken(interactive){
+  return new Promise((resolve)=>{
+    if(!window.google || !google.accounts || !google.accounts.oauth2){ resolve(false); return; }
+    let settled = false;
+    const done = (ok)=>{ if(settled) return; settled = true; driveTokenWaiter = null; resolve(ok); };
+    if(!driveTokenClient){
+      driveTokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: SHELL_GOOGLE_CLIENT_ID,
+        scope: DRIVE_SCOPE,
+        callback: (r)=>{
+          if(r && r.access_token){
+            driveToken = r.access_token;
+            driveTokenExpiry = Date.now() + Math.max(60, (Number(r.expires_in)||3600) - 60) * 1000;
+            driveTokenWaiter && driveTokenWaiter(true);
+          } else { driveTokenWaiter && driveTokenWaiter(false); }
+        },
+        error_callback: ()=>{ driveTokenWaiter && driveTokenWaiter(false); }
+      });
+    }
+    driveTokenWaiter = done;
+    setTimeout(()=> done(false), 25000);
+    try{
+      const cfg = { prompt: interactive ? '' : 'none' };
+      if(shellUser && shellUser.email) cfg.hint = shellUser.email;
+      driveTokenClient.requestAccessToken(cfg);
+    }catch(e){ done(false); }
+  });
+}
+async function driveEnsureToken(){
+  if(driveToken && Date.now() < driveTokenExpiry) return true;
+  return await driveRequestToken(false);
+}
+
+async function driveConnect(interactive){
+  if(!shellUser) return;
+  const ok = interactive ? await driveRequestToken(true) : await driveEnsureToken();
+  if(!ok){ driveShowConnect(!!interactive); return; }
+  try{ localStorage.setItem(driveGrantedKey(), '1'); }catch(e){}
+  driveStartLoops();
+  await driveSyncNow(true);
+}
+
+/* ---------- Drive REST helpers ---------- */
+async function driveFetch(url, init, retried){
+  if(!(await driveEnsureToken())) throw new Error('no-token');
+  init = init || {};
+  init.headers = Object.assign({}, init.headers, { Authorization: 'Bearer ' + driveToken });
+  const res = await fetch(url, init);
+  if(res.status === 401 && !retried){ driveToken = null; return driveFetch(url, init, true); }
+  if(!res.ok && res.status !== 404) throw new Error('drive-' + res.status);
+  return res;
+}
+async function driveListAll(){
+  const out = {};
+  let pageToken = '';
+  do{
+    const url = 'https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&pageSize=1000'
+      + '&fields=' + encodeURIComponent('nextPageToken,files(id,name,modifiedTime)')
+      + (pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : '');
+    const res = await driveFetch(url);
+    const data = await res.json();
+    (data.files || []).forEach(f=>{
+      const key = f.name.replace(/\.json$/, '');
+      if(driveIsSyncKey(key)) out[key] = { id: f.id, modifiedTime: f.modifiedTime };
+    });
+    pageToken = data.nextPageToken || '';
+  } while(pageToken);
+  return out;
+}
+async function driveDownload(id){
+  const res = await driveFetch('https://www.googleapis.com/drive/v3/files/' + id + '?alt=media');
+  if(res.status === 404) return null;
+  return await res.text();
+}
+async function driveUpsert(key, value, existingId){
+  const fields = '&fields=' + encodeURIComponent('id,modifiedTime');
+  if(existingId){
+    const res = await driveFetch('https://www.googleapis.com/upload/drive/v3/files/' + existingId + '?uploadType=media' + fields, {
+      method:'PATCH', headers:{ 'Content-Type':'text/plain; charset=UTF-8' }, body: value
+    });
+    if(res.status !== 404) return await res.json();
+    // file was removed remotely between listing and now — recreate it below
+  }
+  const boundary = 'chalkline' + Math.random().toString(36).slice(2);
+  const meta = JSON.stringify({ name: key + '.json', parents: ['appDataFolder'] });
+  const body = '--' + boundary + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + meta
+    + '\r\n--' + boundary + '\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n' + value
+    + '\r\n--' + boundary + '--';
+  const res = await driveFetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart' + fields, {
+    method:'POST', headers:{ 'Content-Type':'multipart/related; boundary=' + boundary }, body
+  });
+  return await res.json();
+}
+async function driveDelete(id){ await driveFetch('https://www.googleapis.com/drive/v3/files/' + id, { method:'DELETE' }); }
+
+/* ---------- the sync itself ---------- */
+async function driveSyncNow(showToast){
+  if(driveSyncing || !shellUser || !localStorage.getItem(driveGrantedKey())) return;
+  driveSyncing = true;
+  let changedFromRemote = false;
+  try{
+    if(!(await driveEnsureToken())){ driveShowConnect(false); return; }
+    if(showToast) driveShowPill('☁️ Syncing with Google Drive…', { static:true });
+    const remote = await driveListAll();
+    const meta = driveLoadMeta();
+
+    // 1. deletions made on this device
+    for(const key of Object.keys(meta.deleted)){
+      if(remote[key]) await driveDelete(remote[key].id);
+      delete remote[key]; delete meta.files[key]; delete meta.deleted[key];
+    }
+    // 2. pull anything new or changed on Drive (unsynced local edits win)
+    for(const key of Object.keys(remote)){
+      const r = remote[key], known = meta.files[key];
+      const localVal = localStorage.getItem(DRIVE_LS_NS + key);
+      if(meta.dirty[key] && localVal !== null) continue;
+      if(!known || known.t !== r.modifiedTime || localVal === null){
+        const val = await driveDownload(r.id);
+        if(val !== null){ localStorage.setItem(DRIVE_LS_NS + key, val); changedFromRemote = true; }
+        meta.files[key] = { id: r.id, t: r.modifiedTime };
+      }
+    }
+    // 3. removed from Drive on another device → remove here too
+    for(const key of Object.keys(meta.files)){
+      if(remote[key]) continue;
+      if(!meta.dirty[key] && localStorage.getItem(DRIVE_LS_NS + key) !== null){
+        localStorage.removeItem(DRIVE_LS_NS + key); changedFromRemote = true;
+      }
+      delete meta.files[key];
+    }
+    // 4. push local edits and never-synced local data
+    for(const key of driveLocalKeys()){
+      if(meta.dirty[key] || (!remote[key] && !meta.files[key])){
+        const val = localStorage.getItem(DRIVE_LS_NS + key);
+        if(val === null) continue;
+        const id = (remote[key] && remote[key].id) || (meta.files[key] && meta.files[key].id) || null;
+        const saved = await driveUpsert(key, val, id);
+        meta.files[key] = { id: saved.id, t: saved.modifiedTime };
+        delete meta.dirty[key];
+      }
+    }
+    for(const key of Object.keys(meta.dirty)){
+      if(localStorage.getItem(DRIVE_LS_NS + key) === null) delete meta.dirty[key];
+    }
+    driveSaveMeta(meta);
+    driveLastPull = Date.now();
+    if(changedFromRemote) driveRefreshStaleFrames();
+    if(showToast) driveShowPill('☁️ Saved to your Google Drive ✓', { static:true, hideAfter:2500 });
+    else driveHidePill();
+  }catch(e){
+    console.error('Drive sync failed:', e);
+    driveShowConnect(true);
+  }finally{
+    driveSyncing = false;
+  }
+}
+function driveScheduleSync(){
+  clearTimeout(driveSyncTimer);
+  driveSyncTimer = setTimeout(()=> driveSyncNow(false), 4000);
+}
+
+// Frames that only display saved data get rebuilt after a pull so they show
+// what just came down. Live lesson/summary/quiz/notes editors are left alone.
+function driveRefreshStaleFrames(){
+  ['home','tutor-history','summary-history','quiz-history'].forEach(k=>{
+    if(!loaded[k]) return;
+    frames[k].srcdoc = ''; loaded[k] = false;
+    if(current === k) ensureLoaded(k);
+  });
+}
+
+function driveStartLoops(){
+  if(driveIntervalId) return;
+  driveIntervalId = setInterval(()=>{ if(document.visibilityState === 'visible') driveSyncNow(false); }, 120000);
+}
+
+window.addEventListener('storage', (e)=>{
+  if(!shellUser || !e.key || !e.key.startsWith(DRIVE_LS_NS)) return;
+  const key = e.key.slice(DRIVE_LS_NS.length);
+  if(!driveIsSyncKey(key)) return;
+  const meta = driveLoadMeta();
+  if(e.newValue === null){ meta.deleted[key] = 1; delete meta.dirty[key]; }
+  else { meta.dirty[key] = 1; delete meta.deleted[key]; }
+  driveSaveMeta(meta);
+  if(localStorage.getItem(driveGrantedKey())) driveScheduleSync();
+});
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState === 'visible' && shellUser && Date.now() - driveLastPull > 20000) driveSyncNow(false);
+});
+
+function driveOnSignedIn(){
+  if(!shellUser) return;
+  if(!window.google || !google.accounts || !google.accounts.oauth2){ setTimeout(driveOnSignedIn, 400); return; }
+  if(localStorage.getItem(driveGrantedKey())) driveConnect(false);   // returning person: try silently
+  else driveShowConnect(false);                                        // first time: needs a tap
+}
+function driveOnSignedOut(){
+  driveToken = null; driveTokenExpiry = 0;
+  clearTimeout(driveSyncTimer);
+  if(driveIntervalId){ clearInterval(driveIntervalId); driveIntervalId = null; }
+  driveHidePill();
+}
+if(shellUser) driveOnSignedIn();
+
+
+/* =====================================================================
+   SUBSCRIBER ACCESS (free vs paid)
+   Free: PLAN_CONFIG.FREE_LESSONS new live-tutor lessons per rolling
+   PLAN_CONFIG.WINDOW_DAYS days. Subscribers: unlimited.
+   Everything stays OFF until you paste your payment link into
+   PLAN_CONFIG.CHECKOUT_URL, so nobody gets locked out before there is a
+   way to pay. NOTE: this check runs in the browser, so a determined user
+   can bypass it — the server-side proxy check is the real protection.
+   ===================================================================== */
+const PLAN_CONFIG = {
+  CHECKOUT_URL: '',                       // <- paste your checkout / payment link here to switch limits ON
+  PRICE_LABEL: '',                        // optional, e.g. '$6.99/month' — shown on the upgrade button
+  VERIFY_URL: 'https://api.takundamambudzi02.workers.dev/subscription/verify',
+  FREE_LESSONS: 3,                        // free new lessons per window
+  WINDOW_DAYS: 7,
+  GRACE_DAYS: 3,                          // keep working this long if we can't reach the server to re-check
+  RECHECK_HOURS: 12
+};
+const PLAN_DAY_MS = 86400000;
+
+function planWho(){ return shellUser && shellUser.sub ? String(shellUser.sub) : 'guest'; }
+function planReadJSON(key, fallback){
+  try{ const v = JSON.parse(localStorage.getItem(key) || 'null'); return v === null ? fallback : v; }
+  catch(e){ return fallback; }
+}
+function planWriteJSON(key, val){ try{ localStorage.setItem(key, JSON.stringify(val)); }catch(e){} }
+function planRead(){ return planReadJSON('chalkline_plan:' + planWho(), null); }
+function planIsSubscriber(){
+  const p = planRead();
+  return !!(p && p.activeUntil && Date.now() < p.activeUntil + PLAN_CONFIG.GRACE_DAYS * PLAN_DAY_MS);
+}
+// Lessons counted for this person: their own bucket plus anything started as
+// a guest on this browser, so signing in doesn't reset the allowance.
+function planLessonsInWindow(){
+  const cutoff = Date.now() - PLAN_CONFIG.WINDOW_DAYS * PLAN_DAY_MS;
+  const seen = new Map();
+  ['guest', planWho()].forEach(who=>{
+    planReadJSON('chalkline_lessons:' + who, []).forEach(x=>{
+      if(x && x.id && x.t > cutoff && !seen.has(x.id)) seen.set(x.id, x.t);
+    });
+  });
+  return Array.from(seen, ([id, t])=>({ id, t }));
+}
+
+const chalklineAccess = {
+  enabled(){ return !!PLAN_CONFIG.CHECKOUT_URL; },
+  isSubscriber: planIsSubscriber,
+  lessonsUsed(){ return planLessonsInWindow().length; },
+  canStartLesson(sessionId){
+    if(!this.enabled() || planIsSubscriber()) return { allowed:true };
+    const used = planLessonsInWindow();
+    if(used.some(x=> x.id === sessionId)) return { allowed:true };   // already counted (e.g. a retry)
+    if(used.length < PLAN_CONFIG.FREE_LESSONS) return { allowed:true };
+    const oldest = Math.min.apply(null, used.map(x=> x.t));
+    return { allowed:false, reason:'limit', used: used.length, limit: PLAN_CONFIG.FREE_LESSONS,
+             resetAt: oldest + PLAN_CONFIG.WINDOW_DAYS * PLAN_DAY_MS };
+  },
+  recordLesson(sessionId){
+    if(!this.enabled() || planIsSubscriber()) return;
+    const key = 'chalkline_lessons:' + planWho();
+    const list = planReadJSON(key, []);
+    if(!list.some(x=> x.id === sessionId)) list.push({ id: sessionId, t: Date.now() });
+    planWriteJSON(key, list.slice(-200));
+  },
+  showPaywall(info){ planShowPaywall(info || {}); }
+};
+window.chalklineAccess = chalklineAccess;
+
+function planShowPaywall(info){
+  const limit = info.limit || PLAN_CONFIG.FREE_LESSONS;
+  document.getElementById('paywall-title').textContent = "You've used your " + limit + " free lessons";
+  const when = info.resetAt ? new Date(info.resetAt).toLocaleDateString(undefined, { weekday:'long', month:'short', day:'numeric' }) : null;
+  document.getElementById('paywall-body').textContent =
+    'Subscribers get unlimited live tutor lessons.' + (when ? ' Or come back on ' + when + ' for more free ones.' : '');
+  document.getElementById('paywall-upgrade').textContent =
+    'Upgrade for unlimited lessons' + (PLAN_CONFIG.PRICE_LABEL ? ' — ' + PLAN_CONFIG.PRICE_LABEL : '');
+  const msg = document.getElementById('paywall-msg'); msg.textContent = ''; msg.classList.remove('ok');
+  document.getElementById('paywall-overlay').classList.add('open');
+}
+function planClosePaywall(){ document.getElementById('paywall-overlay').classList.remove('open'); }
+
+async function planVerify(key){
+  const res = await fetch(PLAN_CONFIG.VERIFY_URL, {
+    method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ key })
+  });
+  let data = {};
+  try{ data = await res.json(); }catch(e){}
+  return { httpOk: res.ok, data };
+}
+async function planActivate(key){
+  key = (key || '').trim();
+  if(!key) return { ok:false, message:'Enter your license key first.' };
+  try{
+    const { httpOk, data } = await planVerify(key);
+    if(!httpOk || !data.active) return { ok:false, message: data.message || "That key isn't active. Check it and try again." };
+    planWriteJSON('chalkline_plan:' + planWho(), {
+      key, activeUntil: Number(data.activeUntil) || Date.now() + 35 * PLAN_DAY_MS, checkedAt: Date.now()
+    });
+    return { ok:true };
+  }catch(e){
+    return { ok:false, message:"Couldn't reach the server. Check your connection and try again." };
+  }
+}
+// Keep an existing subscription honest: re-check with the server now and then.
+async function planRecheck(){
+  const p = planRead();
+  if(!p || !p.key || Date.now() - (p.checkedAt || 0) < PLAN_CONFIG.RECHECK_HOURS * 3600000) return;
+  try{
+    const { httpOk, data } = await planVerify(p.key);
+    if(httpOk && data.active){
+      planWriteJSON('chalkline_plan:' + planWho(), Object.assign({}, p, { activeUntil: Number(data.activeUntil) || p.activeUntil, checkedAt: Date.now() }));
+    } else if(httpOk){
+      try{ localStorage.removeItem('chalkline_plan:' + planWho()); }catch(e){}   // lapsed or cancelled
+    }
+    // network/server error: keep the cached plan until its grace period ends
+  }catch(e){}
+}
+
+document.getElementById('paywall-close').addEventListener('click', planClosePaywall);
+document.getElementById('paywall-overlay').addEventListener('click', (e)=>{ if(e.target.id === 'paywall-overlay') planClosePaywall(); });
+document.getElementById('paywall-upgrade').addEventListener('click', ()=>{
+  if(PLAN_CONFIG.CHECKOUT_URL) window.open(PLAN_CONFIG.CHECKOUT_URL, '_blank', 'noopener');
+});
+document.getElementById('paywall-activate').addEventListener('click', async ()=>{
+  const btn = document.getElementById('paywall-activate'), msg = document.getElementById('paywall-msg');
+  btn.disabled = true; msg.classList.remove('ok'); msg.textContent = 'Checking…';
+  const r = await planActivate(document.getElementById('paywall-key').value);
+  btn.disabled = false;
+  if(r.ok){
+    msg.classList.add('ok'); msg.textContent = "You're subscribed — unlimited lessons unlocked!";
+    setTimeout(planClosePaywall, 1400);
+  } else { msg.textContent = r.message; }
+});
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState === 'visible') planRecheck(); });
+planRecheck();
 
 const initial = location.hash ? location.hash.slice(1) : 'home';
 history.replaceState({page: initial}, '', '#' + initial);
