@@ -47,15 +47,7 @@
     display:flex; align-items:center; gap:8px;
     font-family:-apple-system,Segoe UI,sans-serif;
   }
-  /* Shown only for a signed-in person who isn't a subscriber yet. */
-  #shell-upgrade-btn{
-    display:none; align-items:center; border:none; cursor:pointer;
-    background:#17233A; color:#fff; border-radius:999px;
-    padding:9px 18px; font:700 13.5px -apple-system,Segoe UI,sans-serif;
-    box-shadow:0 2px 8px rgba(0,0,0,0.18);
-  }
-  #shell-upgrade-btn:hover{ background:#233150; }
-  /* Phones (portrait and landscape): the account/upgrade cluster shrinks
+  /* Phones (portrait and landscape): the account cluster shrinks
      out of the way of each page's own top-right controls instead of
      overlapping them. Same element, same styling, just scaled. */
   @media (max-width:700px), (max-height:540px) and (orientation:landscape){
@@ -65,7 +57,6 @@
       transform:scale(0.85); transform-origin:top right;
     }
   }
-  #shell-upgrade-btn.show{ display:flex; }
   /* Paywall (free-lesson limit reached) */
   #paywall-overlay{
     position:fixed; inset:0; z-index:10002; display:none;
@@ -281,7 +272,6 @@
 </div>
 
 <div id="shell-auth">
-  <button type="button" id="shell-upgrade-btn">Upgrade</button>
   <div id="shell-signin-btn"></div>
   <!-- The account chip that used to live here was hidden by code and
        unreachable. Account, plan and sign-out now live on the Settings
@@ -470,19 +460,11 @@ function showSignedInChip(user){
   updateShellUpgradeButton();
 }
 
-// Top-right "Upgrade" button: only for a signed-in, non-subscriber
-// person. planIsSubscriber/PLAN_CONFIG live in a script block further
-// down the page, so guard against calling this before that's parsed
-// (e.g. during the very first restoreShellSession() at page load).
+// (Top-right "Upgrade" button removed.)
 function updateShellUpgradeButton(){
-  const btn = document.getElementById('shell-upgrade-btn');
-  const subscriberCheckReady = typeof planIsSubscriber === 'function' && typeof PLAN_CONFIG !== 'undefined';
-  const shouldShow = !!shellUser && subscriberCheckReady && PLAN_CONFIG.CHECKOUT_URL && !planIsSubscriber();
-  btn.classList.toggle('show', !!shouldShow);
+  // The floating top-right "Upgrade" button has been removed. This stays as a
+  // no-op because sign-in/plan code still calls it in several places.
 }
-document.getElementById('shell-upgrade-btn').addEventListener('click', ()=>{
-  if(typeof openPlanModal === 'function') openPlanModal();
-});
 
 
 function restoreShellSession(){
@@ -11022,7 +11004,8 @@ function renderPlan(){
     actions.innerHTML = '<button class="btn primary" id="btn-upgrade">Upgrade' +
       (info.priceLabel ? ' — ' + info.priceLabel : '') + '</button>';
     document.getElementById('btn-upgrade').addEventListener('click', ()=>{
-      try{ parent.chalklineStartCheckout('pro'); }catch(e){}
+      // Opens the shell's subscription popup (plan chooser), not the raw checkout page.
+      try{ parent.chalklineOpenPlanModal(); }catch(e){ try{ parent.chalklineStartCheckout('pro'); }catch(e2){} }
     });
     usage.textContent = info.lessonsUsed + ' lesson(s) started this week · ' + info.quizzesUsed + ' quiz(zes) today.';
   }
@@ -12109,6 +12092,55 @@ const CL_RESPONSIVE_JS = `
     return (a.savedAt || 0) >= (b.savedAt || 0) ? a : b;
   }
 
+  /* ---------- per-index lock ----------
+     saveRecord/deleteRecord read the index, change it, and write it back.
+     Two of those running at once (an autosave overlapping a manual save, or
+     a quiz saving while its list refreshes) both read the SAME old index, so
+     the second write silently erased the first one's entry. Chaining them
+     per index makes each one see the previous one's result. */
+  /* ---------- owed index entries ----------
+     When an item is saved while the real index cannot be read, the body is
+     saved and queued but the index is (correctly) left alone. The entry it
+     still owes the index is recorded here, in the local cache so it survives
+     a reload, and merged in the next time the index CAN be read. Without this
+     the item's body would be safe in the cloud yet never appear in any list. */
+  function owedKey(kind, owner){ return 'index-owed:' + kind + ':' + owner; }
+  function readOwed(kind, owner){
+    try{ var raw = localStorage.getItem(NS + owedKey(kind, owner)); var o = raw ? JSON.parse(raw) : {}; return (o && typeof o === 'object') ? o : {}; }
+    catch(e){ return {}; }
+  }
+  function writeOwed(kind, owner, owed){
+    try{
+      if(Object.keys(owed).length) localStorage.setItem(NS + owedKey(kind, owner), JSON.stringify(owed));
+      else localStorage.removeItem(NS + owedKey(kind, owner));
+    }catch(e){}
+  }
+  // Merge owed entries into a freshly-read index. Returns true if anything changed.
+  function mergeOwed(kind, owner, idx){
+    var owed = readOwed(kind, owner), ids = Object.keys(owed), changed = false;
+    for(var n = 0; n < ids.length; n++){
+      var e = owed[ids[n]], at = -1;
+      if(e && e.__deleted){
+        var before = idx.items.length;
+        idx.items = idx.items.filter(function(x){ return x.id !== ids[n]; });
+        if(idx.items.length !== before) changed = true;
+        continue;
+      }
+      for(var i = 0; i < idx.items.length; i++){ if(idx.items[i].id === ids[n]){ at = i; break; } }
+      if(at >= 0){ if((e.savedAt || 0) > (idx.items[at].savedAt || 0)){ idx.items[at] = e; changed = true; } }
+      else { idx.items.unshift(e); changed = true; }
+    }
+    return changed;
+  }
+
+  var indexLocks = {};
+  function withIndexLock(name, fn){
+    var prev = indexLocks[name] || Promise.resolve();
+    var run = prev.then(fn, fn);
+    indexLocks[name] = run.catch(function(){});
+    return run;
+  }
+
   var clStore = {
     /* Reads a JSON record, comparing the cloud copy with the local cache
        and returning whichever is genuinely newer (by version, then by
@@ -12118,15 +12150,29 @@ const CL_RESPONSIVE_JS = `
       var localRaw = lsGet(key), localObj = null;
       try{ localObj = localRaw ? JSON.parse(localRaw) : null; }catch(e){}
       var remoteObj = null;
+      var remoteReached = false;   // true only if the cloud actually ANSWERED (found or not found)
       var b = bridge();
       if(b){
         try{
           var rec = await b.get(key);
-          if(rec && rec.value) remoteObj = JSON.parse(rec.value);
+          // The bridge returns null when it could not reach the cloud at all
+          // (signed-out, token not restored yet, network/worker error). That is
+          // NOT the same as "the cloud has nothing" and must never be treated
+          // as an empty record.
+          if(rec !== null && rec !== undefined){
+            remoteReached = true;
+            if(rec.value) remoteObj = JSON.parse(rec.value);
+          }
         }catch(e){}
       }
       var win = newer(localObj, remoteObj);
-      if(!win) return null;
+      if(!win){
+        // Nothing local, nothing remote. If we never reached the cloud we
+        // cannot claim the record is empty; flag it so callers don't write an
+        // empty replacement over real data.
+        if(b && !remoteReached) return { __unreachable: true };
+        return null;
+      }
       if(win === localObj && remoteObj !== null && b){
         // local is ahead of the cloud: push it back up rather than lose it
         queue(key, JSON.stringify(localObj)); flushPending();
@@ -12139,9 +12185,17 @@ const CL_RESPONSIVE_JS = `
 
     async readIndex(kind, owner){
       var idx = await clStore.getJSON(indexKey(kind, owner));
+      if(idx && idx.__unreachable) return { items: [], version: 0, __unreachable: true };
       return (idx && Array.isArray(idx.items)) ? idx : { items: [], version: (idx && idx.version) || 0 };
     },
     async writeIndex(kind, owner, idx){
+      if(idx && idx.__unreachable){
+        // We could not read the real index, so anything we would write is a
+        // guess that would overwrite the account's true list. Leave the cloud
+        // copy alone; the record body is already saved and queued, and the
+        // list is rebuilt from the bodies (rebuilt:false) on the next read.
+        return { ok: true, remote: false, skippedIndex: true };
+      }
       idx.version = (idx.version || 0) + 1;
       idx.savedAt = Date.now();
       return await clStore.setJSON(indexKey(kind, owner), idx);
@@ -12151,8 +12205,21 @@ const CL_RESPONSIVE_JS = `
        one-off rebuild path. */
     async listMeta(kind, owner, metaFrom){
       var idx = await clStore.readIndex(kind, owner);
+      if(!idx.__unreachable && Object.keys(readOwed(kind, owner)).length){
+        await withIndexLock(indexKey(kind, owner), async function(){
+          var fresh = await clStore.readIndex(kind, owner);
+          if(fresh.__unreachable) return;
+          if(mergeOwed(kind, owner, fresh)){
+            fresh.rebuilt = true;
+            var w = await clStore.writeIndex(kind, owner, fresh);
+            if(w && w.remote !== false || !bridge()) writeOwed(kind, owner, {});
+          } else { writeOwed(kind, owner, {}); }
+          idx = fresh;
+        });
+      }
       if(idx.items.length || idx.rebuilt) return idx.items;
-      // rebuild once from the full records
+      // rebuild once from the full records (never write the result back if the
+      // real index could not be read; see writeIndex)
       var res = await window.storage.list(kind + ':' + owner + ':');
       var keys = (res && res.keys) ? res.keys : [];
       var items = [];
@@ -12164,8 +12231,8 @@ const CL_RESPONSIVE_JS = `
           items.push(metaFrom ? metaFrom(obj) : { id: obj.id, title: obj.title, subject: obj.subject, savedAt: obj.savedAt, version: obj.version || 1 });
         }catch(e){}
       }
-      idx.items = items; idx.rebuilt = true;
-      await clStore.writeIndex(kind, owner, idx);
+      idx.items = items; if(!idx.__unreachable) idx.rebuilt = true;
+      await withIndexLock(indexKey(kind, owner), function(){ return clStore.writeIndex(kind, owner, idx); });
       return items;
     },
 
@@ -12174,13 +12241,24 @@ const CL_RESPONSIVE_JS = `
       record.version = (record.version || 0) + 1;
       record.savedAt = Date.now();
       var r = await clStore.setJSON(bodyKey(kind, owner, id), record);
-      var idx = await clStore.readIndex(kind, owner);
-      var entry = Object.assign({ id: id, savedAt: record.savedAt, version: record.version }, meta || {});
-      var at = -1;
-      for(var i = 0; i < idx.items.length; i++){ if(idx.items[i].id === id){ at = i; break; } }
-      if(at >= 0) idx.items[at] = entry; else idx.items.unshift(entry);
-      idx.rebuilt = true;
-      await clStore.writeIndex(kind, owner, idx);
+      await withIndexLock(indexKey(kind, owner), async function(){
+        var idx = await clStore.readIndex(kind, owner);
+        var entry = Object.assign({ id: id, savedAt: record.savedAt, version: record.version }, meta || {});
+        if(idx.__unreachable){
+          var owedNow = readOwed(kind, owner); owedNow[id] = entry; writeOwed(kind, owner, owedNow);
+          return;
+        }
+        var at = -1;
+        for(var i = 0; i < idx.items.length; i++){ if(idx.items[i].id === id){ at = i; break; } }
+        if(at >= 0) idx.items[at] = entry; else idx.items.unshift(entry);
+        // Only mark the index as authoritative if it was really read. An index
+        // built from a failed read stays un-"rebuilt" so the next list rebuilds
+        // it from the saved record bodies instead of trusting a one-item guess.
+        if(!idx.__unreachable) idx.rebuilt = true;
+        mergeOwed(kind, owner, idx);          // fold in anything owed from an earlier failed read
+        var wr = await clStore.writeIndex(kind, owner, idx);
+        if(wr && wr.remote !== false || !bridge()) writeOwed(kind, owner, {});
+      });
       return r;
     },
 
@@ -12188,10 +12266,16 @@ const CL_RESPONSIVE_JS = `
 
     async deleteRecord(kind, owner, id){
       await window.storage.delete(bodyKey(kind, owner, id));
-      var idx = await clStore.readIndex(kind, owner);
-      idx.items = idx.items.filter(function(x){ return x.id !== id; });
-      idx.rebuilt = true;
-      await clStore.writeIndex(kind, owner, idx);
+      await withIndexLock(indexKey(kind, owner), async function(){
+        var idx = await clStore.readIndex(kind, owner);
+        if(idx.__unreachable){
+          var owedDel = readOwed(kind, owner); owedDel[id] = { __deleted: true }; writeOwed(kind, owner, owedDel);
+          return;   // can't safely edit a list we couldn't read; the deletion is applied when we can
+        }
+        idx.items = idx.items.filter(function(x){ return x.id !== id; });
+        idx.rebuilt = true;
+        await clStore.writeIndex(kind, owner, idx);
+      });
     },
 
     /* Work done before signing in lives under the 'guest' owner. On
@@ -12792,6 +12876,7 @@ window.chalklinePlanInfo = function(){
   };
 };
 window.chalklineStartCheckout = function(tier){ startCheckout(tier); };
+window.chalklineOpenPlanModal = function(){ if(typeof openPlanModal === 'function') openPlanModal(); };
 window.chalklineRefreshPlan = async function(){ await planSyncFromAccount(); return window.chalklinePlanInfo(); };
 
 
