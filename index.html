@@ -1277,6 +1277,13 @@ body{
   --panel:#DCEEFB;
   --panel-border:#D3E6F5;
   --muted:#7C93A8;
+  /* Shared-shell warm palette — used only by the side panel's brand/nav/
+     recent chrome below, so the panel reads as the same app as Home,
+     Summaries, Notes, etc. (all cream/gold) even though the board itself
+     stays on its own blue chalkboard palette. */
+  --shell-ink:#2A2410;
+  --shell-gold:#F0B94D;
+  --shell-gold-deep:#C98A2B;
   --halo-blue:#0099FF;
   --halo-blue-soft:#00E5FF;
   --violet:#D98C2B;
@@ -1933,15 +1940,21 @@ body{
   position:fixed;
   top:0;left:0;bottom:0;
   width:360px;
-  background:var(--panel);
-  border-right:1px solid var(--panel-border);
+  /* Same cream/gold panel chrome as the Home/Summaries/Notes sidebar —
+     only the board itself keeps the blue chalkboard palette. */
+  background:linear-gradient(165deg, #FFFFFF 0%, #FFF7E0 55%, #F5E6B8 130%);
+  border-right:1px solid rgba(0,0,0,0.06);
   z-index:30;
   transform:translateX(-100%);
   transition:transform .25s cubic-bezier(.2,.8,.2,1);
   display:flex;flex-direction:column;
-  box-shadow:8px 0 30px rgba(0,0,0,0.08);
+  box-shadow:
+    3px 0 1px rgba(255,255,255,0.6) inset,
+    10px 0 24px -8px rgba(120,90,20,0.14),
+    26px 0 46px -20px rgba(120,90,20,0.10);
   padding-left:var(--safe-left);
   padding-bottom:var(--safe-bottom);
+  color:var(--shell-ink);
 }
 .side-panel.open{transform:translateX(0);}
 
@@ -1950,8 +1963,8 @@ body{
    log + ask box) never fight over the same slide-out panel. */
 .conv-panel{
   left:auto; right:0;
-  border-right:none; border-left:1px solid var(--panel-border);
-  box-shadow:-8px 0 30px rgba(0,0,0,0.08);
+  border-right:none; border-left:1px solid rgba(0,0,0,0.06);
+  box-shadow:-8px 0 1px rgba(255,255,255,0.6) inset, -10px 0 24px -8px rgba(120,90,20,0.14), -26px 0 46px -20px rgba(120,90,20,0.10);
   transform:translateX(100%);
   padding-left:0; padding-right:var(--safe-right, 0);
 }
@@ -1959,15 +1972,62 @@ body{
 
 .panel-head{
   display:flex;justify-content:space-between;align-items:center;
-  padding:calc(18px + var(--safe-top)) 20px 18px;border-bottom:1px solid var(--panel-border);
+  padding:calc(18px + var(--safe-top)) 20px 18px;border-bottom:1px solid rgba(0,0,0,0.08);
   flex-shrink:0;
 }
 .panel-head h1{
-  font-size:19px;margin:0;font-weight:600;
+  font-size:19px;margin:0;font-weight:600;color:var(--shell-ink);
 }
 .panel-head h1 em{color:var(--ochre);font-style:italic;}
 .panel-close{
   background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted);
+}
+
+/* Brand mark + nav + recent-work list — copied to match the Home /
+   Summaries / Notes sidebar exactly (same classes, same look), so the
+   panel reads as part of the same app instead of a differently
+   themed drawer. */
+.sidebar-brand{
+  font-family:'Caveat', cursive; font-weight:700; font-size:26px;
+  color:var(--shell-ink); text-decoration:none; display:flex; align-items:center; gap:8px;
+}
+.sidebar-brand .dot{
+  width:9px;height:9px;border-radius:50%;
+  background:linear-gradient(135deg, var(--shell-gold), var(--ochre));
+  display:inline-block; box-shadow:0 0 0 4px rgba(240,185,77,0.30);
+}
+.sidebar-nav{ display:flex; flex-direction:column; gap:2px; }
+.sidebar-nav a{
+  display:flex; align-items:center; gap:11px;
+  color:rgba(42,36,16,0.78); text-decoration:none; padding:10px 12px; border-radius:10px;
+  font-family:'JetBrains Mono', monospace; font-size:12.5px;
+  transition:background .15s ease, color .15s ease;
+}
+.sidebar-nav a .ic{ font-size:15px; width:18px; text-align:center; flex-shrink:0; }
+.sidebar-nav a:hover{ background:rgba(0,0,0,0.05); color:var(--shell-ink); }
+.sidebar-nav a.active{ background:rgba(240,185,77,0.24); color:var(--shell-gold-deep); font-weight:600; }
+.sidebar-divider{ height:1px; background:rgba(0,0,0,0.08); margin:14px 6px; flex-shrink:0; }
+.sidebar-recent a{
+  display:flex; align-items:center; gap:9px; text-decoration:none; color:rgba(42,36,16,0.78);
+  padding:8px 10px; border-radius:9px; font-size:12.5px;
+  transition:background .15s ease;
+}
+.sidebar-recent a:hover{ background:rgba(0,0,0,0.05); color:var(--shell-ink); }
+.sidebar-recent a .ic{ font-size:13px; flex-shrink:0; }
+.sidebar-recent a .rw-title{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sidebar-footer a{
+  display:flex; align-items:center; gap:11px; text-decoration:none; color:rgba(42,36,16,0.55);
+  font-family:'JetBrains Mono', monospace; font-size:12.5px; padding:9px 12px; border-radius:10px;
+  transition:background .15s ease, color .15s ease;
+}
+.sidebar-footer a:hover{ background:rgba(0,0,0,0.05); color:var(--shell-ink); }
+.course-banner{
+  font-family:'Source Serif 4', serif; font-size:15.5px; font-weight:600;
+  color:var(--shell-ink); line-height:1.3;
+}
+.course-banner .cb-label{
+  display:block; font-family:'JetBrains Mono', monospace; font-weight:600;
+  font-size:10px; letter-spacing:0.4px; color:var(--muted); margin-bottom:4px;
 }
 
 .panel-body{flex:1;overflow-y:auto;}
@@ -2365,10 +2425,31 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
 </div>
 <div class="side-panel" id="side-panel">
   <div class="panel-head">
-    <h1>Chalk<em>line</em></h1>
+    <a class="sidebar-brand" href="#" id="panel-brand-home"><span class="dot"></span>Chalkline</a>
     <button class="panel-close" id="btn-panel-close">✕</button>
   </div>
   <div class="panel-body">
+    <div class="p-section" style="border-bottom:none;padding-bottom:6px;">
+      <nav class="sidebar-nav">
+        <a href="#" id="panel-nav-home"><span class="ic">🏠</span>Dashboard</a>
+        <a href="#" class="active" id="panel-nav-tutor"><span class="ic">🎓</span>Tutor</a>
+        <a href="#" id="panel-nav-summary"><span class="ic">📄</span>Summaries</a>
+        <a href="#" id="panel-nav-notes"><span class="ic">🗒️</span>Notes</a>
+      </nav>
+    </div>
+    <div class="sidebar-divider" style="margin-top:0;"></div>
+    <div class="p-section">
+      <h2>This course</h2>
+      <div class="course-banner" id="course-name-display">No course selected yet</div>
+    </div>
+    <div class="p-section">
+      <h2>Lessons in this course <button class="link-btn" id="btn-new-session">new</button></h2>
+      <button type="button" class="session-toggle" id="btn-session-toggle">
+        <span id="session-toggle-label">Lessons</span>
+        <span class="st-chevron">▶</span>
+      </button>
+      <div class="session-list" id="session-list"><div class="empty-note">No saved sessions yet.</div></div>
+    </div>
     <div class="p-section">
       <h2>Account</h2>
       <div id="account-signed-out">
@@ -2384,14 +2465,6 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
       </div>
     </div>
     <div class="p-section">
-      <h2>Saved sessions <button class="link-btn" id="btn-new-session">new</button></h2>
-      <button type="button" class="session-toggle" id="btn-session-toggle">
-        <span id="session-toggle-label">Sessions</span>
-        <span class="st-chevron">▶</span>
-      </button>
-      <div class="session-list" id="session-list"><div class="empty-note">No saved sessions yet.</div></div>
-    </div>
-    <div class="p-section">
       <h2>Source material</h2>
       <div class="upload-zone" id="upload-zone">
         Drop a PDF, or click to import a chapter, slide deck or notes.
@@ -2405,6 +2478,16 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
         <button class="p-btn primary" id="btn-teach">Teach this</button>
         <button class="p-btn" id="btn-quiz">Quiz me</button>
       </div>
+    </div>
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-recent">
+      <h4 style="font-family:'JetBrains Mono', monospace;font-size:10px;letter-spacing:0.06em;color:rgba(42,36,16,0.5);margin:0 0 8px;padding:0 2px;font-weight:600;">RECENT WORK</h4>
+      <a href="#" id="panel-nav-tutor-history"><span class="ic">🗂️</span><span class="rw-title">Previous tutorials</span></a>
+      <a href="#" id="panel-nav-summary-history"><span class="ic">🗒️</span><span class="rw-title">Previous summaries</span></a>
+      <a href="#" id="panel-nav-quiz-history"><span class="ic">🧠</span><span class="rw-title">Previous quizzes</span></a>
+    </div>
+    <div class="sidebar-footer" style="margin-top:6px;">
+      <a href="#" id="panel-nav-settings"><span class="ic">⚙️</span>Settings</a>
     </div>
   </div>
 </div>
@@ -5743,8 +5826,15 @@ const leaveModal = document.getElementById('leave-modal');
 const leaveNameInput = document.getElementById('leave-name-input');
 const leaveConfirmModal = document.getElementById('leave-confirm-modal');
 
+// Which page to actually navigate to once the leave-lesson flow (below)
+// finishes — defaults to Home (the exit-lesson button's target), but the
+// sidebar's other nav links point it at themselves first so leaving mid-
+// lesson to go to, say, Summaries still gets the same save-or-discard
+// prompt instead of silently dropping the board.
+let pendingNavTarget = 'home';
 function goHomeNow(){
-  parent.postMessage({ nav:'home' }, '*');
+  parent.postMessage({ nav: pendingNavTarget }, '*');
+  pendingNavTarget = 'home';
 }
 
 // Clicking Home mid-lesson shouldn't silently save (or silently lose)
@@ -5966,6 +6056,23 @@ updateLoginPillVisibility();
 // prompt that was already built for a Home button — asks for a lesson
 // name and saves before navigating back to the dashboard.
 document.getElementById('btn-exit-lesson').addEventListener('click', handleHomeClick);
+
+/* ------------------- themed sidebar nav (matches Home/Summaries/Notes) ---
+   Same save-or-discard prompt as the Exit Lesson button — these links
+   just point the eventual navigation at a different page first. */
+function navAwayTo(target){
+  pendingNavTarget = target;
+  handleHomeClick();
+}
+document.getElementById('panel-brand-home').addEventListener('click', (e)=>{ e.preventDefault(); navAwayTo('home'); });
+document.getElementById('panel-nav-home').addEventListener('click', (e)=>{ e.preventDefault(); navAwayTo('home'); });
+document.getElementById('panel-nav-tutor').addEventListener('click', (e)=>{ e.preventDefault(); closePanel(); });
+document.getElementById('panel-nav-summary').addEventListener('click', (e)=>{ e.preventDefault(); navAwayTo('summary'); });
+document.getElementById('panel-nav-notes').addEventListener('click', (e)=>{ e.preventDefault(); navAwayTo('notes'); });
+document.getElementById('panel-nav-tutor-history').addEventListener('click', (e)=>{ e.preventDefault(); navAwayTo('tutor-history'); });
+document.getElementById('panel-nav-summary-history').addEventListener('click', (e)=>{ e.preventDefault(); navAwayTo('summary-history'); });
+document.getElementById('panel-nav-quiz-history').addEventListener('click', (e)=>{ e.preventDefault(); navAwayTo('quiz-history'); });
+document.getElementById('panel-nav-settings').addEventListener('click', (e)=>{ e.preventDefault(); navAwayTo('settings'); });
 // -----------------------------------------------------------------------
 
 
@@ -6041,12 +6148,18 @@ async function refreshSessionList(){
   const myReq = ++sessionListReq;
   const listEl = document.getElementById('session-list');
   const labelEl = document.getElementById('session-toggle-label');
+  // Keep the "This course" banner in sync with currentSubject everywhere
+  // it can change (new/loaded session, subject modal, preset from a
+  // Dashboard course card, sign-in/out) — this is the one function all
+  // of those already call afterward.
+  const courseNameEl = document.getElementById('course-name-display');
+  if(courseNameEl) courseNameEl.textContent = currentSubject || 'No course selected yet';
   if(!currentUser){
     // Nothing is ever saved while signed out (see persistSession), so
     // there is nothing real to list — and we must not fall back to a
     // shared 'local' bucket that could show a previous guest's work.
     listEl.innerHTML = '<div class="empty-hint">Sign in to save sessions and see them here.</div>';
-    if(labelEl) labelEl.textContent = 'Saved sessions';
+    if(labelEl) labelEl.textContent = 'Lessons';
     return;
   }
   try{
@@ -6065,7 +6178,7 @@ async function refreshSessionList(){
     const filtered = currentSubject
       ? items.filter(item => (item.subject || 'Unsorted') === currentSubject)
       : items.filter(item => !item.subject || item.subject === 'Unsorted');
-    labelEl.textContent = (currentSubject || 'Sessions') + (filtered.length ? ` (${filtered.length})` : '');
+    labelEl.textContent = (currentSubject || 'Lessons') + (filtered.length ? ` (${filtered.length})` : '');
     if(filtered.length===0){
       listEl.innerHTML = `<div class="empty-note">No saved sessions yet${currentSubject ? ' in ' + escapeHtml(currentSubject) : ''}.</div>`;
       return;
