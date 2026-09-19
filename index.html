@@ -350,6 +350,7 @@
 <div id="welcome-toast"><span id="welcome-toast-text"></span></div>
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 // Google Sign-In lives here, at the top level, because this is the only
 // document with a real, non-null origin (https://tarlio02.github.io).
@@ -371,12 +372,63 @@ const SHELL_GOOGLE_CLIENT_ID = "676487295279-j4qka36obo55unl3vds7ja2v24uoq6dm.ap
 // session-cookie flow and verify server-side instead.
 const SHELL_AUTH_STORAGE_KEY = 'chalkline_shell_user';
 let shellUser = null;
-// The raw Google ID token (JWT), kept only in memory — never persisted —
-// so chalklineStorage below can prove who's asking to the worker, which
-// verifies it server-side before touching that person's saved content.
-// ID tokens are short-lived (~1hr); see the silent refresh loop further
-// down that keeps this current while the tab stays open.
+// The Supabase ACCESS TOKEN (a JWT) for the signed-in person, kept in memory.
+// (Name kept from before so every existing call site still works.) It is what
+// proves to the worker who's asking: chalklineStorage, the AI proxy and the
+// subscription routes all send it, and the worker verifies it server-side.
+// supabase-js persists the session itself and refreshes this token in the
+// background; onAuthStateChange below keeps this variable current.
 let shellIdToken = null;
+
+// Supabase project settings. The anon / publishable key is SAFE to ship in
+// the browser (row-level security keeps the tables closed to it). NEVER put
+// the service-role / secret key here — that one lives only on the worker.
+const SUPABASE_URL = "https://wxpvuutxemfubwvatmjy.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_3M3ZN-JrPl5iDn_ar7oyVA_X2fxx9CZ";
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
+});
+
+supabaseClient.auth.onAuthStateChange((event, session)=>{
+  // Only assign here — don't call other supabase methods inside this callback.
+  if(event === 'SIGNED_OUT') shellIdToken = null;
+  else if(session) shellIdToken = session.access_token;
+  // A returning visitor's saved session restores after the page's plan code
+  // has (usually) loaded: pick up their subscription from the server.
+  if(event === 'INITIAL_SESSION' && session && typeof planSyncFromAccount === 'function') planSyncFromAccount();
+});
+window.addEventListener('load', ()=>{ if(typeof planSyncFromAccount === 'function') planSyncFromAccount(); });
+
+// Always-fresh token for async callers (getSession refreshes it if it has expired).
+async function freshAccessToken(){
+  try{
+    const { data } = await supabaseClient.auth.getSession();
+    if(data && data.session) return data.session.access_token;
+  }catch(e){}
+  return shellIdToken;
+}
+
+// Trade Google's one-tap credential for a Supabase session. Reuses the saved
+// session when it already belongs to this Google account, so a page reload
+// doesn't create a fresh Supabase session every time.
+async function establishSupabaseSession(googleCredential, googleSub){
+  try{
+    const { data:{ session } } = await supabaseClient.auth.getSession();
+    const meta = session && session.user && session.user.user_metadata;
+    if(session && meta && (meta.sub === googleSub || meta.provider_id === googleSub)){
+      shellIdToken = session.access_token;
+      return true;
+    }
+    const { data, error } = await supabaseClient.auth.signInWithIdToken({ provider:'google', token: googleCredential });
+    if(error) throw error;
+    shellIdToken = data.session ? data.session.access_token : null;
+    return !!shellIdToken;
+  }catch(e){
+    console.error('Supabase sign-in failed:', e);
+    shellIdToken = null;
+    return false;
+  }
+}
 
 function decodeShellIdToken(jwt){
   const payload = jwt.split('.')[1];
@@ -445,12 +497,14 @@ function restoreShellSession(){
 }
 restoreShellSession();
 
-function handleShellCredential(response){
+async function handleShellCredential(response){
   shellUser = decodeShellIdToken(response.credential);
-  shellIdToken = response.credential;
   try{ localStorage.setItem(SHELL_AUTH_STORAGE_KEY, JSON.stringify(shellUser)); }
   catch(e){ console.error('Could not persist sign-in:', e); }
   showSignedInChip(shellUser);
+  // Get the Supabase session BEFORE telling the pages someone signed in, so
+  // their first storage call already has a token to send.
+  await establishSupabaseSession(response.credential, shellUser.sub);
   broadcastAuthState();
   // Pick up any subscription already attached to this Google account (e.g.
   // bought on another device) before deciding whether to show the plan modal.
@@ -464,8 +518,6 @@ function handleShellCredential(response){
     navTo('home');
   }
   maybeShowPlanModal();
-  // TODO: once a backend exists, send response.credential there to verify
-  // the token and load/merge this person's saved sessions.
 }
 
 /* "Choose a plan" — shown once, the very first time a given Google
@@ -645,10 +697,8 @@ function initShellGoogleSignIn(){
   // for chalklineStorage after a page reload, since that token is never
   // persisted to localStorage itself.
   google.accounts.id.prompt();
-  // ID tokens last about an hour; refresh silently every 45 minutes so a
-  // long-open tab (browsing, a long summary/notes session) doesn't end up
-  // trying to save with a stale token. Harmless no-op while signed out.
-  setInterval(()=>{ if(shellUser) google.accounts.id.prompt(); }, 45 * 60000);
+  // No periodic re-prompt needed: supabase-js refreshes the access token on
+  // its own, so a long-open tab keeps a valid token without asking Google again.
 }
 initShellGoogleSignIn();
 
@@ -657,6 +707,8 @@ document.getElementById('shell-sign-out').addEventListener('click', signOutShell
 function signOutShell(){
   shellUser = null;
   shellIdToken = null;
+  // scope:'local' = this browser only (the default would sign out every device).
+  try{ supabaseClient.auth.signOut({ scope:'local' }); }catch(e){}
   localStorage.removeItem(SHELL_AUTH_STORAGE_KEY);
   updateShellUpgradeButton();
   if(typeof google !== 'undefined' && google.accounts) google.accounts.id.disableAutoSelect();
@@ -10643,9 +10695,10 @@ const CHALKLINE_STORAGE_BASE = 'https://api.takundamambudzi02.workers.dev';
 async function chalklineStorageCall(path, payload){
   if(!shellIdToken) return null; // signed out, or a refresh hasn't landed yet — caller falls back to its local cache
   try{
+    const token = await freshAccessToken();
     const res = await fetch(CHALKLINE_STORAGE_BASE + path, {
       method:'POST', headers:{ 'Content-Type':'application/json' },
-      body: JSON.stringify(Object.assign({ idToken: shellIdToken }, payload))
+      body: JSON.stringify(Object.assign({ idToken: token }, payload))
     });
     if(!res.ok) return null;
     return await res.json();
@@ -10658,7 +10711,7 @@ window.chalklineStorage = {
   async list(prefix){ return await chalklineStorageCall('/storage/list', { prefix }); }
 };
 
-// Headers for calls to the AI proxy. The worker checks the Google ID token
+// Headers for calls to the AI proxy. The worker checks the Supabase access token
 // (sent as a Bearer header, since the request BODY is forwarded verbatim to
 // the AI provider) and enforces the free-tier limits server-side. The tutor
 // / summary pages run in iframes and call this via parent.chalklineAuthHeaders()
@@ -10926,7 +10979,7 @@ function showPlanActivatedToast(){
   setTimeout(()=>{ t.style.transition = 'opacity .4s'; t.style.opacity = '0'; setTimeout(()=>t.remove(), 450); }, 5000);
 }
 
-// Pull this Google account's subscription from the server. This is what makes
+// Pull this account's subscription from the server. This is what makes
 // a plan bought on one device show up on another with no key re-entry. The
 // server is the source of truth: if it says "not active", the local cache is
 // cleared, so a cancelled plan can't linger on a device that stayed offline.
