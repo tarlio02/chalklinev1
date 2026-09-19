@@ -34,6 +34,15 @@
     display:flex; align-items:center; gap:8px;
     font-family:-apple-system,Segoe UI,sans-serif;
   }
+  /* Shown only for a signed-in person who isn't a subscriber yet. */
+  #shell-upgrade-btn{
+    display:none; align-items:center; border:none; cursor:pointer;
+    background:#17233A; color:#fff; border-radius:999px;
+    padding:9px 18px; font:700 13.5px -apple-system,Segoe UI,sans-serif;
+    box-shadow:0 2px 8px rgba(0,0,0,0.18);
+  }
+  #shell-upgrade-btn:hover{ background:#233150; }
+  #shell-upgrade-btn.show{ display:flex; }
   /* Paywall (free-lesson limit reached) */
   #paywall-overlay{
     position:fixed; inset:0; z-index:10002; display:none;
@@ -160,6 +169,71 @@
   }
   #welcome-toast.show{ display:flex; opacity:1; }
   #welcome-toast.fade-out{ opacity:0; }
+  /* "Choose a plan" — shown once, right after a person's very first
+     sign-in. Pro and Max both point at the same Polar checkout link
+     until there are distinct prices to tell them apart. */
+  #plan-modal-overlay{
+    position:fixed; inset:0; z-index:10003;
+    display:none; align-items:center; justify-content:center;
+    background:rgba(20,32,44,0.55);
+    padding:20px;
+    font-family:-apple-system,Segoe UI,sans-serif;
+  }
+  #plan-modal-overlay.open{ display:flex; }
+  #plan-modal-card{
+    background:#FBF7F2; border-radius:24px; padding:32px 24px 24px;
+    max-width:480px; width:100%; max-height:90vh; overflow-y:auto;
+    box-shadow:0 20px 60px rgba(0,0,0,0.3);
+    position:relative; text-align:center; box-sizing:border-box;
+  }
+  #plan-modal-close{
+    position:absolute; top:14px; right:16px;
+    border:none; background:none; font-size:16px; color:#7C93A8; cursor:pointer;
+    padding:4px;
+  }
+  #plan-modal-card h2{ margin:0 0 20px; font-size:24px; color:#1E2B3A; font-family:Georgia,'Times New Roman',serif; }
+  .plan-tabs{
+    display:inline-flex; background:#EFE9E2; border-radius:999px; padding:4px; margin-bottom:22px;
+  }
+  .plan-tab{
+    border:none; background:none; padding:8px 20px; border-radius:999px;
+    font:600 14px -apple-system,Segoe UI,sans-serif; color:#5c6f80; cursor:pointer;
+  }
+  .plan-tab.active{ background:#fff; color:#1E2B3A; box-shadow:0 1px 3px rgba(0,0,0,0.12); }
+  .plan-card{
+    display:none; text-align:left; background:#fff; border-radius:16px;
+    padding:20px 18px; margin-bottom:16px; border:1px solid #EEE6DB;
+  }
+  .plan-card.active{ display:block; }
+  .plan-card h3{ margin:0 0 2px; font-size:20px; color:#1E2B3A; font-family:Georgia,'Times New Roman',serif; }
+  .plan-card .plan-sub{ margin:0 0 14px; font-size:13px; color:#8a97a3; }
+  .plan-card ul{ list-style:none; margin:0 0 14px; padding:0; }
+  .plan-card li{
+    display:flex; gap:10px; align-items:flex-start; font-size:14px; color:#1E2B3A;
+    margin-bottom:10px; line-height:1.35;
+  }
+  .plan-card li::before{ content:'✓'; color:#3fae5c; font-weight:700; flex-shrink:0; }
+  .plan-price-row{ display:flex; gap:10px; }
+  .plan-price-opt{
+    flex:1; border:1.5px solid #E4DDD2; border-radius:12px; padding:12px 14px; cursor:pointer;
+    position:relative;
+  }
+  .plan-price-opt.selected{ border-color:#1A56DB; background:#F3F7FE; }
+  .plan-price-opt .plan-radio{
+    width:16px; height:16px; border-radius:50%; border:2px solid #C9D4DE; display:inline-block; margin-bottom:8px;
+  }
+  .plan-price-opt.selected .plan-radio{ border-color:#1A56DB; background:radial-gradient(#1A56DB 45%, #fff 50%); }
+  .plan-price-opt .plan-amount{ font-size:19px; font-weight:700; color:#1E2B3A; }
+  .plan-price-opt .plan-period{ font-size:12.5px; color:#8a97a3; margin-top:2px; }
+  #plan-modal-cta{
+    width:100%; padding:15px 16px; border:none; border-radius:999px; cursor:pointer;
+    background:#17233A; color:#fff; font:700 16px -apple-system,Segoe UI,sans-serif; margin-top:4px;
+  }
+  #plan-modal-skip{
+    width:100%; padding:13px 16px; border:1px solid #E4DDD2; border-radius:999px; cursor:pointer;
+    background:#fff; color:#1E2B3A; font:600 15px -apple-system,Segoe UI,sans-serif; margin-top:10px;
+  }
+
   #welcome-toast-text{
     font-family:'Caveat', -apple-system, cursive; font-weight:700;
     font-size:52px; color:#fff;
@@ -196,6 +270,7 @@
 <button type="button" id="drive-pill"></button>
 
 <div id="shell-auth">
+  <button type="button" id="shell-upgrade-btn">Upgrade</button>
   <div id="shell-signin-btn"></div>
   <div id="shell-account-chip">
     <button type="button" id="shell-account-btn" title="Account">
@@ -227,6 +302,63 @@
     <div id="start-modal-google-btn"></div>
     <button type="button" id="start-modal-skip">Continue without signing in</button>
     <p id="start-modal-note">Your content won't be saved if you skip signing in.</p>
+  </div>
+</div>
+
+<div id="plan-modal-overlay">
+  <div id="plan-modal-card">
+    <button type="button" id="plan-modal-close" aria-label="Close">✕</button>
+    <h2>Choose a plan</h2>
+    <div class="plan-tabs">
+      <button type="button" class="plan-tab" data-plan-tab="free">Free</button>
+      <button type="button" class="plan-tab active" data-plan-tab="pro">Pro</button>
+      <button type="button" class="plan-tab" data-plan-tab="max">Max</button>
+    </div>
+
+    <div class="plan-card" data-plan-card="free">
+      <h3>Free</h3>
+      <p class="plan-sub">For getting started with Chalkline</p>
+      <ul>
+        <li>Chat with your AI tutor</li>
+        <li>A few free lessons every week</li>
+        <li>Basic usage limits</li>
+      </ul>
+    </div>
+
+    <div class="plan-card active" data-plan-card="pro">
+      <h3>Pro</h3>
+      <p class="plan-sub">For everyday studying</p>
+      <ul>
+        <li>Unlimited live tutor lessons</li>
+        <li>Priority access at busy times</li>
+        <li>Save and sync your sessions</li>
+      </ul>
+      <div class="plan-price-row" id="plan-price-row-pro">
+        <div class="plan-price-opt selected" data-price="monthly">
+          <span class="plan-radio"></span>
+          <div class="plan-amount">Monthly</div>
+          <div class="plan-period">Billed monthly</div>
+        </div>
+        <div class="plan-price-opt" data-price="annual">
+          <span class="plan-radio"></span>
+          <div class="plan-amount">Annual</div>
+          <div class="plan-period">Save with yearly billing</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="plan-card" data-plan-card="max">
+      <h3>Max</h3>
+      <p class="plan-sub">For power users</p>
+      <ul>
+        <li>Everything in Pro</li>
+        <li>Higher usage limits</li>
+        <li>Early access to new features</li>
+      </ul>
+    </div>
+
+    <button type="button" id="plan-modal-cta">Get Pro plan</button>
+    <button type="button" id="plan-modal-skip">Stay on Free</button>
   </div>
 </div>
 
@@ -276,7 +408,22 @@ function showSignedInChip(user){
   // it hidden and stash the name for the (now-unused) dropdown.
   const fullName = user.name || user.email || 'Signed in';
   document.getElementById('shell-menu-name').textContent = fullName;
+  updateShellUpgradeButton();
 }
+
+// Top-right "Upgrade" button: only for a signed-in, non-subscriber
+// person. planIsSubscriber/PLAN_CONFIG live in a script block further
+// down the page, so guard against calling this before that's parsed
+// (e.g. during the very first restoreShellSession() at page load).
+function updateShellUpgradeButton(){
+  const btn = document.getElementById('shell-upgrade-btn');
+  const subscriberCheckReady = typeof planIsSubscriber === 'function' && typeof PLAN_CONFIG !== 'undefined';
+  const shouldShow = !!shellUser && subscriberCheckReady && PLAN_CONFIG.CHECKOUT_URL && !planIsSubscriber();
+  btn.classList.toggle('show', !!shouldShow);
+}
+document.getElementById('shell-upgrade-btn').addEventListener('click', ()=>{
+  if(typeof openPlanModal === 'function') openPlanModal();
+});
 
 function toggleShellAccountMenu(forceOpen){
   const menu = document.getElementById('shell-account-menu');
@@ -317,13 +464,67 @@ function handleShellCredential(response){
   // If this credential came from the "Start for free" modal, finish that
   // flow now: close the modal and take the person into the app.
   const modal = document.getElementById('start-modal-overlay');
-  if(modal.classList.contains('open')){
+  const cameFromStartModal = modal.classList.contains('open');
+  if(cameFromStartModal){
     closeStartModal();
     navTo('home');
   }
+  maybeShowPlanModal();
   // TODO: once a backend exists, send response.credential there to verify
   // the token and load/merge this person's saved sessions.
 }
+
+/* "Choose a plan" — shown once, the very first time a given Google
+   account ever signs in on this browser. Keyed by their sub so it
+   never reappears for that person again (not by browser, so a second
+   account on the same device still sees it once). */
+function planPromptSeenKey(){ return 'chalkline_plan_prompt_seen:' + (shellUser ? shellUser.sub : ''); }
+function maybeShowPlanModal(){
+  if(!shellUser || !shellUser.sub) return;
+  if(typeof planIsSubscriber === 'function' && planIsSubscriber()) return; // already paying — nothing to upsell
+  try{
+    if(localStorage.getItem(planPromptSeenKey())) return; // not their first sign-in
+    localStorage.setItem(planPromptSeenKey(), '1');
+  }catch(e){ return; } // if we can't record "seen", don't risk showing it every sign-in
+  openPlanModal();
+}
+
+let planModalSelectedTab = 'pro';
+let planModalSelectedPrice = 'monthly';
+function openPlanModal(){
+  document.getElementById('plan-modal-overlay').classList.add('open');
+}
+function closePlanModal(){
+  document.getElementById('plan-modal-overlay').classList.remove('open');
+}
+function setPlanModalTab(tab){
+  planModalSelectedTab = tab;
+  document.querySelectorAll('.plan-tab').forEach(el=> el.classList.toggle('active', el.dataset.planTab === tab));
+  document.querySelectorAll('.plan-card').forEach(el=> el.classList.toggle('active', el.dataset.planCard === tab));
+  const cta = document.getElementById('plan-modal-cta');
+  cta.textContent = tab === 'free' ? 'Stay on Free' : ('Get ' + (tab === 'pro' ? 'Pro' : 'Max') + ' plan');
+}
+document.querySelectorAll('.plan-tab').forEach(el=>{
+  el.addEventListener('click', ()=> setPlanModalTab(el.dataset.planTab));
+});
+document.getElementById('plan-price-row-pro').querySelectorAll('.plan-price-opt').forEach(el=>{
+  el.addEventListener('click', ()=>{
+    planModalSelectedPrice = el.dataset.price;
+    document.getElementById('plan-price-row-pro').querySelectorAll('.plan-price-opt').forEach(o=> o.classList.toggle('selected', o === el));
+  });
+});
+document.getElementById('plan-modal-close').addEventListener('click', closePlanModal);
+document.getElementById('plan-modal-overlay').addEventListener('click', (e)=>{
+  if(e.target.id === 'plan-modal-overlay') closePlanModal();
+});
+document.getElementById('plan-modal-skip').addEventListener('click', closePlanModal);
+document.getElementById('plan-modal-cta').addEventListener('click', ()=>{
+  if(planModalSelectedTab === 'free'){ closePlanModal(); return; }
+  // Pro and Max both go to the same Polar checkout link for now — split
+  // them into separate links/prices in PLAN_CONFIG once those exist.
+  if(PLAN_CONFIG.CHECKOUT_URL) window.open(PLAN_CONFIG.CHECKOUT_URL, '_blank', 'noopener');
+  closePlanModal();
+});
 
 // Fallback shown if Google's own rendered button fails or vanishes (see
 // watchdog below) — a plain link that still triggers the real Google
@@ -454,6 +655,7 @@ function signOutShell(){
   if(typeof driveOnSignedOut === 'function') driveOnSignedOut();
   shellUser = null;
   localStorage.removeItem(SHELL_AUTH_STORAGE_KEY);
+  updateShellUpgradeButton();
   if(typeof google !== 'undefined' && google.accounts) google.accounts.id.disableAutoSelect();
   toggleShellAccountMenu(false);
   document.getElementById('shell-account-chip').style.display = 'none';
@@ -10599,11 +10801,16 @@ document.getElementById('paywall-activate').addEventListener('click', async ()=>
   btn.disabled = false;
   if(r.ok){
     msg.classList.add('ok'); msg.textContent = "You're subscribed — unlimited lessons unlocked!";
+    updateShellUpgradeButton();
     setTimeout(planClosePaywall, 1400);
   } else { msg.textContent = r.message; }
 });
-document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState === 'visible') planRecheck(); });
-planRecheck();
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState === 'visible') planRecheck().then(updateShellUpgradeButton); });
+planRecheck().then(updateShellUpgradeButton);
+// PLAN_CONFIG/planIsSubscriber only exist from this point on — this is
+// the first point the upgrade button's visibility can be decided for a
+// person who was already signed in when the page loaded.
+updateShellUpgradeButton();
 
 const initial = location.hash ? location.hash.slice(1) : 'home';
 history.replaceState({page: initial}, '', '#' + initial);
