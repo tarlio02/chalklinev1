@@ -452,6 +452,9 @@ function handleShellCredential(response){
   catch(e){ console.error('Could not persist sign-in:', e); }
   showSignedInChip(shellUser);
   broadcastAuthState();
+  // Pick up any subscription already attached to this Google account (e.g.
+  // bought on another device) before deciding whether to show the plan modal.
+  try{ Promise.resolve(planSyncFromAccount()).then(()=>{ try{ maybeShowPlanModal(); }catch(e){} }); }catch(e){}
   // If this credential came from the "Start for free" modal, finish that
   // flow now: close the modal and take the person into the app.
   const modal = document.getElementById('start-modal-overlay');
@@ -4944,7 +4947,7 @@ async function fetchGeminiTTSOnce(text){
   try{
     const response = await fetch(`${PROXY_URL}/gemini-tts`, {
       method:"POST",
-      headers:{"Content-Type":"application/json"},
+      headers: (function(){ try{ return parent.chalklineAuthHeaders(); }catch(e){ return {"Content-Type":"application/json"}; } })(),
       body: JSON.stringify({ text }),
       signal: ctrl.signal
     });
@@ -5835,6 +5838,9 @@ async function callTutor(userMessage, imageAttachment){
     }
     lastBackendDebug.push({ name: engine.name, ok: result.ok, status: result.status || '', detail: result.errorSpeech || '' });
     if(result.ok) break;
+    // Account-level refusal (signed out / free limit): every other engine would be
+    // refused the same way, and each retry would burn more of the daily allowance.
+    if(result.blocked) break;
     console.warn(`${engine.name} failed, falling back to the next AI backend:`, result.status);
   }
   currentTurnImage = null;
@@ -5842,6 +5848,11 @@ async function callTutor(userMessage, imageAttachment){
   if(!result.ok){
     conversationHistory.pop();
     setStatus(result.status || 'error — tap for details');
+    if(result.blocked){
+      let handled = false;
+      try{ handled = parent.chalklineAuthBlocked(result.blockedCode); }catch(e){}
+      return { speech: result.errorSpeech || "You can't continue right now.", board: [] };
+    }
     console.error('All AI backends failed. Last error:', result.status, result.errorSpeech);
     return { speech: "Sorry, the AI tutor isn't available right now. Please try again in a moment.", board: [] };
   }
@@ -5931,7 +5942,7 @@ async function callGroq(){
   try{
     response = await fetch(`${PROXY_URL}/groq`, {
       method:"POST",
-      headers:{"Content-Type":"application/json"},
+      headers: (function(){ try{ return parent.chalklineAuthHeaders(); }catch(e){ return {"Content-Type":"application/json"}; } })(),
       body: JSON.stringify({
         model:"openai/gpt-oss-120b",
         response_format:{ type:"json_object" },
@@ -5954,6 +5965,10 @@ async function callGroq(){
 
   if(!response.ok){
     const msg = (data && data.error && data.error.message) ? data.error.message : JSON.stringify(data);
+    const blockedCode = (data && data.error && data.error.code) || '';
+    if(response.status === 401 || response.status === 402 || (response.status === 429 && blockedCode)){
+      return { ok:false, blocked:true, blockedCode, status:`blocked (${response.status})`, errorSpeech:msg };
+    }
     return { ok:false, status:`API error ${response.status}`, errorSpeech:`Groq returned an error: ${msg}` };
   }
 
@@ -5990,7 +6005,7 @@ async function callApinex(){
     // Worker's /apinex route, never in this page.
     response = await fetch(`${PROXY_URL}/apinex`, {
       method:"POST",
-      headers:{"Content-Type":"application/json"},
+      headers: (function(){ try{ return parent.chalklineAuthHeaders(); }catch(e){ return {"Content-Type":"application/json"}; } })(),
       body: JSON.stringify({
         response_format:{ type:"json_object" },
         max_tokens:14000,
@@ -6012,6 +6027,10 @@ async function callApinex(){
 
   if(!response.ok){
     const msg = (data && data.error && data.error.message) ? data.error.message : JSON.stringify(data);
+    const blockedCode = (data && data.error && data.error.code) || '';
+    if(response.status === 401 || response.status === 402 || (response.status === 429 && blockedCode)){
+      return { ok:false, blocked:true, blockedCode, status:`blocked (${response.status})`, errorSpeech:msg };
+    }
     return { ok:false, status:`API error ${response.status}`, errorSpeech:`Apinex returned an error: ${msg}` };
   }
 
@@ -6042,7 +6061,7 @@ async function callGemini(){
   try{
     response = await fetch(`${PROXY_URL}/gemini`, {
       method:"POST",
-      headers:{"Content-Type":"application/json"},
+      headers: (function(){ try{ return parent.chalklineAuthHeaders(); }catch(e){ return {"Content-Type":"application/json"}; } })(),
       body: JSON.stringify({
         system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
         contents: geminiContents,
@@ -6065,6 +6084,10 @@ async function callGemini(){
 
   if(!response.ok){
     const msg = (data && data.error && data.error.message) ? data.error.message : JSON.stringify(data);
+    const blockedCode = (data && data.error && data.error.code) || '';
+    if(response.status === 401 || response.status === 402 || (response.status === 429 && blockedCode)){
+      return { ok:false, blocked:true, blockedCode, status:`blocked (${response.status})`, errorSpeech:msg };
+    }
     return { ok:false, status:`API error ${response.status}`, errorSpeech:`Gemini returned an error: ${msg}` };
   }
 
@@ -7492,10 +7515,19 @@ ${lengthInstruction(mode)}`;
   // now uses); Groq, then Apinex, are kept as fallbacks in that order if
   // Gemini fails or isn't configured.
   const geminiResult = await summarizeViaGemini(system, userMsg);
-  if(geminiResult.ok) return geminiResult;
+  if(geminiResult.ok || geminiResult.blocked) return finishSummaryBlock(geminiResult);
   const groqResult = await summarizeViaGroq(system, userMsg);
-  if(groqResult.ok) return groqResult;
-  return summarizeViaApinex(system, userMsg);
+  if(groqResult.ok || groqResult.blocked) return finishSummaryBlock(groqResult);
+  return finishSummaryBlock(await summarizeViaApinex(system, userMsg));
+}
+
+// If the worker refused the call for account reasons, open the right prompt
+// (sign in / paywall) in the shell; otherwise pass the result straight through.
+function finishSummaryBlock(result){
+  if(result && result.blocked){
+    try{ parent.chalklineAuthBlocked(result.blockedCode); }catch(e){}
+  }
+  return result;
 }
 
 async function summarizeViaGroq(system, userMsg){
@@ -7503,7 +7535,7 @@ async function summarizeViaGroq(system, userMsg){
   try{
     response = await fetch(`${PROXY_URL}/groq`, {
       method:"POST",
-      headers:{"Content-Type":"application/json"},
+      headers: (function(){ try{ return parent.chalklineAuthHeaders(); }catch(e){ return {"Content-Type":"application/json"}; } })(),
       body: JSON.stringify({
         model:"openai/gpt-oss-120b",
         max_tokens: 3000,
@@ -7524,6 +7556,10 @@ async function summarizeViaGroq(system, userMsg){
 
   if(!response.ok){
     const msg = (data && data.error && data.error.message) ? data.error.message : JSON.stringify(data);
+    const blockedCode = (data && data.error && data.error.code) || '';
+    if(response.status === 401 || response.status === 402 || (response.status === 429 && blockedCode)){
+      return { ok:false, blocked:true, blockedCode, error:msg };
+    }
     return { ok:false, error:`The model returned an error: ${msg}` };
   }
 
@@ -7540,7 +7576,7 @@ async function summarizeViaApinex(system, userMsg){
   try{
     response = await fetch(`${PROXY_URL}/apinex`, {
       method:"POST",
-      headers:{"Content-Type":"application/json"},
+      headers: (function(){ try{ return parent.chalklineAuthHeaders(); }catch(e){ return {"Content-Type":"application/json"}; } })(),
       body: JSON.stringify({
         max_tokens: 3000,
         messages: [
@@ -7560,6 +7596,10 @@ async function summarizeViaApinex(system, userMsg){
 
   if(!response.ok){
     const msg = (data && data.error && data.error.message) ? data.error.message : JSON.stringify(data);
+    const blockedCode = (data && data.error && data.error.code) || '';
+    if(response.status === 401 || response.status === 402 || (response.status === 429 && blockedCode)){
+      return { ok:false, blocked:true, blockedCode, error:msg };
+    }
     return { ok:false, error:`The model returned an error: ${msg}` };
   }
 
@@ -7576,7 +7616,7 @@ async function summarizeViaGemini(system, userMsg){
   try{
     response = await fetch(`${PROXY_URL}/gemini`, {
       method:"POST",
-      headers:{"Content-Type":"application/json"},
+      headers: (function(){ try{ return parent.chalklineAuthHeaders(); }catch(e){ return {"Content-Type":"application/json"}; } })(),
       body: JSON.stringify({
         system_instruction: { parts: [{ text: system }] },
         contents: [{ role:"user", parts:[{ text: userMsg }] }],
@@ -7594,6 +7634,10 @@ async function summarizeViaGemini(system, userMsg){
 
   if(!response.ok){
     const msg = (data && data.error && data.error.message) ? data.error.message : JSON.stringify(data);
+    const blockedCode = (data && data.error && data.error.code) || '';
+    if(response.status === 401 || response.status === 402 || (response.status === 429 && blockedCode)){
+      return { ok:false, blocked:true, blockedCode, error:msg };
+    }
     return { ok:false, error:`The model returned an error: ${msg}` };
   }
 
@@ -10614,6 +10658,29 @@ window.chalklineStorage = {
   async list(prefix){ return await chalklineStorageCall('/storage/list', { prefix }); }
 };
 
+// Headers for calls to the AI proxy. The worker checks the Google ID token
+// (sent as a Bearer header, since the request BODY is forwarded verbatim to
+// the AI provider) and enforces the free-tier limits server-side. The tutor
+// / summary pages run in iframes and call this via parent.chalklineAuthHeaders()
+// so they never touch the token themselves. Falls back to plain JSON headers
+// for a signed-out visitor; the worker decides whether that is allowed.
+// Called by the tutor/summary iframes when the worker refuses an AI call for
+// account reasons (not a model failure). Sends the person to the right place:
+// sign in, or the paywall. Returns true if it handled the situation.
+window.chalklineAuthBlocked = function(code){
+  try{
+    if(code === 'auth_required'){ openStartModal(); return true; }
+    if(code === 'free_limit'){ chalklineAccess.showPaywall({ reason:'limit', limit: 'daily', period:'day' }); return true; }
+    if(code === 'rate_limited' || code === 'daily_cap'){ return false; }   // no upsell for these; just show the message
+  }catch(e){}
+  return false;
+};
+window.chalklineAuthHeaders = function(extra){
+  const h = Object.assign({ 'Content-Type': 'application/json' }, extra || {});
+  if(shellIdToken) h['Authorization'] = 'Bearer ' + shellIdToken;
+  return h;
+};
+
 
 
 /* =====================================================================
@@ -10747,7 +10814,10 @@ function planClosePaywall(){ document.getElementById('paywall-overlay').classLis
 
 async function planVerify(key){
   const res = await fetch(PLAN_CONFIG.VERIFY_URL, {
-    method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ key })
+    method:'POST', headers:{ 'Content-Type':'application/json' },
+    // idToken (when signed in) lets the worker bind this key to the Google
+    // account, so the subscription follows the person to every device.
+    body: JSON.stringify(shellIdToken ? { key, idToken: shellIdToken } : { key })
   });
   let data = {};
   try{ data = await res.json(); }catch(e){}
@@ -10798,7 +10868,33 @@ document.getElementById('paywall-activate').addEventListener('click', async ()=>
     setTimeout(planClosePaywall, 1400);
   } else { msg.textContent = r.message; }
 });
-document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState === 'visible') planRecheck().then(updateShellUpgradeButton); });
+// Pull this Google account's subscription from the server. This is what makes
+// a plan bought on one device show up on another with no key re-entry. The
+// server is the source of truth: if it says "not active", the local cache is
+// cleared, so a cancelled plan can't linger on a device that stayed offline.
+let planSyncInFlight = false;
+async function planSyncFromAccount(){
+  if(planSyncInFlight || !shellIdToken || !shellUser || !shellUser.sub) return;
+  planSyncInFlight = true;
+  try{
+    const res = await fetch(PLAN_CONFIG.VERIFY_URL.replace('/subscription/verify', '/subscription/status'), {
+      method:'POST', headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ idToken: shellIdToken })
+    });
+    if(!res.ok) return;                        // server trouble: keep whatever is cached
+    const data = await res.json();
+    const key = 'chalkline_plan:' + planWho();
+    if(data && data.active){
+      const prev = planRead() || {};
+      planWriteJSON(key, Object.assign({}, prev, { activeUntil: Number(data.activeUntil) || prev.activeUntil, checkedAt: Date.now() }));
+    } else if(data && data.active === false){
+      try{ localStorage.removeItem(key); }catch(e){}
+    }
+    updateShellUpgradeButton();
+  }catch(e){ /* offline: cached plan + grace period still apply */ }
+  finally{ planSyncInFlight = false; }
+}
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState === 'visible') planRecheck().then(updateShellUpgradeButton); planSyncFromAccount(); });
 planRecheck().then(updateShellUpgradeButton);
 // PLAN_CONFIG/planIsSubscriber only exist from this point on — this is
 // the first point the upgrade button's visibility can be decided for a
