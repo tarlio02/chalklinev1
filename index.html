@@ -810,6 +810,11 @@ body{
 }
 .subject-modal .sm-go:hover{ background:#0f1c2c; }
 .course-action-card p{ max-width:none !important; }
+
+/* Pill rides the sidebar edge: when the sidebar closes it returns to the corner.
+   (The pill sits outside .app-shell, so the rule above could never match it.) */
+body.sb-closed .sidebar-toggle{ left:16px; }
+@media (max-width:900px){ body.sb-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 </style>
 </head>
 <body>
@@ -944,8 +949,8 @@ body{
 
   const shell = document.getElementById('app-shell');
   const sbScrim = document.getElementById('sidebar-scrim');
-  function closeSidebar(){ shell.classList.add('sidebar-closed'); }
-  function openSidebar(){ shell.classList.remove('sidebar-closed'); }
+  function closeSidebar(){ shell.classList.add('sidebar-closed'); document.body.classList.add('sb-closed'); }
+  function openSidebar(){ shell.classList.remove('sidebar-closed'); document.body.classList.remove('sb-closed'); }
   document.getElementById('sidebar-toggle').addEventListener('click', ()=>
     shell.classList.contains('sidebar-closed') ? openSidebar() : closeSidebar()
   );
@@ -2061,7 +2066,7 @@ body.panel-open{ --sb-offset:var(--side-panel-w); }
 .sidebar-toggle{
   position:fixed; z-index:50;
   top:calc(var(--safe-top) + 18px);
-  left:calc(var(--sb-offset) - 64px);   /* sits just inside the panel's right edge */
+  left:calc(var(--sb-offset) - 56px);   /* 56px inside the panel edge — same as every other page */
   height:34px; padding:0 16px 0 14px; border-radius:999px; border:none; cursor:pointer;
   background:rgba(255,255,255,0.95);
   box-shadow:0 3px 10px rgba(120,90,20,0.18), 0 0 0 1px rgba(120,90,20,0.08);
@@ -2114,7 +2119,7 @@ body.panel-open .side-panel:not(.conv-panel){ box-shadow:
 @media (max-width:900px){
   body.panel-open{ --sb-offset:0px; }
   .side-panel{ width:min(320px, 86vw); }
-  .sidebar-toggle{ left:calc(min(320px, 86vw) - 64px); }
+  .sidebar-toggle{ left:calc(var(--safe-left) + 16px); top:calc(var(--safe-top) + 16px); }
   body:not(.panel-open) .sidebar-toggle{ left:calc(var(--safe-left) + 16px); }
   body.panel-open .overlay{ display:block; }
 }
@@ -6737,6 +6742,11 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
   .app-shell.sidebar-closed .sidebar-scrim{ display:none; }
 }
 .main-area .wrap{ margin:0 auto; }
+
+/* Pill rides the sidebar edge: when the sidebar closes it returns to the corner.
+   (The pill sits outside .app-shell, so the rule above could never match it.) */
+body.sb-closed .sidebar-toggle{ left:16px; }
+@media (max-width:900px){ body.sb-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 </style>
 </head>
 <body>
@@ -6825,8 +6835,8 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 (function(){
   const shell = document.getElementById('app-shell');
   const sbScrim = document.getElementById('sidebar-scrim');
-  function closeSidebar(){ shell.classList.add('sidebar-closed'); }
-  function openSidebar(){ shell.classList.remove('sidebar-closed'); }
+  function closeSidebar(){ shell.classList.add('sidebar-closed'); document.body.classList.add('sb-closed'); }
+  function openSidebar(){ shell.classList.remove('sidebar-closed'); document.body.classList.remove('sb-closed'); }
   document.getElementById('sidebar-toggle').addEventListener('click', ()=>
     shell.classList.contains('sidebar-closed') ? openSidebar() : closeSidebar()
   );
@@ -7480,6 +7490,11 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
   .app-shell.sidebar-closed .sidebar-scrim{ display:none; }
 }
 .main-area .wrap{ margin:0 auto; }
+
+/* Pill rides the sidebar edge: when the sidebar closes it returns to the corner.
+   (The pill sits outside .app-shell, so the rule above could never match it.) */
+body.sb-closed .sidebar-toggle{ left:16px; }
+@media (max-width:900px){ body.sb-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 </style>
 </head>
 <body>
@@ -7537,8 +7552,8 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 (function(){
   const shell = document.getElementById('app-shell');
   const sbScrim = document.getElementById('sidebar-scrim');
-  function closeSidebar(){ shell.classList.add('sidebar-closed'); }
-  function openSidebar(){ shell.classList.remove('sidebar-closed'); }
+  function closeSidebar(){ shell.classList.add('sidebar-closed'); document.body.classList.add('sb-closed'); }
+  function openSidebar(){ shell.classList.remove('sidebar-closed'); document.body.classList.remove('sb-closed'); }
   document.getElementById('sidebar-toggle').addEventListener('click', ()=>
     shell.classList.contains('sidebar-closed') ? openSidebar() : closeSidebar()
   );
@@ -7958,6 +7973,11 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
   .app-shell.sidebar-closed .sidebar-scrim{ display:none; }
 }
 .main-area .wrap{ margin:0 auto; }
+
+/* Pill rides the sidebar edge: when the sidebar closes it returns to the corner.
+   (The pill sits outside .app-shell, so the rule above could never match it.) */
+body.sb-closed .sidebar-toggle{ left:16px; }
+@media (max-width:900px){ body.sb-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 </style>
 </head>
 <body>
@@ -8015,8 +8035,8 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 (function(){
   const shell = document.getElementById('app-shell');
   const sbScrim = document.getElementById('sidebar-scrim');
-  function closeSidebar(){ shell.classList.add('sidebar-closed'); }
-  function openSidebar(){ shell.classList.remove('sidebar-closed'); }
+  function closeSidebar(){ shell.classList.add('sidebar-closed'); document.body.classList.add('sb-closed'); }
+  function openSidebar(){ shell.classList.remove('sidebar-closed'); document.body.classList.remove('sb-closed'); }
   document.getElementById('sidebar-toggle').addEventListener('click', ()=>
     shell.classList.contains('sidebar-closed') ? openSidebar() : closeSidebar()
   );
@@ -8369,6 +8389,11 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
   .app-shell.sidebar-closed .sidebar-scrim{ display:none; }
 }
 .main-area .wrap{ margin:0 auto; }
+
+/* Pill rides the sidebar edge: when the sidebar closes it returns to the corner.
+   (The pill sits outside .app-shell, so the rule above could never match it.) */
+body.sb-closed .sidebar-toggle{ left:16px; }
+@media (max-width:900px){ body.sb-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 </style>
 </head>
 <body>
@@ -8426,8 +8451,8 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 (function(){
   const shell = document.getElementById('app-shell');
   const sbScrim = document.getElementById('sidebar-scrim');
-  function closeSidebar(){ shell.classList.add('sidebar-closed'); }
-  function openSidebar(){ shell.classList.remove('sidebar-closed'); }
+  function closeSidebar(){ shell.classList.add('sidebar-closed'); document.body.classList.add('sb-closed'); }
+  function openSidebar(){ shell.classList.remove('sidebar-closed'); document.body.classList.remove('sb-closed'); }
   document.getElementById('sidebar-toggle').addEventListener('click', ()=>
     shell.classList.contains('sidebar-closed') ? openSidebar() : closeSidebar()
   );
@@ -9802,6 +9827,11 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
   .app-shell.sidebar-closed .sidebar-scrim{ display:none; }
 }
 .main-area .wrap{ margin:0 auto; }
+
+/* Pill rides the sidebar edge: when the sidebar closes it returns to the corner.
+   (The pill sits outside .app-shell, so the rule above could never match it.) */
+body.sb-closed .sidebar-toggle{ left:16px; }
+@media (max-width:900px){ body.sb-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 </style>
 </head>
 <body>
@@ -9863,8 +9893,8 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 (function(){
   const shell = document.getElementById('app-shell');
   const sbScrim = document.getElementById('sidebar-scrim');
-  function closeSidebar(){ shell.classList.add('sidebar-closed'); }
-  function openSidebar(){ shell.classList.remove('sidebar-closed'); }
+  function closeSidebar(){ shell.classList.add('sidebar-closed'); document.body.classList.add('sb-closed'); }
+  function openSidebar(){ shell.classList.remove('sidebar-closed'); document.body.classList.remove('sb-closed'); }
   document.getElementById('sidebar-toggle').addEventListener('click', ()=>
     shell.classList.contains('sidebar-closed') ? openSidebar() : closeSidebar()
   );
