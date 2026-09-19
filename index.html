@@ -2031,6 +2031,23 @@ body{
 }
 
 .panel-body{flex:1;overflow-y:auto;}
+/* Tutor sidebar: only the account name (top) + PDF/source drop are shown.
+   The rest stays in the DOM (hidden) because the tutor script looks the
+   elements up by ID at load time. */
+.tutor-panel-hidden{ display:none !important; }
+.tutor-account-top{
+  padding:14px 20px 12px;
+  border-bottom:1px solid var(--panel-border);
+}
+.tutor-account-top .account-row{
+  padding:9px 10px; border-radius:12px;
+  background:rgba(0,0,0,0.045); border:1px solid rgba(0,0,0,0.08);
+}
+.tutor-account-top #account-name{
+  font-size:13px; font-weight:600; color:var(--shell-ink);
+  min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+
 .p-section{padding:16px 20px;border-bottom:1px solid var(--panel-border);}
 .p-section h2{
   font-family:'JetBrains Mono', monospace;
@@ -2429,41 +2446,22 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
     <button class="panel-close" id="btn-panel-close">✕</button>
   </div>
   <div class="panel-body">
-    <div class="p-section" style="border-bottom:none;padding-bottom:6px;">
-      <nav class="sidebar-nav">
-        <a href="#" id="panel-nav-home"><span class="ic">🏠</span>Dashboard</a>
-        <a href="#" class="active" id="panel-nav-tutor"><span class="ic">🎓</span>Tutor</a>
-        <a href="#" id="panel-nav-summary"><span class="ic">📄</span>Summaries</a>
-        <a href="#" id="panel-nav-notes"><span class="ic">🗒️</span>Notes</a>
-      </nav>
-    </div>
-    <div class="sidebar-divider" style="margin-top:0;"></div>
-    <div class="p-section">
-      <h2>This course</h2>
-      <div class="course-banner" id="course-name-display">No course selected yet</div>
-    </div>
-    <div class="p-section">
-      <h2>Lessons in this course <button class="link-btn" id="btn-new-session">new</button></h2>
-      <button type="button" class="session-toggle" id="btn-session-toggle">
-        <span id="session-toggle-label">Lessons</span>
-        <span class="st-chevron">▶</span>
-      </button>
-      <div class="session-list" id="session-list"><div class="empty-note">No saved sessions yet.</div></div>
-    </div>
-    <div class="p-section">
-      <h2>Account</h2>
+    <!-- Account: name (and avatar) only, right at the top. Reuses the
+         account-* IDs so applyAuthState / sign-in / sign-out keep working. -->
+    <div class="p-section tutor-account-top">
       <div id="account-signed-out">
         <div id="google-signin-btn"></div>
-        <div class="file-meta" style="margin-top:6px;">Sign in so saved sessions are tied to your account, not just this browser.</div>
       </div>
       <div id="account-signed-in" style="display:none;">
         <div class="account-row">
           <img id="account-avatar" alt="" width="28" height="28" style="border-radius:50%;">
-          <span id="account-name" style="font-size:13px;"></span>
+          <span id="account-name"></span>
           <button class="link-btn" id="btn-sign-out" style="margin-left:auto;">sign out</button>
         </div>
       </div>
     </div>
+
+    <!-- Source material: drop a PDF. -->
     <div class="p-section">
       <h2>Source material</h2>
       <div class="upload-zone" id="upload-zone">
@@ -2471,23 +2469,44 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
         <input type="file" id="pdf-input" accept="application/pdf">
       </div>
     </div>
-    <div class="p-section">
-      <h2>Ask to be taught</h2>
-      <textarea class="topic-input" id="topic-input" placeholder="e.g. 'Explain price elasticity of demand'"></textarea>
-      <div class="p-row">
-        <button class="p-btn primary" id="btn-teach">Teach this</button>
-        <button class="p-btn" id="btn-quiz">Quiz me</button>
+
+    <!-- Everything below is intentionally hidden (not deleted) so the tutor
+         script, which looks these elements up by ID, keeps working. -->
+    <div class="tutor-panel-hidden" aria-hidden="true">
+      <nav class="sidebar-nav">
+        <a href="#" id="panel-nav-home"><span class="ic">🏠</span>Dashboard</a>
+        <a href="#" class="active" id="panel-nav-tutor"><span class="ic">🎓</span>Tutor</a>
+        <a href="#" id="panel-nav-summary"><span class="ic">📄</span>Summaries</a>
+        <a href="#" id="panel-nav-notes"><span class="ic">🗒️</span>Notes</a>
+      </nav>
+      <div class="p-section">
+        <h2>This course</h2>
+        <div class="course-banner" id="course-name-display">No course selected yet</div>
       </div>
-    </div>
-    <div class="sidebar-divider"></div>
-    <div class="sidebar-recent">
-      <h4 style="font-family:'JetBrains Mono', monospace;font-size:10px;letter-spacing:0.06em;color:rgba(42,36,16,0.5);margin:0 0 8px;padding:0 2px;font-weight:600;">RECENT WORK</h4>
-      <a href="#" id="panel-nav-tutor-history"><span class="ic">🗂️</span><span class="rw-title">Previous tutorials</span></a>
-      <a href="#" id="panel-nav-summary-history"><span class="ic">🗒️</span><span class="rw-title">Previous summaries</span></a>
-      <a href="#" id="panel-nav-quiz-history"><span class="ic">🧠</span><span class="rw-title">Previous quizzes</span></a>
-    </div>
-    <div class="sidebar-footer" style="margin-top:6px;">
-      <a href="#" id="panel-nav-settings"><span class="ic">⚙️</span>Settings</a>
+      <div class="p-section">
+        <h2>Lessons in this course <button class="link-btn" id="btn-new-session">new</button></h2>
+        <button type="button" class="session-toggle" id="btn-session-toggle">
+          <span id="session-toggle-label">Lessons</span>
+          <span class="st-chevron">▶</span>
+        </button>
+        <div class="session-list" id="session-list"><div class="empty-note">No saved sessions yet.</div></div>
+      </div>
+      <div class="p-section">
+        <h2>Ask to be taught</h2>
+        <textarea class="topic-input" id="topic-input" placeholder="e.g. 'Explain price elasticity of demand'"></textarea>
+        <div class="p-row">
+          <button class="p-btn primary" id="btn-teach">Teach this</button>
+          <button class="p-btn" id="btn-quiz">Quiz me</button>
+        </div>
+      </div>
+      <div class="sidebar-recent">
+        <a href="#" id="panel-nav-tutor-history"><span class="ic">🗂️</span><span class="rw-title">Previous tutorials</span></a>
+        <a href="#" id="panel-nav-summary-history"><span class="ic">🗒️</span><span class="rw-title">Previous summaries</span></a>
+        <a href="#" id="panel-nav-quiz-history"><span class="ic">🧠</span><span class="rw-title">Previous quizzes</span></a>
+      </div>
+      <div class="sidebar-footer">
+        <a href="#" id="panel-nav-settings"><span class="ic">⚙️</span>Settings</a>
+      </div>
     </div>
   </div>
 </div>
