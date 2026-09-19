@@ -7,13 +7,25 @@
 <title>Chalkline — AI Study Tools</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&display=swap');
-  html,body{ margin:0; padding:0; height:100%; overflow:hidden; background:#FFFFFF; font-family:-apple-system,Segoe UI,sans-serif; }
+  html,body{
+    margin:0; padding:0; overflow:hidden; background:#FFFFFF;
+    font-family:-apple-system,Segoe UI,sans-serif;
+    /* dvh, not vh: on a phone the collapsing address bar makes 100vh
+       TALLER than what you can actually see, which is what pushes a
+       page's bottom controls off-screen. dvh tracks the real thing. */
+    height:100vh; height:100dvh;
+  }
   /* Scoped to .shell-page specifically (not a bare "iframe" tag selector):
      a bare tag selector here would also catch any other <iframe> that
      ends up on the page — e.g. the one Google's Sign-In script injects
      into #shell-signin-btn — and fade it to invisible/unclickable since
      it never receives the .active class our router manages below. */
-  .shell-page{ position:fixed; inset:0; width:100%; height:100%; border:none; background:#FFFFFF; }
+  .shell-page{
+    position:fixed; top:0; left:0; border:none; background:#FFFFFF;
+    /* Every page fills exactly the visible viewport, so a page's own
+       100dvh/safe-area maths inside the frame lines up with the screen. */
+    width:100%; height:100vh; height:100dvh;
+  }
   .shell-page{
     opacity:0; visibility:hidden; pointer-events:none;
     transition:opacity 0.22s ease;
@@ -30,6 +42,7 @@
     position:fixed;
     top:calc(16px + env(safe-area-inset-top, 0px));
     right:calc(20px + env(safe-area-inset-right, 0px));
+    max-width:calc(100vw - 32px);
     z-index:9999;
     display:flex; align-items:center; gap:8px;
     font-family:-apple-system,Segoe UI,sans-serif;
@@ -42,6 +55,16 @@
     box-shadow:0 2px 8px rgba(0,0,0,0.18);
   }
   #shell-upgrade-btn:hover{ background:#233150; }
+  /* Phones (portrait and landscape): the account/upgrade cluster shrinks
+     out of the way of each page's own top-right controls instead of
+     overlapping them. Same element, same styling, just scaled. */
+  @media (max-width:700px), (max-height:540px) and (orientation:landscape){
+    #shell-auth{
+      top:calc(8px + env(safe-area-inset-top, 0px));
+      right:calc(10px + env(safe-area-inset-right, 0px));
+      transform:scale(0.85); transform-origin:top right;
+    }
+  }
   #shell-upgrade-btn.show{ display:flex; }
   /* Paywall (free-lesson limit reached) */
   #paywall-overlay{
@@ -52,6 +75,7 @@
   #paywall-overlay.open{ display:flex; }
   #paywall-card{
     position:relative; width:100%; max-width:420px; box-sizing:border-box;
+    max-height:calc(100dvh - 32px); overflow-y:auto;
     background:#fff; border-radius:18px; padding:26px 22px 22px;
     box-shadow:0 12px 40px rgba(0,0,0,0.3);
     font-family:-apple-system,Segoe UI,sans-serif; color:#1E2B3A;
@@ -124,6 +148,7 @@
   #start-modal-card{
     background:#fff; border-radius:20px; padding:34px 28px 28px;
     max-width:360px; width:100%; text-align:center;
+    max-height:calc(100dvh - 32px); overflow-y:auto;
     box-shadow:0 20px 60px rgba(0,0,0,0.25);
     position:relative;
   }
@@ -169,7 +194,7 @@
   #plan-modal-overlay.open{ display:flex; }
   #plan-modal-card{
     background:#FBF7F2; border-radius:24px; padding:32px 24px 24px;
-    max-width:480px; width:100%; max-height:90vh; overflow-y:auto;
+    max-width:480px; width:100%; max-height:calc(100dvh - 32px); overflow-y:auto;
     box-shadow:0 20px 60px rgba(0,0,0,0.3);
     position:relative; text-align:center; box-sizing:border-box;
   }
@@ -223,7 +248,8 @@
 
   #welcome-toast-text{
     font-family:'Caveat', -apple-system, cursive; font-weight:700;
-    font-size:52px; color:#fff;
+    font-size:clamp(30px, 9vw, 52px); color:#fff; text-align:center;
+    max-width:calc(100% - 40px); flex-wrap:wrap; justify-content:center;
     display:inline-flex;
   }
   /* Each letter fades/lifts in on its own delay (set inline in JS) so the
@@ -824,7 +850,7 @@ body{
    "panel" feel: layered elevation shadow + a darker spine along the
    right edge + a slight 3D swing as it opens/closes) ---------- */
 .sidebar{
-  width:252px; flex-shrink:0;
+  width:var(--cl-sidebar-w); flex-shrink:0;
   height:100vh; height:100dvh; position:fixed; left:0; top:0; z-index:45;
   display:flex; flex-direction:column;
   padding:calc(22px + var(--safe-top)) 16px 18px calc(16px + var(--safe-left));
@@ -920,7 +946,7 @@ body{
    handle, and slides with it. It flips its chevron and gives a little
    squash on click so it feels pressable rather than just decorative. */
 .sidebar-toggle{
-  position:fixed; top:26px; left:196px; z-index:50;
+  position:fixed; top:calc(var(--safe-top) + var(--cl-top-pad)); left:calc(var(--cl-sidebar-w) - var(--cl-toggle-inset)); z-index:50;
   height:34px; padding:0 16px 0 14px; border-radius:999px; border:none; cursor:pointer;
   background:rgba(255,255,255,0.95);
   box-shadow:0 3px 10px rgba(120,90,20,0.18), 0 0 0 1px rgba(120,90,20,0.08);
@@ -932,9 +958,9 @@ body{
 .sidebar-toggle:hover{ box-shadow:0 5px 16px rgba(120,90,20,0.24), 0 0 0 1px rgba(120,90,20,0.1); }
 .sidebar-toggle:active{ transform:scale(0.94); }
 .sidebar-toggle .arrow{ display:inline-block; font-size:13px; transition:transform .38s cubic-bezier(.22,.9,.32,1.1); }
-.app-shell.sidebar-closed .sidebar-toggle{ left:16px; }
+.app-shell.sidebar-closed .sidebar-toggle{ left:calc(var(--safe-left) + 16px); }
 
-@media (max-width:700px){
+@media (max-width:700px), (max-height:540px) and (orientation:landscape){
   .sidebar-toggle{ left:calc(16px + var(--safe-left)); top:calc(16px + var(--safe-top)); }
   .app-shell.sidebar-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); }
 }
@@ -946,10 +972,10 @@ body{
 .app-shell:not(.sidebar-closed) .sidebar-scrim{ display:block; opacity:0; }
 
 /* Desktop/tablet: the sidebar docks and pushes the content over. */
-.main-area{ transition:margin-left .38s cubic-bezier(.22,.9,.32,1.1); margin-left:252px; }
+.main-area{ transition:margin-left .38s cubic-bezier(.22,.9,.32,1.1); margin-left:var(--cl-sidebar-w); }
 .app-shell.sidebar-closed .main-area{ margin-left:0; }
 
-@media (max-width:700px){
+@media (max-width:700px), (max-height:540px) and (orientation:landscape){
   /* Narrow screens: the sidebar floats over the content instead of
      pushing it (there's no room to spare), so content never reflows
      here — only the scrim (and the sidebar itself) toggles. */
@@ -1140,8 +1166,8 @@ body{
 
 /* Pill rides the sidebar edge: when the sidebar closes it returns to the corner.
    (The pill sits outside .app-shell, so the rule above could never match it.) */
-body.sb-closed .sidebar-toggle{ left:16px; }
-@media (max-width:700px){ body.sb-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
+body.sb-closed .sidebar-toggle{ left:calc(var(--safe-left) + 16px); }
+@media (max-width:700px), (max-height:540px) and (orientation:landscape){ body.sb-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 </style>
 </head>
 <body>
@@ -1308,7 +1334,7 @@ body.sb-closed .sidebar-toggle{ left:16px; }
   // content over. On narrow phone widths it would swallow the whole
   // screen, so it starts closed there instead — the toggle still works
   // exactly the same either way.
-  if (window.innerWidth <= 700) closeSidebar();
+  if (window.chalklineIsCompact && window.chalklineIsCompact()) closeSidebar();
 
   // Account row reflects real sign-in state (mirrors the shell's
   // chalklineAuth broadcast) instead of always saying "tap to sign in" —
@@ -1670,7 +1696,7 @@ body.sb-closed .sidebar-toggle{ left:16px; }
   --bottom-control-height: 150px;
   --ask-zone-width: min(680px, 62vw);
   --caption-max-width: 760px;
-  --side-panel-w: 360px;
+  --side-panel-w: var(--cl-sidebar-w, 252px);
 }
 *{box-sizing:border-box;}
 html,body{margin:0;height:100%;}
@@ -2306,7 +2332,7 @@ body{
 .side-panel{
   position:fixed;
   top:0;left:0;bottom:0;
-  width:360px;
+  width:var(--side-panel-w);
   /* Same cream/gold panel chrome as the Home/Summaries/Notes sidebar —
      only the board itself keeps the blue chalkboard palette. */
   background:linear-gradient(165deg, #FFFFFF 0%, #FFF7E0 55%, #F5E6B8 130%);
@@ -2427,8 +2453,8 @@ body.panel-open{ --sb-offset:var(--side-panel-w); }
 /* The pill: docked to the sidebar edge and slides with it. */
 .sidebar-toggle{
   position:fixed; z-index:50;
-  top:calc(var(--safe-top) + 18px);
-  left:calc(var(--sb-offset) - 56px);   /* 56px inside the panel edge — same as every other page */
+  top:calc(var(--safe-top) + var(--cl-top-pad));
+  left:calc(var(--sb-offset) - var(--cl-toggle-inset));   /* same inset as every other page */
   height:34px; padding:0 16px 0 14px; border-radius:999px; border:none; cursor:pointer;
   background:rgba(255,255,255,0.95);
   box-shadow:0 3px 10px rgba(120,90,20,0.18), 0 0 0 1px rgba(120,90,20,0.08);
@@ -2485,9 +2511,8 @@ body.panel-open .side-panel:not(.conv-panel){ box-shadow:
 
 /* Narrow screens (phones): the sidebar floats OVER the content instead of
    pushing it (no room to spare), exactly like the Home page. */
-@media (max-width:700px){
+@media (max-width:700px), (max-height:540px) and (orientation:landscape){
   body.panel-open{ --sb-offset:0px; }
-  .side-panel{ width:min(320px, 86vw); }
   .sidebar-toggle{ left:calc(var(--safe-left) + 16px); top:calc(var(--safe-top) + 16px); }
   body:not(.panel-open) .sidebar-toggle{ left:calc(var(--safe-left) + 16px); }
   body.panel-open .overlay{ display:block; }
@@ -2646,8 +2671,7 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
    same width from being treated as a tablet (it'll just get a
    slightly narrower desktop layout instead, which is correct for
    a mouse). */
-@media (pointer:coarse) and (min-width:601px) and (max-width:1400px) and (orientation:portrait),
-       (pointer:coarse) and (min-height:501px) and (max-width:1400px) and (orientation:landscape){
+@media (pointer:coarse) and (min-width:701px) and (max-width:1400px) and (min-height:541px){
   :root{
     --content-padding:28px;
     --control-size:46px;
@@ -2657,10 +2681,8 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
     --bottom-control-height:150px;
     --ask-zone-width:min(720px, 66vw);
     --caption-max-width:620px;
-    --side-panel-w:min(400px, 86vw);
   }
   .board-quiz-card{ width:min(80vw, 440px); }
-  .side-panel{ width:min(400px, 86vw); }
 
   /* Touch devices in this tier (iPads of every size, big Android
      tablets) previously kept the desktop default of stacking the
@@ -2677,14 +2699,14 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
 /* iPad portrait specifically: keep the whiteboard visually centered
    with breathing room on both sides rather than bleeding edge to
    edge like a phone. */
-@media (pointer:coarse) and (min-width:601px) and (max-width:1400px) and (orientation:portrait){
+@media (pointer:coarse) and (min-width:701px) and (max-width:1400px) and (min-height:541px) and (orientation:portrait){
   .bottom-bar{ padding-left:calc(var(--content-padding) + 6vw); padding-right:calc(var(--content-padding) + 6vw); }
   .speaker-row{ padding-left:calc(var(--content-padding) + 6vw); padding-right:calc(var(--content-padding) + 6vw); }
 }
 
 /* iPad landscape: more horizontal room for the Ask bar, controls
    pulled toward the edges instead of stretching everything wide. */
-@media (pointer:coarse) and (min-height:501px) and (max-width:1400px) and (orientation:landscape){
+@media (pointer:coarse) and (min-width:701px) and (min-height:541px) and (max-width:1400px) and (orientation:landscape){
   :root{ --ask-zone-width:min(780px, 62vw); }
 }
 
@@ -2696,8 +2718,7 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
    gated on pointer type — so a narrow desktop browser window also
    collapses into the compact, single-column control layout, per
    the "recalculates on resize" requirement. */
-@media (max-width:600px) and (orientation:portrait),
-       (max-height:500px) and (orientation:landscape){
+@media (max-width:700px), (max-height:540px) and (orientation:landscape){
   :root{
     --content-padding:14px;
     --control-size:44px;
@@ -2732,14 +2753,13 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
   .tutor-live{ font-size:9.5px; padding:4px 8px; }
 
   .login-pill{ padding:7px 12px; font-size:11px; }
-  .side-panel{ width:100vw; width:100dvw; }
   .subject-modal .sm-card{ padding:26px 20px 22px; }
 }
 
 /* Landscape phones specifically: the screen is short, so trim the
    vertical padding further and keep the caption a single line's
    worth of room instead of the taller portrait allowance. */
-@media (max-height:500px) and (orientation:landscape){
+@media (max-height:540px) and (orientation:landscape){
   .topbar{ padding-top:calc(var(--safe-top) + 8px); padding-bottom:4px; }
   .bottom-bar{ padding-top:6px; padding-bottom:6px; }
   .caption-zone{ padding:6px 12px 4px; min-height:0; }
@@ -3109,6 +3129,14 @@ function measureLayoutInsets(){
   PAGE_BOTTOM_GUTTER_PX = layoutInsets.bottom + 20;
   PAGE_LEFT_GUTTER_PX = layoutInsets.left + 24;
   PAGE_RIGHT_GUTTER_PX = layoutInsets.right + 24;
+
+  // Hand the same measurements to CSS so on-board overlays (the quiz
+  // card) can size themselves against the real controls rather than a
+  // hard-coded guess. Re-measured on every resize and rotation, so it
+  // is correct on a phone in landscape and on a 4K monitor alike.
+  const rs = document.documentElement.style;
+  rs.setProperty('--cl-inset-top', layoutInsets.top + 'px');
+  rs.setProperty('--cl-inset-bottom', layoutInsets.bottom + 'px');
 }
 
 function idealCameraX(scale){ return (viewW/2 - PAGE_LEFT_GUTTER_PX) / scale; }
@@ -3313,6 +3341,16 @@ let lastAutoFollowTargetY = TOP_MARGIN;
 function resizeCanvas(){
   const rect = boardWrap.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
+  // Which world point is currently in the middle of the screen? Capture
+  // it BEFORE adopting the new size. A rotation changes viewH *and*
+  // camera.scale (scale is fit-to-width), so without re-anchoring, the
+  // board would appear to jump to a different part of the lesson. Note
+  // this is an exact identity when nothing actually changed, so the
+  // repeated resize ticks fired by orientationchange / ResizeObserver
+  // can never accumulate drift.
+  const anchorWorldY = (viewH > 0 && camera.scale > 0)
+    ? camera.y + (viewH / 2) / camera.scale
+    : null;
   viewW = rect.width; viewH = rect.height;
 
   // Re-measure the actual on-screen top bar / bottom dock before doing
@@ -3331,12 +3369,26 @@ function resizeCanvas(){
       camera.x = idealCameraX(camera.scale);
   }
 
+  // Put the same world point back in the middle of the (new) viewport.
+  // Strokes, handwriting and text all live in world coordinates and are
+  // redrawn from the model, so they stay pixel-accurate at the new size
+  // and DPR — nothing is resampled or stretched.
+  if (anchorWorldY !== null && camera.scale > 0 && viewH > 0) {
+      setCameraYProgrammatically(Math.max(0, anchorWorldY - (viewH / 2) / camera.scale));
+  }
+
   applyCanvasHeight();
   clampScrollLimits(); // also redraws
   repositionQuizOverlay();
   repositionPointerOverlay();
 }
 window.addEventListener('resize', resizeCanvas);
+// Fired by the shared responsive runtime whenever the tier or the
+// orientation changes. Nothing reloads and nothing is rebuilt — the
+// camera simply re-fits to the new viewport, so every stroke, every
+// line of handwriting, the quiz card and the whole tutor session carry
+// straight over.
+window.addEventListener('chalkline:layout', () => { resizeCanvasWhenStable(900); });
 
 // Sizes the canvas element (and its backing pixel buffer) to exactly the
 // viewport — it never grows with content anymore, since the camera
@@ -6452,7 +6504,7 @@ window.addEventListener('message', (e)=>{
   const d = e.data;
   // Entering the tutor (fresh, preset course, or resuming a saved lesson) always
   // shows the sidebar open on tablet/desktop — even if this frame was reused.
-  if(d && (d.loadSessionId || d.presetSubject) && window.innerWidth > 700 && typeof openPanel === 'function'){
+  if(d && (d.loadSessionId || d.presetSubject) && !isFloatingPanelLayout() && typeof openPanel === 'function'){
     try{ openPanel(); }catch(e){}
   }
   if(d && d.loadSessionId){
@@ -6820,7 +6872,11 @@ const overlay = document.getElementById('overlay');
 // On tablet/desktop the panel DOCKS and pushes the whole view over (the board's own
 // measured width changes, so the camera is recomputed). On phones it floats over the
 // content with a dimming scrim instead — same split as the Home page.
-function isFloatingPanelLayout(){ return window.innerWidth <= 700; }
+function isFloatingPanelLayout(){
+  // The single source of truth for "phone-shaped right now" — shared
+  // with the CSS tiers, and height-aware so a rotated phone counts too.
+  return window.chalklineIsCompact ? window.chalklineIsCompact() : window.innerWidth <= 700;
+}
 function openPanel(){
   sidePanel.classList.add('open');
   if(isFloatingPanelLayout()) overlay.classList.add('open');
@@ -6842,7 +6898,14 @@ document.getElementById('btn-panel-close').addEventListener('click', closePanel)
 // Open by default EVERY time the tutor is entered, on tablet/desktop — same as the
 // rest of the app. On phone widths it would swallow the screen, so it starts
 // closed there (the pill still toggles it the same way).
-if (window.innerWidth > 700) { openPanel(); }
+if (!isFloatingPanelLayout()) { openPanel(); }
+// Rotating between a docked and a floating panel layout must not leave
+// the dimming scrim stuck on (or missing). Re-sync it in place — the
+// panel itself is never closed, reopened or rebuilt.
+window.addEventListener('chalkline:layout', (e)=>{
+  if(!e.detail || !e.detail.changed) return;
+  if(sidePanel.classList.contains('open')) overlay.classList.toggle('open', isFloatingPanelLayout());
+});
 overlay.addEventListener('click', ()=>{ closePanel(); closeConvPanel(); });
 
 /* Transcript panel: docks right, shows ONLY the AI conversation log
@@ -7129,7 +7192,7 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 
 .app-shell{ position:relative; z-index:1; display:flex; min-height:100vh; min-height:100dvh; }
 .sidebar{
-  width:230px; flex-shrink:0;
+  width:var(--cl-sidebar-w); flex-shrink:0;
   height:100vh; height:100dvh; position:fixed; left:0; top:0; z-index:45;
   display:flex; flex-direction:column;
   padding:calc(22px + var(--safe-top)) 16px 18px calc(16px + var(--safe-left));
@@ -7170,7 +7233,7 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 .sidebar-footer a{ display:flex; align-items:center; gap:11px; text-decoration:none; color:rgba(42,36,16,0.55); font-family:'JetBrains Mono', monospace; font-size:12.5px; padding:9px 12px; border-radius:10px; transition:background .15s ease, color .15s ease; }
 .sidebar-footer a:hover{ background:rgba(0,0,0,0.05); color:var(--ink); }
 .sidebar-toggle{
-  position:fixed; top:26px; left:174px; z-index:50;
+  position:fixed; top:calc(var(--safe-top) + var(--cl-top-pad)); left:calc(var(--cl-sidebar-w) - var(--cl-toggle-inset)); z-index:50;
   height:34px; padding:0 16px 0 14px; border-radius:999px; border:none; cursor:pointer;
   background:rgba(255,255,255,0.95);
   box-shadow:0 3px 10px rgba(120,90,20,0.18), 0 0 0 1px rgba(120,90,20,0.08);
@@ -7181,13 +7244,13 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 }
 .sidebar-toggle:hover{ box-shadow:0 5px 16px rgba(120,90,20,0.24), 0 0 0 1px rgba(120,90,20,0.1); }
 .sidebar-toggle:active{ transform:scale(0.94); }
-.app-shell.sidebar-closed .sidebar-toggle{ left:16px; }
-@media (max-width:700px){ .sidebar-toggle{ left:calc(16px + var(--safe-left)); top:calc(16px + var(--safe-top)); } .app-shell.sidebar-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
+.app-shell.sidebar-closed .sidebar-toggle{ left:calc(var(--safe-left) + 16px); }
+@media (max-width:700px), (max-height:540px) and (orientation:landscape){ .sidebar-toggle{ left:calc(16px + var(--safe-left)); top:calc(16px + var(--safe-top)); } .app-shell.sidebar-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 .sidebar-scrim{ display:none; position:fixed; inset:0; background:rgba(42,36,16,0.22); z-index:39; opacity:0; transition:opacity .3s ease; }
 .app-shell:not(.sidebar-closed) .sidebar-scrim{ display:block; opacity:0; }
-.main-area{ flex:1; min-width:0; transition:margin-left .38s cubic-bezier(.22,.9,.32,1.1); margin-left:230px; padding:8px 0 0; }
+.main-area{ flex:1; min-width:0; transition:margin-left .38s cubic-bezier(.22,.9,.32,1.1); margin-left:var(--cl-sidebar-w); padding:8px 0 0; }
 .app-shell.sidebar-closed .main-area{ margin-left:0; }
-@media (max-width:700px){
+@media (max-width:700px), (max-height:540px) and (orientation:landscape){
   .main-area{ margin-left:0 !important; padding-top:calc(66px + var(--safe-top)); padding-left:calc(16px + var(--safe-left)); padding-right:calc(16px + var(--safe-right)); }
   .app-shell:not(.sidebar-closed) .sidebar-scrim{ opacity:1; }
   .app-shell.sidebar-closed .sidebar-scrim{ display:none; }
@@ -7196,8 +7259,8 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 
 /* Pill rides the sidebar edge: when the sidebar closes it returns to the corner.
    (The pill sits outside .app-shell, so the rule above could never match it.) */
-body.sb-closed .sidebar-toggle{ left:16px; }
-@media (max-width:700px){ body.sb-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
+body.sb-closed .sidebar-toggle{ left:calc(var(--safe-left) + 16px); }
+@media (max-width:700px), (max-height:540px) and (orientation:landscape){ body.sb-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 </style>
 </head>
 <body>
@@ -7292,7 +7355,7 @@ body.sb-closed .sidebar-toggle{ left:16px; }
     shell.classList.contains('sidebar-closed') ? openSidebar() : closeSidebar()
   );
   sbScrim.addEventListener('click', closeSidebar);
-  if (window.innerWidth <= 700) closeSidebar();
+  if (window.chalklineIsCompact && window.chalklineIsCompact()) closeSidebar();
 })();
 
 /* ---------------------------------------------------------------
@@ -7927,7 +7990,7 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 
 .app-shell{ position:relative; z-index:1; display:flex; min-height:100vh; min-height:100dvh; }
 .sidebar{
-  width:230px; flex-shrink:0;
+  width:var(--cl-sidebar-w); flex-shrink:0;
   height:100vh; height:100dvh; position:fixed; left:0; top:0; z-index:45;
   display:flex; flex-direction:column;
   padding:calc(22px + var(--safe-top)) 16px 18px calc(16px + var(--safe-left));
@@ -7968,7 +8031,7 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 .sidebar-footer a{ display:flex; align-items:center; gap:11px; text-decoration:none; color:rgba(42,36,16,0.55); font-family:'JetBrains Mono', monospace; font-size:12.5px; padding:9px 12px; border-radius:10px; transition:background .15s ease, color .15s ease; }
 .sidebar-footer a:hover{ background:rgba(0,0,0,0.05); color:var(--ink); }
 .sidebar-toggle{
-  position:fixed; top:26px; left:174px; z-index:50;
+  position:fixed; top:calc(var(--safe-top) + var(--cl-top-pad)); left:calc(var(--cl-sidebar-w) - var(--cl-toggle-inset)); z-index:50;
   height:34px; padding:0 16px 0 14px; border-radius:999px; border:none; cursor:pointer;
   background:rgba(255,255,255,0.95);
   box-shadow:0 3px 10px rgba(120,90,20,0.18), 0 0 0 1px rgba(120,90,20,0.08);
@@ -7979,13 +8042,13 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 }
 .sidebar-toggle:hover{ box-shadow:0 5px 16px rgba(120,90,20,0.24), 0 0 0 1px rgba(120,90,20,0.1); }
 .sidebar-toggle:active{ transform:scale(0.94); }
-.app-shell.sidebar-closed .sidebar-toggle{ left:16px; }
-@media (max-width:700px){ .sidebar-toggle{ left:calc(16px + var(--safe-left)); top:calc(16px + var(--safe-top)); } .app-shell.sidebar-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
+.app-shell.sidebar-closed .sidebar-toggle{ left:calc(var(--safe-left) + 16px); }
+@media (max-width:700px), (max-height:540px) and (orientation:landscape){ .sidebar-toggle{ left:calc(16px + var(--safe-left)); top:calc(16px + var(--safe-top)); } .app-shell.sidebar-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 .sidebar-scrim{ display:none; position:fixed; inset:0; background:rgba(42,36,16,0.22); z-index:39; opacity:0; transition:opacity .3s ease; }
 .app-shell:not(.sidebar-closed) .sidebar-scrim{ display:block; opacity:0; }
-.main-area{ flex:1; min-width:0; transition:margin-left .38s cubic-bezier(.22,.9,.32,1.1); margin-left:230px; padding:8px 0 0; }
+.main-area{ flex:1; min-width:0; transition:margin-left .38s cubic-bezier(.22,.9,.32,1.1); margin-left:var(--cl-sidebar-w); padding:8px 0 0; }
 .app-shell.sidebar-closed .main-area{ margin-left:0; }
-@media (max-width:700px){
+@media (max-width:700px), (max-height:540px) and (orientation:landscape){
   .main-area{ margin-left:0 !important; padding-top:calc(66px + var(--safe-top)); padding-left:calc(16px + var(--safe-left)); padding-right:calc(16px + var(--safe-right)); }
   .app-shell:not(.sidebar-closed) .sidebar-scrim{ opacity:1; }
   .app-shell.sidebar-closed .sidebar-scrim{ display:none; }
@@ -7994,8 +8057,8 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 
 /* Pill rides the sidebar edge: when the sidebar closes it returns to the corner.
    (The pill sits outside .app-shell, so the rule above could never match it.) */
-body.sb-closed .sidebar-toggle{ left:16px; }
-@media (max-width:700px){ body.sb-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
+body.sb-closed .sidebar-toggle{ left:calc(var(--safe-left) + 16px); }
+@media (max-width:700px), (max-height:540px) and (orientation:landscape){ body.sb-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 </style>
 </head>
 <body>
@@ -8059,7 +8122,7 @@ body.sb-closed .sidebar-toggle{ left:16px; }
     shell.classList.contains('sidebar-closed') ? openSidebar() : closeSidebar()
   );
   sbScrim.addEventListener('click', closeSidebar);
-  if (window.innerWidth <= 700) closeSidebar();
+  if (window.chalklineIsCompact && window.chalklineIsCompact()) closeSidebar();
 })();
 
 /* ---------------------------------------------------------------
@@ -8432,7 +8495,7 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 
 .app-shell{ position:relative; z-index:1; display:flex; min-height:100vh; min-height:100dvh; }
 .sidebar{
-  width:230px; flex-shrink:0;
+  width:var(--cl-sidebar-w); flex-shrink:0;
   height:100vh; height:100dvh; position:fixed; left:0; top:0; z-index:45;
   display:flex; flex-direction:column;
   padding:calc(22px + var(--safe-top)) 16px 18px calc(16px + var(--safe-left));
@@ -8473,7 +8536,7 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 .sidebar-footer a{ display:flex; align-items:center; gap:11px; text-decoration:none; color:rgba(42,36,16,0.55); font-family:'JetBrains Mono', monospace; font-size:12.5px; padding:9px 12px; border-radius:10px; transition:background .15s ease, color .15s ease; }
 .sidebar-footer a:hover{ background:rgba(0,0,0,0.05); color:var(--ink); }
 .sidebar-toggle{
-  position:fixed; top:26px; left:174px; z-index:50;
+  position:fixed; top:calc(var(--safe-top) + var(--cl-top-pad)); left:calc(var(--cl-sidebar-w) - var(--cl-toggle-inset)); z-index:50;
   height:34px; padding:0 16px 0 14px; border-radius:999px; border:none; cursor:pointer;
   background:rgba(255,255,255,0.95);
   box-shadow:0 3px 10px rgba(120,90,20,0.18), 0 0 0 1px rgba(120,90,20,0.08);
@@ -8484,13 +8547,13 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 }
 .sidebar-toggle:hover{ box-shadow:0 5px 16px rgba(120,90,20,0.24), 0 0 0 1px rgba(120,90,20,0.1); }
 .sidebar-toggle:active{ transform:scale(0.94); }
-.app-shell.sidebar-closed .sidebar-toggle{ left:16px; }
-@media (max-width:700px){ .sidebar-toggle{ left:calc(16px + var(--safe-left)); top:calc(16px + var(--safe-top)); } .app-shell.sidebar-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
+.app-shell.sidebar-closed .sidebar-toggle{ left:calc(var(--safe-left) + 16px); }
+@media (max-width:700px), (max-height:540px) and (orientation:landscape){ .sidebar-toggle{ left:calc(16px + var(--safe-left)); top:calc(16px + var(--safe-top)); } .app-shell.sidebar-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 .sidebar-scrim{ display:none; position:fixed; inset:0; background:rgba(42,36,16,0.22); z-index:39; opacity:0; transition:opacity .3s ease; }
 .app-shell:not(.sidebar-closed) .sidebar-scrim{ display:block; opacity:0; }
-.main-area{ flex:1; min-width:0; transition:margin-left .38s cubic-bezier(.22,.9,.32,1.1); margin-left:230px; padding:8px 0 0; }
+.main-area{ flex:1; min-width:0; transition:margin-left .38s cubic-bezier(.22,.9,.32,1.1); margin-left:var(--cl-sidebar-w); padding:8px 0 0; }
 .app-shell.sidebar-closed .main-area{ margin-left:0; }
-@media (max-width:700px){
+@media (max-width:700px), (max-height:540px) and (orientation:landscape){
   .main-area{ margin-left:0 !important; padding-top:calc(66px + var(--safe-top)); padding-left:calc(16px + var(--safe-left)); padding-right:calc(16px + var(--safe-right)); }
   .app-shell:not(.sidebar-closed) .sidebar-scrim{ opacity:1; }
   .app-shell.sidebar-closed .sidebar-scrim{ display:none; }
@@ -8499,8 +8562,8 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 
 /* Pill rides the sidebar edge: when the sidebar closes it returns to the corner.
    (The pill sits outside .app-shell, so the rule above could never match it.) */
-body.sb-closed .sidebar-toggle{ left:16px; }
-@media (max-width:700px){ body.sb-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
+body.sb-closed .sidebar-toggle{ left:calc(var(--safe-left) + 16px); }
+@media (max-width:700px), (max-height:540px) and (orientation:landscape){ body.sb-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 </style>
 </head>
 <body>
@@ -8564,7 +8627,7 @@ body.sb-closed .sidebar-toggle{ left:16px; }
     shell.classList.contains('sidebar-closed') ? openSidebar() : closeSidebar()
   );
   sbScrim.addEventListener('click', closeSidebar);
-  if (window.innerWidth <= 700) closeSidebar();
+  if (window.chalklineIsCompact && window.chalklineIsCompact()) closeSidebar();
 })();
 
 /* ---------------------------------------------------------------
@@ -8870,7 +8933,7 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 
 .app-shell{ position:relative; z-index:1; display:flex; min-height:100vh; min-height:100dvh; }
 .sidebar{
-  width:230px; flex-shrink:0;
+  width:var(--cl-sidebar-w); flex-shrink:0;
   height:100vh; height:100dvh; position:fixed; left:0; top:0; z-index:45;
   display:flex; flex-direction:column;
   padding:calc(22px + var(--safe-top)) 16px 18px calc(16px + var(--safe-left));
@@ -8911,7 +8974,7 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 .sidebar-footer a{ display:flex; align-items:center; gap:11px; text-decoration:none; color:rgba(42,36,16,0.55); font-family:'JetBrains Mono', monospace; font-size:12.5px; padding:9px 12px; border-radius:10px; transition:background .15s ease, color .15s ease; }
 .sidebar-footer a:hover{ background:rgba(0,0,0,0.05); color:var(--ink); }
 .sidebar-toggle{
-  position:fixed; top:26px; left:174px; z-index:50;
+  position:fixed; top:calc(var(--safe-top) + var(--cl-top-pad)); left:calc(var(--cl-sidebar-w) - var(--cl-toggle-inset)); z-index:50;
   height:34px; padding:0 16px 0 14px; border-radius:999px; border:none; cursor:pointer;
   background:rgba(255,255,255,0.95);
   box-shadow:0 3px 10px rgba(120,90,20,0.18), 0 0 0 1px rgba(120,90,20,0.08);
@@ -8922,13 +8985,13 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 }
 .sidebar-toggle:hover{ box-shadow:0 5px 16px rgba(120,90,20,0.24), 0 0 0 1px rgba(120,90,20,0.1); }
 .sidebar-toggle:active{ transform:scale(0.94); }
-.app-shell.sidebar-closed .sidebar-toggle{ left:16px; }
-@media (max-width:700px){ .sidebar-toggle{ left:calc(16px + var(--safe-left)); top:calc(16px + var(--safe-top)); } .app-shell.sidebar-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
+.app-shell.sidebar-closed .sidebar-toggle{ left:calc(var(--safe-left) + 16px); }
+@media (max-width:700px), (max-height:540px) and (orientation:landscape){ .sidebar-toggle{ left:calc(16px + var(--safe-left)); top:calc(16px + var(--safe-top)); } .app-shell.sidebar-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 .sidebar-scrim{ display:none; position:fixed; inset:0; background:rgba(42,36,16,0.22); z-index:39; opacity:0; transition:opacity .3s ease; }
 .app-shell:not(.sidebar-closed) .sidebar-scrim{ display:block; opacity:0; }
-.main-area{ flex:1; min-width:0; transition:margin-left .38s cubic-bezier(.22,.9,.32,1.1); margin-left:230px; padding:8px 0 0; }
+.main-area{ flex:1; min-width:0; transition:margin-left .38s cubic-bezier(.22,.9,.32,1.1); margin-left:var(--cl-sidebar-w); padding:8px 0 0; }
 .app-shell.sidebar-closed .main-area{ margin-left:0; }
-@media (max-width:700px){
+@media (max-width:700px), (max-height:540px) and (orientation:landscape){
   .main-area{ margin-left:0 !important; padding-top:calc(66px + var(--safe-top)); padding-left:calc(16px + var(--safe-left)); padding-right:calc(16px + var(--safe-right)); }
   .app-shell:not(.sidebar-closed) .sidebar-scrim{ opacity:1; }
   .app-shell.sidebar-closed .sidebar-scrim{ display:none; }
@@ -8937,8 +9000,8 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 
 /* Pill rides the sidebar edge: when the sidebar closes it returns to the corner.
    (The pill sits outside .app-shell, so the rule above could never match it.) */
-body.sb-closed .sidebar-toggle{ left:16px; }
-@media (max-width:700px){ body.sb-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
+body.sb-closed .sidebar-toggle{ left:calc(var(--safe-left) + 16px); }
+@media (max-width:700px), (max-height:540px) and (orientation:landscape){ body.sb-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 </style>
 </head>
 <body>
@@ -9002,7 +9065,7 @@ body.sb-closed .sidebar-toggle{ left:16px; }
     shell.classList.contains('sidebar-closed') ? openSidebar() : closeSidebar()
   );
   sbScrim.addEventListener('click', closeSidebar);
-  if (window.innerWidth <= 700) closeSidebar();
+  if (window.chalklineIsCompact && window.chalklineIsCompact()) closeSidebar();
 })();
 
 /* ---------------------------------------------------------------
@@ -9226,7 +9289,7 @@ body{
 
 /* ---------- LEFT: note list ---------- */
 .notes-list-pane{
-  width:280px; flex-shrink:0; height:100vh; height:100dvh;
+  width:var(--cl-sidebar-w); flex-shrink:0; height:var(--cl-app-h);
   background:var(--list-bg); border-right:1px solid var(--border);
   display:flex; flex-direction:column;
 }
@@ -9385,7 +9448,7 @@ body{
   background:var(--accent); color:#fff; font-weight:600; font-size:13px; font-family:'JetBrains Mono',monospace;
 }
 
-@media (max-width:760px){
+@media (max-width:760px), (max-height:540px) and (orientation:landscape){
   .notes-list-pane{ width:100%; position:fixed; inset:0; z-index:5; }
   .notes-editor-pane{ width:100%; }
   .notes-shell.editing .notes-list-pane{ display:none; }
@@ -10352,7 +10415,7 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 
 .app-shell{ position:relative; z-index:1; display:flex; min-height:100vh; min-height:100dvh; }
 .sidebar{
-  width:230px; flex-shrink:0;
+  width:var(--cl-sidebar-w); flex-shrink:0;
   height:100vh; height:100dvh; position:fixed; left:0; top:0; z-index:45;
   display:flex; flex-direction:column;
   padding:calc(22px + var(--safe-top)) 16px 18px calc(16px + var(--safe-left));
@@ -10393,7 +10456,7 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 .sidebar-footer a{ display:flex; align-items:center; gap:11px; text-decoration:none; color:rgba(42,36,16,0.55); font-family:'JetBrains Mono', monospace; font-size:12.5px; padding:9px 12px; border-radius:10px; transition:background .15s ease, color .15s ease; }
 .sidebar-footer a:hover{ background:rgba(0,0,0,0.05); color:var(--ink); }
 .sidebar-toggle{
-  position:fixed; top:26px; left:174px; z-index:50;
+  position:fixed; top:calc(var(--safe-top) + var(--cl-top-pad)); left:calc(var(--cl-sidebar-w) - var(--cl-toggle-inset)); z-index:50;
   height:34px; padding:0 16px 0 14px; border-radius:999px; border:none; cursor:pointer;
   background:rgba(255,255,255,0.95);
   box-shadow:0 3px 10px rgba(120,90,20,0.18), 0 0 0 1px rgba(120,90,20,0.08);
@@ -10404,13 +10467,13 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 }
 .sidebar-toggle:hover{ box-shadow:0 5px 16px rgba(120,90,20,0.24), 0 0 0 1px rgba(120,90,20,0.1); }
 .sidebar-toggle:active{ transform:scale(0.94); }
-.app-shell.sidebar-closed .sidebar-toggle{ left:16px; }
-@media (max-width:700px){ .sidebar-toggle{ left:calc(16px + var(--safe-left)); top:calc(16px + var(--safe-top)); } .app-shell.sidebar-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
+.app-shell.sidebar-closed .sidebar-toggle{ left:calc(var(--safe-left) + 16px); }
+@media (max-width:700px), (max-height:540px) and (orientation:landscape){ .sidebar-toggle{ left:calc(16px + var(--safe-left)); top:calc(16px + var(--safe-top)); } .app-shell.sidebar-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 .sidebar-scrim{ display:none; position:fixed; inset:0; background:rgba(42,36,16,0.22); z-index:39; opacity:0; transition:opacity .3s ease; }
 .app-shell:not(.sidebar-closed) .sidebar-scrim{ display:block; opacity:0; }
-.main-area{ flex:1; min-width:0; transition:margin-left .38s cubic-bezier(.22,.9,.32,1.1); margin-left:230px; padding:8px 0 0; }
+.main-area{ flex:1; min-width:0; transition:margin-left .38s cubic-bezier(.22,.9,.32,1.1); margin-left:var(--cl-sidebar-w); padding:8px 0 0; }
 .app-shell.sidebar-closed .main-area{ margin-left:0; }
-@media (max-width:700px){
+@media (max-width:700px), (max-height:540px) and (orientation:landscape){
   .main-area{ margin-left:0 !important; padding-top:calc(66px + var(--safe-top)); padding-left:calc(16px + var(--safe-left)); padding-right:calc(16px + var(--safe-right)); }
   .app-shell:not(.sidebar-closed) .sidebar-scrim{ opacity:1; }
   .app-shell.sidebar-closed .sidebar-scrim{ display:none; }
@@ -10419,8 +10482,8 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 
 /* Pill rides the sidebar edge: when the sidebar closes it returns to the corner.
    (The pill sits outside .app-shell, so the rule above could never match it.) */
-body.sb-closed .sidebar-toggle{ left:16px; }
-@media (max-width:700px){ body.sb-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
+body.sb-closed .sidebar-toggle{ left:calc(var(--safe-left) + 16px); }
+@media (max-width:700px), (max-height:540px) and (orientation:landscape){ body.sb-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 </style>
 </head>
 <body>
@@ -10488,7 +10551,7 @@ body.sb-closed .sidebar-toggle{ left:16px; }
     shell.classList.contains('sidebar-closed') ? openSidebar() : closeSidebar()
   );
   sbScrim.addEventListener('click', closeSidebar);
-  if (window.innerWidth <= 700) closeSidebar();
+  if (window.chalklineIsCompact && window.chalklineIsCompact()) closeSidebar();
 })();
 
   let quizSubject = null;
@@ -10514,8 +10577,509 @@ body.sb-closed .sidebar-toggle{ left:16px; }
 
 <script>
 
+/* =====================================================================
+   SHARED RESPONSIVE LAYER
+   Each "page" of this app is a separate srcdoc document, so there is no
+   stylesheet they can all link to. Instead the responsive rules and the
+   responsive runtime are defined ONCE, here, and injected into every
+   page's <head> as it is loaded. That is what makes this a single
+   responsive codebase rather than eight pages that each drifted their
+   own way — change a breakpoint here and every page changes with it.
+   ===================================================================== */
+const CL_RESPONSIVE_CSS = `
+/* =====================================================================
+   CHALKLINE — SHARED RESPONSIVE LAYER
+   Injected into every page (see injectResponsiveLayer() in the shell).
+   ONE codebase, ONE set of tiers. Nothing here changes colours,
+   type faces, animations or component design — it only makes the
+   existing layout adapt to the screen it is on.
+
+   TIERS (mutually exclusive, no overlap):
+     compact  : (max-width:700px) OR a short landscape screen
+                -> every phone, portrait and landscape
+     tablet   : coarse pointer, 701-1400px, tall enough to not be a
+                phone in landscape -> iPad portrait AND landscape
+     desktop  : everything else (default rules, unchanged)
+     xl       : >=1700px -> grows a little, then stops
+
+   Detection never sniffs the user agent (iPadOS Safari claims to be a
+   desktop), it combines width, height, orientation and pointer type,
+   all of which re-evaluate live on rotation with no reload.
+   ===================================================================== */
+
+:root{
+  /* Real device safe areas. env() resolves to 0 inside a srcdoc iframe,
+     so the shell measures the true insets in the top-level document and
+     posts them down; the runtime overwrites --cl-safe-* with those. */
+  --cl-safe-top: env(safe-area-inset-top, 0px);
+  --cl-safe-right: env(safe-area-inset-right, 0px);
+  --cl-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --cl-safe-left: env(safe-area-inset-left, 0px);
+
+  /* Every page already reads --safe-*, so re-point those at the real values. */
+  --safe-top: var(--cl-safe-top);
+  --safe-right: var(--cl-safe-right);
+  --safe-bottom: var(--cl-safe-bottom);
+  --safe-left: var(--cl-safe-left);
+
+  /* Live viewport height. 100dvh handles mobile browser chrome; the
+     runtime also writes a measured px value for older browsers. */
+  --cl-app-h: 100vh;
+  --cl-app-h: 100dvh;
+
+  /* Chrome geometry — identical on EVERY page so the sidebar, the menu
+     pill and the content column sit in the same place everywhere. */
+  --cl-sidebar-w: 252px;
+  --cl-toggle-inset: 56px;
+  --cl-top-pad: 18px;
+  --cl-gutter: 28px;
+  --cl-content-max: 820px;
+  --cl-block-pad: 44px;
+  --cl-conv-w: 380px;
+}
+
+/* ---------- COMPACT: phones, portrait and landscape ---------- */
+@media (max-width:700px), (max-height:540px) and (orientation:landscape){
+  :root{
+    --cl-sidebar-w: min(300px, 84vw);
+    --cl-top-pad: 16px;
+    --cl-gutter: 16px;
+    --cl-block-pad: 22px;
+    --cl-conv-w: 100%;
+  }
+}
+
+/* ---------- TABLET: iPad portrait AND landscape ---------- */
+@media (pointer:coarse) and (min-width:701px) and (max-width:1400px) and (min-height:541px){
+  :root{
+    --cl-sidebar-w: 264px;
+    --cl-gutter: 32px;
+    --cl-block-pad: 40px;
+    --cl-content-max: 860px;
+    --cl-conv-w: min(400px, 52vw);
+  }
+}
+
+/* ---------- LARGE / HIGH-RESOLUTION DESKTOP ----------
+   Grows a little so a 1440p/4K monitor isn't mostly empty, then STOPS,
+   so nothing ever becomes cartoonishly large. */
+@media (min-width:1700px){
+  :root{
+    --cl-sidebar-w: 288px;
+    --cl-content-max: 920px;
+    --cl-block-pad: 52px;
+  }
+}
+
+/* =====================================================================
+   VIEWPORT HYGIENE — no horizontal overflow, no surprise zooming
+   ===================================================================== */
+html{ -webkit-text-size-adjust:100%; text-size-adjust:100%; }
+html, body{ max-width:100%; overflow-x:hidden; }
+body{ touch-action:manipulation; }          /* kills double-tap zoom */
+img, svg, video{ max-width:100%; }
+
+/* Full-screen pages get the live viewport height rather than 100vh,
+   which on a phone is taller than what you can actually see. */
+.cl-page-tutor body, .cl-page-notes body{ height:var(--cl-app-h); }
+.notes-shell, .notes-list-pane, .notes-editor-pane{ height:var(--cl-app-h); }
+
+/* iOS zooms the whole page when you focus a control whose text is under
+   16px. Bump form text on touch devices only — mouse layouts unchanged. */
+@media (pointer:coarse){
+  input, select, textarea{ font-size:max(16px, 1em); }
+}
+
+/* =====================================================================
+   SHARED CHROME — same geometry on every page
+   ===================================================================== */
+.app-shell{ min-height:var(--cl-app-h); }
+
+.sidebar{
+  width:var(--cl-sidebar-w);
+  height:var(--cl-app-h);
+  padding-bottom:calc(18px + var(--safe-bottom));
+}
+.main-area{ margin-left:var(--cl-sidebar-w); }
+.app-shell.sidebar-closed .main-area{ margin-left:0; }
+
+/* The tutor positions its own pill off --sb-offset (it tracks the panel
+   as it slides), so it is deliberately left alone here. */
+html:not(.cl-page-tutor) .sidebar-toggle{
+  top:calc(var(--safe-top) + var(--cl-top-pad));
+  left:calc(var(--cl-sidebar-w) - var(--cl-toggle-inset));
+}
+html:not(.cl-page-tutor) .app-shell.sidebar-closed .sidebar-toggle,
+html:not(.cl-page-tutor) body.sb-closed .sidebar-toggle{
+  left:calc(var(--safe-left) + 16px);
+}
+
+/* The scrolling content column: same width, same gutters, everywhere.
+   Gutters never fall inside a notch or a rounded corner. */
+.wrap{
+  max-width:var(--cl-content-max);
+  padding-left:max(var(--cl-gutter), var(--safe-left));
+  padding-right:max(var(--cl-gutter), var(--safe-right));
+  padding-bottom:calc(80px + var(--safe-bottom));
+}
+
+.cl-page-home .main-area{
+  padding-top:var(--cl-block-pad);
+  padding-bottom:calc(70px + var(--safe-bottom));
+  padding-left:max(var(--cl-gutter), var(--safe-left));
+  padding-right:max(var(--cl-gutter), var(--safe-right));
+}
+
+/* ---------- COMPACT chrome: the sidebar floats over the content ---------- */
+@media (max-width:700px), (max-height:540px) and (orientation:landscape){
+  .main-area{
+    margin-left:0 !important;
+    padding-top:calc(58px + var(--safe-top)) !important;
+  }
+  html:not(.cl-page-tutor) .sidebar-toggle,
+  html:not(.cl-page-tutor) .app-shell.sidebar-closed .sidebar-toggle,
+  html:not(.cl-page-tutor) body.sb-closed .sidebar-toggle{
+    left:calc(var(--safe-left) + 16px);
+    top:calc(var(--safe-top) + var(--cl-top-pad));
+  }
+  .app-shell:not(.sidebar-closed) .sidebar-scrim{ display:block; opacity:1; }
+  .app-shell.sidebar-closed .sidebar-scrim{ display:none; }
+}
+
+/* =====================================================================
+   TYPE — shrinks on small screens, identical at desktop size
+   (every clamp() maxes out at the value the page already used)
+   ===================================================================== */
+.cl-page-home .dash-head h1{ font-size:clamp(27px, 6.4vw, 42px); }
+.cl-page-home .dash-head p{ font-size:clamp(15px, 2.4vw, 16.5px); }
+.page-head h1{ font-size:clamp(24px, 5.4vw, 32px); }
+.page-head p{ font-size:clamp(14.5px, 2.4vw, 16px); }
+.brand{ font-size:clamp(22px, 5vw, 28px); }
+.quiz-mid h1{ font-size:clamp(23px, 5.4vw, 30px); }
+.quiz-mid{ min-height:max(280px, calc(var(--cl-app-h) - 220px)); }
+.nav-links{ gap:clamp(14px, 3vw, 26px); flex-wrap:wrap; }
+
+/* Cards lay themselves out from the space they actually have rather
+   than from a viewport breakpoint, so they stay right whether the
+   sidebar is docked, floating, or the screen has just rotated. */
+.dash-grid{ grid-template-columns:repeat(auto-fit, minmax(min(258px, 100%), 1fr)); }
+.dash-feature-row{ grid-template-columns:repeat(auto-fit, minmax(min(198px, 100%), 1fr)); }
+
+/* Saved lessons / summaries / quizzes: the row reflows off the FOLDER's
+   own width (a container query), not the window's, so a row looks the
+   same on every device and in every sidebar state. */
+.folder{ container-type:inline-size; container-name:cl-folder; }
+@container cl-folder (max-width:460px){
+  .tutorial-row{ flex-wrap:wrap; row-gap:4px; padding:14px 16px; }
+  .tutorial-row .t-name{ order:1; flex:1 1 calc(100% - 44px); white-space:normal; }
+  .tutorial-row .t-delete{ order:2; margin-left:auto; }
+  .tutorial-row .t-topic{ order:3; flex:1 1 0; }
+  .tutorial-row .t-date{ order:4; }
+}
+
+/* =====================================================================
+   TOUCH TARGETS — bigger hit areas on touch screens only; the painted
+   size and spacing are unchanged on a mouse-driven layout.
+   ===================================================================== */
+@media (pointer:coarse){
+  .sidebar-nav a, .sidebar-recent a, .sidebar-footer a,
+  .folder-head, .tutorial-row, .session-item, .nl-item,
+  .quiz-opt, .ne-tool-btn, .p-btn, .btn-primary{ min-height:44px; }
+  .nl-back, .np-page-tools button,
+  .tutorial-row .t-delete, .session-item .s-delete, .nl-item .ni-delete{
+    min-width:36px; min-height:36px;
+  }
+  /* A pencil/finger never gets a hover state stuck on. */
+  .nl-item .ni-delete{ display:flex; }
+}
+
+/* =====================================================================
+   TUTOR — whiteboard chrome
+   ===================================================================== */
+.cl-page-tutor .side-panel{ width:var(--side-panel-w); }
+
+/* The on-board quiz card is positioned by JS to sit where the tutor is
+   writing. Bound it by the REAL measured chrome (published by
+   measureLayoutInsets) so it can never run under the top bar or the
+   bottom dock — the tight case being a phone held in landscape, where
+   there is only a couple of hundred pixels between them. */
+.cl-page-tutor .board-quiz-card{
+  max-height:calc(var(--cl-app-h) - var(--cl-inset-top, 96px) - var(--cl-inset-bottom, 150px) - 16px);
+  overflow-y:auto;
+}
+.cl-page-tutor .conv-panel{ width:var(--cl-conv-w); }
+.cl-page-tutor .bottom-dock{ padding-bottom:var(--safe-bottom); }
+
+/* =====================================================================
+   NOTES — page sheet scales with the space it is given and keeps its
+   A4-ish proportions instead of being stretched.
+   ===================================================================== */
+.note-page, .ne-add-page-row{
+  width:min(780px, calc(100% - 2 * var(--cl-gutter)));
+}
+.ne-body{ padding-bottom:calc(60px + var(--safe-bottom)); }
+.ne-toolbar{
+  padding-left:max(26px, var(--safe-left));
+  padding-right:max(26px, var(--safe-right));
+  overflow-x:auto;
+}
+
+/* =====================================================================
+   MODALS — never taller than the screen, even on a landscape phone
+   ===================================================================== */
+.subject-modal .sm-card{
+  max-height:calc(var(--cl-app-h) - 32px);
+  overflow-y:auto;
+  margin:16px;
+}
+
+/* =====================================================================
+   Respect the reduced-motion preference for the layout transitions too.
+   ===================================================================== */
+@media (prefers-reduced-motion:reduce){
+  .sidebar, .main-area, .sidebar-toggle, .side-panel, #board-wrap,
+  .topbar, .bottom-dock, .top-center-cluster{ transition-duration:.01ms !important; }
+}
+`;
+
+const CL_RESPONSIVE_JS = `
+/* =====================================================================
+   CHALKLINE — SHARED RESPONSIVE RUNTIME
+   Injected into every page alongside the responsive stylesheet.
+
+   It does four things and nothing else:
+     1. tags <html> with the live device tier / orientation / input type
+        so CSS and page scripts can both read the same answer,
+     2. publishes the true viewport height and the real safe-area insets
+        as custom properties,
+     3. re-runs on rotation and resize (NEVER reloads, never rebuilds
+        anything, so drawings, text, scroll position and tutor state all
+        survive untouched),
+     4. fires a 'chalkline:layout' event pages can hook (the tutor uses
+        it to re-fit the whiteboard camera).
+   ===================================================================== */
+(function(){
+  var root = document.documentElement;
+  var PAGE = '__CL_PAGE__';
+  root.classList.add('cl-page-' + PAGE);
+  root.setAttribute('data-cl-page', PAGE);
+
+  var state = { tier:'', orientation:'' };
+
+  function mq(q){
+    try{ return window.matchMedia(q).matches; }catch(e){ return false; }
+  }
+
+  /* Compact === "phone-shaped right now": either genuinely narrow, or a
+     landscape screen too short to dock a sidebar against. Deliberately
+     NOT a user-agent check, and deliberately height-aware so a rotated
+     phone (which is as wide as a portrait tablet) is still treated as a
+     phone. Mirrors the compact media query in the stylesheet exactly. */
+  function isCompact(){
+    var w = window.innerWidth, h = window.innerHeight;
+    return w <= 700 || (w > h && h <= 540);
+  }
+
+  function detectTier(){
+    if(isCompact()) return 'phone';
+    if(mq('(pointer:coarse)') && window.innerWidth <= 1400) return 'tablet';
+    return 'desktop';
+  }
+
+  function apply(){
+    var w = window.innerWidth, h = window.innerHeight;
+    var tier = detectTier();
+    var orientation = (w > h) ? 'landscape' : 'portrait';
+    var touch = mq('(pointer:coarse)') || (navigator.maxTouchPoints || 0) > 0;
+    var mouse = mq('(hover:hover) and (pointer:fine)');
+
+    root.classList.toggle('cl-phone',     tier === 'phone');
+    root.classList.toggle('cl-tablet',    tier === 'tablet');
+    root.classList.toggle('cl-desktop',   tier === 'desktop');
+    root.classList.toggle('cl-portrait',  orientation === 'portrait');
+    root.classList.toggle('cl-landscape', orientation === 'landscape');
+    root.classList.toggle('cl-touch',     !!touch);
+    root.classList.toggle('cl-mouse',     !!mouse);
+    root.classList.toggle('cl-hidpi',     (window.devicePixelRatio || 1) >= 2);
+
+    /* Measured fallbacks for browsers without dvh, and a plain px value
+       page scripts can do arithmetic with. */
+    root.style.setProperty('--cl-app-h', h + 'px');
+    root.style.setProperty('--cl-vh', (h / 100) + 'px');
+    root.style.setProperty('--cl-vw', (w / 100) + 'px');
+
+    var changed = (tier !== state.tier) || (orientation !== state.orientation);
+    state.tier = tier;
+    state.orientation = orientation;
+
+    try{
+      window.dispatchEvent(new CustomEvent('chalkline:layout', {
+        detail:{ tier:tier, orientation:orientation, changed:changed, width:w, height:h, touch:!!touch }
+      }));
+    }catch(e){}
+  }
+
+  var queued = false;
+  function schedule(){
+    if(queued) return;
+    queued = true;
+    requestAnimationFrame(function(){ queued = false; apply(); });
+  }
+
+  /* Mobile browsers report the post-rotation viewport late (the address
+     bar animates, the visual viewport settles over several frames), so
+     keep re-measuring for a short while afterwards instead of trusting
+     the first number. Recomputing is cheap: it only flips classes and
+     custom properties. */
+  function settle(ms){
+    var deadline = Date.now() + (ms || 900);
+    (function tick(){
+      apply();
+      if(Date.now() < deadline) requestAnimationFrame(tick);
+    })();
+  }
+
+  /* Rotation must not lose the reader's place. Snapshot how far through
+     each scroller we are, then put it back once the new layout settles. */
+  function preserveScroll(){
+    var els = [document.scrollingElement || document.documentElement];
+    var extra = document.querySelectorAll('.ne-body, .panel-body, .nl-items, .sidebar-recent, .folder-body');
+    for(var i = 0; i < extra.length; i++) els.push(extra[i]);
+
+    var snapshot = [];
+    els.forEach(function(el){
+      if(!el) return;
+      var max = el.scrollHeight - el.clientHeight;
+      snapshot.push({ el:el, ratio: max > 0 ? el.scrollTop / max : 0 });
+    });
+
+    function restore(){
+      snapshot.forEach(function(s){
+        var max = s.el.scrollHeight - s.el.clientHeight;
+        if(max > 0) s.el.scrollTop = s.ratio * max;
+      });
+    }
+    [0, 120, 320, 600].forEach(function(delay){ setTimeout(restore, delay); });
+  }
+
+  function onRotate(){
+    preserveScroll();
+    settle(1000);
+  }
+
+  window.addEventListener('resize', schedule, { passive:true });
+  window.addEventListener('orientationchange', onRotate);
+  if(window.visualViewport){
+    window.visualViewport.addEventListener('resize', schedule, { passive:true });
+  }
+  if(window.screen && window.screen.orientation && window.screen.orientation.addEventListener){
+    window.screen.orientation.addEventListener('change', onRotate);
+  }
+  if(window.matchMedia){
+    try{
+      window.matchMedia('(orientation:portrait)').addEventListener('change', onRotate);
+      window.matchMedia('(pointer:coarse)').addEventListener('change', schedule);
+    }catch(e){}
+  }
+
+  /* The shell measures the real notch/home-indicator insets in the
+     top-level document and posts them down, because env() evaluates to
+     zero inside a srcdoc iframe. */
+  window.addEventListener('message', function(e){
+    var d = e.data;
+    if(!d || !d.chalklineViewport) return;
+    var s = d.safe || {};
+    root.style.setProperty('--cl-safe-top',    (s.top    || 0) + 'px');
+    root.style.setProperty('--cl-safe-right',  (s.right  || 0) + 'px');
+    root.style.setProperty('--cl-safe-bottom', (s.bottom || 0) + 'px');
+    root.style.setProperty('--cl-safe-left',   (s.left   || 0) + 'px');
+    schedule();
+  });
+
+  window.chalklineIsCompact = isCompact;
+  window.chalklineLayout = function(){
+    return { tier:state.tier, orientation:state.orientation, compact:isCompact() };
+  };
+
+  apply();
+  window.addEventListener('load', function(){ settle(600); });
+  if(document.fonts && document.fonts.ready){
+    document.fonts.ready.then(function(){ schedule(); }).catch(function(){});
+  }
+})();
+`;
+
+function injectResponsiveLayer(pageHtml, pageName){
+  const head =
+    '<style id="chalkline-responsive">' + CL_RESPONSIVE_CSS + '<\/style>' +
+    '<script>' + CL_RESPONSIVE_JS.replace('__CL_PAGE__', pageName) + '<\/script>';
+  // Last in <head> on purpose: these rules are the final word on layout,
+  // and the runtime is in place before any of the page's own scripts run.
+  const i = pageHtml.search(/<\/head>/i);
+  return i === -1 ? head + pageHtml : pageHtml.slice(0, i) + head + pageHtml.slice(i);
+}
+
+/* ---------------------------------------------------------------------
+   REAL SAFE-AREA INSETS
+   env(safe-area-inset-*) resolves to 0 inside a srcdoc iframe, so the
+   notch, the rounded corners and the home indicator are invisible to
+   every page on its own. This top-level document CAN see them, so it
+   measures them off a probe element and posts the numbers down; the
+   runtime in each page turns them back into --safe-* custom properties.
+   --------------------------------------------------------------------- */
+const clSafeProbe = document.createElement('div');
+clSafeProbe.setAttribute('aria-hidden', 'true');
+clSafeProbe.style.cssText =
+  'position:fixed;top:0;left:0;width:0;height:0;visibility:hidden;pointer-events:none;' +
+  'padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) ' +
+  'env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px);';
+document.body.appendChild(clSafeProbe);
+
+function clReadSafeInsets(){
+  const cs = getComputedStyle(clSafeProbe);
+  return {
+    top:    parseFloat(cs.paddingTop)    || 0,
+    right:  parseFloat(cs.paddingRight)  || 0,
+    bottom: parseFloat(cs.paddingBottom) || 0,
+    left:   parseFloat(cs.paddingLeft)   || 0
+  };
+}
+
+function clBroadcastViewport(targetFrame){
+  const msg = {
+    chalklineViewport: true,
+    safe: clReadSafeInsets(),
+    width: window.innerWidth,
+    height: window.innerHeight,
+    dpr: window.devicePixelRatio || 1,
+    orientation: window.innerWidth > window.innerHeight ? 'landscape' : 'portrait'
+  };
+  const targets = targetFrame ? [targetFrame] : Object.values(frames);
+  targets.forEach(f => { try{ f.contentWindow.postMessage(msg, '*'); }catch(e){} });
+}
+
+// Rotation and resize re-measure and re-broadcast. Nothing here reloads
+// a frame, so the open lesson, the whiteboard and any in-progress text
+// are completely untouched by a device rotation.
+let clViewportQueued = false;
+function clScheduleViewportBroadcast(){
+  if(clViewportQueued) return;
+  clViewportQueued = true;
+  requestAnimationFrame(()=>{ clViewportQueued = false; clBroadcastViewport(); });
+}
+window.addEventListener('resize', clScheduleViewportBroadcast, { passive:true });
+window.addEventListener('orientationchange', ()=>{
+  // Mobile browsers settle the viewport over several hundred ms after a
+  // rotation, so re-send as it settles rather than trusting frame one.
+  [0, 60, 180, 400, 800].forEach(d => setTimeout(clBroadcastViewport, d));
+});
+if(window.visualViewport){
+  window.visualViewport.addEventListener('resize', clScheduleViewportBroadcast, { passive:true });
+}
+
 function unwrap(id){
-  return document.getElementById(id).textContent.replace(/<\\\/script/gi, '</script');
+  const raw = document.getElementById(id).textContent.replace(/<\\\/script/gi, '</script');
+  return injectResponsiveLayer(raw, id.replace(/^src-/, ''));
 }
 const frames = {
   home: document.getElementById('frame-home'),
@@ -10539,6 +11103,8 @@ function ensureLoaded(page){
   // one directly once it's parsed and listening.
   setTimeout(()=>{
     try{ frames[page].contentWindow.postMessage({ chalklineAuth:true, signedIn: !!shellUser, user: shellUser }, '*'); }catch(e){}
+    // A newly parsed frame can't see the notch on its own — tell it.
+    clBroadcastViewport(frames[page]);
   }, 60);
 }
 
