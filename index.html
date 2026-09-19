@@ -1271,7 +1271,7 @@ body.sb-closed .sidebar-toggle{ left:16px; }
 @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Kalam:wght@400;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 :root{
-  --board-bg:#A9CFF0;
+  --board-bg:#FFFFFF;
   --board-line:#E0D9C8;
   --margin-line:#E08080;
   --ink:#1E2B3A;
@@ -1331,7 +1331,7 @@ body{
   height:100vh;
   height:100dvh;
   overflow:hidden;
-  background:linear-gradient(160deg, #A9CFF0 0%, #DCEEFB 65%);
+  background:#FFFFFF;
 }
 
 #board-wrap{
@@ -1408,6 +1408,7 @@ body{
   z-index:1;
   overflow:hidden;
   pointer-events:none;
+  display:none;   /* white board: no blue ambient glow */
 }
 .ambient-halo::before,
 .ambient-halo::after{
@@ -2118,6 +2119,13 @@ body:not(.panel-open) .sidebar-toggle{ left:calc(var(--safe-left) + 16px); }
 /* Room for the pill in the top-left of the top bar so the Export PDF icon
    isn't hidden underneath it while the sidebar is closed. */
 body:not(.panel-open) .topbar-left-stack{ padding-top:44px; }
+
+/* Closed panels are parked off-screen but their big soft shadows still bled a beige
+   smudge onto the screen edge. On a white board that shows, so drop the shadow
+   until the panel is actually open. */
+.side-panel:not(.open){ box-shadow:none !important; }
+.side-panel:not(.conv-panel)::after{ display:none; }
+.side-panel:not(.conv-panel).open::after{ display:block; }
 
 /* Docked, not floating: never dim the board and never drop a shadow onto it. */
 body.panel-open .overlay{ display:none; }
@@ -3090,10 +3098,8 @@ function drawBG(){
   // The canvas is exactly viewport-sized now, so this just fills it —
   // no need to account for content below the fold the way a tall,
   // natively-scrolled canvas used to.
-  const grad = ctx.createLinearGradient(0, 0, viewW, viewH);
-  grad.addColorStop(0, '#EAF4FD');
-  grad.addColorStop(1, '#FFFFFF');
-  ctx.fillStyle = grad;
+  // Plain white board (was a pale-blue -> white gradient). Also used by PDF export.
+  ctx.fillStyle = '#FFFFFF';
   ctx.fillRect(0, 0, viewW, viewH);
 }
 
