@@ -10006,9 +10006,19 @@ function navTo(page, pushHistory, navPayload, isInitialLoad){
   // re-runs this same function for whatever page the URL hash says we
   // were on — that should resume the session already in progress, not
   // wipe it and ask for a new course name.
-  if(FRESH_ON_ENTRY[page] && !navPayload && !isInitialLoad){
+  // A payload that names a saved item (loadSessionId / loadSummaryId /
+  // loadQuizId) is a RESUME, so the frame is left alone. Anything else —
+  // no payload, or just a presetSubject from a course's "Start new lesson"
+  // button — is a NEW lesson and must start from a clean frame. Previously
+  // a presetSubject payload skipped the reset, so the old lesson's board
+  // and session id were reused (and the topic prompt never reopened).
+  const isResume = !!(navPayload && (navPayload.loadSessionId || navPayload.loadSummaryId || navPayload.loadQuizId));
+  if(FRESH_ON_ENTRY[page] && !isResume && !isInitialLoad){
     frames[page].srcdoc = '';
     loaded[page] = false;
+    // Also drop the remembered "last open lesson" so a refresh right after
+    // starting a new lesson can't jump back to the previous one.
+    if(page === 'tutor' || page === 'summary') forgetActiveShell(page);
   }
   const wasLoaded = loaded[page];
   const previous = current;
