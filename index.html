@@ -387,11 +387,43 @@ const supabaseClient = (typeof supabase !== 'undefined')
 function readWorkerSession(){
   try{ return JSON.parse(localStorage.getItem(SESSION_STORAGE_KEY) || 'null'); } catch(e){ return null; }
 }
+// Supabase access tokens only last about an hour, so a session counts as alive
+// if it has a refresh token (we can mint a new access token) or the token
+// itself still has a minute left. Requiring "more than an hour left" meant a
+// fresh token never counted, so startup sync was skipped and sign-in was
+// re-prompted on every visit.
 function workerSessionAlive(s){
+  if(!s || !s.token) return false;
+  if(s.refresh) return true;
   try{
     const p = JSON.parse(atob(s.token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
-    return p.exp * 1000 > Date.now() + 3600e3; // more than an hour left
+    return p.exp * 1000 > Date.now() + 60e3;
   } catch(e){ return false; }
+}
+let tokenRefreshing = null;
+// Swaps in a fresh Supabase access token when the current one is (nearly)
+// expired. Returns false if the session can't be renewed (sign in again).
+async function ensureFreshToken(){
+  const s = readWorkerSession();
+  if(!s || !s.token) return false;
+  let exp = 0;
+  try{ exp = JSON.parse(atob(s.token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))).exp * 1000; } catch(e){}
+  if(exp > Date.now() + 120e3) return true;
+  if(!s.refresh || !supabaseClient) return false;
+  if(!tokenRefreshing){
+    tokenRefreshing = (async () => {
+      const { data, error } = await supabaseClient.auth.refreshSession({ refresh_token: s.refresh });
+      if(error || !data || !data.session) throw (error || new Error('refresh failed'));
+      const cur = readWorkerSession() || s;
+      localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(Object.assign({}, cur, {
+        token: data.session.access_token,
+        refresh: data.session.refresh_token,
+      })));
+      return true;
+    })().finally(() => { tokenRefreshing = null; });
+  }
+  try{ return await tokenRefreshing; }
+  catch(e){ console.warn('Session refresh failed:', (e && e.message) || e); return false; }
 }
 function workerFetch(path, opts){
   opts = opts || {};
@@ -407,6 +439,7 @@ function workerFetch(path, opts){
 // to prefix keys by sub itself, just filter which local keys belong to
 // this account (syncKeyRegex) before deciding what to push/pull.
 async function workerStorage(action, params){
+  await ensureFreshToken();
   const s = readWorkerSession();
   if(!s || !s.token) throw new Error('not signed in');
   const r = await fetch(WORKER_URL + '/storage/' + action, {
@@ -428,7 +461,7 @@ async function exchangeCredential(credential){
   if(error) throw error;
   const token = data && data.session && data.session.access_token;
   if(!token) throw new Error('sign-in exchange failed (no session returned)');
-  localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ token, sub: shellUser && shellUser.sub }));
+  localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ token, refresh: data.session.refresh_token, sub: shellUser && shellUser.sub }));
   return { token };
 }
 
