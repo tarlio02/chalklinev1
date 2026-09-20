@@ -1624,6 +1624,21 @@ body.sb-closed .sidebar-toggle{ left:calc(var(--safe-left) + 16px); }
 
   function plural(n, one, many){ return n + ' ' + (n === 1 ? one : many); }
 
+  // Plain-language reason for a failed reachability check, with the technical
+  // code in brackets so it can be reported exactly.
+  function whyUnreachable(pr){
+    if(!pr || !pr.code) return 'Close this and try again.';
+    const c = pr.code, d = pr.detail ? ' \u2014 ' + pr.detail : '';
+    const tag = ' [' + c + ']';
+    if(c === 'signed-out' || c === 'no-token') return 'You appear to be signed out on this device. Sign in again, then retry.' + tag;
+    if(c === '401') return 'Your sign-in has expired or was rejected. Sign out, sign back in, then retry.' + tag + d;
+    if(c === '403') return 'The server is not accepting requests from this website address. The site owner needs to add this address to the worker\u2019s allowed origins.' + tag + d;
+    if(c === '500') return 'The server is misconfigured (storage is not set up correctly).' + tag + d;
+    if(c === 'timeout') return 'The server took too long to answer. Check your connection and retry.' + tag;
+    if(c === 'network') return 'The server could not be reached. This can be a lost connection, or this website address not being allowed by the server.' + tag;
+    return 'The server answered with an error.' + tag + d;
+  }
+
   async function openDeleteCourseModal(name){
     if(!name) return;
     deleteTarget = name;
@@ -1656,7 +1671,7 @@ body.sb-closed .sidebar-toggle{ left:calc(var(--safe-left) + 16px); }
     } catch(e){
       console.error('Could not count course contents:', e);
       document.getElementById('del-course-body').textContent =
-        'We could not check what is inside this course, so nothing has been deleted. Close this and try again.';
+        'We could not check what is inside this course, so nothing has been deleted. ' + whyUnreachable(e && e.probe);
       delConfirmBtn.disabled = true;
     }
   }
@@ -1672,15 +1687,37 @@ body.sb-closed .sidebar-toggle{ left:calc(var(--safe-left) + 16px); }
     // that a course is "empty". If it is down, every index reads as empty and
     // we would delete only the name while leaving all its items behind.
     if(homeShellUser){
-      let probe = false;
-      try{ probe = await parent.chalklineProbe(); }catch(e){ probe = false; }
-      if(!probe) throw new Error('cloud storage is not reachable');
+      let probe = { ok:false, code:'network', detail:'Could not run the check.' };
+      try{ probe = await parent.chalklineProbe(); }catch(e){}
+      if(!probe || !probe.ok){
+        const err = new Error('cloud storage is not reachable');
+        err.probe = probe || {};
+        throw err;
+      }
     }
     for(const kind of Object.keys(out)){
       // listMeta is the same path the dashboard counts use, so the numbers in
       // the confirmation always match what the dashboard showed.
       const metas = await window.clStore.listMeta(kind, owner);
-      out[kind] = metas.filter(m => subjectOf(m) === name).map(m => m.id);
+      const ids = metas.filter(m => subjectOf(m) === name).map(m => m.id);
+      // The list above prefers whichever copy of the index has the higher
+      // version number. After a delete on THIS device its local copy can
+      // outrank a newer cloud index written from another device, hiding items
+      // that really exist. So when signed in, also read the cloud's own index
+      // and take the union: a delete must never leave behind something the
+      // cloud still holds.
+      if(homeShellUser){
+        try{
+          const remote = await parent.chalklineStorage.get(kind + '-index:' + owner);
+          if(remote && remote.value){
+            const idx = JSON.parse(remote.value);
+            (idx && Array.isArray(idx.items) ? idx.items : []).forEach(m=>{
+              if(subjectOf(m) === name && ids.indexOf(m.id) === -1) ids.push(m.id);
+            });
+          }
+        }catch(e){ console.error('Could not read the cloud ' + kind + ' index:', e); }
+      }
+      out[kind] = ids;
     }
     return out;
   }
@@ -13124,7 +13161,11 @@ async function chalklineStorageCall(path, payload){
 // could not be reached", and treating an outage as "empty" would delete a
 // course's name while leaving everything inside it behind.
 window.chalklineProbe = async function(){
-  if(!shellIdToken) return false;
+  // Returns { ok:true } or { ok:false, code, detail } so the caller can say WHY,
+  // not just "could not check". Codes: signed-out, no-token, timeout, network,
+  // 401 (login token rejected), 403 (origin not allowed), 500 (worker config),
+  // or any other HTTP status.
+  if(!shellIdToken) return { ok:false, code:'signed-out', detail:'Not signed in on this device.' };
   const ctrl = new AbortController();
   const t = setTimeout(()=> ctrl.abort(), 10000);
   try{
@@ -13132,13 +13173,26 @@ window.chalklineProbe = async function(){
       freshAccessToken(),
       new Promise(resolve => setTimeout(()=> resolve(shellIdToken), 5000))
     ]);
+    if(!token) return { ok:false, code:'no-token', detail:'No login token available.' };
     const res = await fetch(CHALKLINE_STORAGE_BASE + '/storage/get', {
       method:'POST', headers:{ 'Content-Type':'application/json' },
       body: JSON.stringify({ idToken: token, key: '__probe__' }),
       signal: ctrl.signal
     });
-    return res.ok;
-  }catch(e){ return false; }
+    if(res.ok) return { ok:true };
+    let detail = '';
+    try{
+      const j = await res.json();
+      detail = (j && j.error && j.error.message) || '';
+    }catch(e){}
+    console.error('[storage] probe failed: ' + res.status + ' ' + detail);
+    return { ok:false, code:String(res.status), detail };
+  }catch(e){
+    if(e && e.name === 'AbortError') return { ok:false, code:'timeout', detail:'The server took too long to answer.' };
+    // A CORS rejection (e.g. this site's address is not in the worker's allow-list)
+    // surfaces here as a bare TypeError, exactly like being offline.
+    return { ok:false, code:'network', detail: (e && e.message) || 'Request failed.' };
+  }
   finally{ clearTimeout(t); }
 };
 window.chalklineStorage = {
