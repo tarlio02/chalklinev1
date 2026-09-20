@@ -3709,7 +3709,7 @@ function measureLayoutInsets(){
 // The page is fitted to the board frame and CENTRED in it: 8px screen margin + 10px frame + 2px
 // padding on each side. (It used to be pinned 24px from the left, which pushed the right edge of
 // the writing outside the frame on phones.)
-function fitScale(){ return Math.max(0.05, Math.min(1.5, (viewW - 40) / PAGE_W)); }
+function fitScale(){ return Math.max(0.05, Math.min(1.5, (viewW - 32) / PAGE_W)); }
 function idealCameraX(scale){ return PAGE_W / 2; }
 
 // Kick off loading the handwriting webfonts immediately at page load
@@ -3729,6 +3729,10 @@ const RULE_LINE_SPACING = 40;
 // The multiplier that converts an author-specified "size" into the actual
 // world-unit font size used for handwriting. Readable but still compact.
 const HAND_SIZE_MULT = 0.92;
+// Paragraph / heading text is written bigger. The multiplier is stamped onto each command
+// (cmd.hm) when it is placed, so lessons saved before this change keep their original size.
+const HAND_TEXT_MULT = 1.35;
+function handSize(cmd){ return (cmd.size || 26) * (cmd.diagramLabel ? HAND_SIZE_MULT : (cmd.hm || HAND_SIZE_MULT)); }
 // Line height for a block of text at a given (already-multiplied) world
 // font size, snapped to a whole number of ruled-paper lines so every line
 // of handwriting sits on (or a fixed offset from) an actual rule line —
@@ -4306,7 +4310,7 @@ function commandScreenBBox(cmd){
     case 'text': {
       const fam = "'Kalam', 'Caveat', cursive";
       const weight = cmd.weight || 700;
-      const size = (cmd.size||26)*HAND_SIZE_MULT;
+      const size = handSize(cmd);
       ctx.font = `${weight} ${sw(size)}px ${fam}`;
       const [sx,sy] = worldToScreen(cmd.x, cmd.y);
       if(cmd.maxWidth){
@@ -4445,7 +4449,7 @@ function renderCommand(cmd){
     case 'text': {
       const fam = "'Kalam', 'Caveat', cursive";
       const weight = cmd.weight || 700;
-      let size = (cmd.size||26)*HAND_SIZE_MULT;
+      let size = handSize(cmd);
       ctx.font = `${weight} ${sw(size)}px ${fam}`;
       ctx.textBaseline = 'alphabetic';
       const [sx,sy] = worldToScreen(cmd.x, cmd.y);
@@ -5017,7 +5021,7 @@ function translateDiagramCmd(c, dx, dy){
 
 const DIAGRAM_MARGIN_TOP = RULE_LINE_SPACING;
 const DIAGRAM_MARGIN_BOTTOM = RULE_LINE_SPACING*2;
-const DIAGRAM_LEFT = 160;
+const DIAGRAM_LEFT = 60;
 // Extra slack added to a diagram cluster's measured bounding box before
 // reserving space for it — line widths, arrowheads, and the rough
 // diagramLabel text-width estimate all extend a little past the raw
@@ -5112,9 +5116,10 @@ function enqueueCommandsAtCursor(commands){
         flushDiagram();
 
         if (c.type === 'text') {
-            c.x = 80; // Sit close to the left margin line
-            c.maxWidth = 930; // Use nearly the full line width before wrapping
-            const size = (c.size || 26) * HAND_SIZE_MULT;
+            c.x = 16;          // start at the far left of the board
+            c.maxWidth = 968;  // and run to the far right before wrapping
+            c.hm = HAND_TEXT_MULT;
+            const size = handSize(c);
             const fam = "'Kalam', 'Caveat', cursive";
             tCtx.font = `${c.weight || 700} ${size}px ${fam}`;
             
@@ -5149,8 +5154,8 @@ function enqueueCommandsAtCursor(commands){
             globalCursorY += lines * lh;
 
         } else if (c.type === 'plot' || c.type === 'axes') {
-            c.x = 160;
-            c.w = 640;
+            c.x = 100;
+            c.w = 800;
             c.h = 400; // a whole multiple of RULE_LINE_SPACING, like every
                        // other vertical measurement here — see note below
             
@@ -5322,7 +5327,7 @@ function renderPartialCommand(cmd, t){
       const full = cmd.text || '';
       const fam = "'Kalam', 'Caveat', cursive";
       const weight = cmd.weight || 700;
-      let size = (cmd.size||26)*HAND_SIZE_MULT;
+      let size = handSize(cmd);
       ctx.font = `${weight} ${sw(size)}px ${fam}`;
       const [sx,sy] = worldToScreen(cmd.x, cmd.y);
       // Same shrink-to-fit backstop as the static renderer (renderCommand)
@@ -6180,7 +6185,7 @@ function wordBoxesForTextCommand(cmd){
   if(cmd.type !== 'text' || !cmd.text) return [];
   const fam = "'Kalam', 'Caveat', cursive";
   const weight = cmd.weight || 700;
-  const size = (cmd.size||26)*HAND_SIZE_MULT;
+  const size = handSize(cmd);
   // Measure in WORLD units (scale=1 font) so results are resolution-
   // independent, then the caller (worldToScreen) applies camera.scale —
   // exactly like every other piece of drawn content.
