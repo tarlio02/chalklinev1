@@ -3165,7 +3165,7 @@ body:not(.panel-open) .sidebar-toggle{ left:0 !important; }
       <option value="groq">Groq</option>
       <option value="apinex">Apinex</option>
     </select>
-    <div class="status-chip" id="voice-status-chip" style="display:inline-block;cursor:pointer;" onclick="(function(){var m='audioUnlocked='+audioUnlocked+'\nAudioContext state='+(voiceAudioCtx?voiceAudioCtx.state:'not created')+'\n\n--- recent log ---\n'+voiceDebugLog.join('\n');alert(m);})()">🔊 tap for voice debug info</div>
+    <div class="status-chip" id="voice-status-chip" style="display:inline-block;cursor:pointer;" onclick="event.stopPropagation();(function(){var m='audioUnlocked='+audioUnlocked+'\nAudioContext state='+(voiceAudioCtx?voiceAudioCtx.state:'not created')+'\n\n--- recent log ---\n'+voiceDebugLog.join('\n');alert(m);})()">🔊 tap for voice debug info</div>
     <div class="status-chip" id="status-line" onclick="showBackendDebug()" style="cursor:pointer;" title="Tap to see AI backend details">idle</div>
   </div>
 </div>
@@ -5245,9 +5245,15 @@ unlockAudioEl.playsInline = true;
 // state, network responses, playback errors). Capped ring buffer.
 const voiceDebugLog = [];
 function logVoice(msg){
+  // Skip logging a repeat of the exact same message back-to-back — the
+  // AudioContext-state check fires on every tap (including taps on the
+  // debug chip itself), and without this a burst of identical
+  // "state on tap: running" lines floods the capped buffer and pushes
+  // out the one thing worth seeing (whether browser TTS ever started).
+  if(voiceDebugLog.length && voiceDebugLog[voiceDebugLog.length-1].endsWith(msg)) return;
   const t = new Date().toISOString().slice(11,19);
   voiceDebugLog.push(`[${t}] ${msg}`);
-  if(voiceDebugLog.length > 40) voiceDebugLog.shift();
+  if(voiceDebugLog.length > 80) voiceDebugLog.shift();
 }
 logVoice('page script started');
 
@@ -5293,7 +5299,8 @@ function setVoiceStatus(mode, detail){
   chip.style.display = 'inline-block';
   chip.style.cursor = 'pointer';
   chip._voiceDetail = detail || '';
-  chip.onclick = () => {
+  chip.onclick = (e) => {
+    e.stopPropagation();
     let msg = chip._voiceDetail ? chip._voiceDetail + '\n\n' : '';
     msg += 'audioUnlocked=' + audioUnlocked +
       '\nAudioContext state=' + (voiceAudioCtx ? voiceAudioCtx.state : 'not created') +
