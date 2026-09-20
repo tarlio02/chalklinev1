@@ -465,6 +465,24 @@ async function exchangeCredential(credential){
   return { token };
 }
 
+// Small on-screen sync status (tap to hide), so problems are visible on devices
+// with no console, like an iPad.
+function setSyncStatus(msg, isErr){
+  try{
+    let el = document.getElementById('sync-status-banner');
+    if(!el){
+      el = document.createElement('div');
+      el.id = 'sync-status-banner';
+      el.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99999;max-width:92vw;padding:8px 12px;border-radius:10px;font:12px/1.4 -apple-system,system-ui,sans-serif;color:#fff;box-shadow:0 2px 10px rgba(0,0,0,.3);';
+      el.addEventListener('click', () => { el.style.display = 'none'; });
+      document.body.appendChild(el);
+    }
+    el.style.background = isErr ? '#b3261e' : '#1e6b3a';
+    el.textContent = 'Cloud sync: ' + msg;
+    el.style.display = 'block';
+  } catch(e){}
+}
+
 function syncKeyRegex(sub){
   return new RegExp('^chalkline:(courses|session|summary|quiz|notes|notes-settings):' + String(sub).replace(/[^\w]/g,'\\$&') + '(:|$)');
 }
@@ -495,6 +513,7 @@ async function pullCloud(sub, authoritative){
   const { keys } = await workerStorage('list', { prefix: '' });
   const re = syncKeyRegex(sub), meta = loadSyncMeta(sub);
   const cloudKeys = new Set((keys || []).filter(k => re.test(k)));
+  window.__syncInfo = { total: (keys || []).length, matched: cloudKeys.size, sample: (keys || [])[0] || '', sub: String(sub) };
   let changed = false;
   for(const key of cloudKeys){
     const got = await workerStorage('get', { key });
@@ -572,7 +591,10 @@ async function pushLocal(sub){
 async function syncNow(pullFirst){
   if(!shellUser || !shellUser.sub) return;
   const s = readWorkerSession();
-  if(!s || !s.token || (s.sub && s.sub !== shellUser.sub)) return;
+  if(!s || !s.token || (s.sub && s.sub !== shellUser.sub)){
+    setSyncStatus('not connected (no cloud session — try signing out and in again)', true);
+    return;
+  }
   if(syncBusy){ syncAgain = true; return; }
   syncBusy = true;
   const sub = shellUser.sub;
@@ -583,8 +605,11 @@ async function syncNow(pullFirst){
     if(firstLoad) cloudLoadedFor = sub;
     await pushLocal(sub);
     if(changed) broadcastAuthState();   // pages re-read their data now that it changed
+    const i = window.__syncInfo || {};
+    if(firstLoad || changed) setSyncStatus('OK — ' + (i.matched || 0) + ' item(s) in cloud for this account (' + (i.total || 0) + ' total returned)' + (i.total && !i.matched ? ' — account id mismatch: ' + i.sample + ' vs ' + i.sub : ''), !!(i.total && !i.matched));
   } catch(e){
     console.warn('Cloud sync paused:', (e && e.message) || e);
+    setSyncStatus('failed — ' + ((e && e.message) || e), true);
   } finally {
     syncBusy = false;
     if(syncAgain){ syncAgain = false; scheduleSync(); }
@@ -614,7 +639,7 @@ function handleShellCredential(response){
   // work. If the worker is unreachable the app keeps working locally.
   exchangeCredential(response.credential)
     .then(() => syncNow(true))
-    .catch(e => console.warn('Backend sign-in unavailable, working locally:', (e && e.message) || e));
+    .catch(e => { console.warn('Backend sign-in unavailable, working locally:', (e && e.message) || e); setSyncStatus('sign-in failed — ' + ((e && e.message) || e), true); });
 }
 
 // Fallback shown if Google's own rendered button fails or vanishes (see
