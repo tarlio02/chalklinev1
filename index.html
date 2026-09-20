@@ -3123,9 +3123,6 @@ body:not(.panel-open) .sidebar-toggle{ left:0 !important; }
     <div class="tutor-panel-hidden" aria-hidden="true">
       <nav class="sidebar-nav">
         <a href="#" id="panel-nav-home"><span class="ic">🏠</span>Dashboard</a>
-        <a href="#" class="active" id="panel-nav-tutor"><span class="ic">🎓</span>Tutor</a>
-        <a href="#" id="panel-nav-summary"><span class="ic">📄</span>Summaries</a>
-        <a href="#" id="panel-nav-notes"><span class="ic">🗒️</span>Notes</a>
       </nav>
       <div class="p-section">
         <h2>This course</h2>
@@ -3146,11 +3143,6 @@ body:not(.panel-open) .sidebar-toggle{ left:0 !important; }
           <button class="p-btn primary" id="btn-teach">Teach this</button>
           <button class="p-btn" id="btn-quiz">Quiz me</button>
         </div>
-      </div>
-      <div class="sidebar-recent">
-        <a href="#" id="panel-nav-tutor-history"><span class="ic">🗂️</span><span class="rw-title">Previous tutorials</span></a>
-        <a href="#" id="panel-nav-summary-history"><span class="ic">🗒️</span><span class="rw-title">Previous summaries</span></a>
-        <a href="#" id="panel-nav-quiz-history"><span class="ic">🧠</span><span class="rw-title">Previous quizzes</span></a>
       </div>
       <div class="sidebar-footer">
         <a href="#" id="panel-nav-settings"><span class="ic">⚙️</span>Settings</a>
@@ -6736,12 +6728,6 @@ function navAwayTo(target){
 }
 document.getElementById('panel-brand-home').addEventListener('click', (e)=>{ e.preventDefault(); navAwayTo('home'); });
 document.getElementById('panel-nav-home').addEventListener('click', (e)=>{ e.preventDefault(); navAwayTo('home'); });
-document.getElementById('panel-nav-tutor').addEventListener('click', (e)=>{ e.preventDefault(); closePanel(); });
-document.getElementById('panel-nav-summary').addEventListener('click', (e)=>{ e.preventDefault(); navAwayTo('summary'); });
-document.getElementById('panel-nav-notes').addEventListener('click', (e)=>{ e.preventDefault(); navAwayTo('notes'); });
-document.getElementById('panel-nav-tutor-history').addEventListener('click', (e)=>{ e.preventDefault(); navAwayTo('tutor-history'); });
-document.getElementById('panel-nav-summary-history').addEventListener('click', (e)=>{ e.preventDefault(); navAwayTo('summary-history'); });
-document.getElementById('panel-nav-quiz-history').addEventListener('click', (e)=>{ e.preventDefault(); navAwayTo('quiz-history'); });
 document.getElementById('panel-nav-settings').addEventListener('click', (e)=>{ e.preventDefault(); parent.postMessage({ openSettings:true }, '*'); });
 // -----------------------------------------------------------------------
 
@@ -7437,20 +7423,9 @@ html,body{ height:100%; overflow:hidden; }
 
     <nav class="sidebar-nav">
       <a href="#" onclick="parent.postMessage({nav:'home'},'*');return false;"><span class="ic">🏠</span>Dashboard</a>
-      <a href="#" onclick="parent.postMessage({nav:'tutor'},'*');return false;"><span class="ic">🎓</span>Tutor</a>
-      <a href="#" class="active" onclick="parent.postMessage({nav:'summary'},'*');return false;"><span class="ic">📄</span>Summaries</a>
-      <a href="#" onclick="parent.postMessage({nav:'quiz'},'*');return false;"><span class="ic">🧠</span>Quizzes</a>
-      <a href="#" onclick="parent.postMessage({nav:'notes'},'*');return false;"><span class="ic">🗒️</span>Notes</a>
     </nav>
 
-    <div class="sidebar-divider"></div>
-
-    <div class="sidebar-recent">
-      <h4>RECENT WORK</h4>
-      <a href="#" onclick="parent.postMessage({nav:'tutor-history'},'*');return false;"><span class="ic">🗂️</span><span class="rw-title">Previous tutorials</span></a>
-      <a href="#" onclick="parent.postMessage({nav:'summary-history'},'*');return false;"><span class="ic">🗒️</span><span class="rw-title">Previous summaries</span></a>
-      <a href="#" onclick="parent.postMessage({nav:'quiz-history'},'*');return false;"><span class="ic">🧠</span><span class="rw-title">Previous quizzes</span></a>
-    </div>
+    <div class="sidebar-recent" aria-hidden="true"></div>
 
     <div class="sidebar-footer">
       <a href="#" onclick="parent.postMessage({openSettings:true},'*');return false;"><span class="ic">⚙️</span>Settings</a>
@@ -8293,20 +8268,9 @@ html,body{ height:100%; overflow:hidden; }
 
     <nav class="sidebar-nav">
       <a href="#" onclick="parent.postMessage({nav:'home'},'*');return false;"><span class="ic">🏠</span>Dashboard</a>
-      <a href="#" class="active" onclick="parent.postMessage({nav:'tutor'},'*');return false;"><span class="ic">🎓</span>Tutor</a>
-      <a href="#" onclick="parent.postMessage({nav:'summary'},'*');return false;"><span class="ic">📄</span>Summaries</a>
-      <a href="#" onclick="parent.postMessage({nav:'quiz'},'*');return false;"><span class="ic">🧠</span>Quizzes</a>
-      <a href="#" onclick="parent.postMessage({nav:'notes'},'*');return false;"><span class="ic">🗒️</span>Notes</a>
     </nav>
 
-    <div class="sidebar-divider"></div>
-
-    <div class="sidebar-recent">
-      <h4>RECENT WORK</h4>
-      <a href="#" onclick="parent.postMessage({nav:'tutor-history'},'*');return false;"><span class="ic">🗂️</span><span class="rw-title">Previous tutorials</span></a>
-      <a href="#" onclick="parent.postMessage({nav:'summary-history'},'*');return false;"><span class="ic">🗒️</span><span class="rw-title">Previous summaries</span></a>
-      <a href="#" onclick="parent.postMessage({nav:'quiz-history'},'*');return false;"><span class="ic">🧠</span><span class="rw-title">Previous quizzes</span></a>
-    </div>
+    <div class="sidebar-recent" aria-hidden="true"></div>
 
     <div class="sidebar-footer">
       <a href="#" onclick="parent.postMessage({openSettings:true},'*');return false;"><span class="ic">⚙️</span>Settings</a>
@@ -8884,20 +8848,9 @@ html,body{ height:100%; overflow:hidden; }
 
     <nav class="sidebar-nav">
       <a href="#" onclick="parent.postMessage({nav:'home'},'*');return false;"><span class="ic">🏠</span>Dashboard</a>
-      <a href="#" onclick="parent.postMessage({nav:'tutor'},'*');return false;"><span class="ic">🎓</span>Tutor</a>
-      <a href="#" class="active" onclick="parent.postMessage({nav:'summary'},'*');return false;"><span class="ic">📄</span>Summaries</a>
-      <a href="#" onclick="parent.postMessage({nav:'quiz'},'*');return false;"><span class="ic">🧠</span>Quizzes</a>
-      <a href="#" onclick="parent.postMessage({nav:'notes'},'*');return false;"><span class="ic">🗒️</span>Notes</a>
     </nav>
 
-    <div class="sidebar-divider"></div>
-
-    <div class="sidebar-recent">
-      <h4>RECENT WORK</h4>
-      <a href="#" onclick="parent.postMessage({nav:'tutor-history'},'*');return false;"><span class="ic">🗂️</span><span class="rw-title">Previous tutorials</span></a>
-      <a href="#" onclick="parent.postMessage({nav:'summary-history'},'*');return false;"><span class="ic">🗒️</span><span class="rw-title">Previous summaries</span></a>
-      <a href="#" onclick="parent.postMessage({nav:'quiz-history'},'*');return false;"><span class="ic">🧠</span><span class="rw-title">Previous quizzes</span></a>
-    </div>
+    <div class="sidebar-recent" aria-hidden="true"></div>
 
     <div class="sidebar-footer">
       <a href="#" onclick="parent.postMessage({openSettings:true},'*');return false;"><span class="ic">⚙️</span>Settings</a>
@@ -9408,20 +9361,9 @@ html,body{ height:100%; overflow:hidden; }
 
     <nav class="sidebar-nav">
       <a href="#" onclick="parent.postMessage({nav:'home'},'*');return false;"><span class="ic">🏠</span>Dashboard</a>
-      <a href="#" onclick="parent.postMessage({nav:'tutor'},'*');return false;"><span class="ic">🎓</span>Tutor</a>
-      <a href="#" onclick="parent.postMessage({nav:'summary'},'*');return false;"><span class="ic">📄</span>Summaries</a>
-      <a href="#" class="active" onclick="parent.postMessage({nav:'quiz'},'*');return false;"><span class="ic">🧠</span>Quizzes</a>
-      <a href="#" onclick="parent.postMessage({nav:'notes'},'*');return false;"><span class="ic">🗒️</span>Notes</a>
     </nav>
 
-    <div class="sidebar-divider"></div>
-
-    <div class="sidebar-recent">
-      <h4>RECENT WORK</h4>
-      <a href="#" onclick="parent.postMessage({nav:'tutor-history'},'*');return false;"><span class="ic">🗂️</span><span class="rw-title">Previous tutorials</span></a>
-      <a href="#" onclick="parent.postMessage({nav:'summary-history'},'*');return false;"><span class="ic">🗒️</span><span class="rw-title">Previous summaries</span></a>
-      <a href="#" onclick="parent.postMessage({nav:'quiz-history'},'*');return false;"><span class="ic">🧠</span><span class="rw-title">Previous quizzes</span></a>
-    </div>
+    <div class="sidebar-recent" aria-hidden="true"></div>
 
     <div class="sidebar-footer">
       <a href="#" onclick="parent.postMessage({openSettings:true},'*');return false;"><span class="ic">⚙️</span>Settings</a>
@@ -10954,20 +10896,9 @@ html,body{ height:100%; overflow:hidden; }
 
     <nav class="sidebar-nav">
       <a href="#" onclick="parent.postMessage({nav:'home'},'*');return false;"><span class="ic">🏠</span>Dashboard</a>
-      <a href="#" onclick="parent.postMessage({nav:'tutor'},'*');return false;"><span class="ic">🎓</span>Tutor</a>
-      <a href="#" onclick="parent.postMessage({nav:'summary'},'*');return false;"><span class="ic">📄</span>Summaries</a>
-      <a href="#" class="active" onclick="parent.postMessage({nav:'quiz'},'*');return false;"><span class="ic">🧠</span>Quizzes</a>
-      <a href="#" onclick="parent.postMessage({nav:'notes'},'*');return false;"><span class="ic">🗒️</span>Notes</a>
     </nav>
 
-    <div class="sidebar-divider"></div>
-
-    <div class="sidebar-recent">
-      <h4>RECENT WORK</h4>
-      <a href="#" onclick="parent.postMessage({nav:'tutor-history'},'*');return false;"><span class="ic">🗂️</span><span class="rw-title">Previous tutorials</span></a>
-      <a href="#" onclick="parent.postMessage({nav:'summary-history'},'*');return false;"><span class="ic">🗒️</span><span class="rw-title">Previous summaries</span></a>
-      <a href="#" onclick="parent.postMessage({nav:'quiz-history'},'*');return false;"><span class="ic">🧠</span><span class="rw-title">Previous quizzes</span></a>
-    </div>
+    <div class="sidebar-recent" aria-hidden="true"></div>
 
     <div class="sidebar-footer">
       <a href="#" onclick="parent.postMessage({openSettings:true},'*');return false;"><span class="ic">⚙️</span>Settings</a>
