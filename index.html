@@ -514,6 +514,9 @@ async function pullCloud(sub, authoritative){
   const re = syncKeyRegex(sub), meta = loadSyncMeta(sub);
   const cloudKeys = new Set((keys || []).filter(k => re.test(k)));
   window.__syncInfo = { total: (keys || []).length, matched: cloudKeys.size, sample: (keys || [])[0] || '', sub: String(sub) };
+  // Safety: if the cloud has nothing at all for this account, this device's content
+  // has never been uploaded — keep it (it gets pushed next) instead of wiping it.
+  if(authoritative && cloudKeys.size === 0) authoritative = false;
   let changed = false;
   for(const key of cloudKeys){
     const got = await workerStorage('get', { key });
@@ -601,12 +604,17 @@ async function syncNow(pullFirst){
   try{
     // Never push before the cloud copy has been loaded once, or stale local data could overwrite it.
     const firstLoad = cloudLoadedFor !== sub;
+    if(firstLoad){
+      const mm = loadSyncMeta(sub); let cleared = false;
+      for(const k of Object.keys(mm)){ if(mm[k] && mm[k].skip){ delete mm[k]; cleared = true; } }
+      if(cleared) saveSyncMeta(sub, mm);
+    }
     const changed = (pullFirst || firstLoad) ? await pullCloud(sub, firstLoad) : false;
     if(firstLoad) cloudLoadedFor = sub;
     await pushLocal(sub);
     if(changed) broadcastAuthState();   // pages re-read their data now that it changed
     const i = window.__syncInfo || {};
-    if(firstLoad || changed) setSyncStatus('OK — ' + (i.matched || 0) + ' item(s) in cloud for this account (' + (i.total || 0) + ' total returned)' + (i.total && !i.matched ? ' — account id mismatch: ' + i.sample + ' vs ' + i.sub : ''), !!(i.total && !i.matched));
+    if(firstLoad || changed) setSyncStatus('OK — ' + (i.matched || 0) + ' item(s) in cloud for this account (id …' + String(i.sub || '').slice(-4) + ')' + (i.total && !i.matched ? ' — account id mismatch: ' + i.sample + ' vs ' + i.sub : ''), !!(i.total && !i.matched));
   } catch(e){
     console.warn('Cloud sync paused:', (e && e.message) || e);
     setSyncStatus('failed — ' + ((e && e.message) || e), true);
