@@ -948,6 +948,16 @@ window.addEventListener('message', (e)=>{
     openSignOutConfirm();
   }
   if(d.openSettings){ openSettingsModal(); }
+  // Board transparency (tutor page). The shell keeps the saved value because
+  // the page frames can't use localStorage themselves.
+  if(d.requestBoardTransparency && e.source){
+    let v = 0;
+    try{ v = Number(localStorage.getItem('chalkline_board_transparency')) || 0; } catch(err){}
+    try{ e.source.postMessage({ chalklineBoardTransparency: v }, '*'); } catch(err){}
+  }
+  if(typeof d.setBoardTransparency === 'number'){
+    try{ localStorage.setItem('chalkline_board_transparency', String(d.setBoardTransparency)); } catch(err){}
+  }
 });
 
 </script>
@@ -2954,6 +2964,7 @@ body.panel-open .side-panel:not(.conv-panel){ box-shadow:
   color:var(--ochre);background:none;border:none;cursor:pointer;
 }
 .link-btn:hover{text-decoration:underline;}
+.board-slider{ width:100%; margin:4px 0 0; accent-color:var(--ochre); cursor:pointer; touch-action:pan-y; }
 .session-toggle{
   display:flex;align-items:center;justify-content:space-between;
   width:100%;padding:8px 10px;margin-bottom:8px;
@@ -3392,6 +3403,10 @@ body:not(.panel-open) .sidebar-toggle{ left:0 !important; }
           <button class="p-btn primary" id="btn-teach">Teach this</button>
           <button class="p-btn" id="btn-quiz">Quiz me</button>
         </div>
+      </div>
+      <div class="p-section">
+        <h2>Board transparency <span id="board-transparency-val">0%</span></h2>
+        <input type="range" class="board-slider" id="board-transparency" min="0" max="90" step="1" value="0" aria-label="Board transparency">
       </div>
       <div class="sidebar-footer">
         <a href="#" id="panel-nav-settings"><span class="ic">⚙️</span>Settings</a>
@@ -3915,6 +3930,28 @@ function syncBoardWelcome(){
 // Everything the tutor draws is clipped to the inside of the frame. The PDF
 // export draws to an offscreen ctx, so it keeps the plain full-page white.
 const BOARD_FRAME_BORDER = 10, BOARD_FRAME_RADIUS = 16;
+// 0 = solid white board, 90 = mostly see-through. The shell page owns the saved
+// value (this srcdoc frame can't use localStorage) and sends it on request.
+let boardTransparency = 0;
+let boardTransparencyRaf = 0;
+function setBoardTransparency(v, save){
+  v = Math.max(0, Math.min(90, Math.round(Number(v) || 0)));
+  boardTransparency = v;
+  const sl = document.getElementById('board-transparency');
+  if(sl && String(sl.value) !== String(v)) sl.value = v;
+  const lb = document.getElementById('board-transparency-val');
+  if(lb) lb.textContent = v + '%';
+  if(!boardTransparencyRaf){
+    boardTransparencyRaf = requestAnimationFrame(() => { boardTransparencyRaf = 0; redrawAll(); });
+  }
+  if(save){ try{ parent.postMessage({ setBoardTransparency: v }, '*'); } catch(e){} }
+}
+document.getElementById('board-transparency').addEventListener('input', (e) => setBoardTransparency(e.target.value, true));
+window.addEventListener('message', (e) => {
+  const d = e.data;
+  if(d && typeof d.chalklineBoardTransparency === 'number') setBoardTransparency(d.chalklineBoardTransparency, false);
+});
+try{ parent.postMessage({ requestBoardTransparency: true }, '*'); } catch(e){}
 function boardFrameRect(){
   if(ctx !== liveCtx || viewW <= 0 || viewH <= 0) return null;
   const pageL = worldToScreen(0, 0)[0], pageR = worldToScreen(PAGE_W, 0)[0];
@@ -3947,7 +3984,13 @@ function drawBoardFrame(r){
   ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 1; ctx.stroke();
   // the writing surface
   boardRoundRectPath(ctx, r.x + b, r.y + b, r.w - 2*b, r.h - 2*b, BOARD_FRAME_RADIUS - 8);
-  ctx.fillStyle = '#FFFFFF'; ctx.fill();
+  if(boardTransparency > 0){
+    // punch the frame (and its shadow) out of the writing area so the classroom shows through
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.fillStyle = '#000'; ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+  }
+  ctx.fillStyle = 'rgba(255,255,255,' + (1 - boardTransparency / 100) + ')'; ctx.fill();
   ctx.strokeStyle = 'rgba(0,0,0,0.22)'; ctx.lineWidth = 1.5; ctx.stroke();
   ctx.restore();
 }
