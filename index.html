@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#FFFFFF">
 <title>Chalkline — AI Study Tools</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Source+Serif+4:wght@400;600&family=JetBrains+Mono:wght@500;600&display=swap');
   html,body{ margin:0; padding:0; height:100%; overflow:hidden; background:#FFFFFF; font-family:-apple-system,Segoe UI,sans-serif; }
   /* Scoped to .shell-page specifically (not a bare "iframe" tag selector):
      a bare tag selector here would also catch any other <iframe> that
@@ -151,6 +151,61 @@
   #signout-cancel:hover{ border-color:#2E7DBE; }
   #signout-confirm{ border:1px solid #C0392B; background:#C0392B; color:#fff; }
   #signout-confirm:hover{ background:#a93226; border-color:#a93226; }
+
+  /* Settings popup (opened from any page's Settings button). */
+  #settings-modal-overlay{
+    position:fixed; inset:0; z-index:10000;
+    display:none; align-items:center; justify-content:center;
+    background:rgba(42,36,16,0.38);
+    padding:20px;
+  }
+  #settings-modal-overlay.open{ display:flex; }
+  #settings-modal-card{
+    position:relative; width:100%; max-width:380px;
+    background:#fff; border:1px solid #ECE3C8; border-radius:20px; overflow:hidden;
+    box-shadow:0 24px 60px rgba(60,40,5,0.30);
+    font-family:'Source Serif 4', Georgia, serif; color:#2A2410;
+  }
+  #settings-modal-head{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:18px 20px 16px 24px; border-bottom:1px solid #ECE3C8;
+    background:linear-gradient(165deg, #FFFFFF 0%, #FFF7E0 130%);
+  }
+  #settings-modal-head h2{ margin:0; font-size:20px; font-weight:600; }
+  #settings-modal-close{
+    border:none; background:none; cursor:pointer; font-size:16px; color:#8A8267;
+    padding:6px 8px; border-radius:8px; line-height:1;
+  }
+  #settings-modal-close:hover{ background:rgba(0,0,0,0.05); color:#2A2410; }
+  #settings-modal-close:focus, #signout-cancel:focus{ outline:none; }
+  #settings-modal-close:focus-visible{ box-shadow:0 0 0 2px rgba(46,125,190,0.5); }
+  #signout-cancel:focus-visible{ box-shadow:0 0 0 2px rgba(46,125,190,0.5); }
+  #settings-modal-body{ padding:0; }
+  .st-top{ display:flex; align-items:center; gap:16px; padding:22px 24px; }
+  .st-avatar{
+    width:64px; height:64px; border-radius:50%; flex-shrink:0; object-fit:cover;
+    background:linear-gradient(135deg, #2E7DBE, #F0B94D);
+    display:flex; align-items:center; justify-content:center;
+    color:#fff; font-size:26px; font-weight:600;
+    box-shadow:0 0 0 4px rgba(240,185,77,0.30);
+  }
+  .st-id{ min-width:0; }
+  .st-name{ font-size:22px; font-weight:600; line-height:1.2; overflow-wrap:anywhere; }
+  .st-email{ font-family:'JetBrains Mono', monospace; font-size:12px; color:#8A8267; margin-top:5px; overflow-wrap:anywhere; }
+  .st-row{
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+    padding:16px 24px; border-top:1px solid #ECE3C8;
+  }
+  .st-row .k{ font-size:15px; color:#5c5847; }
+  .st-row .v{ font-family:'JetBrains Mono', monospace; font-size:19px; font-weight:600; }
+  .st-signin{ padding:24px; font-size:14.5px; color:#8A8267; line-height:1.55; }
+  .st-signin p{ margin:0 0 16px; }
+  .st-signin button{
+    font-family:inherit; font-size:14.5px; font-weight:600; color:#fff; border:none; border-radius:999px;
+    padding:11px 22px; cursor:pointer;
+    background:linear-gradient(140deg, #2E7DBE, #C98A2B);
+    box-shadow:0 6px 14px -6px rgba(120,90,20,0.35);
+  }
 </style>
 </head>
 <body>
@@ -178,7 +233,6 @@
 <iframe id="frame-summary-history" class="shell-page"></iframe>
 <iframe id="frame-quiz-history" class="shell-page"></iframe>
 <iframe id="frame-notes" class="shell-page"></iframe>
-<iframe id="frame-settings" class="shell-page"></iframe>
 
 <div id="start-modal-overlay">
   <div id="start-modal-card">
@@ -188,6 +242,16 @@
     <div id="start-modal-google-btn"></div>
     <button type="button" id="start-modal-skip">Continue without signing in</button>
     <p id="start-modal-note">Your content won't be saved if you skip signing in.</p>
+  </div>
+</div>
+
+<div id="settings-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
+  <div id="settings-modal-card">
+    <div id="settings-modal-head">
+      <h2 id="settings-modal-title">⚙️ Settings</h2>
+      <button type="button" id="settings-modal-close" aria-label="Close">✕</button>
+    </div>
+    <div id="settings-modal-body"></div>
   </div>
 </div>
 
@@ -236,6 +300,10 @@ function decodeShellIdToken(jwt){
 }
 
 function broadcastAuthState(){
+  try{
+    const so = document.getElementById('settings-modal-overlay');
+    if(so && so.classList.contains('open')) renderSettingsModal();
+  } catch(e){}
   const msg = { chalklineAuth: true, signedIn: !!shellUser, user: shellUser };
   Object.values(frames).forEach(f => { try{ f.contentWindow.postMessage(msg, '*'); }catch(e){} });
 }
@@ -446,11 +514,120 @@ function signOutShell(){
   broadcastAuthState();
 }
 
+// ---- Settings popup -------------------------------------------------
+// Counts courses the same way the Dashboard does: the saved course list
+// plus any subject a lesson, summary, quiz or note is filed under. The
+// catch-all "Unsorted" bucket isn't a real course, so it isn't counted.
+function countShellCourses(sub){
+  const names = new Set();
+  const NS = 'chalkline:';
+  try{
+    const raw = localStorage.getItem(NS + 'courses:' + sub);
+    if(raw) (JSON.parse(raw) || []).forEach(n => names.add(n));
+  } catch(e){}
+  for(const kind of ['session','summary','quiz','notes']){
+    const prefix = NS + kind + ':' + sub + ':';
+    for(let i=0;i<localStorage.length;i++){
+      const k = localStorage.key(i);
+      if(k && k.startsWith(prefix)){
+        try{ const item = JSON.parse(localStorage.getItem(k)); names.add((item && item.subject) || 'Unsorted'); }
+        catch(e){ /* skip corrupt entry */ }
+      }
+    }
+  }
+  names.delete('Unsorted');
+  return names.size;
+}
+
+function renderSettingsModal(){
+  const body = document.getElementById('settings-modal-body');
+  body.textContent = '';
+  if(!shellUser){
+    const wrap = document.createElement('div');
+    wrap.className = 'st-signin';
+    const p = document.createElement('p');
+    p.textContent = 'Sign in with Google to see your profile and courses here.';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = 'Sign in with Google';
+    btn.addEventListener('click', ()=>{ closeSettingsModal(); openStartModal(); });
+    wrap.appendChild(p);
+    wrap.appendChild(btn);
+    body.appendChild(wrap);
+    return;
+  }
+  const fullName = shellUser.name || shellUser.email || 'Signed in';
+  const top = document.createElement('div');
+  top.className = 'st-top';
+  let avatar;
+  if(shellUser.picture){
+    avatar = document.createElement('img');
+    avatar.alt = '';
+    avatar.referrerPolicy = 'no-referrer';
+    avatar.src = shellUser.picture;
+    avatar.addEventListener('error', ()=>{
+      const fb = document.createElement('div');
+      fb.className = 'st-avatar';
+      fb.textContent = fullName.trim()[0].toUpperCase();
+      avatar.replaceWith(fb);
+    });
+  } else {
+    avatar = document.createElement('div');
+    avatar.textContent = fullName.trim()[0].toUpperCase();
+  }
+  avatar.classList.add('st-avatar');
+  const id = document.createElement('div');
+  id.className = 'st-id';
+  const nameEl = document.createElement('div');
+  nameEl.className = 'st-name';
+  nameEl.textContent = fullName;
+  id.appendChild(nameEl);
+  if(shellUser.email && shellUser.email !== fullName){
+    const emailEl = document.createElement('div');
+    emailEl.className = 'st-email';
+    emailEl.textContent = shellUser.email;
+    id.appendChild(emailEl);
+  }
+  top.appendChild(avatar);
+  top.appendChild(id);
+
+  const row = document.createElement('div');
+  row.className = 'st-row';
+  const k = document.createElement('div');
+  k.className = 'k';
+  k.textContent = 'Courses';
+  const v = document.createElement('div');
+  v.className = 'v';
+  v.textContent = String(countShellCourses(shellUser.sub));
+  row.appendChild(k);
+  row.appendChild(v);
+
+  body.appendChild(top);
+  body.appendChild(row);
+}
+function openSettingsModal(){
+  renderSettingsModal();
+  document.getElementById('settings-modal-overlay').classList.add('open');
+  // Pull keyboard focus out of the page iframe so Escape reaches this popup.
+  document.getElementById('settings-modal-close').focus();
+}
+function closeSettingsModal(){
+  document.getElementById('settings-modal-overlay').classList.remove('open');
+}
+document.getElementById('settings-modal-close').addEventListener('click', closeSettingsModal);
+document.getElementById('settings-modal-overlay').addEventListener('click', (e)=>{
+  if(e.target.id === 'settings-modal-overlay') closeSettingsModal(); // tap on the dimmed backdrop
+});
+document.addEventListener('keydown', (e)=>{
+  if(e.key === 'Escape') closeSettingsModal();
+});
+
 // Every sign-out request (sidebar account button, tutor page, etc.)
 // lands here first and only proceeds once the person confirms.
 function openSignOutConfirm(){
   if(!shellUser) return; // nothing to sign out of
   document.getElementById('signout-modal-overlay').classList.add('open');
+  document.getElementById('signout-cancel').focus(); // so Escape works even if focus was inside a page
 }
 function closeSignOutConfirm(){
   document.getElementById('signout-modal-overlay').classList.remove('open');
@@ -479,6 +656,7 @@ window.addEventListener('message', (e)=>{
   if(d.requestSignOut){
     openSignOutConfirm();
   }
+  if(d.openSettings){ openSettingsModal(); }
 });
 
 </script>
@@ -1056,7 +1234,7 @@ html,body{ height:100%; overflow:hidden; }
     <div class="sidebar-recent" aria-hidden="true"></div>
 
     <div class="sidebar-footer">
-      <a href="#" onclick="parent.postMessage({nav:'settings'},'*');return false;"><span class="ic">⚙️</span>Settings</a>
+      <a href="#" onclick="parent.postMessage({openSettings:true},'*');return false;"><span class="ic">⚙️</span>Settings</a>
     </div>
   </aside>
   <div class="sidebar-scrim" id="sidebar-scrim"></div>
@@ -6562,7 +6740,7 @@ document.getElementById('panel-nav-notes').addEventListener('click', (e)=>{ e.pr
 document.getElementById('panel-nav-tutor-history').addEventListener('click', (e)=>{ e.preventDefault(); navAwayTo('tutor-history'); });
 document.getElementById('panel-nav-summary-history').addEventListener('click', (e)=>{ e.preventDefault(); navAwayTo('summary-history'); });
 document.getElementById('panel-nav-quiz-history').addEventListener('click', (e)=>{ e.preventDefault(); navAwayTo('quiz-history'); });
-document.getElementById('panel-nav-settings').addEventListener('click', (e)=>{ e.preventDefault(); navAwayTo('settings'); });
+document.getElementById('panel-nav-settings').addEventListener('click', (e)=>{ e.preventDefault(); parent.postMessage({ openSettings:true }, '*'); });
 // -----------------------------------------------------------------------
 
 
@@ -7273,7 +7451,7 @@ html,body{ height:100%; overflow:hidden; }
     </div>
 
     <div class="sidebar-footer">
-      <a href="#" onclick="parent.postMessage({nav:'settings'},'*');return false;"><span class="ic">⚙️</span>Settings</a>
+      <a href="#" onclick="parent.postMessage({openSettings:true},'*');return false;"><span class="ic">⚙️</span>Settings</a>
     </div>
   </aside>
   <div class="sidebar-scrim" id="sidebar-scrim"></div>
@@ -8129,7 +8307,7 @@ html,body{ height:100%; overflow:hidden; }
     </div>
 
     <div class="sidebar-footer">
-      <a href="#" onclick="parent.postMessage({nav:'settings'},'*');return false;"><span class="ic">⚙️</span>Settings</a>
+      <a href="#" onclick="parent.postMessage({openSettings:true},'*');return false;"><span class="ic">⚙️</span>Settings</a>
     </div>
   </aside>
   <div class="sidebar-scrim" id="sidebar-scrim"></div>
@@ -8720,7 +8898,7 @@ html,body{ height:100%; overflow:hidden; }
     </div>
 
     <div class="sidebar-footer">
-      <a href="#" onclick="parent.postMessage({nav:'settings'},'*');return false;"><span class="ic">⚙️</span>Settings</a>
+      <a href="#" onclick="parent.postMessage({openSettings:true},'*');return false;"><span class="ic">⚙️</span>Settings</a>
     </div>
   </aside>
   <div class="sidebar-scrim" id="sidebar-scrim"></div>
@@ -9244,7 +9422,7 @@ html,body{ height:100%; overflow:hidden; }
     </div>
 
     <div class="sidebar-footer">
-      <a href="#" onclick="parent.postMessage({nav:'settings'},'*');return false;"><span class="ic">⚙️</span>Settings</a>
+      <a href="#" onclick="parent.postMessage({openSettings:true},'*');return false;"><span class="ic">⚙️</span>Settings</a>
     </div>
   </aside>
   <div class="sidebar-scrim" id="sidebar-scrim"></div>
@@ -10790,7 +10968,7 @@ html,body{ height:100%; overflow:hidden; }
     </div>
 
     <div class="sidebar-footer">
-      <a href="#" onclick="parent.postMessage({nav:'settings'},'*');return false;"><span class="ic">⚙️</span>Settings</a>
+      <a href="#" onclick="parent.postMessage({openSettings:true},'*');return false;"><span class="ic">⚙️</span>Settings</a>
     </div>
   </aside>
   <div class="sidebar-scrim" id="sidebar-scrim"></div>
@@ -10851,531 +11029,6 @@ html,body{ height:100%; overflow:hidden; }
 </html>
 </script>
 
-<script type="text/plain" id="src-settings"><!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-<title>Chalkline — Settings</title>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&family=Caveat:wght@600;700&display=swap');
-
-:root{
-  --safe-top: env(safe-area-inset-top, 0px);
-  --safe-bottom: env(safe-area-inset-bottom, 0px);
-  --safe-left: env(safe-area-inset-left, 0px);
-  --safe-right: env(safe-area-inset-right, 0px);
-  --board-bg:#FDFBF6;
-  --ink:#2A2410;
-  --ochre:#2E7DBE;
-  --gold:#F0B94D;
-  --gold-deep:#C98A2B;
-  --highlight:#F5E6B8;
-  --sage:#3E8FA6;
-  --brick:#3D6B93;
-  --panel-border:#ECE3C8;
-  --muted:#8A8267;
-  --halo-blue:#F6E2A0;
-  --halo-blue-soft:#FCF3D9;
-}
-*{box-sizing:border-box;}
-html,body{margin:0;padding:0;}
-body{
-  font-family:'Source Serif 4', Georgia, serif;
-  color:var(--ink);
-  background:
-    radial-gradient(ellipse 900px 500px at 15% -10%, rgba(240,185,77,0.22), transparent 60%),
-    radial-gradient(ellipse 900px 600px at 100% 0%, rgba(46,125,190,0.10), transparent 60%),
-    linear-gradient(165deg, #FFFDF6 0%, #FFF7E0 55%, #FBEFD0 130%);
-  min-height:100vh; min-height:100dvh; position:relative;
-  overflow-x:hidden;
-}
-.ambient-halo{ position:fixed; inset:0; z-index:0; overflow:hidden; pointer-events:none; }
-.ambient-halo::before,.ambient-halo::after{
-  content:''; position:absolute; width:58vmax;height:58vmax;
-  border-radius:50%; filter:blur(100px); opacity:0.22; mix-blend-mode:multiply;
-}
-.ambient-halo::before{ top:-24%; left:-16%; background:radial-gradient(circle, var(--halo-blue) 0%, rgba(110,168,254,0) 70%); animation:d1 24s ease-in-out infinite; }
-.ambient-halo::after{ bottom:-26%; right:-14%; background:radial-gradient(circle, var(--halo-blue-soft) 0%, rgba(165,200,255,0) 70%); animation:d2 28s ease-in-out infinite; }
-@keyframes d1{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(9%,7%) scale(1.13);}}
-@keyframes d2{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(-7%,-6%) scale(1.1);}}
-
-.app-shell{ position:relative; z-index:1; display:flex; min-height:100vh; min-height:100dvh; }
-.sidebar{
-  width:230px; flex-shrink:0;
-  height:100vh; height:100dvh; position:fixed; left:0; top:0; z-index:45;
-  display:flex; flex-direction:column;
-  padding:calc(22px + var(--safe-top)) 16px 18px calc(16px + var(--safe-left));
-  background:linear-gradient(165deg, #FFFFFF 0%, #FFF7E0 55%, #F5E6B8 130%);
-  backdrop-filter:blur(18px) saturate(160%);
-  -webkit-backdrop-filter:blur(18px) saturate(160%);
-  border-right:1px solid rgba(0,0,0,0.06);
-  box-shadow:3px 0 1px rgba(255,255,255,0.6) inset, 10px 0 24px -8px rgba(120,90,20,0.14), 26px 0 46px -20px rgba(120,90,20,0.10);
-  transform-origin:left center;
-  transform:translateX(0);
-  transition:transform .38s cubic-bezier(.22,.9,.32,1.1), box-shadow .38s ease;
-}
-.app-shell.sidebar-closed .sidebar{ transform:translateX(-104%); box-shadow:none; }
-.sidebar-brand{
-  font-family:'Caveat', cursive; font-weight:700; font-size:26px;
-  color:var(--ink); text-decoration:none; display:flex; align-items:center; gap:8px;
-  padding:2px 6px 18px;
-}
-.sidebar-brand .dot{ width:9px;height:9px;border-radius:50%; background:linear-gradient(135deg, var(--gold), var(--ochre)); display:inline-block; box-shadow:0 0 0 4px rgba(240,185,77,0.30); }
-.sidebar-nav{ display:flex; flex-direction:column; gap:2px; }
-.sidebar-nav a{
-  display:flex; align-items:center; gap:11px;
-  color:rgba(42,36,16,0.78); text-decoration:none; padding:10px 12px; border-radius:10px;
-  font-family:'JetBrains Mono', monospace; font-size:12.5px;
-  transition:background .15s ease, color .15s ease;
-}
-.sidebar-nav a .ic{ font-size:15px; width:18px; text-align:center; flex-shrink:0; }
-.sidebar-nav a:hover{ background:rgba(0,0,0,0.05); color:var(--ink); }
-.sidebar-nav a.active{ background:rgba(240,185,77,0.24); color:var(--gold-deep); font-weight:600; }
-.sidebar-divider{ height:1px; background:rgba(0,0,0,0.08); margin:16px 6px; flex-shrink:0; }
-.sidebar-recent{ flex:1; min-height:0; overflow-y:auto; padding:0 2px; }
-.sidebar-recent h4{ font-family:'JetBrains Mono', monospace; font-size:10px; letter-spacing:0.06em; color:rgba(42,36,16,0.5); margin:0 0 10px; padding:0 10px; font-weight:600; }
-.sidebar-recent a{ display:flex; align-items:center; gap:9px; text-decoration:none; color:rgba(42,36,16,0.78); padding:8px 10px; border-radius:9px; font-size:12.5px; transition:background .15s ease; }
-.sidebar-recent a:hover{ background:rgba(0,0,0,0.05); color:var(--ink); }
-.sidebar-recent a .ic{ font-size:13px; flex-shrink:0; }
-.sidebar-recent a .rw-title{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.sidebar-footer{ flex-shrink:0; padding-top:12px; margin-top:12px; border-top:1px solid rgba(0,0,0,0.08); }
-.sidebar-footer a{ display:flex; align-items:center; gap:11px; text-decoration:none; color:rgba(42,36,16,0.55); font-family:'JetBrains Mono', monospace; font-size:12.5px; padding:9px 12px; border-radius:10px; transition:background .15s ease, color .15s ease; }
-.sidebar-footer a:hover{ background:rgba(0,0,0,0.05); color:var(--ink); }
-.sidebar-toggle{
-  position:fixed; top:26px; left:174px; z-index:50;
-  height:34px; padding:0 16px 0 14px; border-radius:999px; border:none; cursor:pointer;
-  background:rgba(255,255,255,0.95);
-  box-shadow:0 3px 10px rgba(120,90,20,0.18), 0 0 0 1px rgba(120,90,20,0.08);
-  font-size:12px; font-family:'JetBrains Mono', monospace; font-weight:600;
-  display:flex; align-items:center; gap:7px; justify-content:center;
-  color:var(--ink); white-space:nowrap;
-  transition:left .38s cubic-bezier(.22,.9,.32,1.1), transform .15s ease, box-shadow .15s ease;
-}
-.sidebar-toggle:hover{ box-shadow:0 5px 16px rgba(120,90,20,0.24), 0 0 0 1px rgba(120,90,20,0.1); }
-.sidebar-toggle:active{ transform:scale(0.94); }
-.app-shell.sidebar-closed .sidebar-toggle{ left:16px; }
-@media (max-width:700px){ .sidebar-toggle{ left:calc(16px + var(--safe-left)); top:calc(16px + var(--safe-top)); } .app-shell.sidebar-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
-.sidebar-scrim{ display:none; position:fixed; inset:0; background:rgba(42,36,16,0.22); z-index:39; opacity:0; transition:opacity .3s ease; }
-/* Scrim is mobile-only (see the max-width:700px block below). On desktop the sidebar
-   docks and pushes content, so an invisible full-viewport layer here just swallowed
-   the first click on everything while the sidebar was open. */
-.main-area{ flex:1; min-width:0; transition:margin-left .38s cubic-bezier(.22,.9,.32,1.1); margin-left:230px; padding:8px 0 0; }
-.app-shell.sidebar-closed .main-area{ margin-left:0; }
-@media (max-width:700px){
-  .main-area{ margin-left:0 !important; padding-top:calc(66px + var(--safe-top)); padding-left:calc(16px + var(--safe-left)); padding-right:calc(16px + var(--safe-right)); }
-  .app-shell:not(.sidebar-closed) .sidebar-scrim{ display:block; opacity:1; }
-  .app-shell.sidebar-closed .sidebar-scrim{ display:none; }
-}
-.main-area .wrap{ margin:0 auto; }
-
-/* Pill rides the sidebar edge: when the sidebar closes it returns to the corner.
-   (The pill sits outside .app-shell, so the rule above could never match it.) */
-body.sb-closed .sidebar-toggle{ left:16px; }
-@media (max-width:700px){ body.sb-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
-
-/* ---- Independent scrolling ----------------------------------------
-   The page itself never scrolls any more: the shell is exactly one
-   screen tall and only .main-area scrolls inside it. That way the
-   sidebar (and the Menu pill) stay exactly where they are no matter
-   how far down the content goes. */
-html,body{ height:100%; overflow:hidden; }
-.app-shell{ height:100vh; height:100dvh; min-height:0; overflow:hidden; }
-.main-area{
-  height:100vh; height:100dvh;
-  overflow-y:auto; overflow-x:hidden;
-  -webkit-overflow-scrolling:touch;
-  overscroll-behavior:contain;
-}
-
-.wrap{ position:relative; z-index:1; max-width:820px; margin:0 auto; padding:0 28px 80px; }
-.main-area .wrap{ margin:0 auto; }
-
-.page-head{ padding:34px 0 26px; }
-.page-head h1{ font-size:32px; margin:0 0 10px; font-weight:600; }
-.page-head p{ font-size:16px; color:#5c5847; margin:0; max-width:480px; line-height:1.55; }
-
-.btn-primary{
-  font-family:'Source Serif 4', serif; font-size:14.5px; font-weight:600;
-  background:linear-gradient(140deg, var(--ochre), var(--gold-deep)); color:#fff; border:none; border-radius:999px;
-  padding:11px 22px; cursor:pointer; white-space:nowrap;
-  box-shadow:0 6px 14px -6px rgba(120,90,20,0.35), 0 1px 0 rgba(255,255,255,0.25) inset;
-  transition:transform .18s cubic-bezier(.2,.8,.3,1.1), box-shadow .18s ease;
-}
-.btn-primary:hover{ transform:translateY(-2px); box-shadow:0 10px 20px -8px rgba(120,90,20,0.42), 0 1px 0 rgba(255,255,255,0.25) inset; }
-
-.signin-note{
-  background:#fff; border:1px solid var(--panel-border); border-radius:14px;
-  padding:26px 28px; font-size:14.5px; color:var(--muted);
-}
-.signin-note p{ margin:0 0 16px; line-height:1.55; }
-.empty-hint{ font-family:'JetBrains Mono', monospace; font-size:11.5px; color:var(--muted); }
-
-.profile-card{ background:#fff; border:1px solid var(--panel-border); border-radius:14px; overflow:hidden; }
-.profile-top{ display:flex; align-items:center; gap:20px; padding:26px 28px; }
-.profile-avatar{
-  width:76px; height:76px; border-radius:50%; flex-shrink:0; object-fit:cover;
-  background:linear-gradient(135deg, var(--ochre), var(--gold));
-  display:flex; align-items:center; justify-content:center;
-  color:#fff; font-size:30px; font-weight:600;
-  box-shadow:0 0 0 4px rgba(240,185,77,0.30);
-}
-.profile-id{ min-width:0; }
-.profile-name{ font-size:26px; font-weight:600; line-height:1.2; overflow-wrap:anywhere; }
-.profile-email{
-  font-family:'JetBrains Mono', monospace; font-size:12.5px; color:var(--muted);
-  margin-top:6px; overflow-wrap:anywhere;
-}
-.profile-row{
-  display:flex; align-items:center; justify-content:space-between; gap:16px;
-  padding:18px 28px; border-top:1px solid var(--panel-border);
-}
-.profile-row .k{ font-size:15px; color:#5c5847; }
-.profile-row .v{ font-family:'JetBrains Mono', monospace; font-size:20px; font-weight:600; color:var(--ink); }
-
-.sidebar-footer a.active{ background:rgba(240,185,77,0.24); color:var(--gold-deep); font-weight:600; }
-
-@media (max-width:520px){
-  .wrap{ padding:0 4px 60px; }
-  .page-head{ padding:20px 0 18px; }
-  .page-head h1{ font-size:27px; }
-  .profile-top{ padding:22px 18px; gap:16px; }
-  .profile-avatar{ width:64px; height:64px; font-size:26px; }
-  .profile-name{ font-size:22px; }
-  .profile-row{ padding:16px 18px; }
-}
-
-/* ---- Independent scrolling: only .main-area scrolls, the sidebar stays put ---- */
-html,body{ height:100%; overflow:hidden; }
-.app-shell{ height:100vh; height:100dvh; min-height:0; overflow:hidden; }
-.main-area{
-  height:100vh; height:100dvh;
-  overflow-y:auto; overflow-x:hidden;
-  -webkit-overflow-scrolling:touch;
-  overscroll-behavior:contain;
-}
-
-/* ---- 3D sidebar ---------------------------------------------------
-   The sidebar is a slab standing in space: turned slightly toward the
-   content, with a thick lit edge, a long cast shadow, and raised
-   buttons that lift on hover and press in when tapped. */
-.app-shell{ perspective:none; }
-.sidebar{
-  transform:perspective(1500px) translateX(0) rotateY(3deg);
-  transform-origin:left center;
-  background:linear-gradient(100deg, #FFFFFF 0%, #FFF9E8 42%, #F3E2B0 135%);
-  border-right:1px solid rgba(120,90,20,0.20);
-  box-shadow:
-    inset 2px 0 0 rgba(255,255,255,0.95),
-    inset 0 2px 0 rgba(255,255,255,0.9),
-    inset -1px 0 0 rgba(120,90,20,0.14),
-    12px 0 22px -8px rgba(90,65,10,0.30),
-    34px 0 58px -20px rgba(90,65,10,0.26);
-}
-.sidebar::after{
-  content:''; position:absolute; top:0; right:-10px; bottom:0; width:10px;
-  background:linear-gradient(90deg, #CDB57A 0%, #E6D5A2 45%, rgba(230,213,162,0) 100%);
-  pointer-events:none;
-}
-.app-shell.sidebar-closed .sidebar{
-  transform:perspective(1500px) translateX(-100%) rotateY(-10deg);
-  box-shadow:none;
-}
-.app-shell.sidebar-closed .sidebar::after{ opacity:0; }
-
-.sidebar-account,
-.sidebar-nav a,
-.sidebar-footer a{
-  transition:transform .16s cubic-bezier(.2,.8,.3,1.1), box-shadow .16s ease, background .16s ease, color .15s ease;
-}
-.sidebar-account{
-  background:linear-gradient(180deg, #FFFFFF, #F8EFD4);
-  border:1px solid rgba(120,90,20,0.14);
-  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.20), 0 10px 14px -8px rgba(120,90,20,0.40);
-}
-.sidebar-account:hover{ background:linear-gradient(180deg, #FFFFFF, #F8EFD4); transform:translateY(-2px);
-  box-shadow:0 1px 0 #fff inset, 0 5px 0 rgba(160,120,40,0.20), 0 14px 18px -8px rgba(120,90,20,0.45); }
-.sidebar-account:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
-
-.sidebar-nav{ gap:7px; }
-.sidebar-nav a{
-  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
-  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.20), 0 8px 12px -8px rgba(120,90,20,0.40);
-}
-.sidebar-nav a:hover{
-  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
-  transform:translateY(-2px);
-  box-shadow:0 1px 0 #fff inset, 0 5px 0 rgba(160,120,40,0.20), 0 12px 16px -8px rgba(120,90,20,0.45);
-}
-.sidebar-nav a:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
-.sidebar-nav a.active{
-  background:linear-gradient(180deg, #F3D07A, #F8E2A6);
-  transform:translateY(2px);
-  box-shadow:0 2px 5px rgba(150,105,25,0.35) inset, 0 1px 0 rgba(255,255,255,0.8);
-}
-
-.sidebar-footer a{
-  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
-  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.18), 0 8px 12px -8px rgba(120,90,20,0.35);
-}
-.sidebar-footer a:hover{ transform:translateY(-2px); background:linear-gradient(180deg, #FFFFFF, #FBF2D8); }
-.sidebar-footer a:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
-.sidebar-footer a.active{
-  background:linear-gradient(180deg, #F3D07A, #F8E2A6);
-  transform:translateY(2px);
-  box-shadow:0 2px 5px rgba(150,105,25,0.35) inset, 0 1px 0 rgba(255,255,255,0.8);
-}
-.sidebar-recent a:hover{ transform:translateX(3px); }
-.sidebar-recent a{ transition:transform .16s ease, background .15s ease; }
-
-/* ---- Menu tab ------------------------------------------------------
-   Icon only, hinged onto the sidebar's right edge. It lives inside the
-   sidebar, so it moves, swings and slides with it (and stays visible at
-   the screen edge when the sidebar is closed). */
-.app-shell .sidebar .sidebar-toggle{
-  position:absolute !important; left:auto !important; right:-28px !important;
-  top:calc(20px + var(--safe-top)) !important;
-  z-index:2; width:28px; height:46px; padding:0; gap:0;
-  border:none; border-radius:0 14px 14px 0;
-  background:linear-gradient(100deg, #F3E2B0 0%, #FFFFFF 75%);
-  box-shadow:0 1px 0 #fff inset, 3px 0 0 rgba(160,120,40,0.22), 8px 6px 14px -6px rgba(90,65,10,0.40);
-  color:var(--ink); font-size:15px;
-  display:flex; align-items:center; justify-content:center;
-  transition:transform .16s cubic-bezier(.2,.8,.3,1.1), box-shadow .16s ease;
-}
-.app-shell .sidebar .sidebar-toggle .arrow{ font-size:15px; }
-.app-shell .sidebar .sidebar-toggle:hover{ transform:translateX(3px); box-shadow:0 1px 0 #fff inset, 3px 0 0 rgba(160,120,40,0.22), 12px 8px 16px -6px rgba(90,65,10,0.45); }
-.app-shell .sidebar .sidebar-toggle:active{ transform:translateX(1px) scale(0.96); }
-</style>
-</head>
-<body>
-
-<div class="ambient-halo"></div>
-
-
-<div class="app-shell" id="app-shell">
-  <aside class="sidebar" id="sidebar">
-    <button class="sidebar-toggle" id="sidebar-toggle" title="Menu" aria-label="Menu"><span class="arrow">☰</span></button>
-    <a class="sidebar-brand" href="#" onclick="parent.postMessage({nav:'home'},'*');return false;"><span class="dot"></span>Chalkline</a>
-
-    <nav class="sidebar-nav">
-      <a href="#" onclick="parent.postMessage({nav:'home'},'*');return false;"><span class="ic">🏠</span>Dashboard</a>
-      <a href="#" onclick="parent.postMessage({nav:'tutor'},'*');return false;"><span class="ic">🎓</span>Tutor</a>
-      <a href="#" onclick="parent.postMessage({nav:'summary'},'*');return false;"><span class="ic">📄</span>Summaries</a>
-      <a href="#" onclick="parent.postMessage({nav:'quiz'},'*');return false;"><span class="ic">🧠</span>Quizzes</a>
-      <a href="#" onclick="parent.postMessage({nav:'notes'},'*');return false;"><span class="ic">🗒️</span>Notes</a>
-    </nav>
-
-    <div class="sidebar-divider"></div>
-
-    <div class="sidebar-recent">
-      <h4>RECENT WORK</h4>
-      <a href="#" onclick="parent.postMessage({nav:'tutor-history'},'*');return false;"><span class="ic">🗂️</span><span class="rw-title">Previous tutorials</span></a>
-      <a href="#" onclick="parent.postMessage({nav:'summary-history'},'*');return false;"><span class="ic">🗒️</span><span class="rw-title">Previous summaries</span></a>
-      <a href="#" onclick="parent.postMessage({nav:'quiz-history'},'*');return false;"><span class="ic">🧠</span><span class="rw-title">Previous quizzes</span></a>
-    </div>
-
-    <div class="sidebar-footer">
-      <a href="#" class="active" onclick="parent.postMessage({nav:'settings'},'*');return false;"><span class="ic">⚙️</span>Settings</a>
-    </div>
-  </aside>
-  <div class="sidebar-scrim" id="sidebar-scrim"></div>
-
-  <div class="main-area">
-  <div class="wrap">
-  <div class="page-head">
-    <h1>⚙️ Settings</h1>
-    <p>Your profile and account details.</p>
-  </div>
-
-  <div id="st-content">
-    <div class="empty-hint">Loading…</div>
-  </div>
-  </div>
-  </div>
-</div>
-
-<script>
-(function(){
-  const shell = document.getElementById('app-shell');
-  const sbScrim = document.getElementById('sidebar-scrim');
-  function closeSidebar(){ shell.classList.add('sidebar-closed'); document.body.classList.add('sb-closed'); }
-  function openSidebar(){ shell.classList.remove('sidebar-closed'); document.body.classList.remove('sb-closed'); }
-  document.getElementById('sidebar-toggle').addEventListener('click', ()=>
-    shell.classList.contains('sidebar-closed') ? openSidebar() : closeSidebar()
-  );
-  sbScrim.addEventListener('click', closeSidebar);
-  if (window.innerWidth <= 700) closeSidebar();
-})();
-
-/* window.storage shim (same localStorage-backed one the other pages use) —
-   lets this page read the same saved courses/lessons the Dashboard does. */
-if(!window.storage || !window.storage.__isRealBackend){
-  const STORAGE_NS = 'chalkline:';
-  window.storage = {
-    __isRealBackend: false,
-    async get(key){
-      const raw = localStorage.getItem(STORAGE_NS + key);
-      return raw === null ? null : { key, value: raw, shared: false };
-    },
-    async set(key, value){
-      try{ localStorage.setItem(STORAGE_NS + key, value); return { key, value, shared: false }; }
-      catch(e){ console.error('localStorage set failed:', e); return null; }
-    },
-    async delete(key){
-      const existed = localStorage.getItem(STORAGE_NS + key) !== null;
-      localStorage.removeItem(STORAGE_NS + key);
-      return { key, deleted: existed, shared: false };
-    },
-    async list(prefix){
-      const keys = [];
-      const full = STORAGE_NS + (prefix || '');
-      for(let i=0;i<localStorage.length;i++){
-        const k = localStorage.key(i);
-        if(k && k.startsWith(full)) keys.push(k.slice(STORAGE_NS.length));
-      }
-      return { keys, prefix, shared: false };
-    }
-  };
-}
-
-let stUser = null;
-let stAuthKnown = false;
-let stRenderToken = 0;
-
-/* A "course" is a subject name — the same definition the Dashboard uses:
-   the explicit course list plus any subject that a lesson, summary, quiz
-   or note has been filed under. The catch-all "Unsorted" bucket isn't a
-   real course, so it isn't counted. */
-async function countCoursesST(sub){
-  const names = new Set();
-  try{
-    const rec = await window.storage.get('courses:' + sub, false);
-    if(rec){ (JSON.parse(rec.value) || []).forEach(n => names.add(n)); }
-  } catch(e){}
-  for(const kind of ['session', 'summary', 'quiz', 'notes']){
-    try{
-      const res = await window.storage.list(kind + ':' + sub + ':', false);
-      for(const key of (res.keys || [])){
-        try{
-          const rec = await window.storage.get(key, false);
-          if(!rec) continue;
-          const item = JSON.parse(rec.value);
-          names.add(item.subject || 'Unsorted');
-        } catch(e){ /* skip corrupt entry */ }
-      }
-    } catch(e){}
-  }
-  names.delete('Unsorted');
-  return names.size;
-}
-
-function renderSettingsST(){
-  const box = document.getElementById('st-content');
-  const token = ++stRenderToken;
-  box.textContent = '';
-
-  if(!stAuthKnown){
-    const hint = document.createElement('div');
-    hint.className = 'empty-hint';
-    hint.textContent = 'Loading…';
-    box.appendChild(hint);
-    return;
-  }
-
-  if(!stUser){
-    const note = document.createElement('div');
-    note.className = 'signin-note';
-    const p = document.createElement('p');
-    p.textContent = 'Sign in with Google to see your profile and courses here.';
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'btn-primary';
-    btn.textContent = 'Sign in with Google';
-    btn.addEventListener('click', ()=> parent.postMessage({ showStartModal:true }, '*'));
-    note.appendChild(p);
-    note.appendChild(btn);
-    box.appendChild(note);
-    return;
-  }
-
-  const fullName = stUser.name || stUser.email || 'Signed in';
-
-  const card = document.createElement('div');
-  card.className = 'profile-card';
-
-  const top = document.createElement('div');
-  top.className = 'profile-top';
-
-  let avatar;
-  if(stUser.picture){
-    avatar = document.createElement('img');
-    avatar.alt = '';
-    avatar.referrerPolicy = 'no-referrer';
-    avatar.src = stUser.picture;
-    avatar.addEventListener('error', ()=>{
-      const fallback = document.createElement('div');
-      fallback.textContent = fullName.trim()[0].toUpperCase();
-      fallback.className = 'profile-avatar';
-      avatar.replaceWith(fallback);
-    });
-  } else {
-    avatar = document.createElement('div');
-    avatar.textContent = fullName.trim()[0].toUpperCase();
-  }
-  avatar.classList.add('profile-avatar');
-
-  const id = document.createElement('div');
-  id.className = 'profile-id';
-  const nameEl = document.createElement('div');
-  nameEl.className = 'profile-name';
-  nameEl.textContent = fullName;
-  id.appendChild(nameEl);
-  if(stUser.email && stUser.email !== fullName){
-    const emailEl = document.createElement('div');
-    emailEl.className = 'profile-email';
-    emailEl.textContent = stUser.email;
-    id.appendChild(emailEl);
-  }
-
-  top.appendChild(avatar);
-  top.appendChild(id);
-
-  const row = document.createElement('div');
-  row.className = 'profile-row';
-  const k = document.createElement('div');
-  k.className = 'k';
-  k.textContent = 'Courses';
-  const v = document.createElement('div');
-  v.className = 'v';
-  v.textContent = '…';
-  row.appendChild(k);
-  row.appendChild(v);
-
-  card.appendChild(top);
-  card.appendChild(row);
-  box.appendChild(card);
-
-  countCoursesST(stUser.sub).then(n=>{
-    if(token !== stRenderToken) return; // a newer render replaced this one
-    v.textContent = String(n);
-  });
-}
-
-window.addEventListener('message', (e)=>{
-  const d = e.data;
-  if(!d || !d.chalklineAuth) return;
-  stAuthKnown = true;
-  stUser = d.signedIn ? d.user : null;
-  renderSettingsST();
-});
-renderSettingsST();
-<\/script>
-
-</body>
-</html>
-</script>
-
 <script>
 
 function unwrap(id){
@@ -11389,10 +11042,9 @@ const frames = {
   'tutor-history': document.getElementById('frame-tutor-history'),
   'summary-history': document.getElementById('frame-summary-history'),
   'quiz-history': document.getElementById('frame-quiz-history'),
-  notes: document.getElementById('frame-notes'),
-  settings: document.getElementById('frame-settings')
+  notes: document.getElementById('frame-notes')
 };
-const loaded = { home:false, tutor:false, summary:false, quiz:false, 'tutor-history':false, 'summary-history':false, 'quiz-history':false, notes:false, settings:false };
+const loaded = { home:false, tutor:false, summary:false, quiz:false, 'tutor-history':false, 'summary-history':false, 'quiz-history':false, notes:false };
 let current = 'home';
 
 function ensureLoaded(page){
@@ -11416,7 +11068,7 @@ function ensureLoaded(page){
 // scratch. Arriving WITH a loadSessionId/loadSummaryId means the user
 // picked a specific saved item from history, so that one is left alone —
 // its own message handler (d.loadSessionId) resets its state anyway.
-const FRESH_ON_ENTRY = { tutor:true, summary:true, quiz:true, notes:true, settings:true };
+const FRESH_ON_ENTRY = { tutor:true, summary:true, quiz:true, notes:true };
 
 // The three "previous ..." list pages are course-scoped when opened from a
 // course card (the shell sends presetSubject). Reaching one WITHOUT a
