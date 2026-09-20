@@ -208,6 +208,7 @@
     box-shadow:0 6px 14px -6px rgba(120,90,20,0.35);
   }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 </head>
 <body>
 
@@ -371,6 +372,17 @@ const SESSION_STORAGE_KEY = 'chalkline_session';   // { token, plan, sub } - the
 const SYNC_META_PREFIX = 'chalkline_sync_meta:';
 let syncTimer = null, syncBusy = false, syncAgain = false;
 
+// Supabase is how the worker actually verifies who's asking (see
+// verifyGoogleIdToken in worker.js) — every "idToken" the worker accepts
+// on /storage/* and /subscription/* is a SUPABASE access token, not a raw
+// Google credential. signInWithIdToken() trades the Google credential for
+// exactly that. The anon/publishable key is meant to ship client-side.
+const SUPABASE_URL = "https://wxpvuutxemfubwvatmjy.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_3M3ZN-JrPl5iDn_ar7oyVA_X2fxx9CZ";
+const supabaseClient = (typeof supabase !== 'undefined')
+  ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: false } })
+  : null;
+
 function readWorkerSession(){
   try{ return JSON.parse(localStorage.getItem(SESSION_STORAGE_KEY) || 'null'); } catch(e){ return null; }
 }
@@ -387,14 +399,36 @@ function workerFetch(path, opts){
   if(s && s.token) headers.Authorization = 'Bearer ' + s.token;
   return fetch(WORKER_URL + path, Object.assign({}, opts, { headers }));
 }
-async function exchangeCredential(credential){
-  const r = await fetch(WORKER_URL + '/auth/google', {
-    method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ credential })
+// The worker's /storage/* routes (the ones that actually exist — see
+// worker.js) take the Supabase access token as "idToken" IN THE JSON BODY,
+// not as an Authorization header, and every key is already namespaced
+// server-side by the caller's verified account — so the client never needs
+// to prefix keys by sub itself, just filter which local keys belong to
+// this account (syncKeyRegex) before deciding what to push/pull.
+async function workerStorage(action, params){
+  const s = readWorkerSession();
+  if(!s || !s.token) throw new Error('not signed in');
+  const r = await fetch(WORKER_URL + '/storage/' + action, {
+    method: 'POST',
+    headers: { 'Content-Type':'application/json' },
+    body: JSON.stringify(Object.assign({ idToken: s.token }, params)),
   });
-  if(!r.ok) throw new Error('sign-in exchange failed (' + r.status + ')');
-  const d = await r.json();
-  localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ token: d.token, plan: d.plan, sub: shellUser && shellUser.sub }));
-  return d;
+  if(r.status === 401){ localStorage.removeItem(SESSION_STORAGE_KEY); throw new Error('session expired'); }
+  if(!r.ok) throw new Error('storage/' + action + ' failed (' + r.status + ')');
+  return r.json();
+}
+async function exchangeCredential(credential){
+  // NOTE: the worker has no "/auth/google" route — it verifies callers by
+  // asking Supabase itself (see verifyGoogleIdToken in worker.js), so the
+  // token we hand it has to be a real Supabase session access token, minted
+  // here via the Google credential, not anything the worker issues itself.
+  if(!supabaseClient) throw new Error('Supabase client failed to load');
+  const { data, error } = await supabaseClient.auth.signInWithIdToken({ provider: 'google', token: credential });
+  if(error) throw error;
+  const token = data && data.session && data.session.access_token;
+  if(!token) throw new Error('sign-in exchange failed (no session returned)');
+  localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ token, sub: shellUser && shellUser.sub }));
+  return { token };
 }
 
 function syncKeyRegex(sub){
@@ -417,37 +451,40 @@ function unionCourses(a, b){
   try{ return JSON.stringify(Array.from(new Set([].concat(JSON.parse(a) || [], JSON.parse(b) || [])))); }
   catch(e){ return a; }
 }
-const dataPath = k => '/data/' + encodeURIComponent(k);
-
 // Bring cloud changes down. Returns true if anything local changed.
+// NOTE: worker.js's /storage/set is a plain last-write-wins KV put — it has
+// no ETag/base-version conflict check (no 409), unlike what this used to
+// assume. So "changed on two devices" can't be detected server-side; the
+// courses-union rule below is the one place we still merge instead of
+// picking a winner, everything else is last-write-wins by sync order.
 async function pullCloud(sub){
-  const r = await workerFetch('/data');
-  if(r.status === 401){ localStorage.removeItem(SESSION_STORAGE_KEY); throw new Error('session expired'); }
-  if(!r.ok) throw new Error('could not list cloud data (' + r.status + ')');
+  const { keys } = await workerStorage('list', { prefix: '' });
   const re = syncKeyRegex(sub), meta = loadSyncMeta(sub);
-  const cloud = new Map(((await r.json()).items || []).filter(i => re.test(i.key)).map(i => [i.key, i.updated_at]));
+  const cloudKeys = new Set((keys || []).filter(k => re.test(k)));
   let changed = false;
-  for(const [key, t] of cloud){
-    const m = meta[key], local = localStorage.getItem(key);
-    if(m && !m.skip && m.t === t) continue;              // cloud copy unchanged since last sync
-    const vr = await workerFetch(dataPath(key));
-    if(!vr.ok) continue;
-    const d = await vr.json();
-    const value = typeof d.value === 'string' ? d.value : JSON.stringify(d.value);
+  for(const key of cloudKeys){
+    const got = await workerStorage('get', { key });
+    if(!got || got.value == null) continue;
+    const value = got.value;
+    const h = fnv(value);
+    const m = meta[key];
+    if(m && m.h === h) continue;                          // cloud copy unchanged since last sync
+    const local = localStorage.getItem(key);
     if(local === null || local === value || (m && m.h === fnv(local))){
       // nothing unsynced here, so the cloud copy simply wins
       if(local !== value){ localStorage.setItem(key, value); changed = true; }
-      meta[key] = { h: fnv(value), t: d.updated_at };
+      meta[key] = { h };
     } else if(isCoursesKey(key)){
-      localStorage.setItem(key, unionCourses(local, value)); changed = true;
-      meta[key] = { h: fnv(value), t: d.updated_at };     // differs from local now, so the merge is pushed next
+      const merged = unionCourses(local, value);
+      localStorage.setItem(key, merged); changed = true;
+      meta[key] = { h: fnv(merged) };                      // differs from cloud now, so the merge is pushed next
     } else {
-      meta[key] = { h: m ? m.h : '', t: d.updated_at };   // keep this device's copy; push will overwrite the cloud
+      meta[key] = { h: m ? m.h : '' };                     // keep this device's copy; push will overwrite the cloud
     }
   }
   // Deleted elsewhere: gone from the cloud, untouched here since last sync.
   for(const key of Object.keys(meta)){
-    if(cloud.has(key) || meta[key].skip) continue;
+    if(cloudKeys.has(key) || meta[key].skip) continue;
     const local = localStorage.getItem(key);
     if(local !== null && meta[key].h === fnv(local)){ localStorage.removeItem(key); changed = true; }
     delete meta[key];
@@ -458,31 +495,28 @@ async function pullCloud(sub){
 
 // Send local changes up (new/edited keys, and keys deleted here).
 async function pushLocal(sub){
-  const meta = loadSyncMeta(sub), keys = localSyncKeys(sub), jobs = [];
+  const meta = loadSyncMeta(sub), keys = localSyncKeys(sub), keySet = new Set(keys), jobs = [];
   for(const k of keys){
     const v = localStorage.getItem(k), m = meta[k];
     if(!m || m.h !== fnv(v)) jobs.push({ k, v });
   }
   for(const k of Object.keys(meta)){
-    if(keys.indexOf(k) === -1){ if(meta[k].skip) delete meta[k]; else jobs.push({ k, del:true }); }
+    if(!keySet.has(k)){ if(meta[k].skip) delete meta[k]; else jobs.push({ k, del:true }); }
   }
   async function run(job){
-    if(job.del){
-      const r = await workerFetch(dataPath(job.k), { method:'DELETE' });
-      if(r.ok) delete meta[job.k];
-      return;
+    try{
+      if(job.del){
+        await workerStorage('delete', { key: job.k });
+        delete meta[job.k];
+        return;
+      }
+      await workerStorage('set', { key: job.k, value: job.v });
+      meta[job.k] = { h: fnv(job.v) };
+    } catch(e){
+      if(e && e.message === 'session expired') throw e;    // stop the batch, don't mark as skip
+      meta[job.k] = { h: fnv(job.v), skip:true };
+      console.warn('Not synced (rejected by worker):', job.k, e);
     }
-    let value = job.v;
-    const put = (base) => workerFetch(dataPath(job.k), { method:'PUT', body: JSON.stringify({ value, base }) });
-    let r = await put(meta[job.k] && meta[job.k].t);
-    if(r.status === 409){                                  // someone else saved this key since we last synced
-      const cur = ((await r.json()).error || {}).current || {};
-      if(isCoursesKey(job.k) && typeof cur.value === 'string'){ value = unionCourses(job.v, cur.value); localStorage.setItem(job.k, value); }
-      r = await put(cur.updated_at);
-    }
-    if(r.ok){ meta[job.k] = { h: fnv(value), t: (await r.json()).updated_at }; }
-    else if(r.status === 400 || r.status === 413){ meta[job.k] = { h: fnv(job.v), skip:true }; console.warn('Not synced (rejected by worker):', job.k); }
-    else if(r.status === 401){ localStorage.removeItem(SESSION_STORAGE_KEY); }
   }
   const queue = jobs.slice();
   await Promise.all([0,1,2].map(async () => { while(queue.length){ await run(queue.shift()); } }));
@@ -665,6 +699,7 @@ function signOutShell(){
   localStorage.removeItem(SHELL_AUTH_STORAGE_KEY);
   localStorage.removeItem(SESSION_STORAGE_KEY);
   clearTimeout(syncTimer);
+  if(supabaseClient) supabaseClient.auth.signOut().catch(()=>{});
   if(typeof google !== 'undefined' && google.accounts) google.accounts.id.disableAutoSelect();
   toggleShellAccountMenu(false);
   document.getElementById('shell-account-chip').style.display = 'none';
@@ -2187,48 +2222,6 @@ body{
      extra headroom for the shell's overlay on top of that. */
   margin-top:0;
 }
-.login-pill{
-  position:absolute;
-  left:50%;
-  top:calc(var(--safe-top) + 14px);
-  transform:translateX(-50%);
-  display:flex;
-  align-items:center;
-  gap:7px;
-  padding:9px 16px;
-  border-radius:999px;
-  border:none;
-  cursor:pointer;
-  background:rgba(255,255,255,0.9);
-  backdrop-filter:blur(6px);
-  box-shadow:0 1px 4px rgba(0,0,0,0.08), 0 0 0 4px var(--violet-ring);
-  font-family:'JetBrains Mono', monospace;
-  font-size:12px;
-  color:var(--ink);
-  white-space:nowrap;
-  transition:background .15s ease;
-  max-width:min(70vw, 320px);
-  overflow:hidden;
-  text-overflow:ellipsis;
-}
-.login-pill:hover{background:#fff;}
-@media (max-width:620px){
-  .login-pill span.pill-full{display:none;}
-  .login-pill span.pill-short{display:inline;}
-}
-/* With the sidebar docked (360px) the usable top bar is much narrower than the
-   screen, so switch to the short label / smaller pill before it collides with
-   Exit Lesson. Room needed: Export PDF (left) + pill + Exit Lesson (right). */
-@media (max-width:1180px) and (min-width:701px){
-  body.panel-open .login-pill span.pill-full{display:none;}
-  body.panel-open .login-pill span.pill-short{display:inline;}
-}
-@media (max-width:820px) and (min-width:701px){
-  /* Narrowest docked case (small tablets): tighten the pill so it clears Exit Lesson. */
-  body.panel-open .login-pill{ padding:7px 11px; font-size:11px; }
-  body.panel-open .topbar-left-stack{ gap:8px; }
-}
-.login-pill span.pill-short{display:none;}
 .topbar-btn-wrap{
   display:flex;
   flex-direction:column;
@@ -2817,10 +2810,6 @@ body:not(.panel-open) .sidebar-toggle{ left:calc(var(--safe-left) + 16px); }
   transition:left .38s cubic-bezier(.22,.9,.32,1.1);
 }
 
-/* Room for the pill in the top-left of the top bar so the Export PDF icon
-   isn't hidden underneath it while the sidebar is closed. */
-body:not(.panel-open) .topbar-left-stack{ padding-top:44px; }
-
 /* Closed panels are parked off-screen but their big soft shadows still bled a beige
    smudge onto the screen edge. On a white board that shows, so drop the shadow
    until the panel is actually open. */
@@ -3083,7 +3072,6 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
   .avatar{ width:40px; height:40px; font-size:18px; }
   .tutor-live{ font-size:9.5px; padding:4px 8px; }
 
-  .login-pill{ padding:7px 12px; font-size:11px; }
   .side-panel{ width:100vw; width:100dvw; }
   .subject-modal .sm-card{ padding:26px 20px 22px; }
 }
@@ -3147,17 +3135,10 @@ body:not(.panel-open) .sidebar-toggle{ left:0 !important; }
 
 <div class="topbar">
   <div class="topbar-left-stack">
-    <div class="topbar-btn-wrap">
-      <button class="icon-btn" id="btn-export-pdf" title="Export board as PDF">📄</button>
-      <span class="btn-label">Export PDF</span>
-    </div>
     <div class="topbar-btn-wrap" style="display:none;">
       <div class="avatar avatar-topbar" id="avatar">🧑‍🏫</div>
     </div>
   </div>
-  <button class="login-pill" id="btn-login-pill" title="Login to save your work">
-    🔒<span class="pill-full">Login to save your work</span><span class="pill-short">Login</span>
-  </button>
   <div class="top-right-cluster">
     <button class="exit-lesson-btn" id="btn-exit-lesson" title="Exit lesson">🚪 Exit Lesson</button>
     <select class="ai-engine-select" id="btn-ai-engine" title="Choose which AI engine teaches this lesson" onchange="setAiBackend(this.value)">
@@ -3279,6 +3260,12 @@ body:not(.panel-open) .sidebar-toggle{ left:0 !important; }
           <button class="link-btn" id="btn-sign-out" style="margin-left:auto;">sign out</button>
         </div>
       </div>
+    </div>
+
+    <!-- Board actions -->
+    <div class="p-section">
+      <h2>Board</h2>
+      <button class="p-btn" id="btn-export-pdf" title="Export board as PDF" style="width:100%;">📄 Export PDF</button>
     </div>
 
     <!-- Source material: drop a PDF. -->
@@ -6011,7 +5998,27 @@ function runPointToSequence(pointTo, speechMs){
   step();
 }
 
+// Models tend to anchor on whatever example value the prompt shows for
+// "correctIndex" (the schema literally shows 0) and default to putting the
+// right answer first far more often than chance — so the correct option
+// visually lands on "A" almost every time. Reshuffling the options here,
+// client-side, guarantees the on-screen position is actually random no
+// matter what the model outputs.
+function shuffleQuizOptions(quiz){
+  const order = quiz.options.map((_, i) => i);
+  for(let i = order.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  return {
+    ...quiz,
+    options: order.map(i => quiz.options[i]),
+    correctIndex: order.indexOf(quiz.correctIndex),
+  };
+}
+
 function addQuizCard(quiz){
+  quiz = shuffleQuizOptions(quiz);
   sessionQuizCount++;
   dismissQuizCard();
   const overlayLayer = document.getElementById('board-quiz-overlay');
@@ -6066,7 +6073,7 @@ You must respond with ONLY a JSON object (no markdown fences, no prose outside t
 {
   "speech": "the spoken explanation, natural spoken lecture language for text-to-speech (spell out symbols, e.g. 'delta' not the character)",
   "board": [ ...array of drawing command objects... ],
-  "quiz": null OR { "question":"...", "options":["...","...","...","..."], "correctIndex":0, "explanation":"..." },
+  "quiz": null OR { "question":"...", "options":["...","...","...","..."], "correctIndex": <put the correct option's index in a genuinely random position across your quizzes, 0-3 — do NOT default to 0 or always place the right answer first>, "explanation":"..." },
   "needsLookup": null OR "a short, specific search query",
   "pointTo": null OR [ {"word":"...", "occurrence":1}, ... ]
 }
@@ -6378,7 +6385,7 @@ Respond with ONLY a JSON object (no markdown fences, no outside prose):
 {
   "speech": "spoken explanation, natural TTS language (spell out symbols e.g. 'delta' not the character)",
   "board": [ ...drawing command objects... ],
-  "quiz": null OR { "question":"...", "options":["...","...","...","..."], "correctIndex":0, "explanation":"..." },
+  "quiz": null OR { "question":"...", "options":["...","...","...","..."], "correctIndex": <put the correct option's index in a genuinely random position across your quizzes, 0-3 — do NOT default to 0 or always place the right answer first>, "explanation":"..." },
   "needsLookup": null OR "a short search query",
   "pointTo": null OR [ {"word":"...", "occurrence":1}, ... ]
 }
@@ -6943,7 +6950,6 @@ function applyAuthState(signedIn, user){
     document.getElementById('account-avatar').src = user.picture || '';
     document.getElementById('account-name').textContent = user.name || user.email || 'Signed in';
   }
-  updateLoginPillVisibility();
   if(accountChanged){
     resetTutorBoardState();
     setStatus(signedIn ? 'switched account — showing a blank board' : 'signed out — showing a blank board');
@@ -6977,18 +6983,6 @@ document.getElementById('google-signin-btn').innerHTML =
 document.getElementById('btn-sign-out').addEventListener('click', ()=>{
   parent.postMessage({ requestSignOut: true }, '*');
 });
-
-// Top-of-canvas reminder pill: only shown while signed out. Since the
-// real Google button lives in the shell (top-right, above every page),
-// clicking this just asks the shell to trigger its sign-in prompt.
-function updateLoginPillVisibility(){
-  const pill = document.getElementById('btn-login-pill');
-  if(pill) pill.style.display = currentUser ? 'none' : 'flex';
-}
-document.getElementById('btn-login-pill').addEventListener('click', ()=>{
-  parent.postMessage({ requestLogin: true }, '*');
-});
-updateLoginPillVisibility();
 
 // Exit Lesson (top right, red): reuses the same "save before leaving"
 // prompt that was already built for a Home button — asks for a lesson
