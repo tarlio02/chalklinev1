@@ -5565,7 +5565,7 @@ function speak(text){
   // again on the next one. Only if it fails several chunks in a row (the
   // proxy is clearly down) do we stop trying for the rest of this turn,
   // so the tutor doesn't stall on retries before every sentence.
-  const EDGE_GIVE_UP_STREAK = 3;
+  const EDGE_GIVE_UP_STREAK = 0; // 0 = Edge TTS disabled: the tutor speaks with the browser voice only
   let edgeFailStreak = 0;
 
   function prefetch(i){
