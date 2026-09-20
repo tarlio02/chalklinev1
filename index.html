@@ -968,7 +968,11 @@ body{
   display:none; position:fixed; inset:0; background:rgba(42,36,16,0.22); z-index:39;
   opacity:0; transition:opacity .3s ease;
 }
-.app-shell:not(.sidebar-closed) .sidebar-scrim{ display:block; opacity:0; }
+/* Desktop/tablet: the sidebar docks beside the content, so there is nothing to dismiss. The scrim used to stay
+   display:block here (invisible, opacity 0) and, being position:fixed over the whole page, swallowed the first
+   click on anything, closing the sidebar instead of pressing the button under it. It now exists only where the
+   sidebar floats over the content (the narrow-screen rule below turns it on). */
+.app-shell:not(.sidebar-closed) .sidebar-scrim{ display:none; }
 
 /* Desktop/tablet: the sidebar docks and pushes the content over. */
 .main-area{ transition:margin-left .38s cubic-bezier(.22,.9,.32,1.1); margin-left:var(--cl-sidebar-w); }
@@ -979,7 +983,7 @@ body{
      pushing it (there's no room to spare), so content never reflows
      here — only the scrim (and the sidebar itself) toggles. */
   .main-area{ margin-left:0 !important; padding-top:calc(66px + var(--safe-top)); padding-left:calc(16px + var(--safe-left)); padding-right:calc(16px + var(--safe-right)); }
-  .app-shell:not(.sidebar-closed) .sidebar-scrim{ opacity:1; }
+  .app-shell:not(.sidebar-closed) .sidebar-scrim{ display:block; opacity:1; }
   .app-shell.sidebar-closed .sidebar-scrim{ display:none; }
 }
 
@@ -1163,6 +1167,30 @@ body{
 .subject-modal .sm-go:hover{ background:#0f1c2c; }
 .course-action-card p{ max-width:none !important; }
 
+/* ---- Delete course / lesson affordances ---- */
+.course-del{
+  position:absolute; top:12px; right:12px; z-index:3;
+  width:34px; height:34px; border-radius:10px; border:1px solid rgba(0,0,0,0.06);
+  background:rgba(255,255,255,0.85); color:var(--muted); font-size:15px; line-height:1;
+  display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0;
+  opacity:0.75; transition:opacity .15s ease, color .15s ease, background .15s ease, transform .15s ease;
+}
+.course-del:hover, .course-del:focus-visible{ opacity:1; color:#b3452f; background:#FBEDE9; transform:scale(1.06); outline:none; }
+@media (hover:none){ .course-del{ opacity:1; } }   /* touch screens have no hover: always show it */
+.detail-del{
+  margin-left:auto; flex-shrink:0; height:38px; padding:0 14px; border-radius:12px;
+  border:1px solid rgba(179,69,47,0.25); background:rgba(255,255,255,0.75); color:#b3452f;
+  font-family:'Source Serif 4', Georgia, serif; font-size:13.5px; font-weight:600; cursor:pointer;
+  display:inline-flex; align-items:center; gap:6px; transition:background .15s ease;
+}
+.detail-del:hover{ background:#FBEDE9; }
+.subject-modal .sm-go.danger{ background:#b3452f; }
+.subject-modal .sm-go.danger:hover{ background:#8f3624; }
+.subject-modal .sm-go[disabled]{ opacity:.55; cursor:default; }
+.subject-modal .sm-eyebrow.danger{ color:#b3452f; }
+.subject-modal .del-list{ margin:0 0 6px; padding:12px 16px; background:#FBF3F0; border-radius:10px; font-size:13.5px; line-height:1.7; color:var(--ink); list-style:none; }
+.subject-modal .del-err{ color:#b3452f; font-size:13px; margin:10px 0 0; min-height:1em; }
+
 /* Pill rides the sidebar edge: when the sidebar closes it returns to the corner.
    (The pill sits outside .app-shell, so the rule above could never match it.) */
 body.sb-closed .sidebar-toggle{ left:calc(var(--safe-left) + 16px); }
@@ -1238,10 +1266,11 @@ body.sb-closed .sidebar-toggle{ left:calc(var(--safe-left) + 16px); }
 
     <!-- ---------- Course detail view ---------- -->
     <div id="dash-course-view" style="display:none;">
-      <div class="dash-head fade-up" style="display:flex;align-items:center;gap:14px;">
+      <div class="dash-head fade-up" style="display:flex;align-items:center;gap:14px;max-width:780px;">
         <button type="button" id="course-back-btn" title="Back to Dashboard"
           style="border:none;background:rgba(255,255,255,0.75);border:1px solid rgba(0,0,0,0.06);width:38px;height:38px;border-radius:12px;font-size:16px;cursor:pointer;flex-shrink:0;color:var(--ink);">←</button>
         <h1 style="margin:0;" id="course-detail-title">Course</h1>
+        <button type="button" class="detail-del" id="course-detail-del" title="Delete this course">🗑 Delete course</button>
       </div>
       <p id="course-detail-sub" style="font-size:14.5px;color:rgba(42,36,16,0.6);margin:-18px 0 30px 52px;"></p>
 
@@ -1261,6 +1290,22 @@ body.sb-closed .sidebar-toggle{ left:calc(var(--safe-left) + 16px); }
     <div class="sm-actions">
       <button class="sm-skip" id="btn-course-cancel">Cancel</button>
       <button class="sm-go" id="btn-course-create">Create course</button>
+    </div>
+  </div>
+</div>
+
+<!-- ---------- Delete course confirmation ---------- -->
+<div class="subject-modal" id="delete-course-modal" role="dialog" aria-modal="true" aria-labelledby="del-course-title">
+  <div class="sm-scrim" onclick="closeDeleteCourseModal();"></div>
+  <div class="sm-card">
+    <div class="sm-eyebrow danger">Delete course</div>
+    <h2 id="del-course-title">Delete this course?</h2>
+    <p id="del-course-body">This can't be undone.</p>
+    <ul class="del-list" id="del-course-list"></ul>
+    <div class="del-err" id="del-course-err" role="alert"></div>
+    <div class="sm-actions">
+      <button class="sm-skip" id="btn-del-cancel">Cancel</button>
+      <button class="sm-go danger" id="btn-del-confirm">Delete course</button>
     </div>
   </div>
 </div>
@@ -1429,6 +1474,7 @@ body.sb-closed .sidebar-toggle{ left:calc(var(--safe-left) + 16px); }
       const summaryWord = c.summaries===1 ? 'summary' : 'summaries';
       const noteWord = c.notes===1 ? 'note' : 'notes';
       return `<div class="dash-card course fade-up" data-course-name="${escapeHtmlHome(name)}" style="animation-delay:${(idx*0.06).toFixed(2)}s;--card-a:${a};--card-b:${b};">
+        <button type="button" class="course-del" data-del-course="${escapeHtmlHome(name)}" title="Delete course" aria-label="Delete course ${escapeHtmlHome(name)}">🗑</button>
         <span class="icon-badge">📘</span>
         <h2>${escapeHtmlHome(name)}</h2>
         <p>${c.lessons} ${lessonWord} · ${c.quizzes} ${quizWord} · ${c.summaries} ${summaryWord} · ${c.notes||0} ${noteWord}</p>
@@ -1438,7 +1484,17 @@ body.sb-closed .sidebar-toggle{ left:calc(var(--safe-left) + 16px); }
     // more reliable for course names containing quotes/special characters,
     // and avoids re-binding issues after innerHTML is replaced.
     grid.querySelectorAll('.dash-card.course').forEach(card=>{
-      card.addEventListener('click', ()=> openCourseDetail(card.getAttribute('data-course-name')));
+      card.addEventListener('click', ev=>{
+        // The trash button lives inside the card; it must not also open the course.
+        if(ev.target.closest && ev.target.closest('.course-del')) return;
+        openCourseDetail(card.getAttribute('data-course-name'));
+      });
+    });
+    grid.querySelectorAll('.course-del').forEach(btn=>{
+      btn.addEventListener('click', ev=>{
+        ev.stopPropagation();
+        openDeleteCourseModal(btn.getAttribute('data-del-course'));
+      });
     });
   }
 
@@ -1540,6 +1596,141 @@ body.sb-closed .sidebar-toggle{ left:calc(var(--safe-left) + 16px); }
 
   function handleAddCourseClick(){ openAddCourseModal(); }
   window.handleAddCourseClick = handleAddCourseClick;
+
+  /* ---------------- Delete a course ----------------
+     A course is not one record: it is a name in the course list PLUS every
+     lesson, summary, quiz and note whose `subject` equals that name. Deleting
+     it therefore removes all of those, and the confirmation says exactly how
+     many so nothing disappears by surprise. The item lists come from the
+     account's small metadata indexes (the same source the dashboard counts
+     use), and each kind is removed with ONE index rewrite (clStore.deleteMany).
+     "Unsorted" is a real bucket of items with no name entry; it can be cleared
+     the same way. */
+  const delModal = document.getElementById('delete-course-modal');
+  const delConfirmBtn = document.getElementById('btn-del-confirm');
+  const delCancelBtn = document.getElementById('btn-del-cancel');
+  const delErr = document.getElementById('del-course-err');
+  let deleteTarget = null;     // course name currently being confirmed
+  let deleteBusy = false;
+
+  function subjectOf(item){ return item.subject || 'Unsorted'; }
+
+  function closeDeleteCourseModal(){
+    if(deleteBusy) return;     // never close mid-delete: the person should see it finish or fail
+    delModal.classList.remove('open');
+    deleteTarget = null;
+  }
+  window.closeDeleteCourseModal = closeDeleteCourseModal;
+
+  function plural(n, one, many){ return n + ' ' + (n === 1 ? one : many); }
+
+  async function openDeleteCourseModal(name){
+    if(!name) return;
+    deleteTarget = name;
+    delErr.textContent = '';
+    delConfirmBtn.disabled = false;
+    delConfirmBtn.textContent = 'Delete course';
+    document.getElementById('del-course-title').textContent =
+      name === 'Unsorted' ? 'Delete everything in Unsorted?' : 'Delete \u201C' + name + '\u201D?';
+    document.getElementById('del-course-body').textContent = 'Counting what is in it\u2026';
+    document.getElementById('del-course-list').innerHTML = '';
+    delModal.classList.add('open');
+    // Count from the real indexes (not the possibly-stale card numbers) so the
+    // warning matches exactly what will be removed.
+    try{
+      const found = await collectCourseItems(name);
+      if(deleteTarget !== name) return;   // modal was closed / retargeted while counting
+      const rows = [
+        [found.session.length, 'lesson', 'lessons'],
+        [found.quiz.length, 'quiz', 'quizzes'],
+        [found.summary.length, 'summary', 'summaries'],
+        [found.notes.length, 'note', 'notes']
+      ].filter(r => r[0] > 0);
+      const total = rows.reduce((a, r) => a + r[0], 0);
+      document.getElementById('del-course-body').textContent = total
+        ? 'This permanently deletes the course and everything saved under it. This can\u2019t be undone.'
+        : (name === 'Unsorted' ? 'Nothing is saved under Unsorted.' : 'This course is empty. It will simply be removed from your dashboard.');
+      document.getElementById('del-course-list').innerHTML =
+        rows.map(r => '<li>\u2022 ' + plural(r[0], r[1], r[2]) + '</li>').join('');
+      if(name === 'Unsorted' && !total) delConfirmBtn.disabled = true;
+    } catch(e){
+      console.error('Could not count course contents:', e);
+      document.getElementById('del-course-body').textContent =
+        'We could not check what is inside this course, so nothing has been deleted. Close this and try again.';
+      delConfirmBtn.disabled = true;
+    }
+  }
+  window.openDeleteCourseModal = openDeleteCourseModal;
+
+  // Reads each kind's index and returns the records that belong to `name`.
+  // THROWS if any index could not be read: deleting on a partial view would
+  // leave orphaned items behind that still count toward another course.
+  async function collectCourseItems(name){
+    const owner = homeOwner();
+    const out = { session:[], summary:[], quiz:[], notes:[] };
+    // Signed in: make sure the cloud is actually answering before we decide
+    // that a course is "empty". If it is down, every index reads as empty and
+    // we would delete only the name while leaving all its items behind.
+    if(homeShellUser){
+      let probe = false;
+      try{ probe = await parent.chalklineProbe(); }catch(e){ probe = false; }
+      if(!probe) throw new Error('cloud storage is not reachable');
+    }
+    for(const kind of Object.keys(out)){
+      // listMeta is the same path the dashboard counts use, so the numbers in
+      // the confirmation always match what the dashboard showed.
+      const metas = await window.clStore.listMeta(kind, owner);
+      out[kind] = metas.filter(m => subjectOf(m) === name).map(m => m.id);
+    }
+    return out;
+  }
+
+  async function confirmDeleteCourse(){
+    if(!deleteTarget || deleteBusy) return;
+    const name = deleteTarget;
+    deleteBusy = true;
+    delErr.textContent = '';
+    delConfirmBtn.disabled = true;
+    delCancelBtn.disabled = true;
+    delConfirmBtn.textContent = 'Deleting\u2026';
+    try{
+      const owner = homeOwner();
+      // Re-collect at the moment of deletion: something may have been saved
+      // into this course since the dialog opened.
+      const found = await collectCourseItems(name);
+      for(const kind of ['session','summary','quiz','notes']){
+        await window.clStore.deleteMany(kind, owner, found[kind]);
+      }
+      // Drop the name from the explicit course list (Unsorted has none).
+      if(name !== 'Unsorted'){
+        const names = await loadCourseNames();
+        const kept = names.filter(n => n !== name);
+        if(kept.length !== names.length) await saveCourseNames(kept);
+      }
+      deleteBusy = false;
+      delCancelBtn.disabled = false;
+      delModal.classList.remove('open');
+      deleteTarget = null;
+      if(openCourseName === name) backToCourseList();
+      await loadCourses();
+    } catch(e){
+      console.error('Deleting course failed:', e);
+      deleteBusy = false;
+      delCancelBtn.disabled = false;
+      delConfirmBtn.disabled = false;
+      delConfirmBtn.textContent = 'Try again';
+      delErr.textContent = 'Something went wrong, so the course may only be partly deleted. Press Try again, or close this and refresh.';
+      loadCourses();           // show whatever really remains
+    }
+  }
+  delConfirmBtn.addEventListener('click', confirmDeleteCourse);
+  delCancelBtn.addEventListener('click', closeDeleteCourseModal);
+  document.getElementById('course-detail-del').addEventListener('click', ()=>{
+    if(openCourseName) openDeleteCourseModal(openCourseName);
+  });
+  window.addEventListener('keydown', (e)=>{
+    if(e.key === 'Escape' && delModal.classList.contains('open')) closeDeleteCourseModal();
+  });
 
   window.addEventListener('message', (e)=>{
     if(!window.clFromParent(e)) return;   // only the shell may set auth state
@@ -7805,12 +7996,16 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 .app-shell.sidebar-closed .sidebar-toggle{ left:calc(var(--safe-left) + 16px); }
 @media (max-width:700px), (max-height:540px) and (orientation:landscape){ .sidebar-toggle{ left:calc(16px + var(--safe-left)); top:calc(16px + var(--safe-top)); } .app-shell.sidebar-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 .sidebar-scrim{ display:none; position:fixed; inset:0; background:rgba(42,36,16,0.22); z-index:39; opacity:0; transition:opacity .3s ease; }
-.app-shell:not(.sidebar-closed) .sidebar-scrim{ display:block; opacity:0; }
+/* Desktop/tablet: the sidebar docks beside the content, so there is nothing to dismiss. The scrim used to stay
+   display:block here (invisible, opacity 0) and, being position:fixed over the whole page, swallowed the first
+   click on anything, closing the sidebar instead of pressing the button under it. It now exists only where the
+   sidebar floats over the content (the narrow-screen rule below turns it on). */
+.app-shell:not(.sidebar-closed) .sidebar-scrim{ display:none; }
 .main-area{ flex:1; min-width:0; transition:margin-left .38s cubic-bezier(.22,.9,.32,1.1); margin-left:var(--cl-sidebar-w); padding:8px 0 0; }
 .app-shell.sidebar-closed .main-area{ margin-left:0; }
 @media (max-width:700px), (max-height:540px) and (orientation:landscape){
   .main-area{ margin-left:0 !important; padding-top:calc(66px + var(--safe-top)); padding-left:calc(16px + var(--safe-left)); padding-right:calc(16px + var(--safe-right)); }
-  .app-shell:not(.sidebar-closed) .sidebar-scrim{ opacity:1; }
+  .app-shell:not(.sidebar-closed) .sidebar-scrim{ display:block; opacity:1; }
   .app-shell.sidebar-closed .sidebar-scrim{ display:none; }
 }
 .main-area .wrap{ margin:0 auto; }
@@ -8593,12 +8788,16 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 .app-shell.sidebar-closed .sidebar-toggle{ left:calc(var(--safe-left) + 16px); }
 @media (max-width:700px), (max-height:540px) and (orientation:landscape){ .sidebar-toggle{ left:calc(16px + var(--safe-left)); top:calc(16px + var(--safe-top)); } .app-shell.sidebar-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 .sidebar-scrim{ display:none; position:fixed; inset:0; background:rgba(42,36,16,0.22); z-index:39; opacity:0; transition:opacity .3s ease; }
-.app-shell:not(.sidebar-closed) .sidebar-scrim{ display:block; opacity:0; }
+/* Desktop/tablet: the sidebar docks beside the content, so there is nothing to dismiss. The scrim used to stay
+   display:block here (invisible, opacity 0) and, being position:fixed over the whole page, swallowed the first
+   click on anything, closing the sidebar instead of pressing the button under it. It now exists only where the
+   sidebar floats over the content (the narrow-screen rule below turns it on). */
+.app-shell:not(.sidebar-closed) .sidebar-scrim{ display:none; }
 .main-area{ flex:1; min-width:0; transition:margin-left .38s cubic-bezier(.22,.9,.32,1.1); margin-left:var(--cl-sidebar-w); padding:8px 0 0; }
 .app-shell.sidebar-closed .main-area{ margin-left:0; }
 @media (max-width:700px), (max-height:540px) and (orientation:landscape){
   .main-area{ margin-left:0 !important; padding-top:calc(66px + var(--safe-top)); padding-left:calc(16px + var(--safe-left)); padding-right:calc(16px + var(--safe-right)); }
-  .app-shell:not(.sidebar-closed) .sidebar-scrim{ opacity:1; }
+  .app-shell:not(.sidebar-closed) .sidebar-scrim{ display:block; opacity:1; }
   .app-shell.sidebar-closed .sidebar-scrim{ display:none; }
 }
 .main-area .wrap{ margin:0 auto; }
@@ -9055,12 +9254,16 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 .app-shell.sidebar-closed .sidebar-toggle{ left:calc(var(--safe-left) + 16px); }
 @media (max-width:700px), (max-height:540px) and (orientation:landscape){ .sidebar-toggle{ left:calc(16px + var(--safe-left)); top:calc(16px + var(--safe-top)); } .app-shell.sidebar-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 .sidebar-scrim{ display:none; position:fixed; inset:0; background:rgba(42,36,16,0.22); z-index:39; opacity:0; transition:opacity .3s ease; }
-.app-shell:not(.sidebar-closed) .sidebar-scrim{ display:block; opacity:0; }
+/* Desktop/tablet: the sidebar docks beside the content, so there is nothing to dismiss. The scrim used to stay
+   display:block here (invisible, opacity 0) and, being position:fixed over the whole page, swallowed the first
+   click on anything, closing the sidebar instead of pressing the button under it. It now exists only where the
+   sidebar floats over the content (the narrow-screen rule below turns it on). */
+.app-shell:not(.sidebar-closed) .sidebar-scrim{ display:none; }
 .main-area{ flex:1; min-width:0; transition:margin-left .38s cubic-bezier(.22,.9,.32,1.1); margin-left:var(--cl-sidebar-w); padding:8px 0 0; }
 .app-shell.sidebar-closed .main-area{ margin-left:0; }
 @media (max-width:700px), (max-height:540px) and (orientation:landscape){
   .main-area{ margin-left:0 !important; padding-top:calc(66px + var(--safe-top)); padding-left:calc(16px + var(--safe-left)); padding-right:calc(16px + var(--safe-right)); }
-  .app-shell:not(.sidebar-closed) .sidebar-scrim{ opacity:1; }
+  .app-shell:not(.sidebar-closed) .sidebar-scrim{ display:block; opacity:1; }
   .app-shell.sidebar-closed .sidebar-scrim{ display:none; }
 }
 .main-area .wrap{ margin:0 auto; }
@@ -9446,12 +9649,16 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 .app-shell.sidebar-closed .sidebar-toggle{ left:calc(var(--safe-left) + 16px); }
 @media (max-width:700px), (max-height:540px) and (orientation:landscape){ .sidebar-toggle{ left:calc(16px + var(--safe-left)); top:calc(16px + var(--safe-top)); } .app-shell.sidebar-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 .sidebar-scrim{ display:none; position:fixed; inset:0; background:rgba(42,36,16,0.22); z-index:39; opacity:0; transition:opacity .3s ease; }
-.app-shell:not(.sidebar-closed) .sidebar-scrim{ display:block; opacity:0; }
+/* Desktop/tablet: the sidebar docks beside the content, so there is nothing to dismiss. The scrim used to stay
+   display:block here (invisible, opacity 0) and, being position:fixed over the whole page, swallowed the first
+   click on anything, closing the sidebar instead of pressing the button under it. It now exists only where the
+   sidebar floats over the content (the narrow-screen rule below turns it on). */
+.app-shell:not(.sidebar-closed) .sidebar-scrim{ display:none; }
 .main-area{ flex:1; min-width:0; transition:margin-left .38s cubic-bezier(.22,.9,.32,1.1); margin-left:var(--cl-sidebar-w); padding:8px 0 0; }
 .app-shell.sidebar-closed .main-area{ margin-left:0; }
 @media (max-width:700px), (max-height:540px) and (orientation:landscape){
   .main-area{ margin-left:0 !important; padding-top:calc(66px + var(--safe-top)); padding-left:calc(16px + var(--safe-left)); padding-right:calc(16px + var(--safe-right)); }
-  .app-shell:not(.sidebar-closed) .sidebar-scrim{ opacity:1; }
+  .app-shell:not(.sidebar-closed) .sidebar-scrim{ display:block; opacity:1; }
   .app-shell.sidebar-closed .sidebar-scrim{ display:none; }
 }
 .main-area .wrap{ margin:0 auto; }
@@ -12324,6 +12531,38 @@ const CL_RESPONSIVE_JS = `
       });
     },
 
+    /* Delete many records of one kind in a single index rewrite.
+       Looping deleteRecord() would read and rewrite the index once PER item,
+       which is slow and lets two rewrites race. Here every body is removed
+       first, then the index is read once, filtered once and written once.
+       If the account's index cannot be read, the deletions are recorded as
+       owed (exactly as deleteRecord does) and applied on the next good read.
+       Returns how many ids were removed from the list. */
+    async deleteMany(kind, owner, ids){
+      ids = (ids || []).filter(function(x, i, a){ return x && a.indexOf(x) === i; });
+      if(!ids.length) return 0;
+      for(var i = 0; i < ids.length; i++){
+        try{ await window.storage.delete(bodyKey(kind, owner, ids[i])); }catch(e){}
+      }
+      var removed = 0;
+      await withIndexLock(indexKey(kind, owner), async function(){
+        var idx = await clStore.readIndex(kind, owner);
+        if(idx.__unreachable){
+          var owedDel = readOwed(kind, owner);
+          ids.forEach(function(id){ owedDel[id] = { __deleted: true }; });
+          writeOwed(kind, owner, owedDel);
+          removed = ids.length;
+          return;
+        }
+        var before = idx.items.length;
+        idx.items = idx.items.filter(function(x){ return ids.indexOf(x.id) === -1; });
+        removed = before - idx.items.length;
+        idx.rebuilt = true;
+        await clStore.writeIndex(kind, owner, idx);
+      });
+      return removed;
+    },
+
     /* Work done before signing in lives under the 'guest' owner. On
        sign-in it is moved into the account instead of being stranded on
        one browser forever (which is what used to happen to notes). */
@@ -12879,6 +13118,29 @@ async function chalklineStorageCall(path, payload){
   }catch(e){ console.error('[storage] ' + path + ' threw:', e); return null; }
   finally{ clearTimeout(abortTimer); }
 }
+// True only if the worker actually ANSWERED a real request (HTTP 200) for this
+// signed-in account. Used before destructive actions: a bare `null` from the
+// storage calls above cannot tell "the account has nothing" from "the server
+// could not be reached", and treating an outage as "empty" would delete a
+// course's name while leaving everything inside it behind.
+window.chalklineProbe = async function(){
+  if(!shellIdToken) return false;
+  const ctrl = new AbortController();
+  const t = setTimeout(()=> ctrl.abort(), 10000);
+  try{
+    const token = await Promise.race([
+      freshAccessToken(),
+      new Promise(resolve => setTimeout(()=> resolve(shellIdToken), 5000))
+    ]);
+    const res = await fetch(CHALKLINE_STORAGE_BASE + '/storage/get', {
+      method:'POST', headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ idToken: token, key: '__probe__' }),
+      signal: ctrl.signal
+    });
+    return res.ok;
+  }catch(e){ return false; }
+  finally{ clearTimeout(t); }
+};
 window.chalklineStorage = {
   async get(key){ return await chalklineStorageCall('/storage/get', { key }); },
   async set(key, value){ return await chalklineStorageCall('/storage/set', { key, value }); },
