@@ -3662,8 +3662,17 @@ let PAGE_RIGHT_GUTTER_PX = 24;
 let PAGE_BOTTOM_GUTTER_PX = 190;
 const layoutInsets = { top:0, bottom:0, left:0, right:0 };
 let bottomLockKey = '', bottomLockPx = 0;
+let safeTopPx = 0;        // real notch / status-bar inset (env() can't be read from a CSS variable)
+let worldOriginPx = 0;    // screen-y where world y=0 sits when camera.y=0 (start of the writing surface)
 
 function measureLayoutInsets(){
+  let probe = document.getElementById('safe-probe');
+  if(!probe){
+    probe = document.createElement('div'); probe.id = 'safe-probe';
+    probe.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;padding-top:env(safe-area-inset-top,0px);visibility:hidden;pointer-events:none;';
+    document.body.appendChild(probe);
+  }
+  safeTopPx = probe.getBoundingClientRect().height || 0;
   const topEl = document.querySelector('.topbar');
   const bottomEl = document.getElementById('bottom-dock');
   const centerEl = document.getElementById('top-center-cluster');
@@ -3697,7 +3706,11 @@ function measureLayoutInsets(){
   PAGE_RIGHT_GUTTER_PX = layoutInsets.right + 24;
 }
 
-function idealCameraX(scale){ return (viewW/2 - PAGE_LEFT_GUTTER_PX) / scale; }
+// The page is fitted to the board frame and CENTRED in it: 8px screen margin + 10px frame + 2px
+// padding on each side. (It used to be pinned 24px from the left, which pushed the right edge of
+// the writing outside the frame on phones.)
+function fitScale(){ return Math.max(0.05, Math.min(1.5, (viewW - 40) / PAGE_W)); }
+function idealCameraX(scale){ return PAGE_W / 2; }
 
 // Kick off loading the handwriting webfonts immediately at page load
 // (rather than waiting for the first canvas draw to implicitly trigger
@@ -3747,7 +3760,7 @@ function resetRegionCursors(){
   panToken++;
 
   if (viewW > 0) {
-      camera.scale = Math.min(1.5, viewW / 1050);
+      camera.scale = fitScale();
       camera.x = idealCameraX(camera.scale);
   }
   // A brand-new session always starts writing at the literal top-left
@@ -3881,16 +3894,16 @@ boardWrap.addEventListener('wheel', (e)=>{
 function panCameraToCursor(targetY, onDone){
   if(isUserScrolling){ if(onDone) onDone(); return; }
 
-  if(targetY <= PAGE_H){
-    // Still on the first page: never move the camera. Let the page fill
-    // up statically at camera.y 0 — no auto-follow yet.
+  // Already comfortably inside the visible board? Then stay put — the page just fills up.
+  const bb = boardBounds();
+  const sy = worldYToViewportY(targetY);
+  if(sy >= bb.top + 24 && sy <= bb.bottom - 24){
     if(onDone) onDone();
     return;
   }
 
-  // Past the first page: keep the pen vertically centered in the
-  // viewport as it writes, rather than anchored near the bottom.
-  const targetCameraY = Math.max(0, targetY - (viewH/2)/camera.scale);
+  // Otherwise bring it to the middle of the visible board as the pen writes.
+  const targetCameraY = Math.max(0, targetY - viewCenterWorldOffset());
   animateScrollTo(targetCameraY, 900, onDone);
 }
 
@@ -3913,11 +3926,12 @@ function resizeCanvas(){
   // auto-zoom, preserve canvas scale" requirement. Horizontal anchor
   // (camera.x) is recalculated too, since it depends on viewW.
   if (viewW > 0) {
-      camera.scale = Math.min(1.5, viewW / 1050);
+      camera.scale = fitScale();
       camera.x = idealCameraX(camera.scale);
   }
 
   applyCanvasHeight();
+  updateWorldOrigin();
   clampScrollLimits(); // also redraws
   repositionQuizOverlay();
   repositionPointerOverlay();
@@ -4015,11 +4029,12 @@ if ('ResizeObserver' in window) {
 // offset rather than touching camera.y. It's 0 during normal on-screen
 // rendering and only non-zero while exportBoardAsPDF() is mid-render.
 let exportYOffset = 0;
+function originY(){ return ctx === liveCtx ? worldOriginPx : 0; }
 function worldToScreen(wx, wy){
-  return [(wx - camera.x) * camera.scale + viewW/2, (wy - camera.y - exportYOffset) * camera.scale];
+  return [(wx - camera.x) * camera.scale + viewW/2, (wy - camera.y - exportYOffset) * camera.scale + originY()];
 }
 function screenToWorld(sx, sy){
-  return [(sx - viewW/2) / camera.scale + camera.x, sy / camera.scale + camera.y];
+  return [(sx - viewW/2) / camera.scale + camera.x, (sy - originY()) / camera.scale + camera.y];
 }
 
 // Convert a world-y into the current VIEWPORT-relative y — used by
@@ -4028,7 +4043,35 @@ function screenToWorld(sx, sy){
 // exactly the y worldToScreen would produce (with exportYOffset excluded,
 // as export never runs concurrently with live viewing).
 function worldYToViewportY(wy){
-  return (wy - camera.y) * camera.scale;
+  return (wy - camera.y) * camera.scale + originY();
+}
+
+// The visible writing surface (inside the frame), in screen px — where text must land.
+function boardBounds(){
+  const r = boardFrameRect();
+  if(!r) return { top:0, bottom:viewH, left:0, right:viewW };
+  const b = BOARD_FRAME_BORDER;
+  return { top:r.y + b, bottom:r.y + r.h - b, left:r.x + b, right:r.x + r.w - b };
+}
+// World-distance from camera.y down to the middle of the visible board.
+function viewCenterWorldOffset(){
+  const bb = boardBounds();
+  return (((bb.top + bb.bottom) / 2) - originY()) / camera.scale;
+}
+// Where world y=0 sits on screen: at the top of the writing surface, pushed down if needed so the
+// first line clears the menu button / Exit Lesson cluster that float over the top of the board.
+function updateWorldOrigin(){
+  const r = boardFrameRect();
+  if(!r){ worldOriginPx = 0; return; }
+  let origin = r.y + BOARD_FRAME_BORDER + 6;
+  let clearBottom = Math.round(safeTopPx) + 18 + 34;              // the ☰ pill (closed position)
+  const cl = document.querySelector('.top-right-cluster');
+  if(cl){
+    const cr = cl.getBoundingClientRect();
+    if(cr.width > 0 && cr.left < r.x + r.w - 10 && cr.right > r.x + 10) clearBottom = Math.max(clearBottom, cr.bottom);
+  }
+  const firstLineTop = 40 * camera.scale;                         // ascender top of the first line (baseline at TOP_MARGIN)
+  worldOriginPx = Math.max(origin, clearBottom + 6 - firstLineTop);
 }
 
 const INK = '#1E2B3A';
@@ -4121,15 +4164,16 @@ try{ parent.postMessage({ requestBackground: true }, '*'); } catch(e){}
 let frameLock = null;   // { key, w0, r } — the frame is computed once per viewport size, then reused
 function boardFrameRect(){
   if(ctx !== liveCtx || viewW <= 0 || viewH <= 0) return null;
-  const key = Math.round(viewW) + 'x' + Math.round(viewH) + ':' + Math.round(PAGE_BOTTOM_GUTTER_PX);
+  const key = Math.round(viewW) + 'x' + Math.round(viewH) + ':' + Math.round(PAGE_BOTTOM_GUTTER_PX) + ':' + Math.round(safeTopPx);
   const ae = document.activeElement;
   const typing = !!(ae && /^(INPUT|TEXTAREA)$/.test(ae.tagName));
   // While typing, a phone keyboard shrinks the viewport — keep the frame exactly as it was.
   if(frameLock && (frameLock.key === key || (typing && frameLock.w0 === Math.round(viewW)))) return frameLock.r;
   const pageL = worldToScreen(0, 0)[0], pageR = worldToScreen(PAGE_W, 0)[0];
-  const x = Math.max(8, pageL - 14);
-  const right = Math.min(viewW - 8, pageR + 14);
-  const y = 12;
+  const pad = BOARD_FRAME_BORDER + 2;
+  const x = Math.max(4, pageL - pad);
+  const right = Math.min(viewW - 4, pageR + pad);
+  const y = Math.max(12, Math.round(safeTopPx) + 8);   // below the notch / status bar
   const bottom = Math.max(y + 140, viewH - PAGE_BOTTOM_GUTTER_PX + 6);   // ends just above the ask/controls dock
   const r = { x, y, w: Math.max(80, right - x), h: bottom - y };
   frameLock = { key, w0: Math.round(viewW), r };
@@ -4783,7 +4827,8 @@ function plotScalers(ox, oy, w, h, cmd){
    EXPORT PDF
    ========================================================= */
 function worldContentBounds(){
-  const savedCam = { ...camera }, savedW = viewW, savedH = viewH, savedOffset = exportYOffset;
+  const savedCam = { ...camera }, savedW = viewW, savedH = viewH, savedOffset = exportYOffset, savedOrigin = worldOriginPx;
+  worldOriginPx = 0;
   camera.scale = 1; camera.x = viewW/2; camera.y = 0; exportYOffset = 0;
   let minX=0, minY=0, maxX=PAGE_W, maxY=1;
   drawnCommands.forEach(cmd=>{
@@ -4791,7 +4836,7 @@ function worldContentBounds(){
     minX=Math.min(minX,x0); minY=Math.min(minY,y0);
     maxX=Math.max(maxX,x1); maxY=Math.max(maxY,y1);
   });
-  Object.assign(camera, savedCam); viewW = savedW; viewH = savedH; exportYOffset = savedOffset;
+  Object.assign(camera, savedCam); viewW = savedW; viewH = savedH; exportYOffset = savedOffset; worldOriginPx = savedOrigin;
   return { minX, minY, maxX, maxY };
 }
 
@@ -5184,10 +5229,9 @@ function commandWorldAnchor(cmd){
 function maybeCorrectScrollMidAnimation(anchor){
   if(!anchor || isUserScrolling) return;
   const sy = worldYToViewportY(anchor[1]);
-  const marginTop = PAGE_TOP_GUTTER_PX + 20;
-  const marginBottom = PAGE_BOTTOM_GUTTER_PX;
+  const bb = boardBounds();
   const now = performance.now();
-  if((sy < marginTop || sy > viewH-marginBottom) && (now - lastMidDrawPanAt > 320)){
+  if((sy < bb.top + 20 || sy > bb.bottom - 30) && (now - lastMidDrawPanAt > 320)){
     lastMidDrawPanAt = now;
     lastAutoFollowTargetY = anchor[1];
     panCameraToCursor(anchor[1], null);
@@ -6265,10 +6309,11 @@ function scrollToWorldYIfNeeded(wy, onDone){
   // viewport around by itself while the AI is just talking.
   if(!drawing){ if(onDone) onDone(); return; }
   const viewportY = worldYToViewportY(wy);
-  const margin = PAGE_TOP_GUTTER_PX + 40;
-  const bottomLimit = viewH - PAGE_BOTTOM_GUTTER_PX - 40;
+  const bbv = boardBounds();
+  const margin = bbv.top + 40;
+  const bottomLimit = bbv.bottom - 40;
   if(viewportY >= margin && viewportY <= bottomLimit){ if(onDone) onDone(); return; }
-  const targetScrollTop = Math.max(0, wy*camera.scale - viewH/2);
+  const targetScrollTop = Math.max(0, wy - viewCenterWorldOffset());
   animateScrollTo(targetScrollTop, 500, onDone);
 }
 
@@ -7579,9 +7624,9 @@ function loadSession(item){
   // page 1, stay at the top (page 1 is always shown in full); otherwise
   // resume centered on the pen's last position, same as live auto-follow.
   lastAutoFollowTargetY = globalCursorY;
-  const resumeCameraY = (globalCursorY <= PAGE_H)
+  const resumeCameraY = (worldYToViewportY(globalCursorY) <= boardBounds().bottom - 40)
     ? 0
-    : Math.max(0, globalCursorY - (viewH/2)/camera.scale);
+    : Math.max(0, globalCursorY - viewCenterWorldOffset());
   setCameraYProgrammatically(resumeCameraY);
   clampScrollLimits(); // also redraws
   setStatus('session loaded');
