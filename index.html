@@ -12826,9 +12826,17 @@ async function chalklineStorageCall(path, payload){
       method:'POST', headers:{ 'Content-Type':'application/json' },
       body: JSON.stringify(Object.assign({ idToken: token }, payload))
     });
-    if(!res.ok) return null;
+    if(!res.ok){
+      // Surface the real reason in the console instead of a bare "not saved —
+      // retrying" with nothing to go on. Never shown to the user directly —
+      // just makes the next report of "not saving" instantly diagnosable.
+      let detail = '';
+      try{ detail = await res.text(); }catch(e){}
+      console.error('[storage] ' + path + ' failed: ' + res.status + ' ' + detail);
+      return null;
+    }
     return await res.json();
-  }catch(e){ return null; }
+  }catch(e){ console.error('[storage] ' + path + ' threw:', e); return null; }
 }
 window.chalklineStorage = {
   async get(key){ return await chalklineStorageCall('/storage/get', { key }); },
