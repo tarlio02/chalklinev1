@@ -936,6 +936,79 @@ html,body{ height:100%; overflow:hidden; }
   -webkit-overflow-scrolling:touch;
   overscroll-behavior:contain;
 }
+
+/* ---- 3D sidebar ---------------------------------------------------
+   The sidebar is a slab standing in space: turned slightly toward the
+   content, with a thick lit edge, a long cast shadow, and raised
+   buttons that lift on hover and press in when tapped. */
+.app-shell{ perspective:none; }
+.sidebar{
+  transform:perspective(1500px) translateX(0) rotateY(3deg);
+  transform-origin:left center;
+  background:linear-gradient(100deg, #FFFFFF 0%, #FFF9E8 42%, #F3E2B0 135%);
+  border-right:1px solid rgba(120,90,20,0.20);
+  box-shadow:
+    inset 2px 0 0 rgba(255,255,255,0.95),
+    inset 0 2px 0 rgba(255,255,255,0.9),
+    inset -1px 0 0 rgba(120,90,20,0.14),
+    12px 0 22px -8px rgba(90,65,10,0.30),
+    34px 0 58px -20px rgba(90,65,10,0.26);
+}
+.sidebar::after{
+  content:''; position:absolute; top:0; right:-10px; bottom:0; width:10px;
+  background:linear-gradient(90deg, #CDB57A 0%, #E6D5A2 45%, rgba(230,213,162,0) 100%);
+  pointer-events:none;
+}
+.app-shell.sidebar-closed .sidebar{
+  transform:perspective(1500px) translateX(-106%) rotateY(-18deg);
+  box-shadow:none;
+}
+.app-shell.sidebar-closed .sidebar::after{ opacity:0; }
+
+.sidebar-account,
+.sidebar-nav a,
+.sidebar-footer a{
+  transition:transform .16s cubic-bezier(.2,.8,.3,1.1), box-shadow .16s ease, background .16s ease, color .15s ease;
+}
+.sidebar-account{
+  background:linear-gradient(180deg, #FFFFFF, #F8EFD4);
+  border:1px solid rgba(120,90,20,0.14);
+  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.20), 0 10px 14px -8px rgba(120,90,20,0.40);
+}
+.sidebar-account:hover{ background:linear-gradient(180deg, #FFFFFF, #F8EFD4); transform:translateY(-2px);
+  box-shadow:0 1px 0 #fff inset, 0 5px 0 rgba(160,120,40,0.20), 0 14px 18px -8px rgba(120,90,20,0.45); }
+.sidebar-account:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
+
+.sidebar-nav{ gap:7px; }
+.sidebar-nav a{
+  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
+  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.20), 0 8px 12px -8px rgba(120,90,20,0.40);
+}
+.sidebar-nav a:hover{
+  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
+  transform:translateY(-2px);
+  box-shadow:0 1px 0 #fff inset, 0 5px 0 rgba(160,120,40,0.20), 0 12px 16px -8px rgba(120,90,20,0.45);
+}
+.sidebar-nav a:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
+.sidebar-nav a.active{
+  background:linear-gradient(180deg, #F3D07A, #F8E2A6);
+  transform:translateY(2px);
+  box-shadow:0 2px 5px rgba(150,105,25,0.35) inset, 0 1px 0 rgba(255,255,255,0.8);
+}
+
+.sidebar-footer a{
+  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
+  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.18), 0 8px 12px -8px rgba(120,90,20,0.35);
+}
+.sidebar-footer a:hover{ transform:translateY(-2px); background:linear-gradient(180deg, #FFFFFF, #FBF2D8); }
+.sidebar-footer a:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
+.sidebar-footer a.active{
+  background:linear-gradient(180deg, #F3D07A, #F8E2A6);
+  transform:translateY(2px);
+  box-shadow:0 2px 5px rgba(150,105,25,0.35) inset, 0 1px 0 rgba(255,255,255,0.8);
+}
+.sidebar-recent a:hover{ transform:translateX(3px); }
+.sidebar-recent a{ transition:transform .16s ease, background .15s ease; }
 </style>
 </head>
 <body>
@@ -7038,6 +7111,79 @@ html,body{ height:100%; overflow:hidden; }
   -webkit-overflow-scrolling:touch;
   overscroll-behavior:contain;
 }
+
+/* ---- 3D sidebar ---------------------------------------------------
+   The sidebar is a slab standing in space: turned slightly toward the
+   content, with a thick lit edge, a long cast shadow, and raised
+   buttons that lift on hover and press in when tapped. */
+.app-shell{ perspective:none; }
+.sidebar{
+  transform:perspective(1500px) translateX(0) rotateY(3deg);
+  transform-origin:left center;
+  background:linear-gradient(100deg, #FFFFFF 0%, #FFF9E8 42%, #F3E2B0 135%);
+  border-right:1px solid rgba(120,90,20,0.20);
+  box-shadow:
+    inset 2px 0 0 rgba(255,255,255,0.95),
+    inset 0 2px 0 rgba(255,255,255,0.9),
+    inset -1px 0 0 rgba(120,90,20,0.14),
+    12px 0 22px -8px rgba(90,65,10,0.30),
+    34px 0 58px -20px rgba(90,65,10,0.26);
+}
+.sidebar::after{
+  content:''; position:absolute; top:0; right:-10px; bottom:0; width:10px;
+  background:linear-gradient(90deg, #CDB57A 0%, #E6D5A2 45%, rgba(230,213,162,0) 100%);
+  pointer-events:none;
+}
+.app-shell.sidebar-closed .sidebar{
+  transform:perspective(1500px) translateX(-106%) rotateY(-18deg);
+  box-shadow:none;
+}
+.app-shell.sidebar-closed .sidebar::after{ opacity:0; }
+
+.sidebar-account,
+.sidebar-nav a,
+.sidebar-footer a{
+  transition:transform .16s cubic-bezier(.2,.8,.3,1.1), box-shadow .16s ease, background .16s ease, color .15s ease;
+}
+.sidebar-account{
+  background:linear-gradient(180deg, #FFFFFF, #F8EFD4);
+  border:1px solid rgba(120,90,20,0.14);
+  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.20), 0 10px 14px -8px rgba(120,90,20,0.40);
+}
+.sidebar-account:hover{ background:linear-gradient(180deg, #FFFFFF, #F8EFD4); transform:translateY(-2px);
+  box-shadow:0 1px 0 #fff inset, 0 5px 0 rgba(160,120,40,0.20), 0 14px 18px -8px rgba(120,90,20,0.45); }
+.sidebar-account:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
+
+.sidebar-nav{ gap:7px; }
+.sidebar-nav a{
+  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
+  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.20), 0 8px 12px -8px rgba(120,90,20,0.40);
+}
+.sidebar-nav a:hover{
+  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
+  transform:translateY(-2px);
+  box-shadow:0 1px 0 #fff inset, 0 5px 0 rgba(160,120,40,0.20), 0 12px 16px -8px rgba(120,90,20,0.45);
+}
+.sidebar-nav a:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
+.sidebar-nav a.active{
+  background:linear-gradient(180deg, #F3D07A, #F8E2A6);
+  transform:translateY(2px);
+  box-shadow:0 2px 5px rgba(150,105,25,0.35) inset, 0 1px 0 rgba(255,255,255,0.8);
+}
+
+.sidebar-footer a{
+  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
+  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.18), 0 8px 12px -8px rgba(120,90,20,0.35);
+}
+.sidebar-footer a:hover{ transform:translateY(-2px); background:linear-gradient(180deg, #FFFFFF, #FBF2D8); }
+.sidebar-footer a:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
+.sidebar-footer a.active{
+  background:linear-gradient(180deg, #F3D07A, #F8E2A6);
+  transform:translateY(2px);
+  box-shadow:0 2px 5px rgba(150,105,25,0.35) inset, 0 1px 0 rgba(255,255,255,0.8);
+}
+.sidebar-recent a:hover{ transform:translateX(3px); }
+.sidebar-recent a{ transition:transform .16s ease, background .15s ease; }
 </style>
 </head>
 <body>
@@ -7802,6 +7948,79 @@ html,body{ height:100%; overflow:hidden; }
   -webkit-overflow-scrolling:touch;
   overscroll-behavior:contain;
 }
+
+/* ---- 3D sidebar ---------------------------------------------------
+   The sidebar is a slab standing in space: turned slightly toward the
+   content, with a thick lit edge, a long cast shadow, and raised
+   buttons that lift on hover and press in when tapped. */
+.app-shell{ perspective:none; }
+.sidebar{
+  transform:perspective(1500px) translateX(0) rotateY(3deg);
+  transform-origin:left center;
+  background:linear-gradient(100deg, #FFFFFF 0%, #FFF9E8 42%, #F3E2B0 135%);
+  border-right:1px solid rgba(120,90,20,0.20);
+  box-shadow:
+    inset 2px 0 0 rgba(255,255,255,0.95),
+    inset 0 2px 0 rgba(255,255,255,0.9),
+    inset -1px 0 0 rgba(120,90,20,0.14),
+    12px 0 22px -8px rgba(90,65,10,0.30),
+    34px 0 58px -20px rgba(90,65,10,0.26);
+}
+.sidebar::after{
+  content:''; position:absolute; top:0; right:-10px; bottom:0; width:10px;
+  background:linear-gradient(90deg, #CDB57A 0%, #E6D5A2 45%, rgba(230,213,162,0) 100%);
+  pointer-events:none;
+}
+.app-shell.sidebar-closed .sidebar{
+  transform:perspective(1500px) translateX(-106%) rotateY(-18deg);
+  box-shadow:none;
+}
+.app-shell.sidebar-closed .sidebar::after{ opacity:0; }
+
+.sidebar-account,
+.sidebar-nav a,
+.sidebar-footer a{
+  transition:transform .16s cubic-bezier(.2,.8,.3,1.1), box-shadow .16s ease, background .16s ease, color .15s ease;
+}
+.sidebar-account{
+  background:linear-gradient(180deg, #FFFFFF, #F8EFD4);
+  border:1px solid rgba(120,90,20,0.14);
+  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.20), 0 10px 14px -8px rgba(120,90,20,0.40);
+}
+.sidebar-account:hover{ background:linear-gradient(180deg, #FFFFFF, #F8EFD4); transform:translateY(-2px);
+  box-shadow:0 1px 0 #fff inset, 0 5px 0 rgba(160,120,40,0.20), 0 14px 18px -8px rgba(120,90,20,0.45); }
+.sidebar-account:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
+
+.sidebar-nav{ gap:7px; }
+.sidebar-nav a{
+  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
+  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.20), 0 8px 12px -8px rgba(120,90,20,0.40);
+}
+.sidebar-nav a:hover{
+  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
+  transform:translateY(-2px);
+  box-shadow:0 1px 0 #fff inset, 0 5px 0 rgba(160,120,40,0.20), 0 12px 16px -8px rgba(120,90,20,0.45);
+}
+.sidebar-nav a:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
+.sidebar-nav a.active{
+  background:linear-gradient(180deg, #F3D07A, #F8E2A6);
+  transform:translateY(2px);
+  box-shadow:0 2px 5px rgba(150,105,25,0.35) inset, 0 1px 0 rgba(255,255,255,0.8);
+}
+
+.sidebar-footer a{
+  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
+  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.18), 0 8px 12px -8px rgba(120,90,20,0.35);
+}
+.sidebar-footer a:hover{ transform:translateY(-2px); background:linear-gradient(180deg, #FFFFFF, #FBF2D8); }
+.sidebar-footer a:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
+.sidebar-footer a.active{
+  background:linear-gradient(180deg, #F3D07A, #F8E2A6);
+  transform:translateY(2px);
+  box-shadow:0 2px 5px rgba(150,105,25,0.35) inset, 0 1px 0 rgba(255,255,255,0.8);
+}
+.sidebar-recent a:hover{ transform:translateX(3px); }
+.sidebar-recent a{ transition:transform .16s ease, background .15s ease; }
 </style>
 </head>
 <body>
@@ -8301,6 +8520,79 @@ html,body{ height:100%; overflow:hidden; }
   -webkit-overflow-scrolling:touch;
   overscroll-behavior:contain;
 }
+
+/* ---- 3D sidebar ---------------------------------------------------
+   The sidebar is a slab standing in space: turned slightly toward the
+   content, with a thick lit edge, a long cast shadow, and raised
+   buttons that lift on hover and press in when tapped. */
+.app-shell{ perspective:none; }
+.sidebar{
+  transform:perspective(1500px) translateX(0) rotateY(3deg);
+  transform-origin:left center;
+  background:linear-gradient(100deg, #FFFFFF 0%, #FFF9E8 42%, #F3E2B0 135%);
+  border-right:1px solid rgba(120,90,20,0.20);
+  box-shadow:
+    inset 2px 0 0 rgba(255,255,255,0.95),
+    inset 0 2px 0 rgba(255,255,255,0.9),
+    inset -1px 0 0 rgba(120,90,20,0.14),
+    12px 0 22px -8px rgba(90,65,10,0.30),
+    34px 0 58px -20px rgba(90,65,10,0.26);
+}
+.sidebar::after{
+  content:''; position:absolute; top:0; right:-10px; bottom:0; width:10px;
+  background:linear-gradient(90deg, #CDB57A 0%, #E6D5A2 45%, rgba(230,213,162,0) 100%);
+  pointer-events:none;
+}
+.app-shell.sidebar-closed .sidebar{
+  transform:perspective(1500px) translateX(-106%) rotateY(-18deg);
+  box-shadow:none;
+}
+.app-shell.sidebar-closed .sidebar::after{ opacity:0; }
+
+.sidebar-account,
+.sidebar-nav a,
+.sidebar-footer a{
+  transition:transform .16s cubic-bezier(.2,.8,.3,1.1), box-shadow .16s ease, background .16s ease, color .15s ease;
+}
+.sidebar-account{
+  background:linear-gradient(180deg, #FFFFFF, #F8EFD4);
+  border:1px solid rgba(120,90,20,0.14);
+  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.20), 0 10px 14px -8px rgba(120,90,20,0.40);
+}
+.sidebar-account:hover{ background:linear-gradient(180deg, #FFFFFF, #F8EFD4); transform:translateY(-2px);
+  box-shadow:0 1px 0 #fff inset, 0 5px 0 rgba(160,120,40,0.20), 0 14px 18px -8px rgba(120,90,20,0.45); }
+.sidebar-account:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
+
+.sidebar-nav{ gap:7px; }
+.sidebar-nav a{
+  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
+  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.20), 0 8px 12px -8px rgba(120,90,20,0.40);
+}
+.sidebar-nav a:hover{
+  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
+  transform:translateY(-2px);
+  box-shadow:0 1px 0 #fff inset, 0 5px 0 rgba(160,120,40,0.20), 0 12px 16px -8px rgba(120,90,20,0.45);
+}
+.sidebar-nav a:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
+.sidebar-nav a.active{
+  background:linear-gradient(180deg, #F3D07A, #F8E2A6);
+  transform:translateY(2px);
+  box-shadow:0 2px 5px rgba(150,105,25,0.35) inset, 0 1px 0 rgba(255,255,255,0.8);
+}
+
+.sidebar-footer a{
+  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
+  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.18), 0 8px 12px -8px rgba(120,90,20,0.35);
+}
+.sidebar-footer a:hover{ transform:translateY(-2px); background:linear-gradient(180deg, #FFFFFF, #FBF2D8); }
+.sidebar-footer a:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
+.sidebar-footer a.active{
+  background:linear-gradient(180deg, #F3D07A, #F8E2A6);
+  transform:translateY(2px);
+  box-shadow:0 2px 5px rgba(150,105,25,0.35) inset, 0 1px 0 rgba(255,255,255,0.8);
+}
+.sidebar-recent a:hover{ transform:translateX(3px); }
+.sidebar-recent a{ transition:transform .16s ease, background .15s ease; }
 </style>
 </head>
 <body>
@@ -8733,6 +9025,79 @@ html,body{ height:100%; overflow:hidden; }
   -webkit-overflow-scrolling:touch;
   overscroll-behavior:contain;
 }
+
+/* ---- 3D sidebar ---------------------------------------------------
+   The sidebar is a slab standing in space: turned slightly toward the
+   content, with a thick lit edge, a long cast shadow, and raised
+   buttons that lift on hover and press in when tapped. */
+.app-shell{ perspective:none; }
+.sidebar{
+  transform:perspective(1500px) translateX(0) rotateY(3deg);
+  transform-origin:left center;
+  background:linear-gradient(100deg, #FFFFFF 0%, #FFF9E8 42%, #F3E2B0 135%);
+  border-right:1px solid rgba(120,90,20,0.20);
+  box-shadow:
+    inset 2px 0 0 rgba(255,255,255,0.95),
+    inset 0 2px 0 rgba(255,255,255,0.9),
+    inset -1px 0 0 rgba(120,90,20,0.14),
+    12px 0 22px -8px rgba(90,65,10,0.30),
+    34px 0 58px -20px rgba(90,65,10,0.26);
+}
+.sidebar::after{
+  content:''; position:absolute; top:0; right:-10px; bottom:0; width:10px;
+  background:linear-gradient(90deg, #CDB57A 0%, #E6D5A2 45%, rgba(230,213,162,0) 100%);
+  pointer-events:none;
+}
+.app-shell.sidebar-closed .sidebar{
+  transform:perspective(1500px) translateX(-106%) rotateY(-18deg);
+  box-shadow:none;
+}
+.app-shell.sidebar-closed .sidebar::after{ opacity:0; }
+
+.sidebar-account,
+.sidebar-nav a,
+.sidebar-footer a{
+  transition:transform .16s cubic-bezier(.2,.8,.3,1.1), box-shadow .16s ease, background .16s ease, color .15s ease;
+}
+.sidebar-account{
+  background:linear-gradient(180deg, #FFFFFF, #F8EFD4);
+  border:1px solid rgba(120,90,20,0.14);
+  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.20), 0 10px 14px -8px rgba(120,90,20,0.40);
+}
+.sidebar-account:hover{ background:linear-gradient(180deg, #FFFFFF, #F8EFD4); transform:translateY(-2px);
+  box-shadow:0 1px 0 #fff inset, 0 5px 0 rgba(160,120,40,0.20), 0 14px 18px -8px rgba(120,90,20,0.45); }
+.sidebar-account:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
+
+.sidebar-nav{ gap:7px; }
+.sidebar-nav a{
+  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
+  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.20), 0 8px 12px -8px rgba(120,90,20,0.40);
+}
+.sidebar-nav a:hover{
+  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
+  transform:translateY(-2px);
+  box-shadow:0 1px 0 #fff inset, 0 5px 0 rgba(160,120,40,0.20), 0 12px 16px -8px rgba(120,90,20,0.45);
+}
+.sidebar-nav a:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
+.sidebar-nav a.active{
+  background:linear-gradient(180deg, #F3D07A, #F8E2A6);
+  transform:translateY(2px);
+  box-shadow:0 2px 5px rgba(150,105,25,0.35) inset, 0 1px 0 rgba(255,255,255,0.8);
+}
+
+.sidebar-footer a{
+  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
+  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.18), 0 8px 12px -8px rgba(120,90,20,0.35);
+}
+.sidebar-footer a:hover{ transform:translateY(-2px); background:linear-gradient(180deg, #FFFFFF, #FBF2D8); }
+.sidebar-footer a:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
+.sidebar-footer a.active{
+  background:linear-gradient(180deg, #F3D07A, #F8E2A6);
+  transform:translateY(2px);
+  box-shadow:0 2px 5px rgba(150,105,25,0.35) inset, 0 1px 0 rgba(255,255,255,0.8);
+}
+.sidebar-recent a:hover{ transform:translateX(3px); }
+.sidebar-recent a{ transition:transform .16s ease, background .15s ease; }
 </style>
 </head>
 <body>
@@ -10187,6 +10552,79 @@ html,body{ height:100%; overflow:hidden; }
   -webkit-overflow-scrolling:touch;
   overscroll-behavior:contain;
 }
+
+/* ---- 3D sidebar ---------------------------------------------------
+   The sidebar is a slab standing in space: turned slightly toward the
+   content, with a thick lit edge, a long cast shadow, and raised
+   buttons that lift on hover and press in when tapped. */
+.app-shell{ perspective:none; }
+.sidebar{
+  transform:perspective(1500px) translateX(0) rotateY(3deg);
+  transform-origin:left center;
+  background:linear-gradient(100deg, #FFFFFF 0%, #FFF9E8 42%, #F3E2B0 135%);
+  border-right:1px solid rgba(120,90,20,0.20);
+  box-shadow:
+    inset 2px 0 0 rgba(255,255,255,0.95),
+    inset 0 2px 0 rgba(255,255,255,0.9),
+    inset -1px 0 0 rgba(120,90,20,0.14),
+    12px 0 22px -8px rgba(90,65,10,0.30),
+    34px 0 58px -20px rgba(90,65,10,0.26);
+}
+.sidebar::after{
+  content:''; position:absolute; top:0; right:-10px; bottom:0; width:10px;
+  background:linear-gradient(90deg, #CDB57A 0%, #E6D5A2 45%, rgba(230,213,162,0) 100%);
+  pointer-events:none;
+}
+.app-shell.sidebar-closed .sidebar{
+  transform:perspective(1500px) translateX(-106%) rotateY(-18deg);
+  box-shadow:none;
+}
+.app-shell.sidebar-closed .sidebar::after{ opacity:0; }
+
+.sidebar-account,
+.sidebar-nav a,
+.sidebar-footer a{
+  transition:transform .16s cubic-bezier(.2,.8,.3,1.1), box-shadow .16s ease, background .16s ease, color .15s ease;
+}
+.sidebar-account{
+  background:linear-gradient(180deg, #FFFFFF, #F8EFD4);
+  border:1px solid rgba(120,90,20,0.14);
+  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.20), 0 10px 14px -8px rgba(120,90,20,0.40);
+}
+.sidebar-account:hover{ background:linear-gradient(180deg, #FFFFFF, #F8EFD4); transform:translateY(-2px);
+  box-shadow:0 1px 0 #fff inset, 0 5px 0 rgba(160,120,40,0.20), 0 14px 18px -8px rgba(120,90,20,0.45); }
+.sidebar-account:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
+
+.sidebar-nav{ gap:7px; }
+.sidebar-nav a{
+  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
+  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.20), 0 8px 12px -8px rgba(120,90,20,0.40);
+}
+.sidebar-nav a:hover{
+  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
+  transform:translateY(-2px);
+  box-shadow:0 1px 0 #fff inset, 0 5px 0 rgba(160,120,40,0.20), 0 12px 16px -8px rgba(120,90,20,0.45);
+}
+.sidebar-nav a:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
+.sidebar-nav a.active{
+  background:linear-gradient(180deg, #F3D07A, #F8E2A6);
+  transform:translateY(2px);
+  box-shadow:0 2px 5px rgba(150,105,25,0.35) inset, 0 1px 0 rgba(255,255,255,0.8);
+}
+
+.sidebar-footer a{
+  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
+  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.18), 0 8px 12px -8px rgba(120,90,20,0.35);
+}
+.sidebar-footer a:hover{ transform:translateY(-2px); background:linear-gradient(180deg, #FFFFFF, #FBF2D8); }
+.sidebar-footer a:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
+.sidebar-footer a.active{
+  background:linear-gradient(180deg, #F3D07A, #F8E2A6);
+  transform:translateY(2px);
+  box-shadow:0 2px 5px rgba(150,105,25,0.35) inset, 0 1px 0 rgba(255,255,255,0.8);
+}
+.sidebar-recent a:hover{ transform:translateX(3px); }
+.sidebar-recent a{ transition:transform .16s ease, background .15s ease; }
 </style>
 </head>
 <body>
@@ -10481,6 +10919,79 @@ html,body{ height:100%; overflow:hidden; }
   -webkit-overflow-scrolling:touch;
   overscroll-behavior:contain;
 }
+
+/* ---- 3D sidebar ---------------------------------------------------
+   The sidebar is a slab standing in space: turned slightly toward the
+   content, with a thick lit edge, a long cast shadow, and raised
+   buttons that lift on hover and press in when tapped. */
+.app-shell{ perspective:none; }
+.sidebar{
+  transform:perspective(1500px) translateX(0) rotateY(3deg);
+  transform-origin:left center;
+  background:linear-gradient(100deg, #FFFFFF 0%, #FFF9E8 42%, #F3E2B0 135%);
+  border-right:1px solid rgba(120,90,20,0.20);
+  box-shadow:
+    inset 2px 0 0 rgba(255,255,255,0.95),
+    inset 0 2px 0 rgba(255,255,255,0.9),
+    inset -1px 0 0 rgba(120,90,20,0.14),
+    12px 0 22px -8px rgba(90,65,10,0.30),
+    34px 0 58px -20px rgba(90,65,10,0.26);
+}
+.sidebar::after{
+  content:''; position:absolute; top:0; right:-10px; bottom:0; width:10px;
+  background:linear-gradient(90deg, #CDB57A 0%, #E6D5A2 45%, rgba(230,213,162,0) 100%);
+  pointer-events:none;
+}
+.app-shell.sidebar-closed .sidebar{
+  transform:perspective(1500px) translateX(-106%) rotateY(-18deg);
+  box-shadow:none;
+}
+.app-shell.sidebar-closed .sidebar::after{ opacity:0; }
+
+.sidebar-account,
+.sidebar-nav a,
+.sidebar-footer a{
+  transition:transform .16s cubic-bezier(.2,.8,.3,1.1), box-shadow .16s ease, background .16s ease, color .15s ease;
+}
+.sidebar-account{
+  background:linear-gradient(180deg, #FFFFFF, #F8EFD4);
+  border:1px solid rgba(120,90,20,0.14);
+  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.20), 0 10px 14px -8px rgba(120,90,20,0.40);
+}
+.sidebar-account:hover{ background:linear-gradient(180deg, #FFFFFF, #F8EFD4); transform:translateY(-2px);
+  box-shadow:0 1px 0 #fff inset, 0 5px 0 rgba(160,120,40,0.20), 0 14px 18px -8px rgba(120,90,20,0.45); }
+.sidebar-account:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
+
+.sidebar-nav{ gap:7px; }
+.sidebar-nav a{
+  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
+  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.20), 0 8px 12px -8px rgba(120,90,20,0.40);
+}
+.sidebar-nav a:hover{
+  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
+  transform:translateY(-2px);
+  box-shadow:0 1px 0 #fff inset, 0 5px 0 rgba(160,120,40,0.20), 0 12px 16px -8px rgba(120,90,20,0.45);
+}
+.sidebar-nav a:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
+.sidebar-nav a.active{
+  background:linear-gradient(180deg, #F3D07A, #F8E2A6);
+  transform:translateY(2px);
+  box-shadow:0 2px 5px rgba(150,105,25,0.35) inset, 0 1px 0 rgba(255,255,255,0.8);
+}
+
+.sidebar-footer a{
+  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
+  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.18), 0 8px 12px -8px rgba(120,90,20,0.35);
+}
+.sidebar-footer a:hover{ transform:translateY(-2px); background:linear-gradient(180deg, #FFFFFF, #FBF2D8); }
+.sidebar-footer a:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
+.sidebar-footer a.active{
+  background:linear-gradient(180deg, #F3D07A, #F8E2A6);
+  transform:translateY(2px);
+  box-shadow:0 2px 5px rgba(150,105,25,0.35) inset, 0 1px 0 rgba(255,255,255,0.8);
+}
+.sidebar-recent a:hover{ transform:translateX(3px); }
+.sidebar-recent a{ transition:transform .16s ease, background .15s ease; }
 </style>
 </head>
 <body>
