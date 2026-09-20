@@ -5289,6 +5289,25 @@ function unlockTtsAudio(){
   } else {
     logVoice('unlock audio play() returned no promise (older browser)');
   }
+  // Prime speechSynthesis the same way: some browsers (notably iOS
+  // Safari) only allow the FIRST speak() call to actually produce sound
+  // if it happens directly inside a real tap — a speak() called later
+  // from async code (e.g. after a failed Gemini fetch, like the browser
+  // fallback does) is silently dropped: no onstart, no onerror, nothing.
+  // Speaking one empty/near-silent utterance here, inside the real
+  // gesture, unlocks it for that later async call.
+  if('speechSynthesis' in window){
+    try{
+      const primer = new SpeechSynthesisUtterance(' ');
+      primer.volume = 0;
+      primer.onstart = () => logVoice('speechSynthesis primer started');
+      primer.onerror = (ev) => logVoice('speechSynthesis primer error: ' + (ev && ev.error));
+      window.speechSynthesis.speak(primer);
+      logVoice('speechSynthesis primer speak() called');
+    }catch(e){
+      logVoice('speechSynthesis primer threw: ' + (e && e.message || e));
+    }
+  }
 }
 document.addEventListener('touchstart', unlockTtsAudio, { passive:true });
 document.addEventListener('click', unlockTtsAudio);
@@ -5528,14 +5547,24 @@ function speak(text){
     utter.pitch = 1.0;
     utter.volume = 1.0; // Enforces maximum browser volume output
     if(voice) utter.voice = voice;
-    utter.onstart = () => { logVoice('browser utterance started, voice=' + (voice ? voice.name : 'default')); setTutorSpeakingUI(true); };
+    utter.onstart = () => { utter.hasStarted = true; logVoice('browser utterance started, voice=' + (voice ? voice.name : 'default')); setTutorSpeakingUI(true); };
     utter.onend = () => {
       if(myToken !== currentSpeechToken) return;
       const pause = /\?\s*$/.test(chunks[i]) ? 260 : 140;
       setTimeout(()=> speakChunk(i+1), pause);
     };
     utter.onerror = (ev) => { logVoice('browser utterance error: ' + (ev && ev.error)); if(myToken === currentSpeechToken) speakChunk(i+1); };
+    logVoice('speechSynthesis.speak() called, synth.speaking=' + window.speechSynthesis.speaking + ' synth.paused=' + window.speechSynthesis.paused);
     window.speechSynthesis.speak(utter);
+    // If onstart never fires within a couple seconds, the call was
+    // silently dropped (no event at all) rather than erroring — that's
+    // the iOS "speak() outside a real gesture does nothing" failure
+    // mode. Detect and log it, then move on instead of hanging forever.
+    setTimeout(()=>{
+      if(myToken === currentSpeechToken && !utter.hasStarted){
+        logVoice('speechSynthesis.speak() never started (silently dropped) — synth.speaking=' + window.speechSynthesis.speaking);
+      }
+    }, 2500);
   }
 
   async function speakChunk(i){
