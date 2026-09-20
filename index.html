@@ -753,6 +753,12 @@ window.addEventListener('message', (e)=>{
   if(d.requestSignOut){
     signOutShell();
   }
+  // A page that missed the shell's one-shot auth message (it is sent 60ms
+  // after the frame is created, and is lost if the page isn't listening yet)
+  // can ask for it again instead of waiting forever on "Loading…".
+  if(d.requestAuthState){
+    try{ e.source.postMessage({ chalklineAuth:true, signedIn: !!shellUser, user: shellUser }, '*'); }catch(err){}
+  }
 });
 
 // True only for one of the eight page iframes this shell created. `frames`
@@ -8861,6 +8867,13 @@ async function refreshTutorHistory(){
 }
 
 refreshTutorHistory();
+
+// Ask the shell for the sign-in state in case its one-shot message arrived
+// before this page was listening; without it this page would wait forever.
+parent.postMessage({ requestAuthState: true }, '*');
+// If no answer comes at all, treat the visitor as signed out and show the
+// list (from the local cache) instead of leaving "Loading…" on screen.
+setTimeout(()=>{ if(!thAuthKnown){ thUser = null; thAuthKnown = true; refreshTutorHistory(); } }, 2500);
 <\/script>
 
 </body>
@@ -9245,6 +9258,13 @@ async function refreshSummaryHistory(){
 }
 
 refreshSummaryHistory();
+
+// Ask the shell for the sign-in state in case its one-shot message arrived
+// before this page was listening; without it this page would wait forever.
+parent.postMessage({ requestAuthState: true }, '*');
+// If no answer comes at all, treat the visitor as signed out and show the
+// list (from the local cache) instead of leaving "Loading…" on screen.
+setTimeout(()=>{ if(!shAuthKnown){ shUser = null; shAuthKnown = true; refreshSummaryHistory(); } }, 2500);
 <\/script>
 
 </body>
@@ -9632,6 +9652,13 @@ async function refreshQuizHistory(){
 }
 
 refreshQuizHistory();
+
+// Ask the shell for the sign-in state in case its one-shot message arrived
+// before this page was listening; without it this page would wait forever.
+parent.postMessage({ requestAuthState: true }, '*');
+// If no answer comes at all, treat the visitor as signed out and show the
+// list (from the local cache) instead of leaving "Loading…" on screen.
+setTimeout(()=>{ if(!qhAuthKnown){ qhUser = null; qhAuthKnown = true; refreshQuizHistory(); } }, 2500);
 <\/script>
 
 </body>
@@ -12824,11 +12851,20 @@ window.addEventListener('popstate', (e)=>{
 const CHALKLINE_STORAGE_BASE = 'https://api.takundamambudzi02.workers.dev';
 async function chalklineStorageCall(path, payload){
   if(!shellIdToken) return null; // signed out, or a refresh hasn't landed yet — caller falls back to its local cache
+  // A request that never settles used to leave every list page on "Loading…"
+  // forever (nothing above this call has a timeout of its own). Abort the
+  // fetch after 15s, and don't let a stalled getSession() block it either.
+  const ctrl = new AbortController();
+  const abortTimer = setTimeout(()=> ctrl.abort(), 15000);
   try{
-    const token = await freshAccessToken();
+    const token = await Promise.race([
+      freshAccessToken(),
+      new Promise(resolve => setTimeout(()=> resolve(shellIdToken), 5000))
+    ]);
     const res = await fetch(CHALKLINE_STORAGE_BASE + path, {
       method:'POST', headers:{ 'Content-Type':'application/json' },
-      body: JSON.stringify(Object.assign({ idToken: token }, payload))
+      body: JSON.stringify(Object.assign({ idToken: token }, payload)),
+      signal: ctrl.signal
     });
     if(!res.ok){
       // Surface the real reason in the console instead of a bare "not saved —
@@ -12841,6 +12877,7 @@ async function chalklineStorageCall(path, payload){
     }
     return await res.json();
   }catch(e){ console.error('[storage] ' + path + ' threw:', e); return null; }
+  finally{ clearTimeout(abortTimer); }
 }
 window.chalklineStorage = {
   async get(key){ return await chalklineStorageCall('/storage/get', { key }); },
