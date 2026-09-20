@@ -6862,9 +6862,13 @@ function handleHomeClick(){
     goHomeNow();
     return;
   }
-  const topicKnown = currentTopicLabel && currentTopicLabel !== 'Topic';
+  // "Already named" means EITHER the AI picked up a topic, OR the person
+  // already typed a name into this very prompt on an earlier save — either
+  // way there is nothing left to ask, so don't ask again.
+  const topicKnown = (currentTopicLabel && currentTopicLabel !== 'Topic') || !!currentSessionTitle;
   if(topicKnown){
-    document.getElementById('leave-confirm-title').textContent = `Leave "${currentTopicLabel}"?`;
+    const shownName = (currentTopicLabel && currentTopicLabel !== 'Topic') ? currentTopicLabel : currentSessionTitle;
+    document.getElementById('leave-confirm-title').textContent = `Leave "${shownName}"?`;
     leaveConfirmModal.classList.add('open');
     return;
   }
