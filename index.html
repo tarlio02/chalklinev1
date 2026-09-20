@@ -448,6 +448,7 @@ window.addEventListener('message', (e)=>{
   --highlight:#F5E6B8;
   --sage:#3E8FA6;
   --brick:#3D6B93;
+  --danger:#C0392B;  /* destructive actions (delete) — kept separate from the palette */
   --panel-border:#ECE3C8;
   --muted:#8A8267;
   --halo-blue:#F6E2A0;
@@ -617,7 +618,11 @@ body{
   display:none; position:fixed; inset:0; background:rgba(42,36,16,0.22); z-index:39;
   opacity:0; transition:opacity .3s ease;
 }
-.app-shell:not(.sidebar-closed) .sidebar-scrim{ display:block; opacity:0; }
+/* The scrim only exists on narrow screens (see the max-width:700px block
+   below), where the sidebar floats over the content. On desktop/tablet the
+   sidebar docks and pushes the content over, so there is nothing to dim —
+   and a full-viewport invisible layer here used to swallow the first click
+   on every card/button while the sidebar was open. */
 
 /* Desktop/tablet: the sidebar docks and pushes the content over. */
 .main-area{ transition:margin-left .38s cubic-bezier(.22,.9,.32,1.1); margin-left:252px; }
@@ -628,7 +633,7 @@ body{
      pushing it (there's no room to spare), so content never reflows
      here — only the scrim (and the sidebar itself) toggles. */
   .main-area{ margin-left:0 !important; padding-top:calc(66px + var(--safe-top)); padding-left:calc(16px + var(--safe-left)); padding-right:calc(16px + var(--safe-right)); }
-  .app-shell:not(.sidebar-closed) .sidebar-scrim{ opacity:1; }
+  .app-shell:not(.sidebar-closed) .sidebar-scrim{ display:block; opacity:1; }
   .app-shell.sidebar-closed .sidebar-scrim{ display:none; }
 }
 
@@ -812,6 +817,47 @@ body{
 .subject-modal .sm-go:hover{ background:#0f1c2c; }
 .course-action-card p{ max-width:none !important; }
 
+/* ---------- Course info button + info/delete modal ---------- */
+.course-info-btn{
+  position:absolute; top:14px; right:14px; z-index:3;
+  width:30px; height:30px; border-radius:50%; border:none; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  background:rgba(255,255,255,0.85);
+  box-shadow:0 2px 8px rgba(120,90,20,0.18), 0 0 0 1px rgba(120,90,20,0.10);
+  font-family:'Fraunces','Source Serif 4',Georgia,serif; font-style:italic; font-weight:700;
+  font-size:15px; line-height:1; color:var(--gold-deep);
+  transition:transform .15s ease, background .15s ease, box-shadow .15s ease;
+}
+.course-info-btn:hover{ background:#fff; transform:scale(1.1); box-shadow:0 4px 12px rgba(120,90,20,0.26), 0 0 0 1px rgba(120,90,20,0.16); }
+.course-info-btn:active{ transform:scale(0.94); }
+.course-info-btn:focus-visible{ outline:2px solid var(--ochre); outline-offset:2px; }
+
+.ci-stats{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:0 0 6px; }
+.ci-stat{
+  background:#FFF7E0; border:1px solid rgba(120,90,20,0.10); border-radius:12px;
+  padding:12px 14px; display:flex; flex-direction:column; gap:2px;
+}
+.ci-stat b{ font-family:'Fraunces','Source Serif 4',Georgia,serif; font-size:22px; font-weight:600; color:var(--ink); }
+.ci-stat span{ font-family:'JetBrains Mono', monospace; font-size:10.5px; letter-spacing:0.3px; color:rgba(42,36,16,0.55); }
+.subject-modal .ci-note{ font-size:12.5px; margin:14px 0 0; }
+.subject-modal .sm-danger{
+  border:none; border-radius:999px; font-family:inherit; font-size:14px; font-weight:600;
+  color:#fff; background:var(--danger); padding:10px 22px; cursor:pointer;
+  transition:filter .15s ease, opacity .15s ease;
+}
+.subject-modal .sm-danger:hover{ filter:brightness(0.92); }
+.subject-modal .sm-danger:disabled{ opacity:0.6; cursor:default; }
+.subject-modal .sm-outline-danger{
+  border:1.5px solid var(--danger); border-radius:999px; font-family:inherit; font-size:14px; font-weight:600;
+  color:var(--danger); background:#fff; padding:9px 20px; cursor:pointer;
+  transition:background .15s ease;
+}
+.subject-modal .sm-outline-danger:hover{ background:rgba(181,70,47,0.07); }
+.subject-modal .ci-confirm{ display:none; }
+.subject-modal.confirming .ci-confirm{ display:block; }
+.subject-modal.confirming .ci-view{ display:none; }
+.subject-modal .ci-confirm p{ color:var(--ink); }
+
 /* Pill rides the sidebar edge: when the sidebar closes it returns to the corner.
    (The pill sits outside .app-shell, so the rule above could never match it.) */
 body.sb-closed .sidebar-toggle{ left:16px; }
@@ -906,6 +952,35 @@ body.sb-closed .sidebar-toggle{ left:16px; }
     <div class="sm-actions">
       <button class="sm-skip" id="btn-course-cancel">Cancel</button>
       <button class="sm-go" id="btn-course-create">Create course</button>
+    </div>
+  </div>
+</div>
+
+<!-- ---------- Course info / delete modal ---------- -->
+<div class="subject-modal" id="course-info-modal" role="dialog" aria-modal="true" aria-labelledby="ci-title">
+  <div class="sm-scrim" onclick="closeCourseInfo();"></div>
+  <div class="sm-card">
+    <!-- Default view: info + Delete button -->
+    <div class="ci-view">
+      <div class="sm-eyebrow">Course info</div>
+      <h2 id="ci-title">Course</h2>
+      <p id="ci-desc">Everything saved under this course.</p>
+      <div class="ci-stats" id="ci-stats"></div>
+      <p class="ci-note" id="ci-note"></p>
+      <div class="sm-actions">
+        <button class="sm-skip" id="btn-ci-close" type="button">Close</button>
+        <button class="sm-outline-danger" id="btn-ci-delete" type="button">🗑 Delete course</button>
+      </div>
+    </div>
+    <!-- Confirmation view -->
+    <div class="ci-confirm">
+      <div class="sm-eyebrow" style="color:var(--danger);">Delete course</div>
+      <h2 id="ci-confirm-title">Delete this course?</h2>
+      <p id="ci-confirm-body"></p>
+      <div class="sm-actions">
+        <button class="sm-skip" id="btn-ci-back" type="button">Go back</button>
+        <button class="sm-danger" id="btn-ci-confirm-delete" type="button">Yes, delete it</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1132,6 +1207,7 @@ body.sb-closed .sidebar-toggle{ left:16px; }
       const summaryWord = c.summaries===1 ? 'summary' : 'summaries';
       const noteWord = c.notes===1 ? 'note' : 'notes';
       return `<div class="dash-card course fade-up" data-course-name="${escapeHtmlHome(name)}" style="animation-delay:${(idx*0.06).toFixed(2)}s;--card-a:${a};--card-b:${b};">
+        <button type="button" class="course-info-btn" title="Course info" aria-label="Course info for ${escapeHtmlHome(name)}">i</button>
         <span class="icon-badge">📘</span>
         <h2>${escapeHtmlHome(name)}</h2>
         <p>${c.lessons} ${lessonWord} · ${c.quizzes} ${quizWord} · ${c.summaries} ${summaryWord} · ${c.notes||0} ${noteWord}</p>
@@ -1142,6 +1218,14 @@ body.sb-closed .sidebar-toggle{ left:16px; }
     // and avoids re-binding issues after innerHTML is replaced.
     grid.querySelectorAll('.dash-card.course').forEach(card=>{
       card.addEventListener('click', ()=> openCourseDetail(card.getAttribute('data-course-name')));
+      const infoBtn = card.querySelector('.course-info-btn');
+      if(infoBtn){
+        // stopPropagation so tapping ⓘ doesn't also open the course itself
+        infoBtn.addEventListener('click', (e)=>{
+          e.stopPropagation();
+          openCourseInfo(card.getAttribute('data-course-name'));
+        });
+      }
     });
   }
 
@@ -1209,6 +1293,116 @@ body.sb-closed .sidebar-toggle{ left:16px; }
   window.addEventListener('message', (e)=>{
     if(e.data && e.data.chalklineShowHome) backToCourseList();
     if(e.data && e.data.openCourse) openCourseDetail(e.data.openCourse);
+  });
+
+  /* ---------------- Course info / delete modal ----------------
+     A "course" is only a subject tag, so deleting one means removing:
+       1. its name from the explicit course list, and
+       2. every lesson (session:), summary (summary:), quiz (quiz:) and
+          note (notes:) whose subject matches it —
+     otherwise the course would immediately reappear on the dashboard
+     the next time loadCourses() rebuilds the grid from those items.
+     "Unsorted" is the catch-all bucket for untagged items, not a real
+     course, so it can be inspected but not deleted. */
+  const courseInfoModal = document.getElementById('course-info-modal');
+  let infoCourseName = null;
+
+  function openCourseInfo(name){
+    infoCourseName = name;
+    const c = currentCourseStats[name] || { lessons:0, quizzes:0, summaries:0, notes:0 };
+    const isUnsorted = (name === 'Unsorted');
+    courseInfoModal.classList.remove('confirming');
+    document.getElementById('ci-title').textContent = name;
+    document.getElementById('ci-desc').textContent = isUnsorted
+      ? 'Items that aren\u2019t tagged with a course end up here.'
+      : 'Everything saved under this course.';
+    document.getElementById('ci-stats').innerHTML = `
+      <div class="ci-stat"><b>${c.lessons}</b><span>${c.lessons===1?'LESSON':'LESSONS'}</span></div>
+      <div class="ci-stat"><b>${c.quizzes}</b><span>${c.quizzes===1?'QUIZ':'QUIZZES'}</span></div>
+      <div class="ci-stat"><b>${c.summaries}</b><span>${c.summaries===1?'SUMMARY':'SUMMARIES'}</span></div>
+      <div class="ci-stat"><b>${c.notes||0}</b><span>${(c.notes||0)===1?'NOTE':'NOTES'}</span></div>`;
+    const noteEl = document.getElementById('ci-note');
+    const delBtn = document.getElementById('btn-ci-delete');
+    if(isUnsorted){
+      noteEl.textContent = 'This is a catch-all group, so it can\u2019t be deleted.';
+      noteEl.style.display = 'block';
+      delBtn.style.display = 'none';
+    } else {
+      noteEl.style.display = 'none';
+      delBtn.style.display = '';
+    }
+    courseInfoModal.classList.add('open');
+  }
+  function closeCourseInfo(){
+    courseInfoModal.classList.remove('open');
+    courseInfoModal.classList.remove('confirming');
+    infoCourseName = null;
+  }
+  window.closeCourseInfo = closeCourseInfo;
+
+  function showDeleteConfirm(){
+    if(!infoCourseName) return;
+    const c = currentCourseStats[infoCourseName] || { lessons:0, quizzes:0, summaries:0, notes:0 };
+    const total = c.lessons + c.quizzes + c.summaries + (c.notes||0);
+    document.getElementById('ci-confirm-title').textContent = `Delete \u201c${infoCourseName}\u201d?`;
+    document.getElementById('ci-confirm-body').textContent = total > 0
+      ? `This will permanently delete the course along with its ${c.lessons} ${c.lessons===1?'lesson':'lessons'}, ${c.quizzes} ${c.quizzes===1?'quiz':'quizzes'}, ${c.summaries} ${c.summaries===1?'summary':'summaries'} and ${c.notes||0} ${(c.notes||0)===1?'note':'notes'}. This can\u2019t be undone.`
+      : 'This course is empty. It will be removed from your dashboard. This can\u2019t be undone.';
+    courseInfoModal.classList.add('confirming');
+  }
+
+  // Deletes every stored record under `prefix` whose subject matches.
+  async function deleteItemsForSubject(prefix, subject){
+    let removed = 0;
+    try{
+      const result = await window.storage.list(prefix, false);
+      for(const key of (result.keys || [])){
+        try{
+          const rec = await window.storage.get(key, false);
+          if(!rec) continue;
+          const item = JSON.parse(rec.value);
+          if((item.subject || 'Unsorted') === subject){
+            await window.storage.delete(key, false);
+            removed++;
+          }
+        } catch(e){ /* skip corrupt entry */ }
+      }
+    } catch(e){ console.error('Deleting items under ' + prefix + ' failed:', e); }
+    return removed;
+  }
+
+  async function confirmDeleteCourse(){
+    const name = infoCourseName;
+    if(!name || name === 'Unsorted' || !homeShellUser) return;
+    const btn = document.getElementById('btn-ci-confirm-delete');
+    btn.disabled = true; btn.textContent = 'Deleting\u2026';
+    try{
+      const sub = homeShellUser.sub;
+      // 1. course name out of the explicit list
+      const names = (await loadCourseNames()).filter(n => n !== name);
+      await saveCourseNames(names);
+      // 2. everything tagged with it
+      await deleteItemsForSubject('session:' + sub + ':', name);
+      await deleteItemsForSubject('summary:' + sub + ':', name);
+      await deleteItemsForSubject('quiz:' + sub + ':', name);
+      await deleteItemsForSubject('notes:' + sub + ':', name);
+    } catch(e){
+      console.error('Could not delete course:', e);
+    } finally {
+      btn.disabled = false; btn.textContent = 'Yes, delete it';
+    }
+    closeCourseInfo();
+    await loadCourses();
+    // Let the rest of the app (sidebar "recent" lists etc.) know things changed.
+    try{ parent.postMessage({ courseDeleted: name }, '*'); } catch(e){}
+  }
+
+  document.getElementById('btn-ci-close').addEventListener('click', closeCourseInfo);
+  document.getElementById('btn-ci-delete').addEventListener('click', showDeleteConfirm);
+  document.getElementById('btn-ci-back').addEventListener('click', ()=> courseInfoModal.classList.remove('confirming'));
+  document.getElementById('btn-ci-confirm-delete').addEventListener('click', confirmDeleteCourse);
+  document.addEventListener('keydown', (e)=>{
+    if(e.key === 'Escape' && courseInfoModal.classList.contains('open')) closeCourseInfo();
   });
 
   /* ---------------- Add-course modal ---------------- */
@@ -6752,12 +6946,14 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 .app-shell.sidebar-closed .sidebar-toggle{ left:16px; }
 @media (max-width:700px){ .sidebar-toggle{ left:calc(16px + var(--safe-left)); top:calc(16px + var(--safe-top)); } .app-shell.sidebar-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 .sidebar-scrim{ display:none; position:fixed; inset:0; background:rgba(42,36,16,0.22); z-index:39; opacity:0; transition:opacity .3s ease; }
-.app-shell:not(.sidebar-closed) .sidebar-scrim{ display:block; opacity:0; }
+/* Scrim is mobile-only (see the max-width:700px block below). On desktop the sidebar
+   docks and pushes content, so an invisible full-viewport layer here just swallowed
+   the first click on everything while the sidebar was open. */
 .main-area{ flex:1; min-width:0; transition:margin-left .38s cubic-bezier(.22,.9,.32,1.1); margin-left:230px; padding:8px 0 0; }
 .app-shell.sidebar-closed .main-area{ margin-left:0; }
 @media (max-width:700px){
   .main-area{ margin-left:0 !important; padding-top:calc(66px + var(--safe-top)); padding-left:calc(16px + var(--safe-left)); padding-right:calc(16px + var(--safe-right)); }
-  .app-shell:not(.sidebar-closed) .sidebar-scrim{ opacity:1; }
+  .app-shell:not(.sidebar-closed) .sidebar-scrim{ display:block; opacity:1; }
   .app-shell.sidebar-closed .sidebar-scrim{ display:none; }
 }
 .main-area .wrap{ margin:0 auto; }
@@ -7500,12 +7696,14 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 .app-shell.sidebar-closed .sidebar-toggle{ left:16px; }
 @media (max-width:700px){ .sidebar-toggle{ left:calc(16px + var(--safe-left)); top:calc(16px + var(--safe-top)); } .app-shell.sidebar-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 .sidebar-scrim{ display:none; position:fixed; inset:0; background:rgba(42,36,16,0.22); z-index:39; opacity:0; transition:opacity .3s ease; }
-.app-shell:not(.sidebar-closed) .sidebar-scrim{ display:block; opacity:0; }
+/* Scrim is mobile-only (see the max-width:700px block below). On desktop the sidebar
+   docks and pushes content, so an invisible full-viewport layer here just swallowed
+   the first click on everything while the sidebar was open. */
 .main-area{ flex:1; min-width:0; transition:margin-left .38s cubic-bezier(.22,.9,.32,1.1); margin-left:230px; padding:8px 0 0; }
 .app-shell.sidebar-closed .main-area{ margin-left:0; }
 @media (max-width:700px){
   .main-area{ margin-left:0 !important; padding-top:calc(66px + var(--safe-top)); padding-left:calc(16px + var(--safe-left)); padding-right:calc(16px + var(--safe-right)); }
-  .app-shell:not(.sidebar-closed) .sidebar-scrim{ opacity:1; }
+  .app-shell:not(.sidebar-closed) .sidebar-scrim{ display:block; opacity:1; }
   .app-shell.sidebar-closed .sidebar-scrim{ display:none; }
 }
 .main-area .wrap{ margin:0 auto; }
@@ -7983,12 +8181,14 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 .app-shell.sidebar-closed .sidebar-toggle{ left:16px; }
 @media (max-width:700px){ .sidebar-toggle{ left:calc(16px + var(--safe-left)); top:calc(16px + var(--safe-top)); } .app-shell.sidebar-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 .sidebar-scrim{ display:none; position:fixed; inset:0; background:rgba(42,36,16,0.22); z-index:39; opacity:0; transition:opacity .3s ease; }
-.app-shell:not(.sidebar-closed) .sidebar-scrim{ display:block; opacity:0; }
+/* Scrim is mobile-only (see the max-width:700px block below). On desktop the sidebar
+   docks and pushes content, so an invisible full-viewport layer here just swallowed
+   the first click on everything while the sidebar was open. */
 .main-area{ flex:1; min-width:0; transition:margin-left .38s cubic-bezier(.22,.9,.32,1.1); margin-left:230px; padding:8px 0 0; }
 .app-shell.sidebar-closed .main-area{ margin-left:0; }
 @media (max-width:700px){
   .main-area{ margin-left:0 !important; padding-top:calc(66px + var(--safe-top)); padding-left:calc(16px + var(--safe-left)); padding-right:calc(16px + var(--safe-right)); }
-  .app-shell:not(.sidebar-closed) .sidebar-scrim{ opacity:1; }
+  .app-shell:not(.sidebar-closed) .sidebar-scrim{ display:block; opacity:1; }
   .app-shell.sidebar-closed .sidebar-scrim{ display:none; }
 }
 .main-area .wrap{ margin:0 auto; }
@@ -8399,12 +8599,14 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 .app-shell.sidebar-closed .sidebar-toggle{ left:16px; }
 @media (max-width:700px){ .sidebar-toggle{ left:calc(16px + var(--safe-left)); top:calc(16px + var(--safe-top)); } .app-shell.sidebar-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 .sidebar-scrim{ display:none; position:fixed; inset:0; background:rgba(42,36,16,0.22); z-index:39; opacity:0; transition:opacity .3s ease; }
-.app-shell:not(.sidebar-closed) .sidebar-scrim{ display:block; opacity:0; }
+/* Scrim is mobile-only (see the max-width:700px block below). On desktop the sidebar
+   docks and pushes content, so an invisible full-viewport layer here just swallowed
+   the first click on everything while the sidebar was open. */
 .main-area{ flex:1; min-width:0; transition:margin-left .38s cubic-bezier(.22,.9,.32,1.1); margin-left:230px; padding:8px 0 0; }
 .app-shell.sidebar-closed .main-area{ margin-left:0; }
 @media (max-width:700px){
   .main-area{ margin-left:0 !important; padding-top:calc(66px + var(--safe-top)); padding-left:calc(16px + var(--safe-left)); padding-right:calc(16px + var(--safe-right)); }
-  .app-shell:not(.sidebar-closed) .sidebar-scrim{ opacity:1; }
+  .app-shell:not(.sidebar-closed) .sidebar-scrim{ display:block; opacity:1; }
   .app-shell.sidebar-closed .sidebar-scrim{ display:none; }
 }
 .main-area .wrap{ margin:0 auto; }
@@ -9837,12 +10039,14 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 .app-shell.sidebar-closed .sidebar-toggle{ left:16px; }
 @media (max-width:700px){ .sidebar-toggle{ left:calc(16px + var(--safe-left)); top:calc(16px + var(--safe-top)); } .app-shell.sidebar-closed .sidebar-toggle{ left:calc(16px + var(--safe-left)); } }
 .sidebar-scrim{ display:none; position:fixed; inset:0; background:rgba(42,36,16,0.22); z-index:39; opacity:0; transition:opacity .3s ease; }
-.app-shell:not(.sidebar-closed) .sidebar-scrim{ display:block; opacity:0; }
+/* Scrim is mobile-only (see the max-width:700px block below). On desktop the sidebar
+   docks and pushes content, so an invisible full-viewport layer here just swallowed
+   the first click on everything while the sidebar was open. */
 .main-area{ flex:1; min-width:0; transition:margin-left .38s cubic-bezier(.22,.9,.32,1.1); margin-left:230px; padding:8px 0 0; }
 .app-shell.sidebar-closed .main-area{ margin-left:0; }
 @media (max-width:700px){
   .main-area{ margin-left:0 !important; padding-top:calc(66px + var(--safe-top)); padding-left:calc(16px + var(--safe-left)); padding-right:calc(16px + var(--safe-right)); }
-  .app-shell:not(.sidebar-closed) .sidebar-scrim{ opacity:1; }
+  .app-shell:not(.sidebar-closed) .sidebar-scrim{ display:block; opacity:1; }
   .app-shell.sidebar-closed .sidebar-scrim{ display:none; }
 }
 .main-area .wrap{ margin:0 auto; }
