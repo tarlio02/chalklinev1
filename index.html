@@ -371,6 +371,7 @@ const WORKER_URL = "https://api.takundamambudzi02.workers.dev";
 const SESSION_STORAGE_KEY = 'chalkline_session';   // { token, plan, sub } - the AI pages read this too
 const SYNC_META_PREFIX = 'chalkline_sync_meta:';
 let syncTimer = null, syncBusy = false, syncAgain = false;
+let cloudLoadedFor = null;   // account whose cloud content has been loaded into this device this session
 
 // Supabase is how the worker actually verifies who's asking (see
 // verifyGoogleIdToken in worker.js) — every "idToken" the worker accepts
@@ -457,7 +458,7 @@ function unionCourses(a, b){
 // assume. So "changed on two devices" can't be detected server-side; the
 // courses-union rule below is the one place we still merge instead of
 // picking a winner, everything else is last-write-wins by sync order.
-async function pullCloud(sub){
+async function pullCloud(sub, authoritative){
   const { keys } = await workerStorage('list', { prefix: '' });
   const re = syncKeyRegex(sub), meta = loadSyncMeta(sub);
   const cloudKeys = new Set((keys || []).filter(k => re.test(k)));
@@ -467,6 +468,11 @@ async function pullCloud(sub){
     if(!got || got.value == null) continue;
     const value = got.value;
     const h = fnv(value);
+    if(authoritative){                                    // first load after sign-in/startup: the cloud copy replaces this device's
+      if(localStorage.getItem(key) !== value){ localStorage.setItem(key, value); changed = true; }
+      meta[key] = { h };
+      continue;
+    }
     const m = meta[key];
     if(m && m.h === h) continue;                          // cloud copy unchanged since last sync
     const local = localStorage.getItem(key);
@@ -481,6 +487,13 @@ async function pullCloud(sub){
     } else {
       meta[key] = { h: m ? m.h : '' };                     // keep this device's copy; push will overwrite the cloud
     }
+  }
+  if(authoritative){
+    // Supabase is the source of truth: anything on this device that isn't in the cloud is discarded.
+    for(const k of localSyncKeys(sub)){ if(!cloudKeys.has(k)){ localStorage.removeItem(k); changed = true; } }
+    for(const k of Object.keys(meta)){ if(!cloudKeys.has(k)) delete meta[k]; }
+    saveSyncMeta(sub, meta);
+    return changed;
   }
   // Deleted elsewhere: gone from the cloud, untouched here since last sync.
   for(const key of Object.keys(meta)){
@@ -531,7 +544,10 @@ async function syncNow(pullFirst){
   syncBusy = true;
   const sub = shellUser.sub;
   try{
-    const changed = pullFirst ? await pullCloud(sub) : false;
+    // Never push before the cloud copy has been loaded once, or stale local data could overwrite it.
+    const firstLoad = cloudLoadedFor !== sub;
+    const changed = (pullFirst || firstLoad) ? await pullCloud(sub, firstLoad) : false;
+    if(firstLoad) cloudLoadedFor = sub;
     await pushLocal(sub);
     if(changed) broadcastAuthState();   // pages re-read their data now that it changed
   } catch(e){
@@ -696,6 +712,7 @@ document.getElementById('shell-sign-out').addEventListener('click', ()=>{ toggle
 
 function signOutShell(){
   shellUser = null;
+  cloudLoadedFor = null;
   localStorage.removeItem(SHELL_AUTH_STORAGE_KEY);
   localStorage.removeItem(SESSION_STORAGE_KEY);
   clearTimeout(syncTimer);
@@ -1685,7 +1702,6 @@ html,body{ height:100%; overflow:hidden; }
           const item = JSON.parse(rec.value);
           const c = ensure(item.subject || 'Unsorted');
           c.lessons++;
-          c.quizzes += item.quizCount || 0;
         } catch(e){ /* skip corrupt entry */ }
       }
     } catch(e){ console.error('Loading lessons for dashboard failed:', e); }
@@ -2257,23 +2273,6 @@ body{
 .exit-lesson-btn:active{ transform:scale(0.96); }
 @media (max-width:600px){
   .exit-lesson-btn{ font-size:9.5px; padding:6px 10px; }
-}
-.ai-engine-select{
-  font-family:'JetBrains Mono', monospace;
-  font-size:11px;
-  font-weight:700;
-  color:var(--ink);
-  background:rgba(255,255,255,0.9);
-  border:1px solid #D3E6F5;
-  border-radius:999px;
-  padding:6px 10px;
-  cursor:pointer;
-  white-space:nowrap;
-  align-self:center;
-}
-.ai-engine-select:hover{ border-color:#2E7DBE; }
-@media (max-width:600px){
-  .ai-engine-select{ font-size:9.5px; padding:5px 8px; }
 }
 
 .btn-label{
@@ -3141,11 +3140,6 @@ body:not(.panel-open) .sidebar-toggle{ left:0 !important; }
   </div>
   <div class="top-right-cluster">
     <button class="exit-lesson-btn" id="btn-exit-lesson" title="Exit lesson">🚪 Exit Lesson</button>
-    <select class="ai-engine-select" id="btn-ai-engine" title="Choose which AI engine teaches this lesson" onchange="setAiBackend(this.value)">
-      <option value="gemini">Gemini</option>
-      <option value="groq">Groq</option>
-      <option value="apinex">Apinex</option>
-    </select>
     <div class="status-chip" id="voice-status-chip" style="display:inline-block;cursor:pointer;" onclick="event.stopPropagation();(function(){var m='audioUnlocked='+audioUnlocked+'\nAudioContext state='+(voiceAudioCtx?voiceAudioCtx.state:'not created')+'\n\n--- recent log ---\n'+voiceDebugLog.join('\n');alert(m);})()">🔊 tap for voice debug info</div>
     <div class="status-chip" id="status-line" onclick="showBackendDebug()" style="cursor:pointer;" title="Tap to see AI backend details">idle</div>
   </div>
@@ -6257,32 +6251,16 @@ function chalklineAuthHeaders(){
 // being sent — only read by callGemini() for that one turn, then cleared.
 let currentTurnImage = null;
 
-// AI backend selection: the student/teacher picks Gemini, Groq, or Apinex
-// as the PRIMARY engine via the dropdown in the topbar (persisted in
-// localStorage so it sticks across sessions) — see #btn-ai-engine below.
-// Whichever one is picked is tried first; the other two (in Gemini, Groq,
-// Apinex order) remain as automatic last-resort fallbacks if the chosen
-// primary engine is down or rate-limited — this is a safety net, not a
-// second vote on the user's choice, so it only kicks in on an actual
-// failure of the selected engine.
-let selectedAiBackend = localStorage.getItem('chalkline_ai_backend') || 'gemini';
-(function(){ const sel = document.getElementById('btn-ai-engine'); if(sel) sel.value = selectedAiBackend; })();
+// AI backend selection is now fully automatic, restricted to Gemini and
+// Groq only (Apinex removed from the rotation). One of the two is picked
+// at random as the PRIMARY engine for this page load — no manual picker,
+// no persisted preference — and the other automatically becomes the
+// fallback if the primary is down or rate-limited.
+let selectedAiBackend = Math.random() < 0.5 ? 'gemini' : 'groq';
 
-function setAiBackend(id){
-  selectedAiBackend = (id === 'apinex') ? 'apinex' : (id === 'groq') ? 'groq' : 'gemini';
-  localStorage.setItem('chalkline_ai_backend', selectedAiBackend);
-  const sel = document.getElementById('btn-ai-engine');
-  if(sel) sel.value = selectedAiBackend;
-}
-
-// Gemini is the default/primary brain (official, documented, cheap,
-// large-context). Groq and Apinex remain as fallbacks in that order —
-// whichever engine the picker isn't currently on still lives in the
-// fallback chain, so switching the primary doesn't remove the others.
 const ENGINES = {
   gemini: { name: 'Gemini', call: () => callGemini() },
-  groq:   { name: 'Groq', call: () => callGroq() },
-  apinex: { name: 'Apinex', call: () => callApinex() }
+  groq:   { name: 'Groq', call: () => callGroq() }
 };
 
 function getBackendChain(){
