@@ -347,6 +347,172 @@ function restoreShellSession(){
   } catch(e){ console.error('Could not restore saved sign-in:', e); localStorage.removeItem(SHELL_AUTH_STORAGE_KEY); }
 }
 restoreShellSession();
+// Sync a remembered sign-in once the script has finished loading (the sync code below defines its own constants).
+setTimeout(() => { if(shellUser && workerSessionAlive(readWorkerSession())) syncNow(true); }, 0);
+
+// ---- Backend: worker session + cloud sync ---------------------------
+// Signing in with Google now also trades the Google credential for a worker
+// session token (30 days). The token is what lets the AI pages count against
+// the right plan, and what unlocks cloud sync. If the worker is unreachable
+// the app carries on exactly as before, using this browser's storage only.
+//
+// Sync model: everything the pages save for this account (courses, lessons,
+// summaries, quizzes, notes and their settings) lives in localStorage under
+// "chalkline:<kind>:<sub>...". We mirror those keys to the worker. A small
+// per-account record (chalkline_sync_meta:<sub>) remembers, for each key, the
+// hash and cloud timestamp from the last successful sync, which is how we tell
+// "changed here", "changed elsewhere" and "deleted" apart.
+//   - sign-in / startup / back online: pull first, then push
+//   - after any save (storage event), when the tab is hidden, every 60s: push
+//   - a course list changed on two devices is merged (union); any other item
+//     changed on two devices keeps this device's copy.
+const WORKER_URL = "https://api.takundamambudzi02.workers.dev";
+const SESSION_STORAGE_KEY = 'chalkline_session';   // { token, plan, sub } - the AI pages read this too
+const SYNC_META_PREFIX = 'chalkline_sync_meta:';
+let syncTimer = null, syncBusy = false, syncAgain = false;
+
+function readWorkerSession(){
+  try{ return JSON.parse(localStorage.getItem(SESSION_STORAGE_KEY) || 'null'); } catch(e){ return null; }
+}
+function workerSessionAlive(s){
+  try{
+    const p = JSON.parse(atob(s.token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+    return p.exp * 1000 > Date.now() + 3600e3; // more than an hour left
+  } catch(e){ return false; }
+}
+function workerFetch(path, opts){
+  opts = opts || {};
+  const s = readWorkerSession();
+  const headers = Object.assign({ 'Content-Type':'application/json' }, opts.headers || {});
+  if(s && s.token) headers.Authorization = 'Bearer ' + s.token;
+  return fetch(WORKER_URL + path, Object.assign({}, opts, { headers }));
+}
+async function exchangeCredential(credential){
+  const r = await fetch(WORKER_URL + '/auth/google', {
+    method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ credential })
+  });
+  if(!r.ok) throw new Error('sign-in exchange failed (' + r.status + ')');
+  const d = await r.json();
+  localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ token: d.token, plan: d.plan, sub: shellUser && shellUser.sub }));
+  return d;
+}
+
+function syncKeyRegex(sub){
+  return new RegExp('^chalkline:(courses|session|summary|quiz|notes|notes-settings):' + String(sub).replace(/[^\w]/g,'\\$&') + '(:|$)');
+}
+function fnv(str){
+  let h = 2166136261;
+  for(let i=0;i<str.length;i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return (h>>>0).toString(36) + ':' + str.length;
+}
+function loadSyncMeta(sub){ try{ return JSON.parse(localStorage.getItem(SYNC_META_PREFIX + sub) || '{}'); } catch(e){ return {}; } }
+function saveSyncMeta(sub, m){ try{ localStorage.setItem(SYNC_META_PREFIX + sub, JSON.stringify(m)); } catch(e){} }
+function localSyncKeys(sub){
+  const re = syncKeyRegex(sub), out = [];
+  for(let i=0;i<localStorage.length;i++){ const k = localStorage.key(i); if(k && re.test(k)) out.push(k); }
+  return out;
+}
+const isCoursesKey = k => k.indexOf('chalkline:courses:') === 0;
+function unionCourses(a, b){
+  try{ return JSON.stringify(Array.from(new Set([].concat(JSON.parse(a) || [], JSON.parse(b) || [])))); }
+  catch(e){ return a; }
+}
+const dataPath = k => '/data/' + encodeURIComponent(k);
+
+// Bring cloud changes down. Returns true if anything local changed.
+async function pullCloud(sub){
+  const r = await workerFetch('/data');
+  if(r.status === 401){ localStorage.removeItem(SESSION_STORAGE_KEY); throw new Error('session expired'); }
+  if(!r.ok) throw new Error('could not list cloud data (' + r.status + ')');
+  const re = syncKeyRegex(sub), meta = loadSyncMeta(sub);
+  const cloud = new Map(((await r.json()).items || []).filter(i => re.test(i.key)).map(i => [i.key, i.updated_at]));
+  let changed = false;
+  for(const [key, t] of cloud){
+    const m = meta[key], local = localStorage.getItem(key);
+    if(m && !m.skip && m.t === t) continue;              // cloud copy unchanged since last sync
+    const vr = await workerFetch(dataPath(key));
+    if(!vr.ok) continue;
+    const d = await vr.json();
+    const value = typeof d.value === 'string' ? d.value : JSON.stringify(d.value);
+    if(local === null || local === value || (m && m.h === fnv(local))){
+      // nothing unsynced here, so the cloud copy simply wins
+      if(local !== value){ localStorage.setItem(key, value); changed = true; }
+      meta[key] = { h: fnv(value), t: d.updated_at };
+    } else if(isCoursesKey(key)){
+      localStorage.setItem(key, unionCourses(local, value)); changed = true;
+      meta[key] = { h: fnv(value), t: d.updated_at };     // differs from local now, so the merge is pushed next
+    } else {
+      meta[key] = { h: m ? m.h : '', t: d.updated_at };   // keep this device's copy; push will overwrite the cloud
+    }
+  }
+  // Deleted elsewhere: gone from the cloud, untouched here since last sync.
+  for(const key of Object.keys(meta)){
+    if(cloud.has(key) || meta[key].skip) continue;
+    const local = localStorage.getItem(key);
+    if(local !== null && meta[key].h === fnv(local)){ localStorage.removeItem(key); changed = true; }
+    delete meta[key];
+  }
+  saveSyncMeta(sub, meta);
+  return changed;
+}
+
+// Send local changes up (new/edited keys, and keys deleted here).
+async function pushLocal(sub){
+  const meta = loadSyncMeta(sub), keys = localSyncKeys(sub), jobs = [];
+  for(const k of keys){
+    const v = localStorage.getItem(k), m = meta[k];
+    if(!m || m.h !== fnv(v)) jobs.push({ k, v });
+  }
+  for(const k of Object.keys(meta)){
+    if(keys.indexOf(k) === -1){ if(meta[k].skip) delete meta[k]; else jobs.push({ k, del:true }); }
+  }
+  async function run(job){
+    if(job.del){
+      const r = await workerFetch(dataPath(job.k), { method:'DELETE' });
+      if(r.ok) delete meta[job.k];
+      return;
+    }
+    let value = job.v;
+    const put = (base) => workerFetch(dataPath(job.k), { method:'PUT', body: JSON.stringify({ value, base }) });
+    let r = await put(meta[job.k] && meta[job.k].t);
+    if(r.status === 409){                                  // someone else saved this key since we last synced
+      const cur = ((await r.json()).error || {}).current || {};
+      if(isCoursesKey(job.k) && typeof cur.value === 'string'){ value = unionCourses(job.v, cur.value); localStorage.setItem(job.k, value); }
+      r = await put(cur.updated_at);
+    }
+    if(r.ok){ meta[job.k] = { h: fnv(value), t: (await r.json()).updated_at }; }
+    else if(r.status === 400 || r.status === 413){ meta[job.k] = { h: fnv(job.v), skip:true }; console.warn('Not synced (rejected by worker):', job.k); }
+    else if(r.status === 401){ localStorage.removeItem(SESSION_STORAGE_KEY); }
+  }
+  const queue = jobs.slice();
+  await Promise.all([0,1,2].map(async () => { while(queue.length){ await run(queue.shift()); } }));
+  saveSyncMeta(sub, meta);
+}
+
+async function syncNow(pullFirst){
+  if(!shellUser || !shellUser.sub) return;
+  const s = readWorkerSession();
+  if(!s || !s.token || (s.sub && s.sub !== shellUser.sub)) return;
+  if(syncBusy){ syncAgain = true; return; }
+  syncBusy = true;
+  const sub = shellUser.sub;
+  try{
+    const changed = pullFirst ? await pullCloud(sub) : false;
+    await pushLocal(sub);
+    if(changed) broadcastAuthState();   // pages re-read their data now that it changed
+  } catch(e){
+    console.warn('Cloud sync paused:', (e && e.message) || e);
+  } finally {
+    syncBusy = false;
+    if(syncAgain){ syncAgain = false; scheduleSync(); }
+  }
+}
+function scheduleSync(ms){ clearTimeout(syncTimer); syncTimer = setTimeout(() => syncNow(false), ms || 2500); }
+
+window.addEventListener('storage', (e) => { if(e.key && e.key.indexOf('chalkline:') === 0) scheduleSync(); });
+document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'hidden') syncNow(false); });
+window.addEventListener('online', () => syncNow(true));
+setInterval(() => syncNow(false), 60000);
 
 function handleShellCredential(response){
   shellUser = decodeShellIdToken(response.credential);
@@ -361,8 +527,11 @@ function handleShellCredential(response){
     closeStartModal();
     navTo('home');
   }
-  // TODO: once a backend exists, send response.credential there to verify
-  // the token and load/merge this person's saved sessions.
+  // Verify the credential on the worker, then load/merge this person's saved
+  // work. If the worker is unreachable the app keeps working locally.
+  exchangeCredential(response.credential)
+    .then(() => syncNow(true))
+    .catch(e => console.warn('Backend sign-in unavailable, working locally:', (e && e.message) || e));
 }
 
 // Fallback shown if Google's own rendered button fails or vanishes (see
@@ -484,7 +653,8 @@ function initShellGoogleSignIn(){
   watchShellSigninButton('shell-signin-btn');
   // The modal's button is NOT rendered here — see openStartModal() — since
   // this container is still display:none at this point in the page load.
-  if(!shellUser) google.accounts.id.prompt(); // only worth a silent attempt if we have no cached session already
+  // A silent attempt is worthwhile with no cached sign-in, or when the worker session is missing/nearly expired.
+  if(!shellUser || !workerSessionAlive(readWorkerSession())) google.accounts.id.prompt();
 }
 initShellGoogleSignIn();
 
@@ -493,6 +663,8 @@ document.getElementById('shell-sign-out').addEventListener('click', ()=>{ toggle
 function signOutShell(){
   shellUser = null;
   localStorage.removeItem(SHELL_AUTH_STORAGE_KEY);
+  localStorage.removeItem(SESSION_STORAGE_KEY);
+  clearTimeout(syncTimer);
   if(typeof google !== 'undefined' && google.accounts) google.accounts.id.disableAutoSelect();
   toggleShellAccountMenu(false);
   document.getElementById('shell-account-chip').style.display = 'none';
@@ -5170,7 +5342,7 @@ async function fetchGeminiTTSOnce(text){
   try{
     const response = await fetch(`${PROXY_URL}/gemini-tts`, {
       method:"POST",
-      headers:{"Content-Type":"application/json"},
+      headers:Object.assign({"Content-Type":"application/json"}, chalklineAuthHeaders()),
       body: JSON.stringify({ text }),
       signal: ctrl.signal
     });
@@ -5969,6 +6141,10 @@ SPEECH/BOARD SYNC:
 
 let conversationHistory = [];
 const PROXY_URL = "https://api.takundamambudzi02.workers.dev";
+function chalklineAuthHeaders(){
+  try{ const s = JSON.parse(localStorage.getItem('chalkline_session') || 'null'); return s && s.token ? { Authorization:'Bearer ' + s.token } : {}; }
+  catch(e){ return {}; }
+}
 
 // Holds {mimeType, base64} for an image attached to the message currently
 // being sent — only read by callGemini() for that one turn, then cleared.
@@ -6157,7 +6333,7 @@ async function callGroq(){
   try{
     response = await fetch(`${PROXY_URL}/groq`, {
       method:"POST",
-      headers:{"Content-Type":"application/json"},
+      headers:Object.assign({"Content-Type":"application/json"}, chalklineAuthHeaders()),
       body: JSON.stringify({
         model:"openai/gpt-oss-120b",
         response_format:{ type:"json_object" },
@@ -6216,7 +6392,7 @@ async function callApinex(){
     // Worker's /apinex route, never in this page.
     response = await fetch(`${PROXY_URL}/apinex`, {
       method:"POST",
-      headers:{"Content-Type":"application/json"},
+      headers:Object.assign({"Content-Type":"application/json"}, chalklineAuthHeaders()),
       body: JSON.stringify({
         response_format:{ type:"json_object" },
         max_tokens:14000,
@@ -6268,7 +6444,7 @@ async function callGemini(){
   try{
     response = await fetch(`${PROXY_URL}/gemini`, {
       method:"POST",
-      headers:{"Content-Type":"application/json"},
+      headers:Object.assign({"Content-Type":"application/json"}, chalklineAuthHeaders()),
       body: JSON.stringify({
         system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
         contents: geminiContents,
@@ -7721,6 +7897,10 @@ async function handlePdfFile(file){
 }
 
 const PROXY_URL = "https://api.takundamambudzi02.workers.dev";
+function chalklineAuthHeaders(){
+  try{ const s = JSON.parse(localStorage.getItem('chalkline_session') || 'null'); return s && s.token ? { Authorization:'Bearer ' + s.token } : {}; }
+  catch(e){ return {}; }
+}
 
 function lengthInstruction(mode){
   if(mode === 'brief') return "Keep it short: a handful of the most important bullet points only, no sections, under 150 words.";
@@ -7756,7 +7936,7 @@ async function summarizeViaGroq(system, userMsg){
   try{
     response = await fetch(`${PROXY_URL}/groq`, {
       method:"POST",
-      headers:{"Content-Type":"application/json"},
+      headers:Object.assign({"Content-Type":"application/json"}, chalklineAuthHeaders()),
       body: JSON.stringify({
         model:"openai/gpt-oss-120b",
         max_tokens: 3000,
@@ -7793,7 +7973,7 @@ async function summarizeViaApinex(system, userMsg){
   try{
     response = await fetch(`${PROXY_URL}/apinex`, {
       method:"POST",
-      headers:{"Content-Type":"application/json"},
+      headers:Object.assign({"Content-Type":"application/json"}, chalklineAuthHeaders()),
       body: JSON.stringify({
         max_tokens: 3000,
         messages: [
@@ -7829,7 +8009,7 @@ async function summarizeViaGemini(system, userMsg){
   try{
     response = await fetch(`${PROXY_URL}/gemini`, {
       method:"POST",
-      headers:{"Content-Type":"application/json"},
+      headers:Object.assign({"Content-Type":"application/json"}, chalklineAuthHeaders()),
       body: JSON.stringify({
         system_instruction: { parts: [{ text: system }] },
         contents: [{ role:"user", parts:[{ text: userMsg }] }],
