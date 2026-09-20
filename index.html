@@ -5239,6 +5239,20 @@ const SILENT_WAV = "data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAE
 const unlockAudioEl = new Audio();
 unlockAudioEl.playsInline = true;
 function unlockTtsAudio(){
+  // Create/resume the analyser's AudioContext HERE, inside the real
+  // tap/touch handler. ensureVoiceAnalyser() reroutes ttsAudioEl's
+  // output through this context permanently (createMediaElementSource),
+  // so if the context is only created/resumed later — inside
+  // setTutorSpeakingUI(), which fires after an `await fetch(...)` for
+  // Gemini audio — the browser no longer treats that as a real user
+  // gesture. resume() then silently fails, the context stays
+  // "suspended" forever, and ttsAudioEl goes permanently silent even
+  // though .play() reports success. Doing it synchronously in this
+  // handler keeps it inside genuine user activation.
+  ensureVoiceAnalyser();
+  if(voiceAudioCtx && voiceAudioCtx.state === 'suspended'){
+    voiceAudioCtx.resume().catch(()=>{});
+  }
   if(audioUnlocked) return;
   unlockAudioEl.src = SILENT_WAV;
   const p = unlockAudioEl.play();
