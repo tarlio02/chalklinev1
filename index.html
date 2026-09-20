@@ -3165,7 +3165,7 @@ body:not(.panel-open) .sidebar-toggle{ left:0 !important; }
       <option value="groq">Groq</option>
       <option value="apinex">Apinex</option>
     </select>
-    <div class="status-chip" id="voice-status-chip" style="display:none;"></div>
+    <div class="status-chip" id="voice-status-chip" style="display:inline-block;cursor:pointer;" onclick="(function(){var m='audioUnlocked='+audioUnlocked+'\nAudioContext state='+(voiceAudioCtx?voiceAudioCtx.state:'not created')+'\n\n--- recent log ---\n'+voiceDebugLog.join('\n');alert(m);})()">🔊 tap for voice debug info</div>
     <div class="status-chip" id="status-line" onclick="showBackendDebug()" style="cursor:pointer;" title="Tap to see AI backend details">idle</div>
   </div>
 </div>
@@ -5238,6 +5238,19 @@ const SILENT_WAV = "data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAE
 // async code without ever being touched by the click/touchstart listeners.
 const unlockAudioEl = new Audio();
 unlockAudioEl.playsInline = true;
+
+// ---------- On-screen voice diagnostics ----------
+// No devtools needed: tap the voice-status chip any time to see exactly
+// what the voice pipeline has done so far (unlock attempts, AudioContext
+// state, network responses, playback errors). Capped ring buffer.
+const voiceDebugLog = [];
+function logVoice(msg){
+  const t = new Date().toISOString().slice(11,19);
+  voiceDebugLog.push(`[${t}] ${msg}`);
+  if(voiceDebugLog.length > 40) voiceDebugLog.shift();
+}
+logVoice('page script started');
+
 function unlockTtsAudio(){
   // Create/resume the analyser's AudioContext HERE, inside the real
   // tap/touch handler. ensureVoiceAnalyser() reroutes ttsAudioEl's
@@ -5250,15 +5263,25 @@ function unlockTtsAudio(){
   // though .play() reports success. Doing it synchronously in this
   // handler keeps it inside genuine user activation.
   ensureVoiceAnalyser();
-  if(voiceAudioCtx && voiceAudioCtx.state === 'suspended'){
-    voiceAudioCtx.resume().catch(()=>{});
+  if(voiceAudioCtx){
+    if(voiceAudioCtx.state === 'suspended'){
+      voiceAudioCtx.resume()
+        .then(()=> logVoice('AudioContext.resume() OK, state=' + voiceAudioCtx.state))
+        .catch(err => logVoice('AudioContext.resume() FAILED: ' + (err && err.message || err)));
+    } else {
+      logVoice('AudioContext state on tap: ' + voiceAudioCtx.state);
+    }
+  } else {
+    logVoice('AudioContext not created (ensureVoiceAnalyser returned nothing)');
   }
   if(audioUnlocked) return;
   unlockAudioEl.src = SILENT_WAV;
   const p = unlockAudioEl.play();
   if(p && p.then){
-    p.then(()=>{ audioUnlocked = true; unlockAudioEl.pause(); })
-     .catch(()=>{ /* still locked; will retry on next tap */ });
+    p.then(()=>{ audioUnlocked = true; unlockAudioEl.pause(); logVoice('unlock audio play() OK — audioUnlocked=true'); })
+     .catch(err => logVoice('unlock audio play() REJECTED: ' + (err && err.message || err)));
+  } else {
+    logVoice('unlock audio play() returned no promise (older browser)');
   }
 }
 document.addEventListener('touchstart', unlockTtsAudio, { passive:true });
@@ -5270,7 +5293,13 @@ function setVoiceStatus(mode, detail){
   chip.style.display = 'inline-block';
   chip.style.cursor = 'pointer';
   chip._voiceDetail = detail || '';
-  chip.onclick = () => { if(chip._voiceDetail) alert(chip._voiceDetail); };
+  chip.onclick = () => {
+    let msg = chip._voiceDetail ? chip._voiceDetail + '\n\n' : '';
+    msg += 'audioUnlocked=' + audioUnlocked +
+      '\nAudioContext state=' + (voiceAudioCtx ? voiceAudioCtx.state : 'not created') +
+      '\n\n--- recent log ---\n' + voiceDebugLog.join('\n');
+    alert(msg);
+  };
   if(mode === 'error'){
     chip.textContent = '🔇 Voice error — tap for details';
     chip.style.color = '#C0392B';
@@ -5308,10 +5337,12 @@ function ensureVoiceAnalyser(){
     src.connect(voiceAnalyser);
     voiceAnalyser.connect(voiceAudioCtx.destination);
     voiceDataArray = new Uint8Array(voiceAnalyser.frequencyBinCount);
+    logVoice('AudioContext created, initial state=' + voiceAudioCtx.state);
   }catch(e){
     // Web Audio unavailable/blocked (or ttsAudioEl already routed
     // elsewhere) — the CSS keyframe pulse still runs fine without it.
     voiceAnalyser = null;
+    logVoice('ensureVoiceAnalyser() threw: ' + (e && e.message || e));
   }
   return voiceAnalyser;
 }
@@ -5354,21 +5385,32 @@ async function fetchGeminiTTSOnce(text){
   const ctrl = new AbortController();
   const timer = setTimeout(()=> ctrl.abort(), GEMINI_TTS_TIMEOUT_MS);
   try{
-    const response = await fetch(`${PROXY_URL}/gemini-tts`, {
-      method:"POST",
-      headers:Object.assign({"Content-Type":"application/json"}, chalklineAuthHeaders()),
-      body: JSON.stringify({ text }),
-      signal: ctrl.signal
-    });
+    let response;
+    try{
+      response = await fetch(`${PROXY_URL}/gemini-tts`, {
+        method:"POST",
+        headers:Object.assign({"Content-Type":"application/json"}, chalklineAuthHeaders()),
+        body: JSON.stringify({ text }),
+        signal: ctrl.signal
+      });
+    } catch(networkErr){
+      logVoice('Gemini TTS fetch NETWORK ERROR (' + PROXY_URL + '/gemini-tts): ' + (networkErr && networkErr.message || networkErr));
+      throw networkErr;
+    }
     if(!response.ok){
       let msg = `HTTP ${response.status}`;
       try{ const errJson = await response.json(); msg = (errJson.error && errJson.error.message) || msg; } catch(e){ /* body wasn't JSON */ }
+      logVoice('Gemini TTS fetch returned ' + msg);
       const err = new Error(msg);
       err.status = response.status;
       throw err;
     }
     const blob = await response.blob();
-    if(!blob || !blob.size) throw new Error('Empty audio response');
+    if(!blob || !blob.size){
+      logVoice('Gemini TTS response OK but blob was empty/missing');
+      throw new Error('Empty audio response');
+    }
+    logVoice('Gemini TTS fetch OK, blob size=' + blob.size + ' type=' + blob.type);
     return URL.createObjectURL(blob);
   } finally {
     clearTimeout(timer);
@@ -5420,12 +5462,19 @@ function getGeminiAudioUrl(text){
 // on a clean finish, false on any playback failure — never rejects.
 function playGeminiChunk(url){
   return new Promise((resolve) => {
-    ttsAudioEl.onended = () => resolve(true);
-    ttsAudioEl.onerror = () => resolve(false);
+    ttsAudioEl.onended = () => { logVoice('ttsAudioEl ended normally'); resolve(true); };
+    ttsAudioEl.onerror = () => {
+      const err = ttsAudioEl.error;
+      logVoice('ttsAudioEl error event, code=' + (err && err.code) + ' ctxState=' + (voiceAudioCtx ? voiceAudioCtx.state : 'no-ctx'));
+      resolve(false);
+    };
     ttsAudioEl.src = url;
     setTutorSpeakingUI(true);
     const p = ttsAudioEl.play();
-    if(p && p.catch) p.catch(()=> resolve(false));
+    if(p && p.then){
+      p.then(()=> logVoice('ttsAudioEl.play() resolved, audioUnlocked=' + audioUnlocked + ' ctxState=' + (voiceAudioCtx ? voiceAudioCtx.state : 'no-ctx')))
+       .catch(err => { logVoice('ttsAudioEl.play() REJECTED: ' + (err && err.message || err)); resolve(false); });
+    }
   });
 }
 
@@ -5472,13 +5521,13 @@ function speak(text){
     utter.pitch = 1.0;
     utter.volume = 1.0; // Enforces maximum browser volume output
     if(voice) utter.voice = voice;
-    utter.onstart = () => setTutorSpeakingUI(true);
+    utter.onstart = () => { logVoice('browser utterance started, voice=' + (voice ? voice.name : 'default')); setTutorSpeakingUI(true); };
     utter.onend = () => {
       if(myToken !== currentSpeechToken) return;
       const pause = /\?\s*$/.test(chunks[i]) ? 260 : 140;
       setTimeout(()=> speakChunk(i+1), pause);
     };
-    utter.onerror = () => { if(myToken === currentSpeechToken) speakChunk(i+1); };
+    utter.onerror = (ev) => { logVoice('browser utterance error: ' + (ev && ev.error)); if(myToken === currentSpeechToken) speakChunk(i+1); };
     window.speechSynthesis.speak(utter);
   }
 
