@@ -2178,6 +2178,14 @@ body{
   touch-action: none;
 }
 
+/* Wall behind the framed board. Put your classroom picture in CLASSROOM_BG_URL
+   (tutor script) — until then this is a plain neutral wall. */
+#board-wrap{
+  background-color:#D9D2C1;
+  background-image:var(--classroom-backdrop, linear-gradient(180deg,#E7E1D3 0%,#D3CAB5 100%));
+  background-size:cover; background-position:center; background-repeat:no-repeat;
+}
+
 /* Empty-board welcome: faint logo watermark + greeting. Sits above the canvas but
    never takes pointer input, and fades out as soon as the tutor starts writing. */
 #board-welcome{
@@ -3228,7 +3236,7 @@ body:not(.panel-open) .sidebar-toggle{ left:0 !important; }
   </div>
   <div class="top-right-cluster">
     <button class="exit-lesson-btn" id="btn-exit-lesson" title="Exit lesson">🚪 Exit Lesson</button>
-    <div class="status-chip" id="voice-status-chip" style="display:inline-block;cursor:pointer;" onclick="event.stopPropagation();(function(){var m='audioUnlocked='+audioUnlocked+'\nAudioContext state='+(voiceAudioCtx?voiceAudioCtx.state:'not created')+'\n\n--- recent log ---\n'+voiceDebugLog.join('\n');alert(m);})()">🔊 tap for voice debug info</div>
+    <div class="status-chip" id="voice-status-chip" style="display:none;cursor:pointer;" onclick="event.stopPropagation();(function(){var m='audioUnlocked='+audioUnlocked+'\nAudioContext state='+(voiceAudioCtx?voiceAudioCtx.state:'not created')+'\n\n--- recent log ---\n'+voiceDebugLog.join('\n');alert(m);})()">🔊 tap for voice debug info</div>
     <div class="status-chip" id="status-line" onclick="showBackendDebug()" style="cursor:pointer;" title="Tap to see AI backend details">idle</div>
   </div>
 </div>
@@ -3455,7 +3463,13 @@ const boardWrap = document.getElementById('board-wrap');
 let ctx = canvas.getContext('2d');
 ctx.lineCap = 'round';
 ctx.lineJoin = 'round';
+const liveCtx = ctx;   // the on-screen canvas; PDF export temporarily swaps `ctx` for an offscreen one
 let viewW = 0, viewH = 0;
+
+// Classroom picture shown behind the board. Put the image file next to index.html
+// (e.g. 'classroom.jpg') and set the name here; leave '' for the plain wall.
+const CLASSROOM_BG_URL = '';
+if(CLASSROOM_BG_URL) boardWrap.style.setProperty('--classroom-backdrop', 'url("' + CLASSROOM_BG_URL + '")');
 
 // ---------------------------------------------------------------------
 // TRUE CAMERA MODEL
@@ -3895,13 +3909,70 @@ function syncBoardWelcome(){
   } catch(e){}
 }
 
+// ---- Board frame -------------------------------------------------------
+// On screen the AI writes inside a visible framed board, and the canvas around
+// it is transparent so the classroom wall behind #board-wrap shows through.
+// Everything the tutor draws is clipped to the inside of the frame. The PDF
+// export draws to an offscreen ctx, so it keeps the plain full-page white.
+const BOARD_FRAME_BORDER = 10, BOARD_FRAME_RADIUS = 16;
+function boardFrameRect(){
+  if(ctx !== liveCtx || viewW <= 0 || viewH <= 0) return null;
+  const pageL = worldToScreen(0, 0)[0], pageR = worldToScreen(PAGE_W, 0)[0];
+  const x = Math.max(8, pageL - 14);
+  const right = Math.min(viewW - 8, pageR + 14);
+  const y = 12;
+  const bottom = Math.max(y + 140, viewH - PAGE_BOTTOM_GUTTER_PX + 6);   // ends just above the ask/controls dock
+  return { x, y, w: Math.max(80, right - x), h: bottom - y };
+}
+function boardRoundRectPath(c, x, y, w, h, r){
+  r = Math.max(0, Math.min(r, w/2, h/2));
+  c.beginPath();
+  c.moveTo(x + r, y);
+  c.arcTo(x + w, y, x + w, y + h, r);
+  c.arcTo(x + w, y + h, x, y + h, r);
+  c.arcTo(x, y + h, x, y, r);
+  c.arcTo(x, y, x + w, y, r);
+  c.closePath();
+}
+function drawBoardFrame(r){
+  const b = BOARD_FRAME_BORDER;
+  ctx.save();
+  // outer aluminium frame with a soft drop shadow onto the wall
+  ctx.shadowColor = 'rgba(0,0,0,0.30)'; ctx.shadowBlur = 20; ctx.shadowOffsetY = 6;
+  boardRoundRectPath(ctx, r.x, r.y, r.w, r.h, BOARD_FRAME_RADIUS);
+  const g = ctx.createLinearGradient(0, r.y, 0, r.y + r.h);
+  g.addColorStop(0, '#DDE2E7'); g.addColorStop(0.5, '#C4CBD3'); g.addColorStop(1, '#AEB6BF');
+  ctx.fillStyle = g; ctx.fill();
+  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+  ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 1; ctx.stroke();
+  // the writing surface
+  boardRoundRectPath(ctx, r.x + b, r.y + b, r.w - 2*b, r.h - 2*b, BOARD_FRAME_RADIUS - 8);
+  ctx.fillStyle = '#FFFFFF'; ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.22)'; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.restore();
+}
+// Restrict drawing to the writing surface. Returns true if a clip was pushed
+// (the caller must ctx.restore() it).
+function clipToBoard(){
+  const r = boardFrameRect();
+  if(!r) return false;
+  const b = BOARD_FRAME_BORDER;
+  ctx.save();
+  boardRoundRectPath(ctx, r.x + b, r.y + b, r.w - 2*b, r.h - 2*b, BOARD_FRAME_RADIUS - 8);
+  ctx.clip();
+  return true;
+}
+
 function drawBG(){
-  // The canvas is exactly viewport-sized now, so this just fills it —
-  // no need to account for content below the fold the way a tall,
-  // natively-scrolled canvas used to.
-  // Plain white board (was a pale-blue -> white gradient). Also used by PDF export.
-  ctx.fillStyle = '#FFFFFF';
-  ctx.fillRect(0, 0, viewW, viewH);
+  const r = boardFrameRect();
+  if(!r){
+    // Export / offscreen: plain white page.
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, viewW, viewH);
+    return;
+  }
+  ctx.clearRect(0, 0, viewW, viewH);
+  drawBoardFrame(r);
 }
 
 function clearBoard(record=true){
@@ -3912,7 +3983,9 @@ function clearBoard(record=true){
 
 function redrawAll(){
   drawBG();
+  const clipped = clipToBoard();
   drawnCommands.forEach(cmd => renderCommand(cmd));
+  if(clipped) ctx.restore();
   repositionQuizOverlay();
   repositionPointerOverlay();
   syncBoardWelcome();
@@ -3920,7 +3993,9 @@ function redrawAll(){
 
 function redrawAllExcept(skipCmd){
   drawBG();
+  const clipped = clipToBoard();
   drawnCommands.forEach(cmd => { if(cmd !== skipCmd) renderCommand(cmd); });
+  if(clipped) ctx.restore();
 }
 
 function sw(n){ return n * camera.scale; }
@@ -4933,7 +5008,9 @@ function animateCommand(cmd, onDone){
   function frame(now){
     const t = Math.min(1,(now-start)/duration);
     redrawAll();
+    const clipped = clipToBoard();
     renderPartialCommand(cmd, t);
+    if(clipped) ctx.restore();
     // For anything that takes a while to draw (a multi-curve plot, a
     // many-segment path), keep checking scroll position throughout the
     // animation, not just once before it started — see
@@ -5406,7 +5483,8 @@ document.addEventListener('click', unlockTtsAudio);
 function setVoiceStatus(mode, detail){
   const chip = document.getElementById('voice-status-chip');
   if(!chip) return;
-  chip.style.display = 'inline-block';
+  // Only surface the chip when something is wrong; normal "Browser voice" / "Edge voice" labels stay hidden.
+  chip.style.display = (mode === 'error') ? 'inline-block' : 'none';
   chip.style.cursor = 'pointer';
   chip._voiceDetail = detail || '';
   chip.onclick = (e) => {
