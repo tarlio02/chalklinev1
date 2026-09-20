@@ -960,7 +960,7 @@ html,body{ height:100%; overflow:hidden; }
   pointer-events:none;
 }
 .app-shell.sidebar-closed .sidebar{
-  transform:perspective(1500px) translateX(-106%) rotateY(-18deg);
+  transform:perspective(1500px) translateX(-100%) rotateY(-10deg);
   box-shadow:none;
 }
 .app-shell.sidebar-closed .sidebar::after{ opacity:0; }
@@ -1009,16 +1009,35 @@ html,body{ height:100%; overflow:hidden; }
 }
 .sidebar-recent a:hover{ transform:translateX(3px); }
 .sidebar-recent a{ transition:transform .16s ease, background .15s ease; }
+
+/* ---- Menu tab ------------------------------------------------------
+   Icon only, hinged onto the sidebar's right edge. It lives inside the
+   sidebar, so it moves, swings and slides with it (and stays visible at
+   the screen edge when the sidebar is closed). */
+.app-shell .sidebar .sidebar-toggle{
+  position:absolute !important; left:auto !important; right:-28px !important;
+  top:calc(20px + var(--safe-top)) !important;
+  z-index:2; width:28px; height:46px; padding:0; gap:0;
+  border:none; border-radius:0 14px 14px 0;
+  background:linear-gradient(100deg, #F3E2B0 0%, #FFFFFF 75%);
+  box-shadow:0 1px 0 #fff inset, 3px 0 0 rgba(160,120,40,0.22), 8px 6px 14px -6px rgba(90,65,10,0.40);
+  color:var(--ink); font-size:15px;
+  display:flex; align-items:center; justify-content:center;
+  transition:transform .16s cubic-bezier(.2,.8,.3,1.1), box-shadow .16s ease;
+}
+.app-shell .sidebar .sidebar-toggle .arrow{ font-size:15px; }
+.app-shell .sidebar .sidebar-toggle:hover{ transform:translateX(3px); box-shadow:0 1px 0 #fff inset, 3px 0 0 rgba(160,120,40,0.22), 12px 8px 16px -6px rgba(90,65,10,0.45); }
+.app-shell .sidebar .sidebar-toggle:active{ transform:translateX(1px) scale(0.96); }
 </style>
 </head>
 <body>
 
 <div class="ambient-halo"></div>
 
-<button class="sidebar-toggle" id="sidebar-toggle" title="Menu" aria-label="Menu"><span class="arrow">☰</span><span class="toggle-label" id="sidebar-toggle-label">Menu</span></button>
 
 <div class="app-shell" id="app-shell">
   <aside class="sidebar" id="sidebar">
+    <button class="sidebar-toggle" id="sidebar-toggle" title="Menu" aria-label="Menu"><span class="arrow">☰</span></button>
     <a class="sidebar-brand" href="#" onclick="parent.postMessage({nav:'home'},'*');return false;"><span class="dot"></span>Chalkline</a>
 
     <div class="sidebar-account" id="home-sidebar-account" onclick="handleHomeSidebarAccountClick();" title="Account">
@@ -2738,6 +2757,27 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
    covering whatever was just written. Docking it instead — shrinking
    the board rather than covering it — leaves the handwriting fully
    visible and gives the transcript text real, uncramped width. */
+
+/* ---- Menu tab: icon only, attached to the panel's edge and slides with it ---- */
+.sidebar-toggle{
+  left:var(--side-panel-w) !important;
+  top:calc(var(--safe-top) + 18px);
+  z-index:60;
+  width:28px; height:46px; padding:0; gap:0;
+  border-radius:0 14px 14px 0;
+  background:linear-gradient(100deg, #F3E2B0 0%, #FFFFFF 75%);
+  box-shadow:0 1px 0 #fff inset, 3px 0 0 rgba(160,120,40,0.22), 8px 6px 14px -6px rgba(90,65,10,0.40);
+  transition:left .38s cubic-bezier(.22,.9,.32,1.1), transform .16s cubic-bezier(.2,.8,.3,1.1), box-shadow .16s ease;
+}
+.sidebar-toggle .toggle-label{ display:none; }
+.sidebar-toggle .arrow{ font-size:15px; }
+.sidebar-toggle:hover{ transform:translateX(3px); }
+.sidebar-toggle:active{ transform:translateX(1px) scale(0.96); }
+body:not(.panel-open) .sidebar-toggle{ left:0 !important; }
+@media (max-width:700px){
+  .sidebar-toggle{ left:min(320px, 86vw) !important; top:calc(var(--safe-top) + 18px); }
+  body:not(.panel-open) .sidebar-toggle{ left:0 !important; }
+}
 </style>
 </head>
 <body>
@@ -2751,7 +2791,7 @@ select.topic-input{font-family:'Source Serif 4', serif;background:#fff;cursor:po
 
 <!-- Sidebar toggle: same pill as the rest of the app. Docked to the sidebar's
      edge, slides with it, and stays put at the corner when it is closed. -->
-<button class="sidebar-toggle" id="btn-menu" title="Menu" aria-label="Menu"><span class="arrow">☰</span><span class="toggle-label">Menu</span></button>
+<button class="sidebar-toggle" id="btn-menu" title="Menu" aria-label="Menu"><span class="arrow">☰</span></button>
 
 <div class="topbar">
   <div class="topbar-left-stack">
@@ -7135,7 +7175,7 @@ html,body{ height:100%; overflow:hidden; }
   pointer-events:none;
 }
 .app-shell.sidebar-closed .sidebar{
-  transform:perspective(1500px) translateX(-106%) rotateY(-18deg);
+  transform:perspective(1500px) translateX(-100%) rotateY(-10deg);
   box-shadow:none;
 }
 .app-shell.sidebar-closed .sidebar::after{ opacity:0; }
@@ -7184,16 +7224,35 @@ html,body{ height:100%; overflow:hidden; }
 }
 .sidebar-recent a:hover{ transform:translateX(3px); }
 .sidebar-recent a{ transition:transform .16s ease, background .15s ease; }
+
+/* ---- Menu tab ------------------------------------------------------
+   Icon only, hinged onto the sidebar's right edge. It lives inside the
+   sidebar, so it moves, swings and slides with it (and stays visible at
+   the screen edge when the sidebar is closed). */
+.app-shell .sidebar .sidebar-toggle{
+  position:absolute !important; left:auto !important; right:-28px !important;
+  top:calc(20px + var(--safe-top)) !important;
+  z-index:2; width:28px; height:46px; padding:0; gap:0;
+  border:none; border-radius:0 14px 14px 0;
+  background:linear-gradient(100deg, #F3E2B0 0%, #FFFFFF 75%);
+  box-shadow:0 1px 0 #fff inset, 3px 0 0 rgba(160,120,40,0.22), 8px 6px 14px -6px rgba(90,65,10,0.40);
+  color:var(--ink); font-size:15px;
+  display:flex; align-items:center; justify-content:center;
+  transition:transform .16s cubic-bezier(.2,.8,.3,1.1), box-shadow .16s ease;
+}
+.app-shell .sidebar .sidebar-toggle .arrow{ font-size:15px; }
+.app-shell .sidebar .sidebar-toggle:hover{ transform:translateX(3px); box-shadow:0 1px 0 #fff inset, 3px 0 0 rgba(160,120,40,0.22), 12px 8px 16px -6px rgba(90,65,10,0.45); }
+.app-shell .sidebar .sidebar-toggle:active{ transform:translateX(1px) scale(0.96); }
 </style>
 </head>
 <body>
 
 <div class="ambient-halo"></div>
 
-<button class="sidebar-toggle" id="sidebar-toggle" title="Menu" aria-label="Menu"><span class="arrow">☰</span><span class="toggle-label">Menu</span></button>
 
 <div class="app-shell" id="app-shell">
   <aside class="sidebar" id="sidebar">
+    <button class="sidebar-toggle" id="sidebar-toggle" title="Menu" aria-label="Menu"><span class="arrow">☰</span></button>
     <a class="sidebar-brand" href="#" onclick="parent.postMessage({nav:'home'},'*');return false;"><span class="dot"></span>Chalkline</a>
 
     <nav class="sidebar-nav">
@@ -7972,7 +8031,7 @@ html,body{ height:100%; overflow:hidden; }
   pointer-events:none;
 }
 .app-shell.sidebar-closed .sidebar{
-  transform:perspective(1500px) translateX(-106%) rotateY(-18deg);
+  transform:perspective(1500px) translateX(-100%) rotateY(-10deg);
   box-shadow:none;
 }
 .app-shell.sidebar-closed .sidebar::after{ opacity:0; }
@@ -8021,16 +8080,35 @@ html,body{ height:100%; overflow:hidden; }
 }
 .sidebar-recent a:hover{ transform:translateX(3px); }
 .sidebar-recent a{ transition:transform .16s ease, background .15s ease; }
+
+/* ---- Menu tab ------------------------------------------------------
+   Icon only, hinged onto the sidebar's right edge. It lives inside the
+   sidebar, so it moves, swings and slides with it (and stays visible at
+   the screen edge when the sidebar is closed). */
+.app-shell .sidebar .sidebar-toggle{
+  position:absolute !important; left:auto !important; right:-28px !important;
+  top:calc(20px + var(--safe-top)) !important;
+  z-index:2; width:28px; height:46px; padding:0; gap:0;
+  border:none; border-radius:0 14px 14px 0;
+  background:linear-gradient(100deg, #F3E2B0 0%, #FFFFFF 75%);
+  box-shadow:0 1px 0 #fff inset, 3px 0 0 rgba(160,120,40,0.22), 8px 6px 14px -6px rgba(90,65,10,0.40);
+  color:var(--ink); font-size:15px;
+  display:flex; align-items:center; justify-content:center;
+  transition:transform .16s cubic-bezier(.2,.8,.3,1.1), box-shadow .16s ease;
+}
+.app-shell .sidebar .sidebar-toggle .arrow{ font-size:15px; }
+.app-shell .sidebar .sidebar-toggle:hover{ transform:translateX(3px); box-shadow:0 1px 0 #fff inset, 3px 0 0 rgba(160,120,40,0.22), 12px 8px 16px -6px rgba(90,65,10,0.45); }
+.app-shell .sidebar .sidebar-toggle:active{ transform:translateX(1px) scale(0.96); }
 </style>
 </head>
 <body>
 
 <div class="ambient-halo"></div>
 
-<button class="sidebar-toggle" id="sidebar-toggle" title="Menu" aria-label="Menu"><span class="arrow">☰</span><span class="toggle-label">Menu</span></button>
 
 <div class="app-shell" id="app-shell">
   <aside class="sidebar" id="sidebar">
+    <button class="sidebar-toggle" id="sidebar-toggle" title="Menu" aria-label="Menu"><span class="arrow">☰</span></button>
     <a class="sidebar-brand" href="#" onclick="parent.postMessage({nav:'home'},'*');return false;"><span class="dot"></span>Chalkline</a>
 
     <nav class="sidebar-nav">
@@ -8544,7 +8622,7 @@ html,body{ height:100%; overflow:hidden; }
   pointer-events:none;
 }
 .app-shell.sidebar-closed .sidebar{
-  transform:perspective(1500px) translateX(-106%) rotateY(-18deg);
+  transform:perspective(1500px) translateX(-100%) rotateY(-10deg);
   box-shadow:none;
 }
 .app-shell.sidebar-closed .sidebar::after{ opacity:0; }
@@ -8593,16 +8671,35 @@ html,body{ height:100%; overflow:hidden; }
 }
 .sidebar-recent a:hover{ transform:translateX(3px); }
 .sidebar-recent a{ transition:transform .16s ease, background .15s ease; }
+
+/* ---- Menu tab ------------------------------------------------------
+   Icon only, hinged onto the sidebar's right edge. It lives inside the
+   sidebar, so it moves, swings and slides with it (and stays visible at
+   the screen edge when the sidebar is closed). */
+.app-shell .sidebar .sidebar-toggle{
+  position:absolute !important; left:auto !important; right:-28px !important;
+  top:calc(20px + var(--safe-top)) !important;
+  z-index:2; width:28px; height:46px; padding:0; gap:0;
+  border:none; border-radius:0 14px 14px 0;
+  background:linear-gradient(100deg, #F3E2B0 0%, #FFFFFF 75%);
+  box-shadow:0 1px 0 #fff inset, 3px 0 0 rgba(160,120,40,0.22), 8px 6px 14px -6px rgba(90,65,10,0.40);
+  color:var(--ink); font-size:15px;
+  display:flex; align-items:center; justify-content:center;
+  transition:transform .16s cubic-bezier(.2,.8,.3,1.1), box-shadow .16s ease;
+}
+.app-shell .sidebar .sidebar-toggle .arrow{ font-size:15px; }
+.app-shell .sidebar .sidebar-toggle:hover{ transform:translateX(3px); box-shadow:0 1px 0 #fff inset, 3px 0 0 rgba(160,120,40,0.22), 12px 8px 16px -6px rgba(90,65,10,0.45); }
+.app-shell .sidebar .sidebar-toggle:active{ transform:translateX(1px) scale(0.96); }
 </style>
 </head>
 <body>
 
 <div class="ambient-halo"></div>
 
-<button class="sidebar-toggle" id="sidebar-toggle" title="Menu" aria-label="Menu"><span class="arrow">☰</span><span class="toggle-label">Menu</span></button>
 
 <div class="app-shell" id="app-shell">
   <aside class="sidebar" id="sidebar">
+    <button class="sidebar-toggle" id="sidebar-toggle" title="Menu" aria-label="Menu"><span class="arrow">☰</span></button>
     <a class="sidebar-brand" href="#" onclick="parent.postMessage({nav:'home'},'*');return false;"><span class="dot"></span>Chalkline</a>
 
     <nav class="sidebar-nav">
@@ -9049,7 +9146,7 @@ html,body{ height:100%; overflow:hidden; }
   pointer-events:none;
 }
 .app-shell.sidebar-closed .sidebar{
-  transform:perspective(1500px) translateX(-106%) rotateY(-18deg);
+  transform:perspective(1500px) translateX(-100%) rotateY(-10deg);
   box-shadow:none;
 }
 .app-shell.sidebar-closed .sidebar::after{ opacity:0; }
@@ -9098,16 +9195,35 @@ html,body{ height:100%; overflow:hidden; }
 }
 .sidebar-recent a:hover{ transform:translateX(3px); }
 .sidebar-recent a{ transition:transform .16s ease, background .15s ease; }
+
+/* ---- Menu tab ------------------------------------------------------
+   Icon only, hinged onto the sidebar's right edge. It lives inside the
+   sidebar, so it moves, swings and slides with it (and stays visible at
+   the screen edge when the sidebar is closed). */
+.app-shell .sidebar .sidebar-toggle{
+  position:absolute !important; left:auto !important; right:-28px !important;
+  top:calc(20px + var(--safe-top)) !important;
+  z-index:2; width:28px; height:46px; padding:0; gap:0;
+  border:none; border-radius:0 14px 14px 0;
+  background:linear-gradient(100deg, #F3E2B0 0%, #FFFFFF 75%);
+  box-shadow:0 1px 0 #fff inset, 3px 0 0 rgba(160,120,40,0.22), 8px 6px 14px -6px rgba(90,65,10,0.40);
+  color:var(--ink); font-size:15px;
+  display:flex; align-items:center; justify-content:center;
+  transition:transform .16s cubic-bezier(.2,.8,.3,1.1), box-shadow .16s ease;
+}
+.app-shell .sidebar .sidebar-toggle .arrow{ font-size:15px; }
+.app-shell .sidebar .sidebar-toggle:hover{ transform:translateX(3px); box-shadow:0 1px 0 #fff inset, 3px 0 0 rgba(160,120,40,0.22), 12px 8px 16px -6px rgba(90,65,10,0.45); }
+.app-shell .sidebar .sidebar-toggle:active{ transform:translateX(1px) scale(0.96); }
 </style>
 </head>
 <body>
 
 <div class="ambient-halo"></div>
 
-<button class="sidebar-toggle" id="sidebar-toggle" title="Menu" aria-label="Menu"><span class="arrow">☰</span><span class="toggle-label">Menu</span></button>
 
 <div class="app-shell" id="app-shell">
   <aside class="sidebar" id="sidebar">
+    <button class="sidebar-toggle" id="sidebar-toggle" title="Menu" aria-label="Menu"><span class="arrow">☰</span></button>
     <a class="sidebar-brand" href="#" onclick="parent.postMessage({nav:'home'},'*');return false;"><span class="dot"></span>Chalkline</a>
 
     <nav class="sidebar-nav">
@@ -10576,7 +10692,7 @@ html,body{ height:100%; overflow:hidden; }
   pointer-events:none;
 }
 .app-shell.sidebar-closed .sidebar{
-  transform:perspective(1500px) translateX(-106%) rotateY(-18deg);
+  transform:perspective(1500px) translateX(-100%) rotateY(-10deg);
   box-shadow:none;
 }
 .app-shell.sidebar-closed .sidebar::after{ opacity:0; }
@@ -10625,16 +10741,35 @@ html,body{ height:100%; overflow:hidden; }
 }
 .sidebar-recent a:hover{ transform:translateX(3px); }
 .sidebar-recent a{ transition:transform .16s ease, background .15s ease; }
+
+/* ---- Menu tab ------------------------------------------------------
+   Icon only, hinged onto the sidebar's right edge. It lives inside the
+   sidebar, so it moves, swings and slides with it (and stays visible at
+   the screen edge when the sidebar is closed). */
+.app-shell .sidebar .sidebar-toggle{
+  position:absolute !important; left:auto !important; right:-28px !important;
+  top:calc(20px + var(--safe-top)) !important;
+  z-index:2; width:28px; height:46px; padding:0; gap:0;
+  border:none; border-radius:0 14px 14px 0;
+  background:linear-gradient(100deg, #F3E2B0 0%, #FFFFFF 75%);
+  box-shadow:0 1px 0 #fff inset, 3px 0 0 rgba(160,120,40,0.22), 8px 6px 14px -6px rgba(90,65,10,0.40);
+  color:var(--ink); font-size:15px;
+  display:flex; align-items:center; justify-content:center;
+  transition:transform .16s cubic-bezier(.2,.8,.3,1.1), box-shadow .16s ease;
+}
+.app-shell .sidebar .sidebar-toggle .arrow{ font-size:15px; }
+.app-shell .sidebar .sidebar-toggle:hover{ transform:translateX(3px); box-shadow:0 1px 0 #fff inset, 3px 0 0 rgba(160,120,40,0.22), 12px 8px 16px -6px rgba(90,65,10,0.45); }
+.app-shell .sidebar .sidebar-toggle:active{ transform:translateX(1px) scale(0.96); }
 </style>
 </head>
 <body>
 
 <div class="ambient-halo"></div>
 
-<button class="sidebar-toggle" id="sidebar-toggle" title="Menu" aria-label="Menu"><span class="arrow">☰</span><span class="toggle-label">Menu</span></button>
 
 <div class="app-shell" id="app-shell">
   <aside class="sidebar" id="sidebar">
+    <button class="sidebar-toggle" id="sidebar-toggle" title="Menu" aria-label="Menu"><span class="arrow">☰</span></button>
     <a class="sidebar-brand" href="#" onclick="parent.postMessage({nav:'home'},'*');return false;"><span class="dot"></span>Chalkline</a>
 
     <nav class="sidebar-nav">
@@ -10943,7 +11078,7 @@ html,body{ height:100%; overflow:hidden; }
   pointer-events:none;
 }
 .app-shell.sidebar-closed .sidebar{
-  transform:perspective(1500px) translateX(-106%) rotateY(-18deg);
+  transform:perspective(1500px) translateX(-100%) rotateY(-10deg);
   box-shadow:none;
 }
 .app-shell.sidebar-closed .sidebar::after{ opacity:0; }
@@ -10992,16 +11127,35 @@ html,body{ height:100%; overflow:hidden; }
 }
 .sidebar-recent a:hover{ transform:translateX(3px); }
 .sidebar-recent a{ transition:transform .16s ease, background .15s ease; }
+
+/* ---- Menu tab ------------------------------------------------------
+   Icon only, hinged onto the sidebar's right edge. It lives inside the
+   sidebar, so it moves, swings and slides with it (and stays visible at
+   the screen edge when the sidebar is closed). */
+.app-shell .sidebar .sidebar-toggle{
+  position:absolute !important; left:auto !important; right:-28px !important;
+  top:calc(20px + var(--safe-top)) !important;
+  z-index:2; width:28px; height:46px; padding:0; gap:0;
+  border:none; border-radius:0 14px 14px 0;
+  background:linear-gradient(100deg, #F3E2B0 0%, #FFFFFF 75%);
+  box-shadow:0 1px 0 #fff inset, 3px 0 0 rgba(160,120,40,0.22), 8px 6px 14px -6px rgba(90,65,10,0.40);
+  color:var(--ink); font-size:15px;
+  display:flex; align-items:center; justify-content:center;
+  transition:transform .16s cubic-bezier(.2,.8,.3,1.1), box-shadow .16s ease;
+}
+.app-shell .sidebar .sidebar-toggle .arrow{ font-size:15px; }
+.app-shell .sidebar .sidebar-toggle:hover{ transform:translateX(3px); box-shadow:0 1px 0 #fff inset, 3px 0 0 rgba(160,120,40,0.22), 12px 8px 16px -6px rgba(90,65,10,0.45); }
+.app-shell .sidebar .sidebar-toggle:active{ transform:translateX(1px) scale(0.96); }
 </style>
 </head>
 <body>
 
 <div class="ambient-halo"></div>
 
-<button class="sidebar-toggle" id="sidebar-toggle" title="Menu" aria-label="Menu"><span class="arrow">☰</span><span class="toggle-label">Menu</span></button>
 
 <div class="app-shell" id="app-shell">
   <aside class="sidebar" id="sidebar">
+    <button class="sidebar-toggle" id="sidebar-toggle" title="Menu" aria-label="Menu"><span class="arrow">☰</span></button>
     <a class="sidebar-brand" href="#" onclick="parent.postMessage({nav:'home'},'*');return false;"><span class="dot"></span>Chalkline</a>
 
     <nav class="sidebar-nav">
