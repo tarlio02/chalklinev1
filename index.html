@@ -268,6 +268,8 @@
   }
   .st-row .k{ font-size:15px; color:#5c5847; }
   .st-row .v{ font-family:'JetBrains Mono', monospace; font-size:19px; font-weight:600; }
+  .st-replay{ font-family:'JetBrains Mono', monospace; font-size:12px; font-weight:600; padding:8px 14px; border-radius:10px; border:1px solid #F0B94D; background:#FFF7E0; color:#2A2410; cursor:pointer; }
+  .st-replay:hover{ background:#FFE9A8; }
   .st-bg{ padding:18px 24px 22px; border-top:1px solid #ECE3C8; }
   .st-bg-title{ font-size:15px; color:#5c5847; margin-bottom:12px; }
   .st-bg-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
@@ -607,7 +609,7 @@ async function gunzipFromB64(v){
   return await new Response(ds.readable).text();
 }
 function syncKeyRegex(sub){
-  return new RegExp('^chalkline:(courses|session|summary|quiz|notes|notes-settings):' + String(sub).replace(/[^\w]/g,'\\$&') + '(:|$)');
+  return new RegExp('^chalkline:(courses|session|summary|quiz|notes|notes-settings|tutorial):' + String(sub).replace(/[^\w]/g,'\\$&') + '(:|$)');
 }
 function fnv(str){
   let h = 2166136261;
@@ -1119,6 +1121,7 @@ async function assistantSend(text){
   text = String(text || '').trim();
   if(!text || assistantBusy) return;
   assistantBusy = true;
+  markAssistantTried();
   document.getElementById('assistant-send').disabled = true;
   assistantMsgs.push({ role: 'user', content: text });
   assistantSave(); assistantDraw();
@@ -1220,7 +1223,32 @@ function renderSettingsModal(){
 
   body.appendChild(top);
   body.appendChild(row);
+  const trow = document.createElement('div'); trow.className = 'st-row';
+  const tk = document.createElement('div'); tk.className = 'k'; tk.textContent = 'Getting-started guide';
+  const tb = document.createElement('button'); tb.type = 'button'; tb.className = 'st-replay'; tb.textContent = '▶ Replay';
+  tb.addEventListener('click', replayTutorial);
+  trow.appendChild(tk); trow.appendChild(tb);
+  body.appendChild(trow);
   appendBgSection(body);
+}
+function tutorialStateKey(){ return shellUser ? 'chalkline:tutorial:' + shellUser.sub : null; }
+function replayTutorial(){
+  const key = tutorialStateKey(); if(!key) return;
+  let st = {}; try{ st = JSON.parse(localStorage.getItem(key) || '{}') || {}; }catch(e){}
+  st.status = 'active'; st.replay = true; st.seen = true;
+  try{ localStorage.setItem(key, JSON.stringify(st)); }catch(e){}
+  closeSettingsModal();
+  navTo('home');
+  try{ if(frames.home && frames.home.contentWindow) frames.home.contentWindow.postMessage({ tutorialShow:true }, '*'); }catch(e){}
+}
+function markAssistantTried(){
+  const key = tutorialStateKey(); if(!key) return;
+  try{
+    const st = JSON.parse(localStorage.getItem(key) || '{}') || {};
+    if(st.assistant) return;
+    st.assistant = true; if(!st.seen) st.seen = true;
+    localStorage.setItem(key, JSON.stringify(st));
+  }catch(e){}
 }
 function openSettingsModal(){
   renderSettingsModal();
@@ -1881,6 +1909,44 @@ html,body{ height:100%; overflow:hidden; }
         <p id="dash-welcome-text">Welcome back!</p>
       </div>
 
+      <style>
+        #getting-started{ display:none; margin:0 auto 34px; max-width:780px; }
+        .gs-card{
+          background:linear-gradient(165deg, #FFFFFF 0%, #FFF7E0 140%); border:1px solid #ECE3C8; border-radius:20px;
+          padding:18px 18px 8px; box-shadow:0 10px 30px rgba(60,40,5,0.10); text-align:left; color:#2A2410;
+        }
+        .gs-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+        .gs-title{ font-size:20px; font-weight:600; margin:0; }
+        .gs-sub{ font-family:'JetBrains Mono', monospace; font-size:11px; color:#8A8267; margin-top:3px; }
+        .gs-x{ border:none; background:none; cursor:pointer; color:#8A8267; font-size:13px; padding:6px 8px; border-radius:8px; line-height:1; white-space:nowrap; font-family:'JetBrains Mono', monospace; }
+        .gs-x:hover{ background:rgba(0,0,0,0.06); color:#2A2410; }
+        .gs-bar{ height:7px; border-radius:99px; background:#EFE6C9; overflow:hidden; margin:14px 0 6px; }
+        .gs-bar > i{ display:block; height:100%; border-radius:99px; background:linear-gradient(90deg, #F0B94D, #2E7DBE); transition:width .4s ease; }
+        .gs-list{ list-style:none; margin:0; padding:0; }
+        .gs-item{ display:flex; align-items:flex-start; gap:12px; padding:12px 0; border-top:1px solid #F0E8CE; }
+        .gs-item:first-child{ border-top:none; }
+        .gs-tick{
+          width:26px; height:26px; flex-shrink:0; border-radius:50%; border:2px solid #D9CDA3; margin-top:1px;
+          display:flex; align-items:center; justify-content:center; font-size:14px; color:#fff; background:#fff;
+        }
+        .gs-item.done .gs-tick{ background:#4E9F6A; border-color:#4E9F6A; }
+        .gs-body{ flex:1; min-width:0; }
+        .gs-name{ font-size:16px; font-weight:600; }
+        .gs-item.done .gs-name{ color:#8A8267; text-decoration:line-through; text-decoration-color:rgba(138,130,103,0.6); }
+        .gs-hint{ font-size:13.5px; line-height:1.45; color:#5c5847; margin-top:3px; }
+        .gs-go{
+          flex-shrink:0; align-self:center; font-family:'JetBrains Mono', monospace; font-size:12px; font-weight:600; cursor:pointer;
+          padding:8px 12px; border-radius:10px; border:1px solid #F0B94D; background:#FFF3D0; color:#2A2410; white-space:nowrap;
+        }
+        .gs-go:hover{ background:#FFE9A8; }
+        .gs-item.done .gs-go{ border-color:#E2D7B5; background:transparent; color:#8A8267; }
+        @media (max-width:520px){
+          .gs-item{ flex-wrap:wrap; }
+          .gs-go{ margin-left:38px; align-self:flex-start; }
+        }
+      </style>
+      <div id="getting-started"></div>
+
       <div style="display:flex;justify-content:center;margin:0 0 40px;">
         <button type="button" id="add-course-btn" onclick="handleAddCourseClick();">
           <span style="font-size:16px;line-height:1;">✨＋</span> Add new course
@@ -2085,6 +2151,83 @@ html,body{ height:100%; overflow:hidden; }
     catch(e){ console.error('Could not save course list:', e); }
   }
 
+  /* ---------------- Getting-started checklist ----------------
+     Shown to a brand-new account on first sign-in (accounts that already have content are treated as
+     "seen"), hideable with ✕, and brought back from Settings → Replay. Progress is derived from the
+     user's real data, so it ticks itself off as they use the app. State lives in
+     chalkline:tutorial:<sub> (synced with the account). */
+  function tutorialKey(){ return 'chalkline:tutorial:' + homeShellUser.sub; }
+  function tutorialLoad(){ try{ return JSON.parse(localStorage.getItem(tutorialKey()) || 'null'); }catch(e){ return null; } }
+  function tutorialSave(st){ try{ localStorage.setItem(tutorialKey(), JSON.stringify(st)); }catch(e){} }
+  function tutorialRender(){
+    const host = document.getElementById('getting-started');
+    if(!host) return;
+    if(!homeShellUser){ host.style.display = 'none'; host.textContent = ''; return; }
+    const names = Object.keys(currentCourseStats || {});
+    const sum = (k) => names.reduce((a, n) => a + ((currentCourseStats[n] && currentCourseStats[n][k]) || 0), 0);
+    const lessons = sum('lessons'), quizzes = sum('quizzes'), summaries = sum('summaries'), notes = sum('notes');
+    let st = tutorialLoad();
+    if(!st){
+      st = { status: (names.length || lessons || quizzes || summaries || notes) ? 'dismissed' : 'active', seen: true };
+      tutorialSave(st);
+    }
+    if(st.status !== 'active'){ host.style.display = 'none'; host.textContent = ''; return; }
+    const firstCourse = names.filter(n => n !== 'Unsorted').sort((a, b) => a.localeCompare(b))[0] || names[0] || '';
+    const go = (page) => () => { if(firstCourse) parent.postMessage({ nav: page, presetSubject: firstCourse }, '*'); else handleAddCourseClick(); };
+    const items = [
+      { icon:'📚', title:'Add your first course', hint:'A course groups the lessons, quizzes, summaries and notes for one subject.', done: names.length > 0, cta:'Add a course', run: () => handleAddCourseClick() },
+      { icon:'🎓', title:'Start a live lesson', hint:'Ask the tutor about any topic and it teaches on the whiteboard while it talks. Type in the ask bar, use the mic, or import a PDF.', done: lessons > 0, cta:'Start a lesson', run: go('tutor') },
+      { icon:'✅', title:'Take a quiz', hint:'Test yourself on what you have learned. During lessons the tutor also pops up quick questions. Tap "I\'m not sure yet" if you are stuck.', done: quizzes > 0, cta:'Open quizzes', run: go('quiz-history') },
+      { icon:'📄', title:'Summarize a PDF', hint:'Import a chapter or slide deck and get a clean summary to revise from.', done: summaries > 0, cta:'Open summaries', run: go('summary-history') },
+      { icon:'📝', title:'Keep a note', hint:'Write notes and keep them with your course.', done: notes > 0, cta:'Open notes', run: go('notes') },
+      { icon:'💬', title:'Ask the Chalkline assistant', hint:'Open the menu (☰) on any page and tap "Chalkline assistant" for quick questions and study help.', done: !!st.assistant, cta:'Open assistant', run: () => parent.postMessage({ openAssistant:true }, '*') }
+    ];
+    const doneCount = items.filter(i => i.done).length;
+    const all = doneCount === items.length;
+    host.textContent = '';
+    const card = document.createElement('div'); card.className = 'gs-card fade-up';
+    const head = document.createElement('div'); head.className = 'gs-head';
+    const left = document.createElement('div');
+    const title = document.createElement('h2'); title.className = 'gs-title';
+    title.textContent = all ? '🎉 You\'re all set!' : '👋 Getting started';
+    const sub = document.createElement('div'); sub.className = 'gs-sub';
+    sub.textContent = all ? 'You have tried everything. Replay this guide any time from Settings.' : doneCount + ' of ' + items.length + ' done';
+    left.appendChild(title); left.appendChild(sub);
+    const x = document.createElement('button'); x.type = 'button'; x.className = 'gs-x';
+    x.textContent = all ? 'Hide' : 'Hide ✕'; x.title = 'Hide this guide (replay it from Settings)';
+    x.addEventListener('click', () => { st.status = 'dismissed'; st.replay = false; tutorialSave(st); tutorialRender(); });
+    head.appendChild(left); head.appendChild(x);
+    const bar = document.createElement('div'); bar.className = 'gs-bar';
+    const fill = document.createElement('i'); fill.style.width = Math.round(doneCount / items.length * 100) + '%';
+    bar.appendChild(fill);
+    const list = document.createElement('ul'); list.className = 'gs-list';
+    items.forEach(it => {
+      const li = document.createElement('li'); li.className = 'gs-item' + (it.done ? ' done' : '');
+      const tick = document.createElement('div'); tick.className = 'gs-tick'; tick.textContent = it.done ? '✓' : '';
+      const body = document.createElement('div'); body.className = 'gs-body';
+      const nm = document.createElement('div'); nm.className = 'gs-name'; nm.textContent = it.icon + ' ' + it.title;
+      body.appendChild(nm);
+      if(!it.done || st.replay){ const h = document.createElement('div'); h.className = 'gs-hint'; h.textContent = it.hint; body.appendChild(h); }
+      const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'gs-go';
+      btn.textContent = it.done ? 'Open' : it.cta; btn.addEventListener('click', it.run);
+      li.appendChild(tick); li.appendChild(body); li.appendChild(btn); list.appendChild(li);
+    });
+    card.appendChild(head); card.appendChild(bar); card.appendChild(list);
+    host.appendChild(card);
+    host.style.display = 'block';
+  }
+  window.addEventListener('storage', (e) => {
+    if(!e.key || e.key.indexOf('chalkline:') !== 0 || !homeShellUser) return;
+    if(e.key.indexOf('chalkline:tutorial:') === 0){ tutorialRender(); return; }
+    // lessons / quizzes / summaries / notes changed elsewhere: refresh the counts (debounced)
+    clearTimeout(window.__tutRefreshT);
+    window.__tutRefreshT = setTimeout(() => { loadCourses(); }, 1200);
+  });
+  window.addEventListener('message', (e) => {
+    const d = e.data;
+    if(d && d.tutorialShow){ try{ backToCourseList(); }catch(err){} tutorialRender(); window.scrollTo(0, 0); }
+  });
+
   async function loadCourses(){
     const grid = document.getElementById('course-grid');
     const emptyEl = document.getElementById('course-empty-state');
@@ -2092,6 +2235,7 @@ html,body{ height:100%; overflow:hidden; }
       grid.innerHTML = '';
       emptyEl.textContent = 'Sign in to see your saved courses and subjects here.';
       emptyEl.style.display = 'block';
+      tutorialRender();
       return;
     }
     const sub = homeShellUser.sub;
@@ -2152,6 +2296,7 @@ html,body{ height:100%; overflow:hidden; }
     } catch(e){ console.error('Loading notes for dashboard failed:', e); }
 
     currentCourseStats = courses;
+    tutorialRender();
     const names = Object.keys(courses).sort((a,b)=>{
       if(a==='Unsorted') return 1;
       if(b==='Unsorted') return -1;
