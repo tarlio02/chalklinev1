@@ -401,10 +401,370 @@
   #tour-done .td-confetti{ display:none; }
 }
 
+
+/* ============== Landing page (shown to signed-out visitors) ============== */
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,ital,wght@9..144,0,500;9..144,0,600;9..144,1,500;9..144,1,600&family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&family=Caveat:wght@600;700&family=JetBrains+Mono:wght@500;600&display=swap');
+#ld-root{ display:none; }
+body.landing-active #ld-root{ display:block; position:fixed; inset:0; z-index:9500; overflow-y:auto; overflow-x:hidden;
+  background:#FDFBF6; color:#2A2410; font-family:'Source Serif 4', Georgia, serif; -webkit-font-smoothing:antialiased; }
+body.landing-active #shell-auth{ display:none; }
+#ld-root *{ box-sizing:border-box; }
+#ld-root h1,#ld-root h2,#ld-root h3{ font-family:'Fraunces','Source Serif 4',Georgia,serif; margin:0; color:#2A2410; font-weight:600; }
+#ld-root p{ margin:0; }
+#ld-root a{ color:inherit; }
+#ld-root img{ max-width:100%; display:block; }
+#ld-root .ld-wrap{ max-width:1180px; margin:0 auto; padding:0 28px; }
+
+#ld-root header{ position:sticky; top:0; z-index:40; background:rgba(253,251,246,0.86); backdrop-filter:blur(10px); border-bottom:1px solid #ECE3C8; }
+#ld-root header .ld-bar{ display:flex; align-items:center; justify-content:space-between; padding:14px 28px; max-width:1180px; margin:0 auto; }
+#ld-root .ld-brand{ display:flex; align-items:center; gap:9px; text-decoration:none; }
+#ld-root .ld-brand svg{ width:34px; height:34px; }
+#ld-root .ld-brand span{ font-family:'Caveat', cursive; font-weight:700; font-size:27px; color:#2A2410; }
+#ld-root nav.ld-links{ display:flex; gap:30px; font-size:15px; color:#4A4020; }
+#ld-root nav.ld-links a{ text-decoration:none; position:relative; padding-bottom:3px; }
+#ld-root nav.ld-links a::after{ content:''; position:absolute; left:0; right:0; bottom:0; height:2px; background:#F0B94D; transform:scaleX(0); transform-origin:left; transition:transform .25s ease; }
+#ld-root nav.ld-links a:hover::after{ transform:scaleX(1); }
+
+#ld-root .ld-btn{ appearance:none; border:none; cursor:pointer; font-family:'Source Serif 4', serif; display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  border-radius:999px; font-weight:600; text-decoration:none; transition:transform .18s ease, box-shadow .18s ease, background-position .5s ease; }
+#ld-root .ld-btn-primary{ color:#2A1E05; padding:12px 26px; font-size:15px;
+  background:linear-gradient(100deg, #F0B94D 0%, #F5D48A 24%, #F0B94D 48%, #2E7DBE 100%); background-size:220% 100%; background-position:0% 0%;
+  box-shadow:0 8px 20px rgba(201,138,43,0.28); }
+#ld-root .ld-btn-primary:hover{ background-position:100% 0%; transform:translateY(-2px); box-shadow:0 12px 26px rgba(201,138,43,0.35); }
+#ld-root .ld-btn-primary:active{ transform:translateY(0); }
+#ld-root .ld-btn-ghost{ padding:9px 20px; font-size:14.5px; color:#2A2410; background:#fff; border:1.5px solid #2A2410; }
+#ld-root .ld-btn-ghost:hover{ background:#2A2410; color:#FDFBF6; }
+#ld-root .ld-btn-outline-lg{ padding:14px 30px; font-size:16px; color:#2A2410; background:transparent; border:1.5px solid #2A2410; }
+#ld-root .ld-btn-outline-lg:hover{ background:#2A2410; color:#FDFBF6; transform:translateY(-2px); }
+
+#ld-root .ld-hero{ text-align:center; padding:88px 28px 0; }
+#ld-root .ld-hero h1{ font-size:clamp(38px,6vw,62px); line-height:1.08; letter-spacing:-0.5px; max-width:820px; margin:0 auto;
+  opacity:0; transform:translateY(16px); animation:ldRiseIn .7s ease .05s forwards; }
+#ld-root .ld-hero h1 em{ font-style:italic; color:#2E7DBE; }
+#ld-root .ld-hero p.ld-sub{ max-width:520px; margin:20px auto 0; font-size:18px; color:#8A8267; line-height:1.55;
+  opacity:0; transform:translateY(16px); animation:ldRiseIn .7s ease .2s forwards; }
+#ld-root .ld-hero .ld-cta{ margin-top:30px; opacity:0; transform:translateY(16px); animation:ldRiseIn .7s ease .35s forwards; }
+#ld-root .ld-hero .ld-cta small{ display:block; margin-top:12px; font-family:'JetBrains Mono', monospace; font-size:12px; color:#8A8267; letter-spacing:.2px; }
+@keyframes ldRiseIn{ to{ opacity:1; transform:translateY(0); } }
+
+#ld-root .ld-stage{ max-width:1020px; margin:56px auto 0; padding:0 28px 40px; opacity:0; transform:translateY(22px); animation:ldRiseIn .8s ease .5s forwards; }
+#ld-root .ld-laptop{ background:#22303D; border-radius:22px; padding:14px; box-shadow:0 40px 80px -30px rgba(42,36,16,0.45); animation:ldFloaty 6s ease-in-out infinite; }
+@keyframes ldFloaty{ 0%,100%{ transform:translateY(0);} 50%{ transform:translateY(-8px);} }
+#ld-root .ld-screen{ background:#FBF7ED; border-radius:12px; overflow:hidden; position:relative; aspect-ratio:16/10; display:flex; flex-direction:column; }
+#ld-root .ld-board{ flex:1; position:relative; background:repeating-linear-gradient(180deg, transparent 0 34px, rgba(42,36,16,0.05) 34px 35px); padding:26px 30px; }
+#ld-root .ld-chalk-tag{ position:absolute; font-family:'Caveat',cursive; font-weight:700; color:#4A4020; }
+#ld-root .ld-board svg{ position:absolute; }
+#ld-root .ld-side-cards{ position:absolute; right:22px; top:22px; width:230px; display:flex; flex-direction:column; gap:10px; }
+#ld-root .ld-side-card{ background:#fff; border:1px solid #ECE3C8; border-radius:12px; padding:11px 13px; display:flex; gap:10px; align-items:flex-start;
+  box-shadow:0 6px 16px rgba(42,36,16,0.06); opacity:0; transform:translateX(14px); animation:ldCardIn .6s ease forwards; }
+#ld-root .ld-side-card:nth-child(1){ animation-delay:1.0s; }
+#ld-root .ld-side-card:nth-child(2){ animation-delay:1.2s; }
+#ld-root .ld-side-card:nth-child(3){ animation-delay:1.4s; }
+@keyframes ldCardIn{ to{ opacity:1; transform:translateX(0); } }
+#ld-root .ld-side-card .ld-ic{ width:26px; height:26px; border-radius:8px; flex:none; display:flex; align-items:center; justify-content:center; font-size:14px; }
+#ld-root .ld-side-card .ld-ic.ld-gold{ background:#FBEACB; }
+#ld-root .ld-side-card .ld-ic.ld-blue{ background:#DCEEFB; }
+#ld-root .ld-side-card b{ display:block; font-size:12.5px; font-family:'Source Serif 4', serif; color:#2A2410; }
+#ld-root .ld-side-card span{ font-size:11px; color:#8A8267; }
+#ld-root .ld-board-caption{ position:absolute; left:30px; bottom:16px; right:260px; font-size:12.5px; color:#4A4020; font-family:'Source Serif 4', serif; }
+#ld-root .ld-board-caption b{ color:#2A2410; }
+#ld-root .ld-inputbar{ background:#fff; border-top:1px solid #ECE3C8; padding:10px 16px; display:flex; align-items:center; gap:10px; }
+#ld-root .ld-inputbar .ld-pill{ flex:1; background:#FBF7ED; border-radius:999px; padding:9px 16px; font-size:12.5px; color:#8A8267; font-family:'Source Serif 4', serif; }
+#ld-root .ld-inputbar .ld-round{ width:30px; height:30px; border-radius:50%; background:#2A2410; color:#FDFBF6; display:flex; align-items:center; justify-content:center; font-size:13px; }
+
+#ld-root .ld-features{ padding:70px 28px 10px; }
+#ld-root .ld-features .ld-grid{ max-width:1020px; margin:0 auto; display:grid; grid-template-columns:repeat(3,1fr); gap:36px; text-align:center; }
+#ld-root .ld-feature .ld-ic{ width:58px; height:58px; margin:0 auto 16px; border-radius:16px; background:linear-gradient(150deg, #C98A2B, #2E7DBE);
+  display:flex; align-items:center; justify-content:center; color:#fff; font-size:24px; }
+#ld-root .ld-feature h3{ font-size:19px; margin-bottom:8px; }
+#ld-root .ld-feature p{ font-size:14.5px; color:#8A8267; line-height:1.6; max-width:260px; margin:0 auto; }
+
+#ld-root .ld-trust{ padding:90px 28px 20px; text-align:center; }
+#ld-root .ld-trust h4{ font-family:'Source Serif 4', serif; font-weight:600; font-size:15px; color:#8A8267; margin-bottom:34px; }
+#ld-root .ld-badges{ max-width:900px; margin:0 auto; display:flex; flex-wrap:wrap; justify-content:center; gap:34px; }
+#ld-root .ld-badge{ display:flex; flex-direction:column; align-items:center; gap:6px; opacity:.75; }
+#ld-root .ld-badge svg{ width:40px; height:40px; }
+#ld-root .ld-badge span{ font-size:10.5px; font-family:'JetBrains Mono',monospace; color:#8A8267; letter-spacing:.3px; }
+
+#ld-root .ld-how{ padding:100px 28px; }
+#ld-root .ld-how h2{ text-align:center; font-size:clamp(28px,4vw,40px); margin-bottom:56px; }
+#ld-root .ld-steps{ max-width:1000px; margin:0 auto; display:grid; grid-template-columns:1fr auto 1fr auto 1fr; align-items:start; gap:0 18px; }
+#ld-root .ld-step{ text-align:center; padding:0 6px; }
+#ld-root .ld-step .ld-num{ width:64px; height:64px; border-radius:50%; margin:0 auto 18px; background:linear-gradient(150deg, #F0B94D, #2E7DBE); color:#fff;
+  display:flex; align-items:center; justify-content:center; font-size:24px; font-family:'Fraunces',serif; box-shadow:0 10px 20px rgba(46,125,190,0.22); }
+#ld-root .ld-step h3{ font-size:18px; margin-bottom:8px; }
+#ld-root .ld-step p{ font-size:14px; color:#8A8267; line-height:1.6; }
+#ld-root .ld-arrow{ align-self:center; color:#8A8267; font-size:22px; padding-top:22px; }
+@media (max-width:760px){ #ld-root .ld-steps{ grid-template-columns:1fr; gap:34px; } #ld-root .ld-arrow{ display:none; } }
+
+#ld-root .ld-say{ padding:40px 28px 100px; }
+#ld-root .ld-say h2{ text-align:center; font-size:clamp(28px,4vw,40px); max-width:640px; margin:0 auto 46px; line-height:1.15; }
+#ld-root .ld-say-row{ max-width:1060px; margin:0 auto; display:grid; grid-template-columns:repeat(3,1fr); gap:22px; }
+#ld-root .ld-say-card{ background:#fff; border:1px solid #ECE3C8; border-radius:16px; padding:26px 24px; box-shadow:0 14px 30px rgba(42,36,16,0.05); }
+#ld-root .ld-say-card .ld-who{ display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+#ld-root .ld-who .ld-av{ width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; color:#fff; font-family:'Fraunces',serif; font-size:14px; }
+#ld-root .ld-who b{ display:block; font-size:14.5px; }
+#ld-root .ld-who span{ font-size:12px; color:#8A8267; }
+#ld-root .ld-say-card p{ font-size:15px; line-height:1.6; color:#4A4020; }
+@media (max-width:820px){ #ld-root .ld-say-row{ grid-template-columns:1fr; } }
+
+#ld-root .ld-banner{ padding:0 28px 100px; }
+#ld-root .ld-banner .ld-card{ max-width:1020px; margin:0 auto; border-radius:26px; text-align:center; padding:70px 28px;
+  background:linear-gradient(135deg, #FBEACB 0%, #FDFBF6 45%, #DCEEFB 100%); border:1px solid #ECE3C8; }
+#ld-root .ld-banner h2{ font-size:clamp(26px,4vw,38px); max-width:600px; margin:0 auto 16px; line-height:1.15; }
+#ld-root .ld-banner p{ color:#8A8267; font-size:16px; max-width:460px; margin:0 auto 30px; }
+
+#ld-root footer{ border-top:1px solid #ECE3C8; padding:46px 28px 34px; }
+#ld-root .ld-foot-wrap{ max-width:1180px; margin:0 auto; display:flex; justify-content:space-between; flex-wrap:wrap; gap:36px; }
+#ld-root .ld-foot-brand{ max-width:260px; }
+#ld-root .ld-foot-brand .ld-brand{ margin-bottom:10px; }
+#ld-root .ld-foot-brand p{ font-size:13px; color:#8A8267; line-height:1.6; }
+#ld-root .ld-foot-cols{ display:flex; gap:60px; flex-wrap:wrap; }
+#ld-root .ld-foot-col h5{ font-size:12px; letter-spacing:.3px; color:#8A8267; margin-bottom:12px; font-family:'Source Serif 4',serif; font-weight:600; }
+#ld-root .ld-foot-col a{ display:block; font-size:13.5px; color:#4A4020; text-decoration:none; margin-bottom:9px; }
+#ld-root .ld-foot-col a:hover{ color:#2E7DBE; }
+#ld-root .ld-foot-bottom{ max-width:1180px; margin:36px auto 0; padding-top:20px; border-top:1px solid #ECE3C8; font-size:12px; color:#8A8267; display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px; }
+
+#ld-root .ld-reveal{ opacity:0; transform:translateY(20px); transition:opacity .7s ease, transform .7s ease; }
+#ld-root .ld-reveal.ld-in{ opacity:1; transform:translateY(0); }
+@media (prefers-reduced-motion: reduce){
+  #ld-root .ld-reveal, #ld-root .ld-hero h1, #ld-root .ld-hero p.ld-sub, #ld-root .ld-hero .ld-cta, #ld-root .ld-stage, #ld-root .ld-side-card{ animation:none !important; opacity:1 !important; transform:none !important; }
+  #ld-root .ld-laptop{ animation:none; }
+}
+
+#ld-overlay{ position:fixed; inset:0; z-index:9600; display:none; align-items:center; justify-content:center; background:rgba(42,36,16,0.45); padding:20px; }
+#ld-overlay.open{ display:flex; }
+#ld-modal{ background:#fff; width:100%; max-width:380px; border-radius:20px; padding:30px 26px 26px; position:relative;
+  box-shadow:0 30px 70px rgba(42,36,16,0.3); font-family:'Source Serif 4', serif; }
+#ld-modal .ld-close{ position:absolute; top:14px; right:16px; border:none; background:none; font-size:16px; color:#8A8267; cursor:pointer; }
+#ld-modal .ld-mbrand{ display:flex; align-items:center; gap:8px; justify-content:center; margin-bottom:14px; }
+#ld-modal .ld-mbrand svg{ width:26px; height:26px; }
+#ld-modal .ld-mbrand span{ font-family:'Caveat',cursive; font-weight:700; font-size:21px; }
+#ld-modal h2{ text-align:center; font-size:21px; margin-bottom:6px; font-family:'Fraunces','Source Serif 4',Georgia,serif; color:#2A2410; }
+#ld-modal p.ld-msub{ text-align:center; font-size:13.5px; color:#8A8267; margin-bottom:20px; line-height:1.5; }
+#ld-google-btn-holder{ display:flex; justify-content:center; min-height:44px; margin-bottom:16px; }
+#ld-modal .ld-divider{ display:flex; align-items:center; gap:10px; margin:4px 0 16px; color:#8A8267; font-size:12px; }
+#ld-modal .ld-divider::before, #ld-modal .ld-divider::after{ content:''; flex:1; height:1px; background:#ECE3C8; }
+#ld-email-form{ display:flex; flex-direction:column; gap:10px; }
+#ld-email-form input{ width:100%; padding:11px 14px; border-radius:10px; border:1.5px solid #ECE3C8; font-size:14.5px;
+  font-family:'Source Serif 4', serif; background:#FBF7ED; color:#2A2410; }
+#ld-email-form input:focus{ outline:none; border-color:#2E7DBE; }
+#ld-email-submit{ margin-top:4px; width:100%; padding:12px; font-size:14.5px; }
+#ld-auth-toggle{ text-align:center; font-size:13px; color:#8A8267; margin-top:16px; }
+#ld-auth-toggle a{ color:#2E7DBE; text-decoration:underline; cursor:pointer; }
+#ld-auth-msg{ font-size:12.5px; text-align:center; margin-top:12px; line-height:1.5; min-height:0; }
+#ld-auth-msg.ld-err{ color:#C0392B; }
+#ld-auth-msg.ld-ok{ color:#1E7A4C; }
+#ld-modal-name-row{ display:none; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 </head>
 <body>
+
+<div id="ld-root">
+<header>
+  <div class="ld-bar">
+    <a href="#" class="ld-brand" aria-label="Chalkline home">
+      <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="48" fill="#2A2410"/><circle cx="50" cy="50" r="42" fill="none" stroke="#F0B94D" stroke-width="2.5"/><circle cx="50" cy="50" r="38" fill="#FDFBF6"/><path d="M34 33V42Q50 50 66 42V33L50 40Z" fill="#4A4020" stroke="#2A2410" stroke-width="2" stroke-linejoin="round"/><polygon points="50,17 79,29 50,41 21,29" fill="#2A2410" stroke="#2A2410" stroke-width="2" stroke-linejoin="round"/><path d="M50 29L72 31V42" fill="none" stroke="#F0B94D" stroke-width="2.4" stroke-linecap="round"/><rect x="69.5" y="42" width="5" height="7" rx="1" fill="#F0B94D"/><path d="M24 53V73Q38 69 50 77Q62 69 76 73V53Z" fill="#2E7DBE" stroke="#2A2410" stroke-width="2.2" stroke-linejoin="round"/><path d="M50 55Q38 49 27 52V68Q38 65 50 72Z" fill="#fff" stroke="#2A2410" stroke-width="2" stroke-linejoin="round"/><path d="M50 55Q62 49 73 52V68Q62 65 50 72Z" fill="#fff" stroke="#2A2410" stroke-width="2" stroke-linejoin="round"/><circle cx="50" cy="83" r="6.5" fill="#F0B94D" opacity="0.3"/><circle cx="50" cy="83" r="3.6" fill="#F0B94D" stroke="#C98A2B" stroke-width="1.2"/></svg>
+      <span>Chalkline</span>
+    </a>
+    <nav class="ld-links">
+      <a href="#ld-features">Product</a>
+      <a href="#ld-how">How it works</a>
+      <a href="#ld-say">Reviews</a>
+    </nav>
+    <button class="ld-btn ld-btn-ghost" id="ld-nav-go-app">Go to App</button>
+  </div>
+</header>
+
+<section class="ld-hero">
+  <h1>Your new favorite <em>tutor</em></h1>
+  <p class="ld-sub">Turn any topic into a one-on-one lesson, drawn out live on a whiteboard — as many times as it takes to click.</p>
+  <div class="ld-cta">
+    <button class="ld-btn ld-btn-primary" id="ld-hero-cta" style="font-size:16px;padding:14px 32px;">Start learning free</button>
+    <small>No credit card. Just you and a blank board.</small>
+  </div>
+</section>
+
+<div class="ld-stage">
+  <div class="ld-laptop">
+    <div class="ld-screen">
+      <div class="ld-board">
+        <div class="ld-chalk-tag" style="top:8px;left:0;font-size:15px;">How students actually spend study time</div>
+        <svg viewBox="0 0 140 140" width="150" height="150" style="left:0;top:40px;">
+          <circle cx="70" cy="70" r="58" fill="none" stroke="#2A2410" stroke-width="2"/>
+          <path d="M70 70 L70 12 A58 58 0 0 1 118 96 Z" fill="none" stroke="#2E7DBE" stroke-width="2"/>
+          <path d="M70 70 L118 96 A58 58 0 0 1 34 118 Z" fill="none" stroke="#F0B94D" stroke-width="2"/>
+          <path d="M70 70 L34 118 A58 58 0 0 1 70 12 Z" fill="none" stroke="#C98A2B" stroke-width="2"/>
+          <text x="88" y="46" font-family="Caveat" font-weight="700" font-size="13" fill="#2E7DBE">Rereading 45%</text>
+          <text x="30" y="134" font-family="Caveat" font-weight="700" font-size="13" fill="#C98A2B">Practice 35%</text>
+          <text x="6" y="60" font-family="Caveat" font-weight="700" font-size="13" fill="#8A8267">Review 20%</text>
+        </svg>
+        <div class="ld-chalk-tag" style="left:190px; top:36px; font-size:14px; max-width:150px;">If only "rereading" actually worked...</div>
+        <div class="ld-chalk-tag" style="left:190px; top:64px; font-size:13px; color:#2E7DBE; max-width:170px;">so let's swap it for something that does —</div>
+        <div class="ld-side-cards">
+          <div class="ld-side-card"><div class="ld-ic ld-gold">📘</div><div><b>Any subject</b><span>Bio, calc, history, code…</span></div></div>
+          <div class="ld-side-card"><div class="ld-ic ld-blue">⚡</div><div><b>1:1 lessons</b><span>Built live, just for this</span></div></div>
+          <div class="ld-side-card"><div class="ld-ic ld-gold">✏️</div><div><b>Ask anything</b><span>Interrupt whenever</span></div></div>
+        </div>
+        <div class="ld-board-caption"><b>Chalkline:</b> so — what are you actually trying to understand right now?</div>
+      </div>
+      <div class="ld-inputbar">
+        <div class="ld-round">✎</div>
+        <div class="ld-pill">Ask Chalkline anything…</div>
+        <div class="ld-round" style="background:#2E7DBE;">🎙</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<section class="ld-features" id="ld-features">
+  <div class="ld-grid">
+    <div class="ld-feature ld-reveal">
+      <div class="ld-ic">📚</div>
+      <h3>Bring any subject</h3>
+      <p>From calculus to Chaucer, Chalkline knows the material and meets you exactly where you are.</p>
+    </div>
+    <div class="ld-feature ld-reveal">
+      <div class="ld-ic">⏱️</div>
+      <h3>Unlimited 1:1 time</h3>
+      <p>No office hours, no waiting your turn. Chalkline is on whenever you need it, day or night.</p>
+    </div>
+    <div class="ld-feature ld-reveal">
+      <div class="ld-ic">🎯</div>
+      <h3>Built around you</h3>
+      <p>Upload your own materials and Chalkline teaches to your syllabus, your pace, your questions.</p>
+    </div>
+  </div>
+</section>
+
+<section class="ld-trust ld-reveal">
+  <h4>Trusted by students everywhere</h4>
+  <div class="ld-badges">
+    <div class="ld-badge"><svg viewBox="0 0 40 44"><polygon points="20,2 38,10 38,26 20,42 2,26 2,10" fill="none" stroke="#2A2410" stroke-width="2"/><text x="20" y="26" text-anchor="middle" font-family="Fraunces" font-size="13" fill="#2A2410">A</text></svg><span>College</span></div>
+    <div class="ld-badge"><svg viewBox="0 0 40 44"><circle cx="20" cy="20" r="18" fill="none" stroke="#2A2410" stroke-width="2"/><text x="20" y="25" text-anchor="middle" font-family="Fraunces" font-size="13" fill="#2A2410">M</text></svg><span>University</span></div>
+    <div class="ld-badge"><svg viewBox="0 0 40 44"><rect x="3" y="3" width="34" height="34" rx="4" fill="none" stroke="#2A2410" stroke-width="2"/><text x="20" y="25" text-anchor="middle" font-family="Fraunces" font-size="13" fill="#2A2410">S</text></svg><span>State U</span></div>
+    <div class="ld-badge"><svg viewBox="0 0 40 44"><polygon points="20,2 38,10 38,26 20,42 2,26 2,10" fill="none" stroke="#2A2410" stroke-width="2"/><text x="20" y="26" text-anchor="middle" font-family="Fraunces" font-size="13" fill="#2A2410">H</text></svg><span>High School</span></div>
+    <div class="ld-badge"><svg viewBox="0 0 40 44"><circle cx="20" cy="20" r="18" fill="none" stroke="#2A2410" stroke-width="2"/><text x="20" y="25" text-anchor="middle" font-family="Fraunces" font-size="13" fill="#2A2410">P</text></svg><span>Prep Academy</span></div>
+    <div class="ld-badge"><svg viewBox="0 0 40 44"><rect x="3" y="3" width="34" height="34" rx="4" fill="none" stroke="#2A2410" stroke-width="2"/><text x="20" y="25" text-anchor="middle" font-family="Fraunces" font-size="13" fill="#2A2410">G</text></svg><span>Grad School</span></div>
+  </div>
+</section>
+
+<section class="ld-how" id="ld-how">
+  <h2 class="ld-reveal">How it works</h2>
+  <div class="ld-steps">
+    <div class="ld-step ld-reveal">
+      <div class="ld-num">1</div>
+      <h3>Share what you're working on</h3>
+      <p>Type a topic, paste your notes, or upload a chapter — Chalkline reads it instantly.</p>
+    </div>
+    <div class="ld-arrow">→</div>
+    <div class="ld-step ld-reveal">
+      <div class="ld-num">2</div>
+      <h3>Get a lesson built for it</h3>
+      <p>Chalkline writes a custom lesson and teaches it step by step, live on the whiteboard.</p>
+    </div>
+    <div class="ld-arrow">→</div>
+    <div class="ld-step ld-reveal">
+      <div class="ld-num">3</div>
+      <h3>Ask, and keep asking</h3>
+      <p>Interrupt anytime. Chalkline adapts until the idea actually clicks.</p>
+    </div>
+  </div>
+</section>
+
+<section class="ld-say" id="ld-say">
+  <h2 class="ld-reveal">What students are saying</h2>
+  <div class="ld-say-row">
+    <div class="ld-say-card ld-reveal">
+      <div class="ld-who"><div class="ld-av" style="background:#2E7DBE;">M</div><div><b>Maya R.</b><span>College sophomore</span></div></div>
+      <p>I finally get why my professor's proofs work — Chalkline draws them out until they actually make sense.</p>
+    </div>
+    <div class="ld-say-card ld-reveal">
+      <div class="ld-who"><div class="ld-av" style="background:#C98A2B;">D</div><div><b>Devon K.</b><span>High school junior</span></div></div>
+      <p>It felt like having a tutor who never once got tired of my questions. I asked the same thing four different ways.</p>
+    </div>
+    <div class="ld-say-card ld-reveal">
+      <div class="ld-who"><div class="ld-av" style="background:#2E7DBE;">A</div><div><b>Amara O.</b><span>Grad student</span></div></div>
+      <p>I uploaded my own reading and it built a whole lesson around it. Didn't expect that to actually work.</p>
+    </div>
+  </div>
+</section>
+
+<section class="ld-banner ld-reveal">
+  <div class="ld-card">
+    <h2>Stop rereading the same paragraph</h2>
+    <p>Chalkline turns hours of confused studying into a lesson that actually sticks.</p>
+    <button class="ld-btn ld-btn-outline-lg" id="ld-banner-cta">Get started free</button>
+  </div>
+</section>
+
+<footer>
+  <div class="ld-foot-wrap">
+    <div class="ld-foot-brand">
+      <a href="#" class="ld-brand">
+        <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="48" fill="#2A2410"/><circle cx="50" cy="50" r="42" fill="none" stroke="#F0B94D" stroke-width="2.5"/><circle cx="50" cy="50" r="38" fill="#FDFBF6"/><path d="M34 33V42Q50 50 66 42V33L50 40Z" fill="#4A4020" stroke="#2A2410" stroke-width="2" stroke-linejoin="round"/><polygon points="50,17 79,29 50,41 21,29" fill="#2A2410" stroke="#2A2410" stroke-width="2" stroke-linejoin="round"/><path d="M50 29L72 31V42" fill="none" stroke="#F0B94D" stroke-width="2.4" stroke-linecap="round"/><rect x="69.5" y="42" width="5" height="7" rx="1" fill="#F0B94D"/><path d="M24 53V73Q38 69 50 77Q62 69 76 73V53Z" fill="#2E7DBE" stroke="#2A2410" stroke-width="2.2" stroke-linejoin="round"/><path d="M50 55Q38 49 27 52V68Q38 65 50 72Z" fill="#fff" stroke="#2A2410" stroke-width="2" stroke-linejoin="round"/><path d="M50 55Q62 49 73 52V68Q62 65 50 72Z" fill="#fff" stroke="#2A2410" stroke-width="2" stroke-linejoin="round"/><circle cx="50" cy="83" r="6.5" fill="#F0B94D" opacity="0.3"/><circle cx="50" cy="83" r="3.6" fill="#F0B94D" stroke="#C98A2B" stroke-width="1.2"/></svg>
+        <span>Chalkline</span>
+      </a>
+      <p>A tutor with unlimited patience, on whatever you're studying.</p>
+    </div>
+    <div class="ld-foot-cols">
+      <div class="ld-foot-col">
+        <h5>Product</h5>
+        <a href="#ld-features">Product</a>
+        <a href="#ld-how">How it works</a>
+        <a href="#ld-say">Reviews</a>
+        <a href="#" id="ld-foot-go-app">Go to app</a>
+      </div>
+      <div class="ld-foot-col">
+        <h5>Company</h5>
+        <a href="#">About</a>
+        <a href="#">Contact</a>
+      </div>
+      <div class="ld-foot-col">
+        <h5>Legal</h5>
+        <a href="#">Privacy</a>
+        <a href="#">Terms</a>
+      </div>
+    </div>
+  </div>
+  <div class="ld-foot-wrap ld-foot-bottom">
+    <span>© <span id="ld-yr"></span> Chalkline</span>
+    <span>Made for learners</span>
+  </div>
+</footer>
+</div>
+
+<div id="ld-overlay">
+  <div id="ld-modal">
+    <button class="ld-close" id="ld-modal-close" aria-label="Close">✕</button>
+    <div class="ld-mbrand">
+      <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="48" fill="#2A2410"/><circle cx="50" cy="50" r="42" fill="none" stroke="#F0B94D" stroke-width="2.5"/><circle cx="50" cy="50" r="38" fill="#FDFBF6"/><path d="M34 33V42Q50 50 66 42V33L50 40Z" fill="#4A4020" stroke="#2A2410" stroke-width="2" stroke-linejoin="round"/><polygon points="50,17 79,29 50,41 21,29" fill="#2A2410" stroke="#2A2410" stroke-width="2" stroke-linejoin="round"/><path d="M50 29L72 31V42" fill="none" stroke="#F0B94D" stroke-width="2.4" stroke-linecap="round"/><rect x="69.5" y="42" width="5" height="7" rx="1" fill="#F0B94D"/><path d="M24 53V73Q38 69 50 77Q62 69 76 73V53Z" fill="#2E7DBE" stroke="#2A2410" stroke-width="2.2" stroke-linejoin="round"/><path d="M50 55Q38 49 27 52V68Q38 65 50 72Z" fill="#fff" stroke="#2A2410" stroke-width="2" stroke-linejoin="round"/><path d="M50 55Q62 49 73 52V68Q62 65 50 72Z" fill="#fff" stroke="#2A2410" stroke-width="2" stroke-linejoin="round"/><circle cx="50" cy="83" r="6.5" fill="#F0B94D" opacity="0.3"/><circle cx="50" cy="83" r="3.6" fill="#F0B94D" stroke="#C98A2B" stroke-width="1.2"/></svg>
+      <span>Chalkline</span>
+    </div>
+    <h2 id="ld-modal-title">Create your account</h2>
+    <p class="ld-msub" id="ld-modal-sub">One account, and Chalkline's ready whenever you are.</p>
+    <div id="ld-google-btn-holder"></div>
+    <div class="ld-divider">or</div>
+    <form id="ld-email-form">
+      <div id="ld-modal-name-row"><input type="text" id="ld-f-name" placeholder="Your name" autocomplete="name"></div>
+      <input type="email" id="ld-f-email" placeholder="Email" autocomplete="email" required>
+      <input type="password" id="ld-f-password" placeholder="Password" autocomplete="new-password" required minlength="6">
+      <button type="submit" class="ld-btn ld-btn-primary" id="ld-email-submit">Create account</button>
+    </form>
+    <div id="ld-auth-toggle">New here? <a id="ld-toggle-link">Actually, I have an account</a></div>
+    <div id="ld-auth-msg"></div>
+  </div>
+</div>
+
+<script>
+  // Signed-out visitors see the landing page first; a returning, already
+  // signed-in visitor skips straight past it into the app below. This runs
+  // immediately (before the rest of the app's scripts) so there's no flash.
+  try{
+    if(!localStorage.getItem('chalkline_shell_user')) document.body.classList.add('landing-active');
+  }catch(e){ document.body.classList.add('landing-active'); }
+</script>
 
 <div id="shell-auth">
   <div id="shell-signin-btn"></div>
@@ -932,6 +1292,12 @@ function handleShellCredential(response){
     closeStartModal();
     navTo('home');
   }
+  // If this credential came from the landing page's own sign-up modal,
+  // dismiss the landing page and drop the person straight into the app.
+  if(document.body.classList.contains('landing-active')){
+    if(typeof hideLanding === 'function') hideLanding();
+    navTo('home');
+  }
   // Verify the credential on the worker, then load/merge this person's saved
   // work. If the worker is unreachable the app keeps working locally.
   exchangeCredential(response.credential)
@@ -1092,6 +1458,7 @@ function signOutShell(){
     // same reasoning as above — don't render it while still hidden.
   }
   broadcastAuthState();
+  if(typeof showLanding === 'function') showLanding();
 }
 
 // ---- Settings popup -------------------------------------------------
@@ -13401,6 +13768,140 @@ if((initial === 'tutor' || initial === 'summary') && shellUser){
 }
 navTo(initial, false, initialPayload, true);
 setTimeout(()=>{ try{ window.ChalklineTour && window.ChalklineTour.resume(); }catch(e){} }, 900);
+</script>
+
+<script>
+// ============== Landing page behavior ==============
+// Reuses the same shellUser / SHELL_AUTH_STORAGE_KEY / SESSION_STORAGE_KEY /
+// supabaseClient / SHELL_GOOGLE_CLIENT_ID the rest of the shell already
+// defines above, so an account made here is one the app already recognizes.
+(function(){
+  document.getElementById('ld-yr').textContent = new Date().getFullYear();
+
+  window.showLanding = function(){
+    document.body.classList.add('landing-active');
+    window.scrollTo(0,0);
+  };
+  window.hideLanding = function(){
+    document.body.classList.remove('landing-active');
+  };
+
+  function ldSaveSessionAndEnter(user, session){
+    try{
+      localStorage.setItem(SHELL_AUTH_STORAGE_KEY, JSON.stringify(user));
+      localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ token:session.access_token, refresh:session.refresh_token, sub:user.sub }));
+    }catch(e){ console.error('Could not persist sign-in:', e); }
+    shellUser = user;
+    showSignedInChip(shellUser);
+    broadcastAuthState();
+    closeLdModal();
+    hideLanding();
+    navTo('home');
+    syncNow(true).catch(()=>{});
+  }
+
+  // ---- Google button inside the landing modal (Google sign-in is already
+  // initialize()'d elsewhere in the shell with callback handleShellCredential,
+  // which now also knows to dismiss the landing page — see that function). ----
+  let ldGoogleRendered = false;
+  function ldRenderGoogleButton(){
+    const holder = document.getElementById('ld-google-btn-holder');
+    if(ldGoogleRendered || typeof google === 'undefined' || !google.accounts) { if(!ldGoogleRendered) setTimeout(ldRenderGoogleButton, 300); return; }
+    ldGoogleRendered = true;
+    google.accounts.id.renderButton(holder, { theme:'outline', size:'large', shape:'pill', width:280 });
+    watchShellSigninButton('ld-google-btn-holder');
+  }
+
+  // ---- email + password ----
+  let ldMode = 'signup';
+  function ldSetMode(next){
+    ldMode = next;
+    document.getElementById('ld-modal-title').textContent = ldMode === 'signup' ? 'Create your account' : 'Welcome back';
+    document.getElementById('ld-modal-sub').textContent = ldMode === 'signup'
+      ? "One account, and Chalkline's ready whenever you are."
+      : 'Log in to pick up right where you left off.';
+    document.getElementById('ld-modal-name-row').style.display = ldMode === 'signup' ? 'block' : 'none';
+    document.getElementById('ld-email-submit').textContent = ldMode === 'signup' ? 'Create account' : 'Log in';
+    const toggle = document.getElementById('ld-auth-toggle');
+    toggle.innerHTML = ldMode === 'signup'
+      ? 'Already have an account? <a id="ld-toggle-link">Log in</a>'
+      : "New here? <a id=\"ld-toggle-link\">Create an account</a>";
+    document.getElementById('ld-toggle-link').addEventListener('click', ()=> ldSetMode(ldMode === 'signup' ? 'login' : 'signup'));
+    ldSetMsg('', false);
+  }
+  document.getElementById('ld-toggle-link').addEventListener('click', ()=> ldSetMode(ldMode === 'signup' ? 'login' : 'signup'));
+
+  function ldSetMsg(text, isErr, isOk){
+    const el = document.getElementById('ld-auth-msg');
+    el.textContent = text;
+    el.className = isErr ? 'ld-err' : (isOk ? 'ld-ok' : '');
+  }
+
+  document.getElementById('ld-email-form').addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const name = document.getElementById('ld-f-name').value.trim();
+    const email = document.getElementById('ld-f-email').value.trim();
+    const password = document.getElementById('ld-f-password').value;
+    const submitBtn = document.getElementById('ld-email-submit');
+    if(!supabaseClient){ ldSetMsg('Could not reach the sign-in service. Please try again shortly.', true); return; }
+    submitBtn.disabled = true;
+    const originalLabel = submitBtn.textContent;
+    submitBtn.textContent = ldMode === 'signup' ? 'Creating account…' : 'Logging in…';
+    ldSetMsg('', false);
+    try{
+      if(ldMode === 'signup'){
+        const { data, error } = await supabaseClient.auth.signUp({
+          email, password, options:{ data:{ full_name: name || email.split('@')[0] } }
+        });
+        if(error) throw error;
+        if(data && data.session && data.user){
+          const u = data.user;
+          const user = {
+            sub: u.id, email: u.email,
+            name: name || (u.email ? u.email.split('@')[0] : 'Student'),
+            given_name: (name || '').split(' ')[0] || (u.email ? u.email.split('@')[0] : ''),
+            picture: null
+          };
+          ldSaveSessionAndEnter(user, data.session);
+        } else {
+          ldSetMsg('Almost there — check your email to confirm your account, then come back and log in.', false, true);
+          submitBtn.disabled = false; submitBtn.textContent = originalLabel;
+        }
+      } else {
+        const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+        if(error) throw error;
+        const u = data.user, session = data.session;
+        if(!u || !session) throw new Error('Log in failed — no session returned.');
+        const fullName = (u.user_metadata && u.user_metadata.full_name) || (u.email ? u.email.split('@')[0] : 'Student');
+        const user = { sub: u.id, email: u.email, name: fullName, given_name: fullName.split(' ')[0], picture: null };
+        ldSaveSessionAndEnter(user, session);
+      }
+    }catch(err){
+      ldSetMsg((err && err.message) || 'Something went wrong. Please try again.', true);
+      submitBtn.disabled = false; submitBtn.textContent = originalLabel;
+    }
+  });
+
+  // ---- modal open/close ----
+  function openLdModal(){
+    document.getElementById('ld-overlay').classList.add('open');
+    ldSetMode('signup');
+    ldRenderGoogleButton();
+  }
+  function closeLdModal(){ document.getElementById('ld-overlay').classList.remove('open'); }
+  document.getElementById('ld-nav-go-app').addEventListener('click', openLdModal);
+  document.getElementById('ld-hero-cta').addEventListener('click', openLdModal);
+  document.getElementById('ld-banner-cta').addEventListener('click', openLdModal);
+  document.getElementById('ld-foot-go-app').addEventListener('click', (e)=>{ e.preventDefault(); openLdModal(); });
+  document.getElementById('ld-modal-close').addEventListener('click', closeLdModal);
+  document.getElementById('ld-overlay').addEventListener('click', (e)=>{ if(e.target.id === 'ld-overlay') closeLdModal(); });
+
+  // ---- scroll reveal ----
+  const ldIo = new IntersectionObserver((entries)=>{
+    entries.forEach(en => { if(en.isIntersecting){ en.target.classList.add('ld-in'); ldIo.unobserve(en.target); } });
+  }, { threshold: 0.15 });
+  document.querySelectorAll('.ld-reveal').forEach(el => ldIo.observe(el));
+})();
 </script>
 
 </body>
