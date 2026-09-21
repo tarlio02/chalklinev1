@@ -461,15 +461,6 @@ body.landing-active #shell-auth{ display:none; }
 #ld-root .ld-side-card:nth-child(2){ animation-delay:1.2s; }
 #ld-root .ld-side-card:nth-child(3){ animation-delay:1.4s; }
 @keyframes ldCardIn{ to{ opacity:1; transform:translateX(0); } }
-/* ---- Whiteboard "drawn live" animation: only opacity / stroke reveals, so nothing moves or resizes ---- */
-#ld-root .ld-board.ld-drawing .ld-ch{ opacity:0; transition:opacity .09s linear; }
-#ld-root .ld-board.ld-drawing .ld-ch.on{ opacity:1; }
-#ld-root .ld-board ld-ch.ld-cur{ position:relative; }
-#ld-root .ld-board ld-ch.ld-cur::after{ content:''; position:absolute; left:100%; top:14%; width:2px; height:76%; border-radius:1px; background:#2E7DBE; opacity:.8; pointer-events:none; }
-#ld-root .ld-board.ld-drawing svg .ld-stroke{ stroke-dasharray:1 2; stroke-dashoffset:1; }
-#ld-root .ld-board.ld-drawing svg .ld-stroke.on{ stroke-dashoffset:0; transition:stroke-dashoffset var(--d,600ms) ease-in-out; }
-#ld-root .ld-board.ld-drawing .ld-side-card{ animation:none; }
-#ld-root .ld-board.ld-drawing .ld-side-card.ld-show{ animation:ldCardIn .45s ease forwards; }
 #ld-root .ld-side-card .ld-ic{ width:26px; height:26px; border-radius:8px; flex:none; display:flex; align-items:center; justify-content:center; font-size:14px; }
 #ld-root .ld-side-card .ld-ic.ld-gold{ background:#FBEACB; }
 #ld-root .ld-side-card .ld-ic.ld-blue{ background:#DCEEFB; }
@@ -13983,103 +13974,6 @@ setTimeout(()=>{ try{ window.ChalklineTour && window.ChalklineTour.resume(); }ca
   window.addEventListener('resize', ldFit);
   window.addEventListener('load', ldFit);
   ldFit();
-
-  // ---- whiteboard "drawn live" animation (opacity / stroke reveals only, so layout never shifts) ----
-  (function ldBoardDraw(){
-    const board = document.querySelector('#ld-root .ld-board');
-    if(!board) return;
-    if(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const sleep = ms => new Promise(r => setTimeout(r, ms));
-    const SVGNS = 'http://www.w3.org/2000/svg';
-
-    // Split every visible letter into its own element (spaces stay plain text so wrapping is unchanged).
-    function wrapLetters(root){
-      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-        acceptNode: n => (/\S/.test(n.nodeValue) && !n.parentNode.closest('.ld-ic')) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
-      });
-      const nodes = [];
-      while(walker.nextNode()) nodes.push(walker.currentNode);
-      nodes.forEach(n => {
-        const inSvg = !!n.parentNode.closest('svg');
-        const frag = document.createDocumentFragment();
-        Array.from(n.nodeValue).forEach(ch => {
-          if(/\s/.test(ch)){ frag.appendChild(document.createTextNode(ch)); return; }
-          const el = inSvg ? document.createElementNS(SVGNS, 'tspan') : document.createElement('ld-ch');
-          el.setAttribute('class', 'ld-ch');
-          el.textContent = ch;
-          frag.appendChild(el);
-        });
-        n.parentNode.replaceChild(frag, n);
-      });
-    }
-
-    // Write text letter by letter, with a little pen caret on HTML text.
-    async function write(el, ms){
-      let prev = null;
-      for(const c of el.querySelectorAll('.ld-ch')){
-        if(prev) prev.classList.remove('ld-cur');
-        c.classList.add('on');
-        if(c.tagName.toLowerCase() === 'ld-ch'){ c.classList.add('ld-cur'); prev = c; }
-        await sleep(ms + Math.random() * ms * 0.6);
-      }
-      if(prev) prev.classList.remove('ld-cur');
-    }
-
-    // Draw an SVG outline stroke.
-    async function draw(shape, ms){
-      shape.style.setProperty('--d', ms + 'ms');
-      shape.classList.add('on');
-      await sleep(ms + 60);
-    }
-
-    async function run(){
-      const tags = board.querySelectorAll(':scope > .ld-chalk-tag');
-      const svg = board.querySelector(':scope > svg');
-      const shapes = svg ? svg.querySelectorAll('circle, path') : [];
-      const labels = svg ? svg.querySelectorAll('text') : [];
-      const cards = board.querySelectorAll('.ld-side-card');
-      const caption = board.querySelector('.ld-board-caption');
-
-      if(tags[0]) await write(tags[0], 26);
-      await sleep(120);
-      // pie chart: outline first, then each slice with its label
-      if(shapes[0]) await draw(shapes[0], 800);
-      for(let i = 1; i < shapes.length; i++){
-        await draw(shapes[i], 450);
-        if(labels[i - 1]) await write(labels[i - 1], 22);
-      }
-      await sleep(150);
-      if(tags[1]) await write(tags[1], 24);
-      await sleep(100);
-      if(tags[2]) await write(tags[2], 24);
-      await sleep(150);
-      for(const card of cards){
-        card.classList.add('ld-show');
-        await sleep(220);
-        const b = card.querySelector('b'), sp = card.querySelector('span');
-        if(b) await write(b, 18);
-        if(sp) await write(sp, 14);
-      }
-      await sleep(150);
-      if(caption) await write(caption, 16);
-    }
-
-    wrapLetters(board);
-    board.querySelectorAll(':scope > svg circle, :scope > svg path').forEach(s => {
-      s.setAttribute('pathLength', '1');
-      s.classList.add('ld-stroke');
-    });
-    board.classList.add('ld-drawing');
-    void board.offsetWidth; // commit the hidden starting state before animating
-
-    const start = () => sleep(900).then(run);   // wait for the laptop to finish fading in
-    if('IntersectionObserver' in window){
-      const io = new IntersectionObserver(es => {
-        if(es.some(e => e.isIntersecting)){ io.disconnect(); start(); }
-      }, { threshold: 0.3 });
-      io.observe(board);
-    } else { start(); }
-  })();
 
   // ---- scroll reveal ----
   const ldIo = new IntersectionObserver((entries)=>{
