@@ -291,6 +291,117 @@
     background:linear-gradient(140deg, #2E7DBE, #C98A2B);
     box-shadow:0 6px 14px -6px rgba(120,90,20,0.35);
   }
+
+/* ==================== GUIDED TOUR ====================
+   Lives in the top-level shell so one engine can span every page iframe.
+   z-index 10050 sits above the sign-in (10000-10002) and assistant modals. */
+body.tour-on #sync-status-banner{ z-index:10040 !important; }
+#tour-root{ position:fixed; inset:0; z-index:10050; display:none; pointer-events:none;
+  font-family:-apple-system,Segoe UI,sans-serif; }
+#tour-root.on{ display:block; }
+
+/* Full-screen catcher. Blocks clicks on the page underneath during "Next"
+   steps; hidden (pointer-events:none) during "click this" steps so the real
+   element can be tapped through the spotlight hole. */
+#tour-block{ position:absolute; inset:0; pointer-events:auto; background:transparent; }
+#tour-root.passthru #tour-block{ pointer-events:none; }
+
+/* The spotlight: a transparent box whose enormous box-shadow dims everything
+   else, leaving a bright "hole" over the target. */
+#tour-spot{
+  position:absolute; border-radius:14px; pointer-events:none;
+  box-shadow:0 0 0 9999px rgba(14,24,38,0.66);
+  transition:top .38s cubic-bezier(.3,.8,.3,1), left .38s cubic-bezier(.3,.8,.3,1),
+             width .38s cubic-bezier(.3,.8,.3,1), height .38s cubic-bezier(.3,.8,.3,1), opacity .25s;
+}
+#tour-spot.nohole{ box-shadow:0 0 0 9999px rgba(14,24,38,0.66); width:0!important; height:0!important; }
+#tour-spot::after{ /* pulsing ring */
+  content:''; position:absolute; inset:-5px; border-radius:18px;
+  border:2.5px solid #F0B94D; animation:tourPulse 1.7s ease-out infinite;
+}
+@keyframes tourPulse{
+  0%{ transform:scale(.97); opacity:.95; }
+  70%{ transform:scale(1.06); opacity:0; }
+  100%{ transform:scale(1.06); opacity:0; }
+}
+
+#tour-tip{
+  position:absolute; width:min(340px, calc(100vw - 28px)); pointer-events:auto;
+  background:#fff; color:#1E2B3A; border-radius:18px; padding:18px 18px 14px;
+  box-shadow:0 18px 50px rgba(0,0,0,0.35), 0 0 0 1px rgba(240,185,77,0.55);
+  opacity:0; transform:translateY(8px) scale(.97);
+  transition:opacity .28s ease, transform .28s cubic-bezier(.2,.9,.3,1.15), top .38s cubic-bezier(.3,.8,.3,1), left .38s cubic-bezier(.3,.8,.3,1);
+}
+#tour-tip.show{ opacity:1; transform:none; }
+#tour-tip .tt-step{ font:600 11px 'JetBrains Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#C98A2B; margin:0 0 6px; }
+#tour-tip h3{ margin:0 0 6px; font-size:17px; line-height:1.25; }
+#tour-tip p{ margin:0 0 14px; font-size:14px; line-height:1.5; color:#4a5b6c; }
+#tour-tip .tt-actions{ display:flex; align-items:center; gap:8px; }
+#tour-tip .tt-skip{ border:none; background:none; color:#8a9aab; font-size:12.5px; cursor:pointer; padding:6px 4px; font-family:inherit; }
+#tour-tip .tt-skip:hover{ color:#5c6f80; text-decoration:underline; }
+#tour-tip .tt-spacer{ flex:1; }
+#tour-tip .tt-next{ border:none; background:#2E7DBE; color:#fff; font-weight:600; font-size:14px; border-radius:999px;
+  padding:9px 18px; cursor:pointer; font-family:inherit; box-shadow:0 2px 8px rgba(46,125,190,.35); }
+#tour-tip .tt-next:hover{ background:#256aa3; }
+#tour-tip .tt-hint{ font-size:12.5px; color:#2E7DBE; font-weight:600; display:flex; align-items:center; gap:6px; }
+#tour-tip .tt-hint .tt-finger{ display:inline-block; animation:tourTap 1.1s ease-in-out infinite; }
+@keyframes tourTap{ 0%,100%{ transform:translateY(0);} 50%{ transform:translateY(-4px);} }
+#tour-tip .tt-arrow{ position:absolute; width:16px; height:16px; background:#fff; transform:rotate(45deg); border-radius:3px; }
+#tour-tip[data-side="bottom"] .tt-arrow{ top:-7px; box-shadow:-2px -2px 0 rgba(240,185,77,.55); }
+#tour-tip[data-side="top"] .tt-arrow{ bottom:-7px; box-shadow:2px 2px 0 rgba(240,185,77,.55); }
+#tour-tip[data-side="center"] .tt-arrow{ display:none; }
+
+/* ---------- Completion screen ---------- */
+#tour-done{
+  position:fixed; inset:0; z-index:10060; display:none; align-items:center; justify-content:center; padding:20px;
+  background:radial-gradient(1200px 700px at 50% 30%, #1C4E86 0%, #123A66 45%, #0A1930 100%);
+  opacity:0; transition:opacity .5s ease; overflow:hidden;
+}
+#tour-done.show{ display:flex; opacity:1; }
+#tour-done .td-card{ text-align:center; color:#fff; max-width:440px; position:relative; z-index:2; }
+#tour-done .td-badge{
+  width:120px; height:120px; margin:0 auto 22px; border-radius:50%;
+  background:linear-gradient(135deg,#F0B94D,#C98A2B); display:flex; align-items:center; justify-content:center;
+  font-size:58px; box-shadow:0 0 0 0 rgba(240,185,77,.6);
+  animation:tdPop .8s cubic-bezier(.2,1.4,.3,1) both, tdGlow 2.2s ease-out .8s infinite;
+}
+@keyframes tdPop{ 0%{ transform:scale(0) rotate(-30deg); } 100%{ transform:scale(1) rotate(0); } }
+@keyframes tdGlow{ 0%{ box-shadow:0 0 0 0 rgba(240,185,77,.55);} 100%{ box-shadow:0 0 0 38px rgba(240,185,77,0);} }
+#tour-done h2{ font-family:'Caveat',cursive; font-size:46px; margin:0 0 8px; line-height:1.05; animation:tdRise .6s ease .35s both; }
+#tour-done .td-sub{ font-size:16px; color:#cfe0f2; margin:0 0 26px; line-height:1.5; animation:tdRise .6s ease .5s both; }
+#tour-done .td-ask{ font-size:14px; color:#9fbad6; margin:0 0 12px; animation:tdRise .6s ease .65s both; }
+@keyframes tdRise{ from{ opacity:0; transform:translateY(14px);} to{ opacity:1; transform:none;} }
+#tour-done .td-thumbs{ display:flex; gap:16px; justify-content:center; margin-bottom:26px; animation:tdRise .6s ease .8s both; }
+#tour-done .td-thumb{
+  width:76px; height:76px; border-radius:50%; border:2px solid rgba(255,255,255,.28); background:rgba(255,255,255,.08);
+  color:#fff; font-size:34px; cursor:pointer; transition:transform .18s, background .18s, border-color .18s;
+}
+#tour-done .td-thumb:hover{ transform:translateY(-3px) scale(1.06); background:rgba(255,255,255,.16); }
+#tour-done .td-thumb.picked{ background:#F0B94D; border-color:#F0B94D; transform:scale(1.12); animation:tdBounce .5s ease; }
+#tour-done .td-thumb.dim{ opacity:.38; transform:scale(.92); }
+@keyframes tdBounce{ 0%{ transform:scale(1);} 40%{ transform:scale(1.35) rotate(-8deg);} 100%{ transform:scale(1.12);} }
+#tour-done .td-thanks{ min-height:22px; font-size:14.5px; color:#F0B94D; margin:-12px 0 18px; opacity:0; transition:opacity .3s; }
+#tour-done .td-thanks.on{ opacity:1; }
+#tour-done .td-go{
+  border:none; background:#fff; color:#123A66; font-weight:700; font-size:15.5px; border-radius:999px; padding:13px 30px; cursor:pointer;
+  font-family:inherit; box-shadow:0 6px 22px rgba(0,0,0,.3); animation:tdRise .6s ease .95s both; transition:transform .15s;
+}
+#tour-done .td-go:hover{ transform:translateY(-2px); }
+#tour-done .td-confetti{ position:absolute; inset:0; pointer-events:none; z-index:1; }
+#tour-done .td-confetti i{
+  position:absolute; top:-20px; width:9px; height:14px; border-radius:2px; opacity:0;
+  animation:tdFall linear forwards;
+}
+@keyframes tdFall{
+  0%{ transform:translate3d(0,0,0) rotate(0); opacity:1; }
+  100%{ transform:translate3d(var(--dx),110vh,0) rotate(var(--rot)); opacity:1; }
+}
+@media (prefers-reduced-motion: reduce){
+  #tour-spot, #tour-tip{ transition:none; }
+  #tour-spot::after, #tour-done .td-badge, #tour-tip .tt-finger{ animation:none; }
+  #tour-done .td-confetti{ display:none; }
+}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 </head>
@@ -369,6 +480,40 @@
       <button type="button" id="signout-cancel">Cancel</button>
       <button type="button" id="signout-confirm">Sign out</button>
     </div>
+  </div>
+</div>
+
+<!-- ==================== GUIDED TOUR (shell-level) ==================== -->
+<div id="tour-root" aria-live="polite">
+  <div id="tour-block"></div>
+  <div id="tour-spot"></div>
+  <div id="tour-tip" role="dialog" aria-label="Chalkline tour">
+    <div class="tt-arrow"></div>
+    <div class="tt-step" id="tt-step"></div>
+    <h3 id="tt-title"></h3>
+    <p id="tt-body"></p>
+    <div class="tt-actions">
+      <button type="button" class="tt-skip" id="tt-skip">Skip tour</button>
+      <span class="tt-spacer"></span>
+      <span class="tt-hint" id="tt-hint" style="display:none;"><span class="tt-finger">👆</span><span id="tt-hint-text">Tap the highlighted button</span></span>
+      <button type="button" class="tt-next" id="tt-next">Next</button>
+    </div>
+  </div>
+</div>
+
+<div id="tour-done" role="dialog" aria-modal="true" aria-labelledby="td-title">
+  <div class="td-confetti" id="td-confetti"></div>
+  <div class="td-card">
+    <div class="td-badge">🎓</div>
+    <h2 id="td-title">Congratulations!</h2>
+    <p class="td-sub">You just finished your first lesson. That's the hardest step — everything from here gets easier.</p>
+    <p class="td-ask">How was your first lesson?</p>
+    <div class="td-thumbs">
+      <button type="button" class="td-thumb" id="td-up" aria-label="Thumbs up">👍</button>
+      <button type="button" class="td-thumb" id="td-down" aria-label="Thumbs down">👎</button>
+    </div>
+    <div class="td-thanks" id="td-thanks"></div>
+    <button type="button" class="td-go" id="td-go">Continue the tour →</button>
   </div>
 </div>
 
@@ -1121,7 +1266,6 @@ async function assistantSend(text){
   text = String(text || '').trim();
   if(!text || assistantBusy) return;
   assistantBusy = true;
-  markAssistantTried();
   document.getElementById('assistant-send').disabled = true;
   assistantMsgs.push({ role: 'user', content: text });
   assistantSave(); assistantDraw();
@@ -1231,24 +1375,17 @@ function renderSettingsModal(){
   body.appendChild(trow);
   appendBgSection(body);
 }
-function tutorialStateKey(){ return shellUser ? 'chalkline:tutorial:' + shellUser.sub : null; }
 function replayTutorial(){
-  const key = tutorialStateKey(); if(!key) return;
-  let st = {}; try{ st = JSON.parse(localStorage.getItem(key) || '{}') || {}; }catch(e){}
-  st.status = 'active'; st.replay = true; st.seen = true;
-  try{ localStorage.setItem(key, JSON.stringify(st)); }catch(e){}
+  if(!shellUser) return;
   closeSettingsModal();
-  navTo('home');
-  try{ if(frames.home && frames.home.contentWindow) frames.home.contentWindow.postMessage({ tutorialShow:true }, '*'); }catch(e){}
-}
-function markAssistantTried(){
-  const key = tutorialStateKey(); if(!key) return;
+  // Run the guided tour again, on the user's first available course.
+  let course = null;
   try{
-    const st = JSON.parse(localStorage.getItem(key) || '{}') || {};
-    if(st.assistant) return;
-    st.assistant = true; if(!st.seen) st.seen = true;
-    localStorage.setItem(key, JSON.stringify(st));
+    const w = frames.home && frames.home.contentWindow;
+    const stats = (w && w.__courseStats) || {};
+    course = Object.keys(stats).filter(n => n !== 'Unsorted').sort((a,b)=>a.localeCompare(b))[0] || null;
   }catch(e){}
+  try{ window.ChalklineTour.replay(course); }catch(e){ console.error(e); }
 }
 function openSettingsModal(){
   renderSettingsModal();
@@ -1909,43 +2046,6 @@ html,body{ height:100%; overflow:hidden; }
         <p id="dash-welcome-text">Welcome back!</p>
       </div>
 
-      <style>
-        #getting-started{ display:none; margin:0 auto 34px; max-width:780px; }
-        .gs-card{
-          background:linear-gradient(165deg, #FFFFFF 0%, #FFF7E0 140%); border:1px solid #ECE3C8; border-radius:20px;
-          padding:18px 18px 8px; box-shadow:0 10px 30px rgba(60,40,5,0.10); text-align:left; color:#2A2410;
-        }
-        .gs-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
-        .gs-title{ font-size:20px; font-weight:600; margin:0; }
-        .gs-sub{ font-family:'JetBrains Mono', monospace; font-size:11px; color:#8A8267; margin-top:3px; }
-        .gs-x{ border:none; background:none; cursor:pointer; color:#8A8267; font-size:13px; padding:6px 8px; border-radius:8px; line-height:1; white-space:nowrap; font-family:'JetBrains Mono', monospace; }
-        .gs-x:hover{ background:rgba(0,0,0,0.06); color:#2A2410; }
-        .gs-bar{ height:7px; border-radius:99px; background:#EFE6C9; overflow:hidden; margin:14px 0 6px; }
-        .gs-bar > i{ display:block; height:100%; border-radius:99px; background:linear-gradient(90deg, #F0B94D, #2E7DBE); transition:width .4s ease; }
-        .gs-list{ list-style:none; margin:0; padding:0; }
-        .gs-item{ display:flex; align-items:flex-start; gap:12px; padding:12px 0; border-top:1px solid #F0E8CE; }
-        .gs-item:first-child{ border-top:none; }
-        .gs-tick{
-          width:26px; height:26px; flex-shrink:0; border-radius:50%; border:2px solid #D9CDA3; margin-top:1px;
-          display:flex; align-items:center; justify-content:center; font-size:14px; color:#fff; background:#fff;
-        }
-        .gs-item.done .gs-tick{ background:#4E9F6A; border-color:#4E9F6A; }
-        .gs-body{ flex:1; min-width:0; }
-        .gs-name{ font-size:16px; font-weight:600; }
-        .gs-item.done .gs-name{ color:#8A8267; text-decoration:line-through; text-decoration-color:rgba(138,130,103,0.6); }
-        .gs-hint{ font-size:13.5px; line-height:1.45; color:#5c5847; margin-top:3px; }
-        .gs-go{
-          flex-shrink:0; align-self:center; font-family:'JetBrains Mono', monospace; font-size:12px; font-weight:600; cursor:pointer;
-          padding:8px 12px; border-radius:10px; border:1px solid #F0B94D; background:#FFF3D0; color:#2A2410; white-space:nowrap;
-        }
-        .gs-go:hover{ background:#FFE9A8; }
-        .gs-item.done .gs-go{ border-color:#E2D7B5; background:transparent; color:#8A8267; }
-        @media (max-width:520px){
-          .gs-item{ flex-wrap:wrap; }
-          .gs-go{ margin-left:38px; align-self:flex-start; }
-        }
-      </style>
-      <div id="getting-started"></div>
 
       <div style="display:flex;justify-content:center;margin:0 0 40px;">
         <button type="button" id="add-course-btn" onclick="handleAddCourseClick();">
@@ -2151,83 +2251,12 @@ html,body{ height:100%; overflow:hidden; }
     catch(e){ console.error('Could not save course list:', e); }
   }
 
-  /* ---------------- Getting-started checklist ----------------
-     Shown to a brand-new account on first sign-in (accounts that already have content are treated as
-     "seen"), hideable with ✕, and brought back from Settings → Replay. Progress is derived from the
-     user's real data, so it ticks itself off as they use the app. State lives in
-     chalkline:tutorial:<sub> (synced with the account). */
-  function tutorialKey(){ return 'chalkline:tutorial:' + homeShellUser.sub; }
-  function tutorialLoad(){ try{ return JSON.parse(localStorage.getItem(tutorialKey()) || 'null'); }catch(e){ return null; } }
-  function tutorialSave(st){ try{ localStorage.setItem(tutorialKey(), JSON.stringify(st)); }catch(e){} }
-  function tutorialRender(){
-    const host = document.getElementById('getting-started');
-    if(!host) return;
-    if(!homeShellUser){ host.style.display = 'none'; host.textContent = ''; return; }
-    const names = Object.keys(currentCourseStats || {});
-    const sum = (k) => names.reduce((a, n) => a + ((currentCourseStats[n] && currentCourseStats[n][k]) || 0), 0);
-    const lessons = sum('lessons'), quizzes = sum('quizzes'), summaries = sum('summaries'), notes = sum('notes');
-    let st = tutorialLoad();
-    if(!st){
-      st = { status: (names.length || lessons || quizzes || summaries || notes) ? 'dismissed' : 'active', seen: true };
-      tutorialSave(st);
-    }
-    if(st.status !== 'active'){ host.style.display = 'none'; host.textContent = ''; return; }
-    const firstCourse = names.filter(n => n !== 'Unsorted').sort((a, b) => a.localeCompare(b))[0] || names[0] || '';
-    const go = (page) => () => { if(firstCourse) parent.postMessage({ nav: page, presetSubject: firstCourse }, '*'); else handleAddCourseClick(); };
-    const items = [
-      { icon:'📚', title:'Add your first course', hint:'A course groups the lessons, quizzes, summaries and notes for one subject.', done: names.length > 0, cta:'Add a course', run: () => handleAddCourseClick() },
-      { icon:'🎓', title:'Start a live lesson', hint:'Ask the tutor about any topic and it teaches on the whiteboard while it talks. Type in the ask bar, use the mic, or import a PDF.', done: lessons > 0, cta:'Start a lesson', run: go('tutor') },
-      { icon:'✅', title:'Take a quiz', hint:'Test yourself on what you have learned. During lessons the tutor also pops up quick questions. Tap "I\'m not sure yet" if you are stuck.', done: quizzes > 0, cta:'Open quizzes', run: go('quiz-history') },
-      { icon:'📄', title:'Summarize a PDF', hint:'Import a chapter or slide deck and get a clean summary to revise from.', done: summaries > 0, cta:'Open summaries', run: go('summary-history') },
-      { icon:'📝', title:'Keep a note', hint:'Write notes and keep them with your course.', done: notes > 0, cta:'Open notes', run: go('notes') },
-      { icon:'💬', title:'Ask the Chalkline assistant', hint:'Open the menu (☰) on any page and tap "Chalkline assistant" for quick questions and study help.', done: !!st.assistant, cta:'Open assistant', run: () => parent.postMessage({ openAssistant:true }, '*') }
-    ];
-    const doneCount = items.filter(i => i.done).length;
-    const all = doneCount === items.length;
-    host.textContent = '';
-    const card = document.createElement('div'); card.className = 'gs-card fade-up';
-    const head = document.createElement('div'); head.className = 'gs-head';
-    const left = document.createElement('div');
-    const title = document.createElement('h2'); title.className = 'gs-title';
-    title.textContent = all ? '🎉 You\'re all set!' : '👋 Getting started';
-    const sub = document.createElement('div'); sub.className = 'gs-sub';
-    sub.textContent = all ? 'You have tried everything. Replay this guide any time from Settings.' : doneCount + ' of ' + items.length + ' done';
-    left.appendChild(title); left.appendChild(sub);
-    const x = document.createElement('button'); x.type = 'button'; x.className = 'gs-x';
-    x.textContent = all ? 'Hide' : 'Hide ✕'; x.title = 'Hide this guide (replay it from Settings)';
-    x.addEventListener('click', () => { st.status = 'dismissed'; st.replay = false; tutorialSave(st); tutorialRender(); });
-    head.appendChild(left); head.appendChild(x);
-    const bar = document.createElement('div'); bar.className = 'gs-bar';
-    const fill = document.createElement('i'); fill.style.width = Math.round(doneCount / items.length * 100) + '%';
-    bar.appendChild(fill);
-    const list = document.createElement('ul'); list.className = 'gs-list';
-    items.forEach(it => {
-      const li = document.createElement('li'); li.className = 'gs-item' + (it.done ? ' done' : '');
-      const tick = document.createElement('div'); tick.className = 'gs-tick'; tick.textContent = it.done ? '✓' : '';
-      const body = document.createElement('div'); body.className = 'gs-body';
-      const nm = document.createElement('div'); nm.className = 'gs-name'; nm.textContent = it.icon + ' ' + it.title;
-      body.appendChild(nm);
-      if(!it.done || st.replay){ const h = document.createElement('div'); h.className = 'gs-hint'; h.textContent = it.hint; body.appendChild(h); }
-      const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'gs-go';
-      btn.textContent = it.done ? 'Open' : it.cta; btn.addEventListener('click', it.run);
-      li.appendChild(tick); li.appendChild(body); li.appendChild(btn); list.appendChild(li);
-    });
-    card.appendChild(head); card.appendChild(bar); card.appendChild(list);
-    host.appendChild(card);
-    host.style.display = 'block';
-  }
   window.addEventListener('storage', (e) => {
     if(!e.key || e.key.indexOf('chalkline:') !== 0 || !homeShellUser) return;
-    if(e.key.indexOf('chalkline:tutorial:') === 0){ tutorialRender(); return; }
     // lessons / quizzes / summaries / notes changed elsewhere: refresh the counts (debounced)
     clearTimeout(window.__tutRefreshT);
     window.__tutRefreshT = setTimeout(() => { loadCourses(); }, 1200);
   });
-  window.addEventListener('message', (e) => {
-    const d = e.data;
-    if(d && d.tutorialShow){ try{ backToCourseList(); }catch(err){} tutorialRender(); window.scrollTo(0, 0); }
-  });
-
   async function loadCourses(){
     const grid = document.getElementById('course-grid');
     const emptyEl = document.getElementById('course-empty-state');
@@ -2235,7 +2264,6 @@ html,body{ height:100%; overflow:hidden; }
       grid.innerHTML = '';
       emptyEl.textContent = 'Sign in to see your saved courses and subjects here.';
       emptyEl.style.display = 'block';
-      tutorialRender();
       return;
     }
     const sub = homeShellUser.sub;
@@ -2296,7 +2324,8 @@ html,body{ height:100%; overflow:hidden; }
     } catch(e){ console.error('Loading notes for dashboard failed:', e); }
 
     currentCourseStats = courses;
-    tutorialRender();
+    window.__courseStats = courses;   // read by the shell's guided tour (let-scoped vars aren't on window)
+    try{ parent.postMessage({ chalklineDashboard:true, isEmpty: Object.keys(courses).length === 0 }, '*'); }catch(e){}
     const names = Object.keys(courses).sort((a,b)=>{
       if(a==='Unsorted') return 1;
       if(b==='Unsorted') return -1;
@@ -2536,11 +2565,20 @@ html,body{ height:100%; overflow:hidden; }
     const name = newCourseInput.value.trim();
     if(!name) return;
     const names = await loadCourseNames();
-    if(!names.includes(name)) names.push(name);
+    // "First course" = the account had no real courses AND no saved content at all before this one.
+    const prior = Object.keys(currentCourseStats || {}).filter(n => n !== 'Unsorted');
+    const hadContent = Object.keys(currentCourseStats || {}).some(n => {
+      const c = currentCourseStats[n] || {};
+      return (c.lessons || 0) + (c.quizzes || 0) + (c.summaries || 0) + (c.notes || 0) > 0;
+    });
+    const wasFirst = prior.length === 0 && names.length === 0 && !hadContent;
+    const isNew = !names.includes(name);
+    if(isNew) names.push(name);
     await saveCourseNames(names);
     closeAddCourseModal();
     await loadCourses();
     openCourseDetail(name);
+    if(isNew){ try{ parent.postMessage({ chalklineCourseCreated:true, name: name, wasFirst: wasFirst }, '*'); }catch(e){} }
   }
   document.getElementById('btn-course-create').addEventListener('click', confirmNewCourse);
   document.getElementById('btn-course-cancel').addEventListener('click', closeAddCourseModal);
@@ -12840,7 +12878,466 @@ function navTo(page, pushHistory, navPayload, isInitialLoad){
     // already knows sign-in state before it looks up the session key.
     wasLoaded ? send() : setTimeout(send, 110);
   }
+  try{ if(window.ChalklineTour && !isInitialLoad) window.ChalklineTour.onNav(page); }catch(e){ console.error('tour onNav', e); }
 }
+
+/* ==================== GUIDED TOUR ENGINE ====================
+   One engine in the shell drives every page. Steps are plain data:
+
+     frame   which iframe the target lives in (key of `frames`), or null for centred card
+     sel     CSS selector inside that iframe (first visible match wins)
+     title/body   tooltip copy
+     mode    'next'  -> user presses Next
+             'click' -> user must tap the spotlighted element itself (we let the click
+                        pass through and advance when the shell sees the resulting nav)
+     advanceOn  for 'click' steps: which shell event completes it
+     phase   used to group steps for resume + the "lesson done" hook
+
+   Progress is persisted per account (chalkline:tour:<sub>) so a refresh mid-tour resumes. */
+(function(){
+  const root  = document.getElementById('tour-root');
+  const spot  = document.getElementById('tour-spot');
+  const tip   = document.getElementById('tour-tip');
+  const $ = (id) => document.getElementById(id);
+
+  /* ---------------- Step script ---------------- */
+  const STEPS = [
+    /* ===== PHASE 0: brand-new account, empty dashboard: teach how to add a course ===== */
+    { id:'welcome', phase:'start', frame:null, sel:null, mode:'next',
+      title:'Welcome to Chalkline 👋',
+      body:'Your AI study companion. This quick tour shows you how everything works, starting with adding your first course.' },
+    { id:'add-course', phase:'start', frame:'home', sel:'#add-course-btn', mode:'click', advanceWhen:'#add-course-modal.open .sm-card',
+      title:'First, add a course',
+      body:'A course is a folder for one subject, like STA2020 or Managerial Accounting. Your lessons, quizzes, summaries and notes all live inside it. Tap Add new course.' },
+    { id:'name-course', phase:'start', frame:'home', sel:'#add-course-modal.open .sm-card', mode:'waitclick', advanceOn:'course-created',
+      backTo:'add-course', resumeAs:'add-course', patience:6000, hint:'Type a name, then tap Create course',
+      title:'Give it a name',
+      body:'Type the subject you are studying, for example "STA2020", then tap Create course.' },
+
+    /* ===== PHASE 1: course page (right after the first course is created) ===== */
+    { id:'course-intro', phase:'course', frame:'home', sel:'#dash-course-view .dash-head', mode:'next',
+      title:'This is your course page',
+      body:'Everything for this subject lives here. Let me show you what each button does.' },
+    { id:'card-tutor', phase:'course', frame:'home', sel:'#course-action-grid .dash-card:nth-child(1)', mode:'next',
+      title:'🎓 Live tutor',
+      body:'Your AI teacher. Ask about any topic and it teaches on a whiteboard while it talks. Your past lessons are saved here too.' },
+    { id:'card-quiz', phase:'course', frame:'home', sel:'#course-action-grid .dash-card:nth-child(2)', mode:'next',
+      title:'🧠 Quizzes',
+      body:'Test yourself on what you have learned. Your previous quizzes show up here, and you can start a new one any time.' },
+    { id:'card-summary', phase:'course', frame:'home', sel:'#course-action-grid .dash-card:nth-child(3)', mode:'next',
+      title:'📄 Summaries',
+      body:'Import a chapter or slide deck (PDF) and get a clean summary to revise from.' },
+    { id:'card-notes', phase:'course', frame:'home', sel:'#course-action-grid .dash-card:nth-child(4)', mode:'next',
+      title:'🗒️ Notes',
+      body:'Write your own notes and keep them filed under this course.' },
+    { id:'go-tutor', phase:'course', frame:'home', sel:'#course-action-grid .dash-card:nth-child(1)', mode:'click', advanceOn:'nav:tutor-history',
+      title:"Let's start a new lesson",
+      body:'Tap Live tutor to open your lessons.' },
+
+    /* ===== PHASE 2: tutor history page ===== */
+    { id:'history-list', phase:'history', frame:'tutor-history', sel:'#th-content', mode:'next',
+      title:'Your past lessons live here',
+      body:'Every lesson you finish is saved in this list, so you can reopen it and pick up exactly where you left off. It is empty for now.' },
+    { id:'history-start', phase:'history', frame:'tutor-history', sel:'#th-new-btn', mode:'click', advanceOn:'nav:tutor',
+      title:"Let's start your first lesson",
+      body:'Tap Start new lesson.' },
+
+    /* ===== PHASE 3: canvas (first lesson). Steps after the topic prompt is dismissed. ===== */
+    { id:'canvas-topic', phase:'canvas', frame:'tutor', sel:'#topic-modal.open .sm-card', altSel:'#subject-modal.open .sm-card', mode:'waitclick', optional:true, patience:6000,
+      title:'What do you want to learn?',
+      body:'Type a topic, for example "ANOVA", then press Start lesson. Your tutor will begin teaching straight away.' },
+    { id:'canvas-board', phase:'canvas', frame:'tutor', sel:'#board-wrap', mode:'next',
+      title:'This is the whiteboard',
+      body:'Your tutor draws and writes here while it explains. You can watch, and the tutor also narrates out loud.' },
+    { id:'canvas-ask', phase:'canvas', frame:'tutor', sel:'#ask-zone', mode:'next',
+      title:'Ask anything, any time',
+      body:'Type a follow-up question here. Use 🎙 to speak to your tutor, or 📎 to attach a photo, PDF or text file for it to teach from.' },
+    { id:'canvas-replay', phase:'canvas', frame:'tutor', sel:'#btn-replay', mode:'next',
+      title:'🔊 Replay',
+      body:'Missed something? Replay the tutor’s last explanation.' },
+    { id:'canvas-transcript', phase:'canvas', frame:'tutor', sel:'#btn-toggle-transcript', mode:'next',
+      title:'💬 Transcript',
+      body:'Read back everything that has been said in this lesson.' },
+    { id:'canvas-menu', phase:'canvas', frame:'tutor', sel:'#btn-menu', mode:'next',
+      title:'☰ Menu',
+      body:'Open this for lesson tools such as Export PDF, board backgrounds and the Chalkline assistant.' },
+    { id:'canvas-exit', phase:'canvas', frame:'tutor', sel:'#btn-exit-lesson', mode:'next', lessonExitHook:true,
+      title:'🚪 Exit Lesson',
+      body:'When you are done, tap Exit Lesson. Your progress saves automatically. Go ahead and exit now to finish your first lesson.' },
+
+    /* ===== PHASE 4: after the completion screen. Remaining tour, back on the dashboard. ===== */
+    { id:'after-quiz', phase:'after', frame:'home', sel:'#course-action-grid .dash-card:nth-child(2)', mode:'next', ensureCourseView:true,
+      title:'Next: take a quiz',
+      body:'Now that you have learned something, use Quizzes to check it stuck. During lessons the tutor also pops up quick questions. If you are stuck, tap "I’m not sure yet".' },
+    { id:'after-summary', phase:'after', frame:'home', sel:'#course-action-grid .dash-card:nth-child(3)', mode:'next', ensureCourseView:true,
+      title:'Summarise a PDF',
+      body:'Got lecture slides or a textbook chapter? Import the PDF here for a clean summary.' },
+    { id:'after-notes', phase:'after', frame:'home', sel:'#course-action-grid .dash-card:nth-child(4)', mode:'next', ensureCourseView:true,
+      title:'Keep notes',
+      body:'Jot down anything worth remembering. Notes stay attached to this course.' },
+    { id:'after-assistant', phase:'after', frame:'home', sel:'.sidebar-footer a:first-child', altSel:'#sidebar-toggle', mode:'next', ensureCourseView:true,
+      title:'💬 Chalkline assistant',
+      body:'For quick questions and study help, tap "Chalkline assistant" in the sidebar. On a phone, open the sidebar with ☰ first. It is available on every page.' },
+    { id:'finish', phase:'after', frame:null, sel:null, mode:'next', last:true,
+      title:'You are all set! 🎉',
+      body:'That is the whole tour. You can replay it any time from Settings → Getting-started guide.' }
+  ];
+
+  const idxOf = (id) => STEPS.findIndex(s => s.id === id);
+
+  /* ---------------- Persistence ---------------- */
+  function key(){ return shellUser ? 'chalkline:tour:' + shellUser.sub : null; }
+  function load(){ const k = key(); if(!k) return null; try{ return JSON.parse(localStorage.getItem(k) || 'null'); }catch(e){ return null; } }
+  function save(st){ const k = key(); if(!k) return; try{ localStorage.setItem(k, JSON.stringify(st)); }catch(e){} }
+  let state = null;          // { status:'active'|'done'|'skipped', i:number, lessonDone:bool, fb:'up'|'down'|null }
+  let runToken = 0;          // cancels stale async resolves when the step changes
+  let pollTimer = null, reflowTimer = null;
+  let currentEl = null, currentFrameKey = null;
+
+  const stepAt = (i) => STEPS[i];
+
+  /* ---------------- Element resolving ---------------- */
+  function frameDoc(k){ try{ return frames[k] && frames[k].contentDocument; }catch(e){ return null; } }
+  function isVisible(el){
+    if(!el) return false;
+    const r = el.getBoundingClientRect();
+    if(r.width < 2 || r.height < 2) return false;
+    const w = el.ownerDocument.defaultView;
+    // Walk every ancestor: a faded/hidden parent (e.g. a closed .subject-modal at opacity:0)
+    // hides its children even though the child's own computed style looks fine.
+    for(let n = el; n && n.nodeType === 1; n = n.parentElement){
+      const cs = w.getComputedStyle(n);
+      if(cs.display === 'none' || cs.visibility === 'hidden' || parseFloat(cs.opacity || '1') < 0.05) return false;
+    }
+    return true;
+  }
+  function findTarget(step){
+    if(!step.frame || !step.sel) return null;
+    if(current !== step.frame) return null;               // wrong page is showing
+    const d = frameDoc(step.frame); if(!d) return null;
+    for(const sel of [step.sel, step.altSel]){
+      if(!sel) continue;
+      for(const el of d.querySelectorAll(sel)){ if(isVisible(el)) return el; }
+    }
+    return null;
+  }
+  // Rect of an element in TOP-LEVEL viewport coordinates (iframe is position:fixed inset:0).
+  function rectOf(el, frameKey){
+    const r = el.getBoundingClientRect();
+    const f = frames[frameKey].getBoundingClientRect();
+    return { top:r.top + f.top, left:r.left + f.left, width:r.width, height:r.height };
+  }
+
+  /* ---------------- Rendering ---------------- */
+  const PAD = 8;
+  function placeSpot(r){
+    spot.classList.remove('nohole');
+    spot.style.top = (r.top - PAD) + 'px';
+    spot.style.left = (r.left - PAD) + 'px';
+    spot.style.width = (r.width + PAD*2) + 'px';
+    spot.style.height = (r.height + PAD*2) + 'px';
+    spot.style.opacity = '1';
+  }
+  function centreSpot(){
+    spot.classList.add('nohole');
+    spot.style.top = '50%'; spot.style.left = '50%'; spot.style.opacity = '1';
+  }
+  function placeTip(r){
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const tw = tip.offsetWidth || 340, th = tip.offsetHeight || 180;
+    const arrow = tip.querySelector('.tt-arrow');
+    if(!r){
+      tip.dataset.side = 'center';
+      tip.style.left = Math.max(14, (vw - tw)/2) + 'px';
+      tip.style.top  = Math.max(14, (vh - th)/2) + 'px';
+      return;
+    }
+    const gap = 16;
+    const below = vh - (r.top + r.height + PAD);
+    const above = r.top - PAD;
+    let side = (below >= th + gap + 8) ? 'bottom' : (above >= th + gap + 8 ? 'top' : 'bottom');
+    let top = side === 'bottom' ? (r.top + r.height + PAD + gap) : (r.top - PAD - gap - th);
+    // Not enough room either side (very tall target): float inside the viewport bottom.
+    if(top < 10) top = 10;
+    if(top + th > vh - 10) top = Math.max(10, vh - th - 10);
+    let left = r.left + r.width/2 - tw/2;
+    left = Math.max(12, Math.min(left, vw - tw - 12));
+    tip.dataset.side = side;
+    tip.style.top = top + 'px';
+    tip.style.left = left + 'px';
+    const ax = Math.max(18, Math.min(tw - 34, (r.left + r.width/2) - left - 8));
+    arrow.style.left = ax + 'px';
+  }
+
+  function setCopy(step, i){
+    const visible = STEPS.filter(s => !s.optional);
+    const n = visible.indexOf(step) + 1;
+    $('tt-step').textContent = step.last ? 'Finished' : (n > 0 ? 'Step ' + n + ' of ' + visible.length : 'Tip');
+    $('tt-title').textContent = step.title;
+    $('tt-body').textContent = step.body;
+    const click = step.mode === 'click' || step.mode === 'waitclick';
+    $('tt-next').style.display = click ? 'none' : '';
+    $('tt-hint').style.display = click ? '' : 'none';
+    $('tt-hint-text').textContent = step.hint || (step.mode === 'waitclick' ? 'Type a topic below' : 'Tap the highlighted button');
+    $('tt-next').textContent = step.last ? 'Finish' : 'Next';
+    root.classList.toggle('passthru', click);
+  }
+
+  /* Scroll the target into view inside its iframe, then re-measure. */
+  function ensureInView(el){
+    try{ el.scrollIntoView({ block:'center', inline:'nearest', behavior:'auto' }); }catch(e){}
+  }
+
+  function showStep(i){
+    const token = ++runToken;
+    clearInterval(pollTimer);
+    const step = stepAt(i);
+    if(!step){ finishTour('done'); return; }
+    state.i = i; save(state);
+    root.classList.add('on'); document.body.classList.add('tour-on');
+    tip.classList.remove('show');
+    // Never show the previous step's box while the new target is still loading.
+    currentEl = null; currentFrameKey = null;
+    centreSpot();
+
+    // Steps that need the dashboard's course view visible first.
+    if(step.ensureCourseView){ prepareCourseView(); }
+
+    setCopy(step, i);
+
+    // Centred card (no target).
+    if(!step.frame || !step.sel){
+      centreSpot(); currentEl = null; currentFrameKey = null;
+      requestAnimationFrame(()=>{ placeTip(null); tip.classList.add('show'); });
+      return;
+    }
+
+    // Poll until the target exists and is visible (iframes load + animate in asynchronously).
+    const t0 = Date.now();
+    const TIMEOUT = step.patience || (step.optional ? 2500 : 9000);
+    pollTimer = setInterval(()=>{
+      if(token !== runToken){ clearInterval(pollTimer); return; }
+      const el = findTarget(step);
+      if(el){
+        clearInterval(pollTimer);
+        currentEl = el; currentFrameKey = step.frame;
+        ensureInView(el);
+        if(step.advanceWhen){
+          // "Tap this" step that is complete once something else appears (e.g. a modal opens).
+          const aw = setInterval(()=>{
+            if(token !== runToken){ clearInterval(aw); return; }
+            const d = frameDoc(step.frame); let hit = null;
+            if(d) for(const n of d.querySelectorAll(step.advanceWhen)){ if(isVisible(n)){ hit = n; break; } }
+            if(hit){ clearInterval(aw); setTimeout(()=>{ if(token === runToken) next(); }, 250); }
+          }, 150);
+        }
+        if(step.mode === 'waitclick'){
+          const watch = setInterval(()=>{
+            if(token !== runToken){ clearInterval(watch); return; }
+            if(!isVisible(el) || !el.isConnected){
+              clearInterval(watch);
+              if(step.advanceOn === 'course-created'){
+                // Modal closed WITHOUT a course being created (Cancel): send them back to the button.
+                // Long delay so a real creation (which bumps runToken) always wins the race.
+                setTimeout(()=>{ if(token === runToken && stepAt(state && state.i) === step) showStep(idxOf(step.backTo)); }, 1300);
+              } else {
+                setTimeout(()=>{ if(token === runToken) next(); }, 350);
+              }
+            }
+          }, 200);
+        }
+        // Let fade-up animations + scroll settle before measuring.
+        setTimeout(()=>{ if(token === runToken) reflow(); }, 320);
+        setTimeout(()=>{ if(token === runToken) reflow(); }, 800);
+        reflow();
+      } else if(Date.now() - t0 > TIMEOUT){
+        clearInterval(pollTimer);
+        // Target never appeared: don't strand the user. Skip optional steps; otherwise show a centred card.
+        if(step.optional){ next(); return; }
+        currentEl = null; currentFrameKey = null;
+        centreSpot(); placeTip(null); tip.classList.add('show');
+      }
+    }, 120);
+  }
+
+  function reflow(){
+    const step = stepAt(state && state.i); if(!step) return;
+    if(currentEl && currentFrameKey && currentEl.isConnected){
+      const r = rectOf(currentEl, currentFrameKey);
+      placeSpot(r);
+      placeTip(r);
+    } else if(step.frame && step.sel){
+      // Element got re-rendered (innerHTML swap): re-resolve it.
+      const el = findTarget(step);
+      if(el){ currentEl = el; const r = rectOf(el, step.frame); placeSpot(r); placeTip(r); }
+    }
+    tip.classList.add('show');
+  }
+
+  window.addEventListener('resize', ()=>{ if(root.classList.contains('on')){ clearTimeout(reflowTimer); reflowTimer = setTimeout(reflow, 60); } });
+  // Keep the spotlight glued to the element if the iframe content scrolls/animates.
+  setInterval(()=>{ if(root.classList.contains('on') && currentEl) reflow(); }, 400);
+
+  /* ---------------- Navigation between steps ---------------- */
+  function next(){
+    if(!state) return;
+    const step = stepAt(state.i);
+    if(step && step.last){ finishTour('done'); return; }
+    showStep(state.i + 1);
+  }
+  function jumpToPhase(phase){
+    const idx = STEPS.findIndex(s => s.phase === phase);
+    if(idx >= 0) showStep(idx);
+  }
+  function hideOverlay(){
+    root.classList.remove('on'); document.body.classList.remove('tour-on'); tip.classList.remove('show'); clearInterval(pollTimer); runToken++;
+    currentEl = null; currentFrameKey = null;
+  }
+
+  function finishTour(status){
+    hideOverlay();
+    if(state){ state.status = status; save(state); }
+  }
+
+  /* Make sure the dashboard is showing the course detail view for the tour's course. */
+  function prepareCourseView(){
+    if(current !== 'home') navTo('home', true);
+    const name = state && state.course;
+    const w = frames.home && frames.home.contentWindow;
+    try{
+      const d = w && w.document;
+      const cv = d && d.getElementById('dash-course-view');
+      if(name && cv && cv.style.display === 'none' && typeof w.openCourseDetail === 'function'){ w.openCourseDetail(name); }
+    }catch(e){}
+  }
+
+  /* ---------------- Completion screen ---------------- */
+  function buildConfetti(){
+    const host = $('td-confetti'); host.textContent = '';
+    const colors = ['#F0B94D','#2E7DBE','#2FA88A','#fff','#E4572E','#9B6BD6'];
+    for(let n = 0; n < 60; n++){
+      const p = document.createElement('i');
+      p.style.left = (Math.random()*100) + '%';
+      p.style.background = colors[n % colors.length];
+      p.style.setProperty('--dx', ((Math.random()*2-1)*160) + 'px');
+      p.style.setProperty('--rot', ((Math.random()*2-1)*900) + 'deg');
+      p.style.animationDuration = (2.4 + Math.random()*2.2) + 's';
+      p.style.animationDelay = (Math.random()*1.4) + 's';
+      p.style.width = (6 + Math.random()*6) + 'px';
+      host.appendChild(p);
+    }
+  }
+  function showCompletion(){
+    hideOverlay();
+    const el = $('tour-done');
+    $('td-up').classList.remove('picked','dim'); $('td-down').classList.remove('picked','dim');
+    $('td-thanks').classList.remove('on'); $('td-thanks').textContent = '';
+    buildConfetti();
+    el.style.display = 'flex';
+    requestAnimationFrame(()=> el.classList.add('show'));
+    state.lessonDone = true; state.i = STEPS.findIndex(s => s.phase === 'after'); save(state);
+  }
+  function vote(kind){
+    const up = kind === 'up';
+    $('td-up').classList.toggle('picked', up);   $('td-up').classList.toggle('dim', !up);
+    $('td-down').classList.toggle('picked', !up); $('td-down').classList.toggle('dim', up);
+    const t = $('td-thanks');
+    t.textContent = up ? 'Awesome, glad you enjoyed it!' : 'Thanks for telling us. We will keep improving.';
+    t.classList.add('on');
+    state.fb = kind; save(state);
+    try{ localStorage.setItem('chalkline:firstLessonFeedback:' + (shellUser ? shellUser.sub : 'guest'), JSON.stringify({ v:kind, at:Date.now() })); }catch(e){}
+  }
+  function closeCompletion(){
+    const el = $('tour-done');
+    el.classList.remove('show');
+    setTimeout(()=>{ el.style.display = 'none'; }, 500);
+    // Land on the dashboard course page and continue with the remaining steps.
+    navTo('home', true, state && state.course ? { openCourse: state.course } : null);
+    setTimeout(()=> jumpToPhase('after'), 450);
+  }
+  $('td-up').addEventListener('click', ()=> vote('up'));
+  $('td-down').addEventListener('click', ()=> vote('down'));
+  $('td-go').addEventListener('click', closeCompletion);
+
+  /* ---------------- Buttons ---------------- */
+  $('tt-next').addEventListener('click', next);
+  $('tt-skip').addEventListener('click', ()=>{
+    if(confirm('Skip the tour? You can replay it any time from Settings.')) finishTour('skipped');
+  });
+
+  /* ---------------- Hooks the rest of the app calls ---------------- */
+  // A course was just created by the user.
+  function onCourseCreated(name, wasFirst){
+    if(!shellUser) return;
+    // Mid-tour: this is the course the tour just asked them to make -> carry on to the course page.
+    const cur = state && state.status === 'active' ? stepAt(state.i) : null;
+    if(cur && cur.id === 'name-course'){
+      state.course = name; save(state);
+      setTimeout(()=> showStep(idxOf('course-intro')), 450);
+      return;
+    }
+    // Fallback: first course of a never-toured account whose tour did not start on the dashboard.
+    if(!wasFirst || load()) return;
+    state = { v:2, status:'active', i: idxOf('course-intro'), course:name, lessonDone:false, fb:null };
+    save(state);
+    setTimeout(()=> showStep(state.i), 500);
+  }
+  // Brand-new account with an empty dashboard: start the tour before any course exists.
+  function maybeStart(isEmpty){
+    if(!shellUser || !isEmpty || current !== 'home') return;
+    if(state && state.status === 'active') return;
+    if(load()) return;                        // any saved record => already toured / skipped / running
+    state = { v:2, status:'active', i: idxOf('welcome'), course:null, lessonDone:false, fb:null };
+    save(state);
+    setTimeout(()=>{ if(state && state.status === 'active' && current === 'home') showStep(state.i); }, 700);
+  }
+  function onDashboard(isEmpty){ maybeStart(isEmpty); }
+  // Called by the shell router after every navigation.
+  function onNav(page){
+    if(!state && page === 'home'){
+      try{ const st = frames.home.contentWindow.__courseStats; if(st && Object.keys(st).length === 0) maybeStart(true); }catch(e){}
+    }
+    if(!state || state.status !== 'active') return;
+    const step = stepAt(state.i);
+    if(!step) return;
+    // "click this" steps complete when the expected page opens.
+    if(step.mode === 'click' && step.advanceOn === 'nav:' + page){
+      setTimeout(()=> next(), 200);
+      return;
+    }
+    // Leaving the canvas after the lesson-exit step => celebrate.
+    if(state.lessonDone !== true && step.phase === 'canvas' && page !== 'tutor'){
+      showCompletion();
+      return;
+    }
+    // Wandered off-script: hide the bubble until they are back on the right page.
+    if(step.frame && step.frame !== page && step.mode !== 'click') hideOverlay();
+  }
+  // Resume after a refresh, or when arriving on the right page again.
+  function resume(){
+    const st = load();
+    if(!st || st.status !== 'active'){ return; }
+    if(st.v !== 2){ st.v = 2; st.i = (st.i || 0) + 3; save(st); }   // migrate: 3 steps were prepended
+    state = st;
+    let step = stepAt(state.i);
+    // A step that only exists while a modal is open cannot be resumed mid-way: restart at its trigger.
+    if(step && step.resumeAs){ state.i = idxOf(step.resumeAs); step = stepAt(state.i); save(state); }
+    if(step && (step.frame === current || (!step.frame && current === 'home'))) showStep(state.i);
+  }
+  function replay(course){
+    if(!shellUser) return;
+    // With an existing course: replay from the course page. With none: replay from the very start.
+    state = { v:2, status:'active', i: idxOf(course ? 'course-intro' : 'welcome'), course: course || null, lessonDone:false, fb:null };
+    save(state);
+    navTo('home', true, state.course ? { openCourse: state.course } : null);
+    setTimeout(()=> showStep(state.i), 600);
+  }
+  function isActive(){ return !!(state && state.status === 'active'); }
+  function hasNeverToured(){ const st = load(); return !st; }
+
+  window.ChalklineTour = { onCourseCreated, onDashboard, onNav, resume, replay, isActive, hasNeverToured, _steps: STEPS };
+})();
+
 
 // Last-active-session tracking lives HERE, in the shell, not inside the
 // tutor/summary srcdoc iframes. Those iframes get torn down and re-parsed
@@ -12874,6 +13371,14 @@ function readActiveShell(page, sub){
 
 window.addEventListener('message', (e)=>{
   const d = e.data;
+  if(d && d.chalklineDashboard){
+    try{ window.ChalklineTour && window.ChalklineTour.onDashboard(!!d.isEmpty); }catch(err){ console.error('tour', err); }
+    return;
+  }
+  if(d && d.chalklineCourseCreated){
+    try{ window.ChalklineTour && window.ChalklineTour.onCourseCreated(d.name, !!d.wasFirst); }catch(err){ console.error('tour', err); }
+    return;
+  }
   if(d && d.nav){
     let payload = null;
     if(d.loadSessionId) payload = { loadSessionId: d.loadSessionId };
@@ -12911,6 +13416,7 @@ if((initial === 'tutor' || initial === 'summary') && shellUser){
   if(rememberedId) initialPayload = { loadSessionId: rememberedId };
 }
 navTo(initial, false, initialPayload, true);
+setTimeout(()=>{ try{ window.ChalklineTour && window.ChalklineTour.resume(); }catch(e){} }, 900);
 </script>
 
 </body>
