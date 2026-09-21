@@ -532,6 +532,57 @@ body.landing-active #shell-auth{ display:none; }
   #ld-root .ld-laptop{ animation:none; }
 }
 
+/* ---- Hero "Start learning free" button: premium 3D + bounce ---- */
+#ld-root #ld-hero-cta{
+  position:relative; overflow:hidden; isolation:isolate;
+  padding:16px 40px !important; font-size:17px !important; font-weight:700; letter-spacing:.2px;
+  color:#2A1A02; text-shadow:0 1px 0 rgba(255,255,255,.45);
+  background:linear-gradient(180deg,#FBE3A0 0%,#F3C258 48%,#E6A93A 100%);
+  border:1px solid rgba(255,255,255,.6);
+  box-shadow:
+    inset 0 2px 0 rgba(255,255,255,.7),
+    inset 0 -3px 0 rgba(160,95,10,.22),
+    0 6px 0 #B57A1F,
+    0 12px 18px rgba(120,70,5,.30),
+    0 28px 40px -12px rgba(46,125,190,.38);
+  transform:translateY(0);
+  animation:ldBounce 2.6s cubic-bezier(.3,.8,.4,1) 1.6s infinite;
+  transition:box-shadow .18s ease, filter .18s ease;
+}
+#ld-root #ld-hero-cta::after{
+  content:''; position:absolute; top:0; bottom:0; left:-60%; width:40%; z-index:-1;
+  background:linear-gradient(100deg, transparent, rgba(255,255,255,.65), transparent);
+  transform:skewX(-20deg); animation:ldSheen 2.6s ease 1.6s infinite;
+}
+@keyframes ldBounce{
+  0%,55%,100%{ transform:translateY(0); }
+  66%{ transform:translateY(-14px); }
+  76%{ transform:translateY(0); }
+  84%{ transform:translateY(-6px); }
+  92%{ transform:translateY(0); }
+}
+@keyframes ldSheen{ 0%,50%{ left:-60%; } 75%,100%{ left:130%; } }
+#ld-root #ld-hero-cta:hover{
+  animation:none; transform:translateY(-3px); filter:brightness(1.04);
+  box-shadow:
+    inset 0 2px 0 rgba(255,255,255,.75),
+    inset 0 -3px 0 rgba(160,95,10,.22),
+    0 9px 0 #B57A1F,
+    0 18px 24px rgba(120,70,5,.32),
+    0 34px 48px -12px rgba(46,125,190,.42);
+}
+#ld-root #ld-hero-cta:active{
+  animation:none; transform:translateY(5px);
+  box-shadow:
+    inset 0 2px 0 rgba(255,255,255,.5),
+    inset 0 -2px 0 rgba(160,95,10,.2),
+    0 1px 0 #B57A1F,
+    0 4px 8px rgba(120,70,5,.28);
+}
+@media (prefers-reduced-motion: reduce){
+  #ld-root #ld-hero-cta, #ld-root #ld-hero-cta::after{ animation:none; }
+}
+
 /* ---- Responsive: same look on every device ---- */
 #ld-root{ -webkit-text-size-adjust:100%; }
 #ld-root h1,#ld-root h2,#ld-root h3,#ld-root p,#ld-root span,#ld-root b{ overflow-wrap:break-word; }
