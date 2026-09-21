@@ -98,6 +98,12 @@
   }
   #start-modal-skip:hover{ border-color:#2E7DBE; }
   #start-modal-note{ margin:14px 0 0 !important; font-size:12px !important; color:#9aa9b8 !important; }
+  /* Opened from a sidebar login control: the person is already inside the app, so there is
+     no "continue without signing in" choice to offer. */
+  #start-modal-card.from-app #start-modal-skip,
+  #start-modal-card.from-app #start-modal-note{ display:none; }
+  #start-modal-card.from-app #start-modal-google-btn{ margin-bottom:4px; }
+  #start-modal-error{ font-size:13px; color:#C0392B; line-height:1.45; }
 
   /* Soft "Welcome to Chalkline" moment after skipping sign-in — its own
      deep-blue gradient scene, not a translucent veil over the page
@@ -840,8 +846,8 @@ body.landing-active #shell-auth{ display:none; }
 <div id="start-modal-overlay">
   <div id="start-modal-card">
     <button type="button" id="start-modal-close" aria-label="Close">✕</button>
-    <h2>Save your progress?</h2>
-    <p>Sign in with Google so your lessons and saved sessions are tied to your account — or jump straight in without one.</p>
+    <h2 id="start-modal-title">Save your progress?</h2>
+    <p id="start-modal-text">Sign in with Google so your lessons and saved sessions are tied to your account — or jump straight in without one.</p>
     <div id="start-modal-google-btn"></div>
     <button type="button" id="start-modal-skip">Continue without signing in</button>
     <p id="start-modal-note">Your content won't be saved if you skip signing in.</p>
@@ -1336,8 +1342,9 @@ function handleShellCredential(response){
   // flow now: close the modal and take the person into the app.
   const modal = document.getElementById('start-modal-overlay');
   if(modal.classList.contains('open')){
+    const stayPut = startModalFromApp;   // read before closing; a sidebar login keeps you on the same page
     closeStartModal();
-    navTo('home');
+    if(!stayPut) navTo('home');
   }
   // If this credential came from the landing page's own sign-up modal,
   // dismiss the landing page and drop the person straight into the app.
@@ -1398,18 +1405,50 @@ function watchShellSigninButton(elId){
 // "Start for free" sign-in-or-skip modal. Pages ask the shell to open it
 // via postMessage since they can't hold the real Google button themselves
 // — see the origin note above.
-function openStartModal(){
-  document.getElementById('start-modal-overlay').classList.add('open');
-  // Render the modal's Google button lazily, only once it's actually
-  // visible — rendering into a display:none container at page load is
-  // what was causing it to come out blank/broken, since Google's script
-  // can't measure a hidden element's size.
-  const modalBtnEl = document.getElementById('start-modal-google-btn');
-  if(!modalBtnEl.dataset.rendered && typeof google !== 'undefined' && google.accounts){
-    modalBtnEl.dataset.rendered = '1';
-    google.accounts.id.renderButton(modalBtnEl, { theme:'outline', size:'large', shape:'pill', width:260 });
+// Where the modal was opened from. "app" = a signed-out person who is already inside the app tapped a
+// sidebar login control: no "continue without signing in" option, and after signing in they stay on
+// the page they were on instead of being sent to the dashboard.
+let startModalFromApp = false;
+// google.accounts.id.renderButton only works after initialize() has run (initShellGoogleSignIn sets this).
+let shellGsiReady = false;
+
+// Draws the real Google button inside the modal. Waits for Google's script to load and initialise
+// (it loads async and can be slow or blocked), and says so plainly if it never does, instead of
+// leaving an empty box.
+function renderStartModalGoogleButton(triesLeft){
+  const el = document.getElementById('start-modal-google-btn');
+  if(!el || el.dataset.rendered) return;
+  if(shellGsiReady && typeof google !== 'undefined' && google.accounts){
+    el.dataset.rendered = '1';
+    el.innerHTML = '';
+    google.accounts.id.renderButton(el, { theme:'outline', size:'large', shape:'pill', width:260 });
     watchShellSigninButton('start-modal-google-btn');
+    return;
   }
+  if(triesLeft > 0){
+    setTimeout(()=>{
+      if(document.getElementById('start-modal-overlay').classList.contains('open')) renderStartModalGoogleButton(triesLeft - 1);
+    }, 500);
+  } else {
+    el.innerHTML = '<span id="start-modal-error">Couldn\u2019t reach Google sign-in. Check your connection, then close this and try again.</span>';
+  }
+}
+
+// "Start for free" sign-in-or-skip modal. Pages ask the shell to open it via postMessage since they
+// can't hold the real Google button themselves — see the origin note above. Pass true when it is
+// opened from a sidebar login control inside the app.
+function openStartModal(fromApp){
+  startModalFromApp = (fromApp === true);
+  document.getElementById('start-modal-card').classList.toggle('from-app', startModalFromApp);
+  document.getElementById('start-modal-title').textContent = startModalFromApp ? 'Sign in to Chalkline' : 'Save your progress?';
+  document.getElementById('start-modal-text').textContent = startModalFromApp
+    ? 'Sign in with Google so your lessons and saved sessions are tied to your account.'
+    : 'Sign in with Google so your lessons and saved sessions are tied to your account — or jump straight in without one.';
+  document.getElementById('start-modal-overlay').classList.add('open');
+  // Render the Google button lazily, only once the modal is actually visible — rendering into a
+  // display:none container is what used to leave it blank/broken, since Google's script can't
+  // measure a hidden element's size.
+  renderStartModalGoogleButton(12);   // ~6s of patience for a slow script load
 }
 function closeStartModal(){
   document.getElementById('start-modal-overlay').classList.remove('open');
@@ -1467,6 +1506,7 @@ function initShellGoogleSignIn(){
   // similar cookie-partitioning browsers) keep the button working
   // instead of it rendering once and then quietly disappearing.
   google.accounts.id.initialize({ client_id: SHELL_GOOGLE_CLIENT_ID, callback: handleShellCredential, auto_select: true, itp_support: true });
+  shellGsiReady = true;
   google.accounts.id.renderButton(document.getElementById('shell-signin-btn'), { theme:'outline', size:'medium', shape:'pill' });
   watchShellSigninButton('shell-signin-btn');
   // The modal's button is NOT rendered here — see openStartModal() — since
@@ -1832,8 +1872,12 @@ window.addEventListener('message', (e)=>{
   const d = e.data;
   if(!d) return;
   if(d.showStartModal){ openStartModal(); }
-  if(d.requestLogin && typeof google !== 'undefined' && google.accounts){
-    google.accounts.id.prompt();
+  // Sidebar login controls: the home sidebar's account card sends navLoginClick, the tutor sidebar's
+  // link sends requestLogin. Both open the sign-in modal, whose real Google button is a plain click
+  // (One Tap prompt() is silently suppressed by browsers after a dismissal, so it can't be relied on).
+  if(d.navLoginClick || d.requestLogin){
+    if(!shellUser) openStartModal(true);
+    else broadcastAuthState();   // page thought it was signed out but the shell knows better: resync it
   }
   if(d.requestSignOut){
     openSignOutConfirm();
