@@ -295,7 +295,6 @@
 /* ==================== GUIDED TOUR ====================
    Lives in the top-level shell so one engine can span every page iframe.
    z-index 10050 sits above the sign-in (10000-10002) and assistant modals. */
-body.tour-on #sync-status-banner{ z-index:10040 !important; }
 #tour-root{ position:fixed; inset:0; z-index:10050; display:none; pointer-events:none;
   font-family:-apple-system,Segoe UI,sans-serif; }
 #tour-root.on{ display:block; }
@@ -715,22 +714,9 @@ async function exchangeCredential(credential){
   return { token };
 }
 
-// Small on-screen sync status (tap to hide), so problems are visible on devices
-// with no console, like an iPad.
+// Sync status is diagnostic only: log it to the console, never show it on screen.
 function setSyncStatus(msg, isErr){
-  try{
-    let el = document.getElementById('sync-status-banner');
-    if(!el){
-      el = document.createElement('div');
-      el.id = 'sync-status-banner';
-      el.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99999;max-width:92vw;padding:8px 12px;border-radius:10px;font:12px/1.4 -apple-system,system-ui,sans-serif;color:#fff;box-shadow:0 2px 10px rgba(0,0,0,.3);';
-      el.addEventListener('click', () => { el.style.display = 'none'; });
-      document.body.appendChild(el);
-    }
-    el.style.background = isErr ? '#b3261e' : '#1e6b3a';
-    el.textContent = 'Cloud sync: ' + msg;
-    el.style.display = 'block';
-  } catch(e){}
+  try{ (isErr ? console.warn : console.log)('Cloud sync: ' + msg); } catch(e){}
 }
 
 // Big lessons can be too large for the worker to accept as plain text. If a plain upload is
@@ -2026,13 +2012,13 @@ html,body{ height:100%; overflow:hidden; }
 
     <nav class="sidebar-nav">
       <a href="#" class="active" onclick="parent.postMessage({nav:'home'},'*');closeSidebar();return false;"><span class="ic">🏠</span>Dashboard</a>
+      <a href="#" onclick="parent.postMessage({openAssistant:true},'*');return false;"><span class="ic">💬</span>Chalkline assistant</a>
     </nav>
 
-    <!-- empty spacer: keeps Settings pinned to the bottom of the sidebar -->
+    <!-- empty spacer: keeps Settings pinned to the bottom of the sidebar (Assistant sits under Dashboard) -->
     <div class="sidebar-recent" aria-hidden="true"></div>
 
     <div class="sidebar-footer">
-      <a href="#" onclick="parent.postMessage({openAssistant:true},'*');return false;"><span class="ic">💬</span>Chalkline assistant</a>
       <a href="#" onclick="parent.postMessage({openSettings:true},'*');return false;"><span class="ic">⚙️</span>Settings</a>
     </div>
   </aside>
@@ -8322,10 +8308,10 @@ let pendingPresetSubject = false;
 let queuedShellSessionId = null;
 window.addEventListener('message', (e)=>{
   const d = e.data;
-  // Entering the tutor (fresh, preset course, or resuming a saved lesson) always
-  // shows the sidebar open on tablet/desktop — even if this frame was reused.
-  if(d && (d.loadSessionId || d.presetSubject) && window.innerWidth > 700 && typeof openPanel === 'function'){
-    try{ openPanel(); }catch(e){}
+  // Entering the tutor (fresh, preset course, or resuming a saved lesson) starts with the
+  // sidebar CLOSED — even if this frame was reused. The ☰ pill opens it.
+  if(d && (d.loadSessionId || d.presetSubject) && typeof closePanel === 'function'){
+    try{ closePanel(); }catch(e){}
   }
   if(d && d.loadSessionId){
     pendingSessionLoad = true;
@@ -8735,10 +8721,8 @@ document.getElementById('btn-menu').addEventListener('click', ()=>{
   else { closeConvPanel(); openPanel(); }
 });
 document.getElementById('btn-panel-close').addEventListener('click', closePanel);
-// Open by default EVERY time the tutor is entered, on tablet/desktop — same as the
-// rest of the app. On phone widths it would swallow the screen, so it starts
-// closed there (the pill still toggles it the same way).
-if (window.innerWidth > 700) { openPanel(); }
+// The tutor sidebar always starts CLOSED so the whiteboard gets the whole screen; the ☰ pill
+// opens it. (Nothing to do here: the panel is closed in markup until openPanel() runs.)
 overlay.addEventListener('click', ()=>{ closePanel(); closeConvPanel(); });
 
 /* Transcript panel: docks right, shows ONLY the AI conversation log
@@ -9216,12 +9200,12 @@ html,body{ height:100%; overflow:hidden; }
 
     <nav class="sidebar-nav">
       <a href="#" onclick="parent.postMessage({nav:'home'},'*');return false;"><span class="ic">🏠</span>Dashboard</a>
+      <a href="#" onclick="parent.postMessage({openAssistant:true},'*');return false;"><span class="ic">💬</span>Chalkline assistant</a>
     </nav>
 
     <div class="sidebar-recent" aria-hidden="true"></div>
 
     <div class="sidebar-footer">
-      <a href="#" onclick="parent.postMessage({openAssistant:true},'*');return false;"><span class="ic">💬</span>Chalkline assistant</a>
       <a href="#" onclick="parent.postMessage({openSettings:true},'*');return false;"><span class="ic">⚙️</span>Settings</a>
     </div>
   </aside>
@@ -10066,12 +10050,12 @@ html,body{ height:100%; overflow:hidden; }
 
     <nav class="sidebar-nav">
       <a href="#" onclick="parent.postMessage({nav:'home'},'*');return false;"><span class="ic">🏠</span>Dashboard</a>
+      <a href="#" onclick="parent.postMessage({openAssistant:true},'*');return false;"><span class="ic">💬</span>Chalkline assistant</a>
     </nav>
 
     <div class="sidebar-recent" aria-hidden="true"></div>
 
     <div class="sidebar-footer">
-      <a href="#" onclick="parent.postMessage({openAssistant:true},'*');return false;"><span class="ic">💬</span>Chalkline assistant</a>
       <a href="#" onclick="parent.postMessage({openSettings:true},'*');return false;"><span class="ic">⚙️</span>Settings</a>
     </div>
   </aside>
@@ -10660,12 +10644,12 @@ html,body{ height:100%; overflow:hidden; }
 
     <nav class="sidebar-nav">
       <a href="#" onclick="parent.postMessage({nav:'home'},'*');return false;"><span class="ic">🏠</span>Dashboard</a>
+      <a href="#" onclick="parent.postMessage({openAssistant:true},'*');return false;"><span class="ic">💬</span>Chalkline assistant</a>
     </nav>
 
     <div class="sidebar-recent" aria-hidden="true"></div>
 
     <div class="sidebar-footer">
-      <a href="#" onclick="parent.postMessage({openAssistant:true},'*');return false;"><span class="ic">💬</span>Chalkline assistant</a>
       <a href="#" onclick="parent.postMessage({openSettings:true},'*');return false;"><span class="ic">⚙️</span>Settings</a>
     </div>
   </aside>
@@ -11174,12 +11158,12 @@ html,body{ height:100%; overflow:hidden; }
 
     <nav class="sidebar-nav">
       <a href="#" onclick="parent.postMessage({nav:'home'},'*');return false;"><span class="ic">🏠</span>Dashboard</a>
+      <a href="#" onclick="parent.postMessage({openAssistant:true},'*');return false;"><span class="ic">💬</span>Chalkline assistant</a>
     </nav>
 
     <div class="sidebar-recent" aria-hidden="true"></div>
 
     <div class="sidebar-footer">
-      <a href="#" onclick="parent.postMessage({openAssistant:true},'*');return false;"><span class="ic">💬</span>Chalkline assistant</a>
       <a href="#" onclick="parent.postMessage({openSettings:true},'*');return false;"><span class="ic">⚙️</span>Settings</a>
     </div>
   </aside>
@@ -12710,12 +12694,12 @@ html,body{ height:100%; overflow:hidden; }
 
     <nav class="sidebar-nav">
       <a href="#" onclick="parent.postMessage({nav:'home'},'*');return false;"><span class="ic">🏠</span>Dashboard</a>
+      <a href="#" onclick="parent.postMessage({openAssistant:true},'*');return false;"><span class="ic">💬</span>Chalkline assistant</a>
     </nav>
 
     <div class="sidebar-recent" aria-hidden="true"></div>
 
     <div class="sidebar-footer">
-      <a href="#" onclick="parent.postMessage({openAssistant:true},'*');return false;"><span class="ic">💬</span>Chalkline assistant</a>
       <a href="#" onclick="parent.postMessage({openSettings:true},'*');return false;"><span class="ic">⚙️</span>Settings</a>
     </div>
   </aside>
@@ -12975,7 +12959,7 @@ function navTo(page, pushHistory, navPayload, isInitialLoad){
     { id:'after-notes', phase:'after', frame:'home', sel:'#course-action-grid .dash-card:nth-child(4)', mode:'next', ensureCourseView:true,
       title:'Keep notes',
       body:'Jot down anything worth remembering. Notes stay attached to this course.' },
-    { id:'after-assistant', phase:'after', frame:'home', sel:'.sidebar-footer a:first-child', altSel:'#sidebar-toggle', mode:'next', ensureCourseView:true,
+    { id:'after-assistant', phase:'after', frame:'home', sel:'.sidebar-nav a[onclick*="openAssistant"]', altSel:'#sidebar-toggle', mode:'next', ensureCourseView:true,
       title:'💬 Chalkline assistant',
       body:'For quick questions and study help, tap "Chalkline assistant" in the sidebar. On a phone, open the sidebar with ☰ first. It is available on every page.' },
     { id:'finish', phase:'after', frame:null, sel:null, mode:'next', last:true,
@@ -13094,7 +13078,7 @@ function navTo(page, pushHistory, navPayload, isInitialLoad){
     const step = stepAt(i);
     if(!step){ finishTour('done'); return; }
     state.i = i; save(state);
-    root.classList.add('on'); document.body.classList.add('tour-on');
+    root.classList.add('on');
     tip.classList.remove('show');
     // Never show the previous step's box while the new target is still loading.
     currentEl = null; currentFrameKey = null;
@@ -13190,7 +13174,7 @@ function navTo(page, pushHistory, navPayload, isInitialLoad){
     if(idx >= 0) showStep(idx);
   }
   function hideOverlay(){
-    root.classList.remove('on'); document.body.classList.remove('tour-on'); tip.classList.remove('show'); clearInterval(pollTimer); runToken++;
+    root.classList.remove('on'); tip.classList.remove('show'); clearInterval(pollTimer); runToken++;
     currentEl = null; currentFrameKey = null;
   }
 
