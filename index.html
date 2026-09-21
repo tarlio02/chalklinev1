@@ -4663,16 +4663,8 @@ function renderCommand(cmd){
       drawArrowhead(ox + w, oy, 0, color);
       drawAxesTicksAndLabels(ox, oy, w, h, cmd, color);
       const [scaleX, scaleY] = plotScalers(ox, oy, w, h, cmd);
-      // Defense-in-depth clip: the AI occasionally supplies curve points
-      // whose data values fall outside the plot's own declared
-      // xRange/yRange (a generation slip, not something this renderer
-      // can prevent upstream) — without a clip, those points still get
-      // linearly mapped by plotScalers and drawn exactly where the math
-      // says, which is outside the box: the line visibly shoots past
-      // the axes/arrowheads, as if the frame were the wrong size for
-      // its own data. Clipping to the exact axes rectangle here means a
-      // stray out-of-range point gets trimmed at the boundary instead
-      // of blowing out of the figure, no matter what the source data says.
+      // Clip everything data-driven to the axes box, so a stray out-of-range point is trimmed at the
+      // boundary instead of shooting past the frame.
       ctx.save();
       ctx.beginPath();
       ctx.rect(ox, oy - h, w, h);
@@ -4681,24 +4673,17 @@ function renderCommand(cmd){
         const pts = (curve.points || []).map(p => [scaleX(p[0]), scaleY(p[1])]);
         if(pts.length < 2) return;
         const curveColor = COLORS[curve.color] || color;
+        if(curve.area || curve.fillOnly) drawPlotArea(curve, cmd, scaleX, scaleY, curveColor);
+        if(curve.fillOnly) return;
         ctx.save();
         if(curve.dash){
-          // A guide-line curve (see GRAPH PRECISION STANDARD prompt rule):
-          // the AI expresses dashed equilibrium drop-lines as an ordinary
-          // curve inside the plot, in data coordinates, rather than a
-          // separate "line" shape with hand-placed pixel coordinates —
-          // that's what keeps them perfectly aligned to the plot with no
-          // conversion math to get wrong. Render it as a plain dashed
-          // stroke with no shadow/glow and no point-marker dots (added
-          // below only for non-dashed curves) — a guide-line is a visual
-          // aid, not a named data series, and dots at both ends of a drop
-          // line would look like an extra pair of unexplained data points.
+          // A guide-line curve: plain dashed stroke, no glow, no point dots.
           ctx.setLineDash([sw(6), sw(5)]);
           ctx.strokeStyle = curveColor;
           ctx.lineWidth = sw(curve.width || 1.5);
           strokeSmoothCurve(pts);
           ctx.setLineDash([]);
-        } else {
+        } else if(!curve.scatter){
           ctx.shadowColor = hexToRgba(curveColor, 0.35);
           ctx.shadowBlur = sw(4);
           ctx.shadowOffsetY = sw(1.5);
@@ -4709,34 +4694,14 @@ function renderCommand(cmd){
         ctx.restore();
         if(!curve.dash){
           ctx.fillStyle = curveColor;
-          // Point markers and the end-of-curve label are drawn OUTSIDE the
-          // clip region below (see after ctx.restore()) — a marker sitting
-          // exactly on the plot boundary looks fine clipped, but the label
-          // text for a curve ending at the right edge (e.g. "Supply")
-          // must stay fully readable rather than being sliced by the clip.
-          pts.forEach(p => { ctx.beginPath(); ctx.arc(p[0], p[1], sw(2.75), 0, Math.PI*2); ctx.fill(); });
+          // Dots only where they mean something: a short hand-typed curve, or scatter data.
+          const showDots = curve.scatter ? true : (curve.markers !== undefined ? !!curve.markers : pts.length <= 6);
+          if(showDots) pts.forEach(p => { ctx.beginPath(); ctx.arc(p[0], p[1], sw(curve.scatter ? 4.2 : 2.75), 0, Math.PI*2); ctx.fill(); });
         }
       });
       ctx.restore();
-      (cmd.curves || []).forEach(curve => {
-        if(!curve.label || curve.dash) return; // dashed guide-lines never get an end label, even if one was set by mistake
-        const pts = (curve.points || []).map(p => [scaleX(p[0]), scaleY(p[1])]);
-        if(pts.length < 2) return;
-        const curveColor = COLORS[curve.color] || color;
-        ctx.fillStyle = curveColor;
-        ctx.font = `700 ${sw(18)}px 'Caveat', cursive`;
-        ctx.textAlign = 'left';
-        // Clamp the label's anchor point to just inside the box too —
-        // otherwise a curve whose last data point is outside xRange/yRange
-        // (the same slip the clip above guards against) would still park
-        // its label off in empty space alongside the now-invisible
-        // clipped tail, exactly like the "Equilibrium" annotation
-        // floating disconnected from the graph in the reported bug.
-        const rawX = pts[pts.length-1][0], rawY = pts[pts.length-1][1];
-        const lx = Math.min(Math.max(rawX, ox), ox+w);
-        const ly = Math.min(Math.max(rawY, oy-h), oy);
-        ctx.fillText(curve.label, lx+sw(8), ly+sw(4));
-      });
+      // Movement arrows, marked points and every label — placed by the collision-free layout pass.
+      drawPlotExtras(cmd, ox, oy, w, h, scaleX, scaleY, color);
       break;
     }
     case 'highlight': {
@@ -4769,19 +4734,34 @@ function drawArrowhead(x, y, angle, color, size){
   ctx.closePath(); ctx.fill();
 }
 
+function axisFractions(cmd, axis){
+  const ticks = axis === 'x' ? cmd.xTicks : cmd.yTicks;
+  const range = axis === 'x' ? cmd.xRange : cmd.yRange;
+  if(!Array.isArray(ticks) || !ticks.length) return null;
+  if(cmd.type === 'plot' && Array.isArray(range)) return tickPositions(ticks, range[0], range[1]);
+  return ticks.map((l, i) => (i + 1) / (ticks.length + 1));
+}
+
 function drawAxesGrid(ox, oy, w, h, cmd){
   if(cmd.grid === false) return;
   const n = cmd.gridLines || 5;
+  const even = []; for(let i = 1; i <= n; i++) even.push(i / n);
+  const xf = (cmd.type === 'plot' && axisFractions(cmd, 'x')) || even;
+  const yf = (cmd.type === 'plot' && axisFractions(cmd, 'y')) || even;
   ctx.save();
   ctx.strokeStyle = 'rgba(38,36,31,0.14)';
   ctx.lineWidth = 1;
   ctx.setLineDash([sw(3), sw(4)]);
-  for(let i=1;i<=n;i++){
-    const gx = ox + (w*i/n);
-    ctx.beginPath(); ctx.moveTo(gx, oy); ctx.lineTo(gx, oy-h); ctx.stroke();
-    const gy = oy - (h*i/n);
-    ctx.beginPath(); ctx.moveTo(ox, gy); ctx.lineTo(ox+w, gy); ctx.stroke();
-  }
+  xf.forEach(f => {
+    if(f <= 0.001 || f >= 0.999) return;
+    const gx = ox + w * f;
+    ctx.beginPath(); ctx.moveTo(gx, oy); ctx.lineTo(gx, oy - h); ctx.stroke();
+  });
+  yf.forEach(f => {
+    if(f <= 0.001 || f >= 0.999) return;
+    const gy = oy - h * f;
+    ctx.beginPath(); ctx.moveTo(ox, gy); ctx.lineTo(ox + w, gy); ctx.stroke();
+  });
   ctx.setLineDash([]);
   ctx.restore();
 }
@@ -4790,22 +4770,24 @@ function drawAxesTicksAndLabels(ox, oy, w, h, cmd, color){
   ctx.save();
   ctx.font = `${sw(14)}px 'Caveat', cursive`;
   ctx.fillStyle = color;
-  if(Array.isArray(cmd.xTicks)){
-    const n = cmd.xTicks.length;
+  const xf = axisFractions(cmd, 'x'), yf = axisFractions(cmd, 'y');
+  const isZero = l => /^\s*[R$€£¥]?\s*0(\.0+)?\s*$/.test(String(l));
+  const xHasOrigin = !!(xf && cmd.xTicks.some((l, i) => xf[i] < 0.001 && isZero(l)));
+  if(xf){
     cmd.xTicks.forEach((label, i) => {
-      const tx = ox + w*(i+1)/(n+1);
+      const tx = ox + w * xf[i];
       ctx.strokeStyle = color; ctx.lineWidth = sw(1.5);
       ctx.beginPath(); ctx.moveTo(tx, oy-sw(4)); ctx.lineTo(tx, oy+sw(4)); ctx.stroke();
       ctx.textAlign = 'center';
       ctx.fillText(String(label), tx, oy+sw(18));
     });
   }
-  if(Array.isArray(cmd.yTicks)){
-    const n = cmd.yTicks.length;
+  if(yf){
     cmd.yTicks.forEach((label, i) => {
-      const ty = oy - h*(i+1)/(n+1);
+      const ty = oy - h * yf[i];
       ctx.strokeStyle = color; ctx.lineWidth = sw(1.5);
       ctx.beginPath(); ctx.moveTo(ox-sw(4), ty); ctx.lineTo(ox+sw(4), ty); ctx.stroke();
+      if(xHasOrigin && yf[i] < 0.001 && isZero(label)) return;   // one shared "0" at the origin
       ctx.textAlign = 'right';
       ctx.fillText(String(label), ox-sw(8), ty+sw(4));
     });
@@ -5075,6 +5057,480 @@ function translateDiagramCmd(c, dx, dy){
     return c;
 }
 
+// =====================================================================
+// LAYOUT ENGINE — collision-free labels, wide-diagram fitting, tables
+// =====================================================================
+const _mctx = document.createElement('canvas').getContext('2d');
+function measureTextW(text, weight, sizePx, family){
+  _mctx.font = weight + ' ' + sizePx + 'px ' + family;
+  return _mctx.measureText(String(text == null ? '' : text)).width;
+}
+function boxesOverlap(a, b, pad){
+  pad = pad || 0;
+  return a[0] < b[2] + pad && a[2] > b[0] - pad && a[1] < b[3] + pad && a[3] > b[1] - pad;
+}
+// Does the segment (x1,y1)-(x2,y2) pass through box b=[x0,y0,x1,y1]? (Liang–Barsky)
+function segHitsBox(x1, y1, x2, y2, b){
+  let t0 = 0, t1 = 1;
+  const dx = x2 - x1, dy = y2 - y1;
+  const p = [-dx, dx, -dy, dy], q = [x1 - b[0], b[2] - x1, y1 - b[1], b[3] - y1];
+  for(let i = 0; i < 4; i++){
+    if(p[i] === 0){ if(q[i] < 0) return false; }
+    else {
+      const r = q[i] / p[i];
+      if(p[i] < 0){ if(r > t1) return false; if(r > t0) t0 = r; }
+      else { if(r < t0) return false; if(r < t1) t1 = r; }
+    }
+  }
+  return true;
+}
+
+// Flatten a "path" command's segments to a list of points (local coordinates).
+function flattenPathLocal(segments){
+  const pts = []; let cx = 0, cy = 0, sx = 0, sy = 0;
+  (segments || []).forEach(seg => {
+    if(!seg || !seg.length) return;
+    const k = String(seg[0]).toUpperCase();
+    if(k === 'M'){ cx = seg[1]; cy = seg[2]; sx = cx; sy = cy; pts.push([cx, cy]); }
+    else if(k === 'L'){ cx = seg[1]; cy = seg[2]; pts.push([cx, cy]); }
+    else if(k === 'Q'){
+      const x0 = cx, y0 = cy;
+      for(let i = 1; i <= 6; i++){ const t = i / 6, u = 1 - t;
+        pts.push([u*u*x0 + 2*u*t*seg[1] + t*t*seg[3], u*u*y0 + 2*u*t*seg[2] + t*t*seg[4]]); }
+      cx = seg[3]; cy = seg[4];
+    } else if(k === 'C'){
+      const x0 = cx, y0 = cy;
+      for(let i = 1; i <= 8; i++){ const t = i / 8, u = 1 - t;
+        pts.push([u*u*u*x0 + 3*u*u*t*seg[1] + 3*u*t*t*seg[3] + t*t*t*seg[5],
+                  u*u*u*y0 + 3*u*u*t*seg[2] + 3*u*t*t*seg[4] + t*t*t*seg[6]]); }
+      cx = seg[5]; cy = seg[6];
+    } else if(k === 'Z'){ pts.push([sx, sy]); cx = sx; cy = sy; }
+  });
+  return pts;
+}
+
+// Obstacle segments a shape command contributes (local coordinates).
+function cmdSegments(c){
+  const segs = [];
+  const poly = (pts, closed) => {
+    for(let i = 0; i < pts.length - 1; i++) segs.push([pts[i][0], pts[i][1], pts[i+1][0], pts[i+1][1]]);
+    if(closed && pts.length > 2) segs.push([pts[pts.length-1][0], pts[pts.length-1][1], pts[0][0], pts[0][1]]);
+  };
+  switch(c.type){
+    case 'line': case 'arrow': segs.push([c.x1, c.y1, c.x2, c.y2]); break;
+    case 'rect': { const x = c.x, y = c.y, w = c.w, h = c.h || 0; poly([[x,y],[x+w,y],[x+w,y+h],[x,y+h]], true); break; }
+    case 'circle': { const pts = []; for(let i = 0; i <= 24; i++){ const a = i / 24 * Math.PI * 2; pts.push([c.x + c.rx*Math.cos(a), c.y + c.ry*Math.sin(a)]); } poly(pts, false); break; }
+    case 'curve': poly(c.points || [], !!c.fill); break;
+    case 'polygon': poly(c.points || [], true); break;
+    case 'polyline': poly(c.points || [], false); break;
+    case 'path': poly(flattenPathLocal(c.segments || []), false); break;
+  }
+  return segs;
+}
+
+function clusterBBox(list){
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  list.forEach(c => {
+    const bb = diagramLocalBBox(c);
+    if(!bb) return;
+    minX = Math.min(minX, bb[0]); minY = Math.min(minY, bb[1]);
+    maxX = Math.max(maxX, bb[2]); maxY = Math.max(maxY, bb[3]);
+  });
+  return minX === Infinity ? null : [minX, minY, maxX, maxY];
+}
+
+// Uniformly scale a diagram command's POSITIONS (never its text size or stroke weight).
+function scaleDiagramCmd(c, k){
+  switch(c.type){
+    case 'line': case 'arrow': c.x1 *= k; c.y1 *= k; c.x2 *= k; c.y2 *= k; break;
+    case 'rect': case 'highlight': c.x *= k; c.y *= k; c.w *= k; if(c.h != null) c.h *= k; break;
+    case 'circle': c.x *= k; c.y *= k; c.rx *= k; c.ry *= k; break;
+    case 'halo': c.x *= k; c.y *= k; if(c.r != null) c.r *= k; break;
+    case 'text': c.x *= k; c.y *= k; break;
+    case 'curve': case 'polygon': case 'polyline': c.points = (c.points || []).map(p => [p[0]*k, p[1]*k]); break;
+    case 'path': c.segments = (c.segments || []).map(seg => {
+      if(!seg || !seg.length || String(seg[0]).toUpperCase() === 'Z') return seg;
+      const out = [seg[0]]; for(let i = 1; i < seg.length; i++) out.push(seg[i] * k); return out; }); break;
+  }
+}
+
+// Reposition diagram labels so no label sits on another label or on a drawn line/curve.
+// Labels that have their own leader arrow only make small moves that keep the arrow attached.
+function resolveClusterLayout(cluster){
+  const fam = "'Kalam', 'Caveat', cursive";
+  const labels = cluster.filter(c => c.type === 'text' && c.diagramLabel && String(c.text || '').trim());
+  if(!labels.length) return;
+  const segs = [], owners = [];
+  cluster.forEach(c => { if(c.type === 'text') return; cmdSegments(c).forEach(s => { segs.push(s); owners.push(c); }); });
+  const hl = cluster.filter(c => c.type === 'line' && Math.abs(c.y1 - c.y2) < 0.5).length;
+  const vl = cluster.filter(c => c.type === 'line' && Math.abs(c.x1 - c.x2) < 0.5).length;
+  const gridLike = hl >= 3 && vl >= 2;             // a hand-ruled table: labels sit between the rules on purpose
+  const boxOf = (c, dx, dy) => {
+    const size = handSize(c);
+    let w = measureTextW(c.text || '', c.weight || 700, size, fam);
+    if(c.maxWidth) w = Math.min(w, c.maxWidth);
+    return [c.x + dx, c.y + dy - size*0.95, c.x + dx + w, c.y + dy + size*0.28];
+  };
+  const placed = [];
+  const leaders = [];
+  labels.forEach(c => {
+    const orig = boxOf(c, 0, 0);
+    const near = (x, y) => x > orig[0] - 14 && x < orig[2] + 14 && y > orig[1] - 14 && y < orig[3] + 14;
+    const own = new Set(); const ownArrows = [];
+    owners.forEach((o, i) => {
+      if((o.type === 'arrow' || o.type === 'line') && (near(o.x1, o.y1) || near(o.x2, o.y2))){ own.add(i); ownArrows.push(o); }
+    });
+    const attached = own.size > 0;
+    const costOf = (b) => {
+      let n = 0;
+      for(const o of placed) if(boxesOverlap(b, o, 3)) n += 3;
+      if(!gridLike){
+        const core = [b[0] + 3, b[1] + 3, b[2] - 3, b[3] - 3];
+        for(let i = 0; i < segs.length; i++){
+          if(own.has(i)) continue;
+          if(segHitsBox(segs[i][0], segs[i][1], segs[i][2], segs[i][3], core)) n += 1;
+        }
+      }
+      return n;
+    };
+    const keepsLeader = (b) => !attached || ownArrows.some(o => (b[0]-14 < o.x1 && o.x1 < b[2]+14 && b[1]-14 < o.y1 && o.y1 < b[3]+14) || (b[0]-14 < o.x2 && o.x2 < b[2]+14 && b[1]-14 < o.y2 && o.y2 < b[3]+14));
+    let best = { cost: costOf(orig), dx: 0, dy: 0, r: 0, box: orig };
+    if(best.cost > 0){
+      const radii = attached ? [6, 12, 20] : [10, 20, 32, 46, 64, 86, 112, 140];
+      const dirs = [[0,-1],[1,0],[0,1],[-1,0],[1,-1],[1,1],[-1,1],[-1,-1]];
+      outer:
+      for(const r of radii){
+        for(const d of dirs){
+          const dx = d[0]*r, dy = d[1]*r;
+          const b = boxOf(c, dx, dy);
+          if(!keepsLeader(b)) continue;
+          const cost = costOf(b);
+          if(cost < best.cost || (cost === best.cost && best.r === 0 && cost === 0)){ best = { cost, dx, dy, r, box: b }; }
+          if(cost === 0){ best = { cost, dx, dy, r, box: b }; break outer; }
+        }
+      }
+    }
+    const ax = c.x, ay = c.y - handSize(c) * 0.35;      // original anchor
+    c.x += best.dx; c.y += best.dy;
+    placed.push(best.box);
+    if(!attached && best.r >= 32){
+      // moved well away from where it was meant to point: tie it back with a thin dashed leader
+      const b = best.box;
+      const cx = Math.min(Math.max(ax, b[0]), b[2]), cy = Math.min(Math.max(ay, b[1]), b[3]);
+      leaders.push({ type:'line', x1: +cx.toFixed(1), y1: +cy.toFixed(1), x2: +ax.toFixed(1), y2: +ay.toFixed(1), color:'ink', width:1.1, dash:true });
+    }
+  });
+  leaders.forEach(l => cluster.push(l));
+}
+
+// Turn one "table" command into ruled-grid primitives (rect + lines + diagramLabel cells).
+// Column widths are measured from the real text, cells wrap inside their column, numbers are
+// right-aligned, negatives are shown as (1,200) in red, totals are shaded with a double rule.
+function expandTableCommand(cmd, tCtx){
+  const fam = "'Kalam', 'Caveat', cursive";
+  const rawCols = Array.isArray(cmd.columns) ? cmd.columns : [];
+  const rows = (Array.isArray(cmd.rows) ? cmd.rows : []).map(r => Array.isArray(r) ? { cells: r } : Object.assign({}, r, { cells: r.cells || [] }));
+  const cols = rawCols.map(c => (c && typeof c === 'object') ? { header: String(c.header == null ? '' : c.header), align: c.align } : { header: String(c == null ? '' : c) });
+  const nCols = Math.max(cols.length, ...rows.map(r => r.cells.length), 1);
+  while(cols.length < nCols) cols.push({ header: '' });
+  if(!rows.length && !cols.some(c => c.header)) return [];
+  const numRe = /^[\(\-−–+]*\s*(R|US\$|\$|€|£|¥)?\s*\d[\d,\s]*(\.\d+)?\s*(%|x|k|m)?\)?$/i;
+  const isNum = s => numRe.test(String(s).trim());
+  const fmt = (s) => {
+    let str = String(s == null ? '' : s).trim();
+    let neg = false;
+    if(isNum(str)){
+      if(/^[\-−–]/.test(str)) str = '(' + str.replace(/^[\-−–]\s*/, '') + ')';
+      neg = /^\(.*\)$/.test(str);
+    }
+    return { text: str, neg };
+  };
+  const cell = (r, ci) => fmt(r.cells[ci]);
+  const colNumeric = cols.map((c, ci) => {
+    if(c.align) return c.align === 'right';
+    const vals = rows.map(r => String(r.cells[ci] == null ? '' : r.cells[ci]).trim()).filter(Boolean);
+    return ci > 0 && vals.length > 0 && vals.filter(isNum).length / vals.length >= 0.6;
+  });
+  const aligns = cols.map((c, ci) => c.align || (colNumeric[ci] ? 'right' : 'left'));
+  const hasHeader = cols.some(c => c.header);
+  const maxW = Math.min(920, +cmd.maxWidth || 880);
+  const wrapLines = (text, innerW, rs) => {
+    tCtx.font = '700 ' + rs + 'px ' + fam;
+    const words = String(text).split(/\s+/).filter(Boolean);
+    const lines = []; let cur = '';
+    words.forEach(w => { const test = cur ? cur + ' ' + w : w; if(tCtx.measureText(test).width > innerW && cur){ lines.push(cur); cur = w; } else cur = test; });
+    if(cur) lines.push(cur);
+    return lines.length ? lines : [''];
+  };
+  // ---- pick the biggest font size at which the table fits the board width
+  let L = null;
+  for(let size = Math.max(15, Math.min(30, +cmd.size || 22)); size >= 15 && !L; size--){
+    const rs = size * HAND_SIZE_MULT, padX = Math.max(10, Math.round(size * 0.6));
+    tCtx.font = '700 ' + rs + 'px ' + fam;
+    const natural = cols.map((c, ci) => {
+      let m = tCtx.measureText(c.header).width;
+      rows.forEach(r => { m = Math.max(m, tCtx.measureText(cell(r, ci).text).width); });
+      return Math.ceil(m) + 2 * padX;
+    });
+    const total = natural.reduce((a, b) => a + b, 0);
+    if(total <= maxW){ L = { size, rs, padX, widths: natural }; continue; }
+    const fixed = natural.reduce((a, w, i) => a + (aligns[i] === 'left' || aligns[i] === 'center' ? 0 : w), 0);
+    const textIdx = natural.map((w, i) => i).filter(i => aligns[i] === 'left' || aligns[i] === 'center');
+    const minText = textIdx.map(i => {
+      let longest = 0;
+      const all = [cols[i].header].concat(rows.map(r => cell(r, i).text));
+      all.forEach(t => String(t).split(/\s+/).forEach(w => { longest = Math.max(longest, tCtx.measureText(w).width); }));
+      return Math.max(90, Math.ceil(longest) + 2 * padX);
+    });
+    const minSum = minText.reduce((a, b) => a + b, 0);
+    if(textIdx.length && fixed + minSum <= maxW){
+      const avail = maxW - fixed;
+      const natSum = textIdx.reduce((a, i) => a + natural[i], 0);
+      const widths = natural.slice();
+      textIdx.forEach((i, k) => { widths[i] = Math.max(minText[k], Math.min(natural[i], Math.floor(natural[i] / natSum * avail))); });
+      let sum = widths.reduce((a, b) => a + b, 0);
+      if(sum <= maxW){ L = { size, rs, padX, widths }; }
+    }
+  }
+  if(!L){
+    const size = 15, rs = size * HAND_SIZE_MULT, padX = 10;
+    tCtx.font = '700 ' + rs + 'px ' + fam;
+    const natural = cols.map((c, ci) => { let m = tCtx.measureText(c.header).width; rows.forEach(r => { m = Math.max(m, tCtx.measureText(cell(r, ci).text).width); }); return Math.ceil(m) + 2 * padX; });
+    const k = maxW / natural.reduce((a, b) => a + b, 0);
+    L = { size, rs, padX, widths: natural.map(w => Math.floor(w * Math.min(1, k))) };
+  }
+  const { size, rs, padX, widths } = L;
+  const padY = Math.max(8, Math.round(size * 0.45)), lh = rs * 1.2;
+  const colX = []; let acc = 0; widths.forEach(w => { colX.push(acc); acc += w; });
+  const totalW = acc;
+  // ---- wrap every cell and size every row from its tallest cell
+  const headLines = cols.map((c, ci) => wrapLines(c.header, widths[ci] - 2 * padX, rs));
+  const headerH = hasHeader ? Math.max(...headLines.map(l => l.length)) * lh + 2 * padY : 0;
+  const bodyLines = rows.map(r => cols.map((c, ci) => wrapLines(cell(r, ci).text, widths[ci] - 2 * padX - (ci === 0 && r.indent ? 28 : 0), rs)));
+  const rowH = bodyLines.map(rl => Math.max(...rl.map(l => l.length), 1) * lh + 2 * padY);
+  const rowTop = []; let yy = headerH; rowH.forEach(h => { rowTop.push(yy); yy += h; });
+  const H = yy;
+  const out = [];
+  if(hasHeader) out.push({ type:'highlight', x:0, y:0, w:totalW, h:headerH, color:'sky' });
+  rows.forEach((r, ri) => { if(r.total || r.grand || r.subtotal) out.push({ type:'highlight', x:0, y:rowTop[ri], w:totalW, h:rowH[ri], color:'ochre' }); });
+  out.push({ type:'rect', x:0, y:0, w:totalW, h:H, color:'ink', width:2.5 });
+  if(cmd.grid !== false) for(let ci = 1; ci < nCols; ci++) out.push({ type:'line', x1:colX[ci], y1:0, x2:colX[ci], y2:H, color:'ink', width:1.4 });
+  if(hasHeader) out.push({ type:'line', x1:0, y1:headerH, x2:totalW, y2:headerH, color:'ink', width:3 });
+  rows.forEach((r, ri) => {
+    if(ri === rows.length - 1) return;
+    const nx = rows[ri + 1], heavy = nx && (nx.total || nx.grand || nx.subtotal);
+    out.push({ type:'line', x1:0, y1:rowTop[ri] + rowH[ri], x2:totalW, y2:rowTop[ri] + rowH[ri], color:'ink', width: heavy ? 2.6 : 1.1 });
+  });
+  const last = rows[rows.length - 1];
+  if(last && (last.grand || last.total)) out.push({ type:'line', x1:0, y1:H - 4, x2:totalW, y2:H - 4, color:'ink', width:1.6 });
+  const put = (lines, ci, top, h, align, color, indent) => {
+    const n = lines.length;
+    lines.forEach((ln, i) => {
+      if(!ln) return;
+      const tw = Math.min(measureTextW(ln, 700, rs, fam), widths[ci] - 2 * padX);
+      let x = colX[ci] + padX + (indent || 0);
+      if(align === 'right') x = colX[ci] + widths[ci] - padX - tw;
+      else if(align === 'center') x = colX[ci] + (widths[ci] - tw) / 2;
+      const y = top + h / 2 + (i - (n - 1) / 2) * lh + rs * 0.35;
+      out.push({ type:'text', diagramLabel:true, cell:true, text:ln, x:+x.toFixed(1), y:+y.toFixed(1), size, weight:700, color, maxWidth: Math.ceil(widths[ci] - 2 * padX - (indent || 0) + 2) });
+    });
+  };
+  if(hasHeader) cols.forEach((c, ci) => put(headLines[ci], ci, 0, headerH, aligns[ci], 'ink', 0));
+  rows.forEach((r, ri) => cols.forEach((c, ci) => put(bodyLines[ri][ci], ci, rowTop[ri], rowH[ri], aligns[ci], cell(r, ci).neg ? 'brick' : 'ink', ci === 0 && r.indent ? 28 : 0)));
+  return out;
+}
+
+// =====================================================================
+// PLOT ENGINE — exact curves from formulas, tangents, marks, arrows, shaded areas
+// =====================================================================
+function genFunction(g){
+  if(!g) return null;
+  switch(g.type){
+    case 'poly': { const c = g.coeffs || []; return x => c.reduce((s, a, i) => s + a * Math.pow(x, i), 0); }   // coeffs = [c0, c1, c2, ...]
+    case 'line': return x => (g.m || 0) * x + (g.c || 0);
+    case 'power': return x => (g.a == null ? 1 : g.a) * Math.pow(x, g.b == null ? 1 : g.b);                     // y = a·x^b
+    case 'hyperbola': return x => g.k / (x - (g.h || 0)) + (g.v || 0);                                          // y = k/(x-h) + v
+    case 'exp': return x => (g.a == null ? 1 : g.a) * Math.exp((g.b == null ? 1 : g.b) * x);                    // y = a·e^(bx)
+    case 'log': return x => (g.a == null ? 1 : g.a) * Math.log(x) + (g.c || 0);                                 // y = a·ln x + c
+    case 'sqrt': return x => (g.a == null ? 1 : g.a) * Math.sqrt(x) + (g.c || 0);
+    case 'normal': return x => (g.peak == null ? 1 : g.peak) * Math.exp(-0.5 * Math.pow((x - (g.mean || 0)) / (g.sd || 1), 2));
+    case 'logistic': return x => (g.max == null ? 1 : g.max) / (1 + Math.exp(-(g.k || 1) * (x - (g.mid || 0))));
+  }
+  return null;
+}
+function expandCurveGen(curve, cmd){
+  const g = curve.gen;
+  if(!g) return;
+  const xr = cmd.xRange || [0, 10], yr = cmd.yRange || [0, 10];
+  let pts = null;
+  if(g.type === 'tangent'){
+    const f = genFunction(g.of);
+    if(!f) return;
+    const a = +g.at, half = g.half != null ? +g.half : (xr[1] - xr[0]) * 0.15;
+    const hh = 1e-4 * ((xr[1] - xr[0]) || 1);
+    const m = (f(a + hh) - f(a - hh)) / (2 * hh), y0 = f(a);
+    pts = [[+(a - half).toFixed(4), +(y0 - m * half).toFixed(4)], [+(a + half).toFixed(4), +(y0 + m * half).toFixed(4)]];
+  } else {
+    const f = genFunction(g);
+    if(!f) return;
+    const x0 = g.x0 != null ? +g.x0 : xr[0], x1 = g.x1 != null ? +g.x1 : xr[1];
+    const n = Math.max(8, Math.min(120, g.n || 60)), span = (yr[1] - yr[0]) || 1;
+    pts = [];
+    for(let i = 0; i <= n; i++){
+      const x = x0 + (x1 - x0) * i / n; let y = f(x);
+      if(!isFinite(y)) continue;
+      y = Math.max(yr[0] - span, Math.min(yr[1] + span, y));
+      pts.push([+x.toFixed(4), +y.toFixed(4)]);
+    }
+  }
+  if(pts && pts.length >= 2){ curve.points = pts; if(curve.markers === undefined) curve.markers = false; }
+}
+function normalizePlot(c){
+  c.curves = (c.curves || []).map(cv => Object.assign({}, cv));
+  c.curves.forEach(cv => expandCurveGen(cv, c));
+}
+
+// Numeric tick labels sit at their true data value; symbolic ones (Q*, P₁) keep even spacing.
+function tickPositions(labels, min, max){
+  const n = labels.length;
+  const numRe = /^[R$€£¥]?\s*-?\d[\d,]*(\.\d+)?\s*[%kKmMbB]?$/;
+  const parsed = labels.map(l => { const s = String(l).trim(); return numRe.test(s) ? parseFloat(s.replace(/[^0-9.\-]/g, '')) : null; });
+  const inRange = v => v != null && isFinite(v) && v >= min - 1e-9 && v <= max + 1e-9;
+  const allNumeric = parsed.every(inRange);
+  return labels.map((l, i) => (allNumeric && max !== min) ? (parsed[i] - min) / (max - min) : (i + 1) / (n + 1));
+}
+
+// Places every plot label (curve names, marked points, movement arrows, axis values) where it
+// touches nothing: not another label, not a curve, not the axes, not a marked point.
+const plotLayoutCache = new WeakMap();
+function plotLabelLayout(cmd){
+  const sig = [(cmd.curves || []).map(c => (c.label || '') + ':' + (c.points || []).length).join(','), (cmd.marks || []).length, (cmd.arrows || []).length, cmd.x, cmd.y, cmd.w, cmd.h].join('|');
+  const hit = plotLayoutCache.get(cmd);
+  if(hit && hit.sig === sig) return hit.lay;
+  const [sx, sy] = plotScalers(cmd.x, cmd.y, cmd.w, cmd.h, cmd);        // WORLD units
+  const ox = cmd.x, oy = cmd.y, w = cmd.w, h = cmd.h;
+  const FS = 18, fam = "'Caveat', cursive";
+  const region = [ox + 4, oy - h + 4, ox + w + 96, oy - 4];
+  const boxes = [], segs = [];
+  (cmd.curves || []).forEach(cv => {
+    const pts = (cv.points || []).map(p => [sx(p[0]), sy(p[1])]);
+    for(let i = 0; i < pts.length - 1; i++) segs.push([pts[i][0], pts[i][1], pts[i+1][0], pts[i+1][1]]);
+  });
+  (cmd.arrows || []).forEach(a => { if(a.from && a.to) segs.push([sx(a.from[0]), sy(a.from[1]), sx(a.to[0]), sy(a.to[1])]); });
+  segs.push([ox, oy, ox, oy - h], [ox, oy, ox + w, oy]);
+  (cmd.marks || []).forEach(m => { const x = sx(m.x), y = sy(m.y); boxes.push([x - 9, y - 9, x + 9, y + 9]); });
+  function place(text, ax, ay, angles){
+    const tw = measureTextW(text, 700, FS, fam), th = FS;
+    let best = null;
+    for(const r of [8, 14, 22, 32, 44, 58, 76]){
+      for(const ang of angles){
+        const rad = ang * Math.PI / 180, dx = Math.cos(rad) * r, dy = Math.sin(rad) * r;
+        let x = ax + dx;
+        if(dx < -1) x -= tw; else if(Math.abs(dx) <= 1) x -= tw / 2;
+        const by = dy > 1 ? ay + dy + th * 0.8 : (dy < -1 ? ay + dy : ay + dy + th * 0.35);
+        const box = [x, by - th * 0.82, x + tw, by + th * 0.25];
+        let pen = 0;
+        if(box[0] < region[0] || box[2] > region[2] || box[1] < region[1] || box[3] > region[3]) pen += 50;
+        for(const b of boxes) if(boxesOverlap(box, b, 2)) pen += 10;
+        const core = [box[0] - 1, box[1] - 1, box[2] + 1, box[3] + 1];
+        for(const s of segs) if(segHitsBox(s[0], s[1], s[2], s[3], core)) pen += 4;
+        const score = pen * 100 + r;
+        if(!best || score < best.score) best = { score, x, y: by, box };
+        if(pen === 0){ boxes.push(box); return { x, y: by }; }
+      }
+    }
+    boxes.push(best.box);
+    return { x: best.x, y: best.y };
+  }
+  const lay = { curves: [], marks: [], arrows: [], mx: [], my: [] };
+  (cmd.curves || []).forEach((cv, i) => {
+    if(!cv.label || cv.dash || cv.fillOnly) return;
+    const pts = cv.points || []; if(pts.length < 2) return;
+    const ax = Math.min(Math.max(sx(pts[pts.length-1][0]), ox), ox + w), ay = Math.min(Math.max(sy(pts[pts.length-1][1]), oy - h), oy);
+    const p = place(cv.label, ax, ay, [0, -30, 30, -60, 60, -90, 90, 180, -150, 150]);
+    lay.curves.push({ i, text: cv.label, x: p.x, y: p.y });
+  });
+  (cmd.marks || []).forEach((m, i) => {
+    const ax = sx(m.x), ay = sy(m.y);
+    if(m.label){ const p = place(m.label, ax, ay, [-45, -20, -70, 0, 20, 45, 70, -110, 180, -150, 150, 110]); lay.marks.push({ i, text: m.label, x: p.x, y: p.y }); }
+    if(m.xText){ const p = place(m.xText, ax, oy - 3, [-90, -60, -120, -30, -150]); lay.mx.push({ i, text: m.xText, x: p.x, y: p.y }); }
+    if(m.yText){ const p = place(m.yText, ox + 3, ay, [0, -30, 30, -60, 60]); lay.my.push({ i, text: m.yText, x: p.x, y: p.y }); }
+  });
+  (cmd.arrows || []).forEach((a, i) => {
+    if(!a.label || !a.from || !a.to) return;
+    const fx = sx(a.from[0]), fy = sy(a.from[1]), tx = sx(a.to[0]), ty = sy(a.to[1]);
+    const ang = Math.atan2(ty - fy, tx - fx) * 180 / Math.PI;
+    const p = place(a.label, (fx + tx) / 2, (fy + ty) / 2, [ang - 90, ang + 90, ang - 60, ang + 60, ang - 120, ang + 120, 0, 180]);
+    lay.arrows.push({ i, text: a.label, x: p.x, y: p.y });
+  });
+  plotLayoutCache.set(cmd, { sig, lay });
+  return lay;
+}
+function plotAreaPolygon(curve, cmd){
+  const xr = cmd.xRange || [0, 10], yr = cmd.yRange || [0, 10];
+  const a = curve.areaFrom != null ? +curve.areaFrom : xr[0], b = curve.areaTo != null ? +curve.areaTo : xr[1];
+  const base = curve.areaBase != null ? +curve.areaBase : yr[0];
+  const src = (curve.points || []).slice().sort((p, q) => p[0] - q[0]);
+  const ev = x => { for(let i = 0; i < src.length - 1; i++){ const p = src[i], q = src[i+1]; if(x >= p[0] && x <= q[0]){ const t = q[0] === p[0] ? 0 : (x - p[0]) / (q[0] - p[0]); return p[1] + t * (q[1] - p[1]); } } return null; };
+  const pts = [];
+  const ya = ev(a); if(ya != null) pts.push([a, ya]);
+  src.forEach(p => { if(p[0] > a && p[0] < b) pts.push([p[0], p[1]]); });
+  const yb = ev(b); if(yb != null) pts.push([b, yb]);
+  if(pts.length < 2) return null;
+  return [[pts[0][0], base]].concat(pts, [[pts[pts.length-1][0], base]]);
+}
+function drawPlotArea(curve, cmd, scaleX, scaleY, curveColor){
+  const poly = plotAreaPolygon(curve, cmd);
+  if(!poly) return;
+  ctx.save();
+  ctx.fillStyle = hexToRgba(COLORS[curve.fillColor] || curveColor, curve.fillOpacity != null ? curve.fillOpacity : 0.18);
+  ctx.beginPath();
+  poly.forEach((p, i) => { const X = scaleX(p[0]), Y = scaleY(p[1]); if(i === 0) ctx.moveTo(X, Y); else ctx.lineTo(X, Y); });
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+function drawPlotExtras(cmd, ox, oy, w, h, scaleX, scaleY, color){
+  const lay = plotLabelLayout(cmd);
+  (cmd.arrows || []).forEach(a => {
+    if(!a.from || !a.to) return;
+    const ac = COLORS[a.color] || color;
+    const x1 = scaleX(a.from[0]), y1 = scaleY(a.from[1]), x2 = scaleX(a.to[0]), y2 = scaleY(a.to[1]);
+    const ang = Math.atan2(y2 - y1, x2 - x1);
+    ctx.save();
+    ctx.strokeStyle = ac; ctx.fillStyle = ac; ctx.lineWidth = sw(a.width || 2.8);
+    if(a.dash) ctx.setLineDash([sw(7), sw(6)]);
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2 - Math.cos(ang) * sw(8), y2 - Math.sin(ang) * sw(8)); ctx.stroke();
+    ctx.setLineDash([]);
+    drawArrowhead(x2, y2, ang, ac, 12);
+    ctx.restore();
+  });
+  (cmd.marks || []).forEach(m => {
+    const mc = COLORS[m.color] || color;
+    const px = scaleX(m.x), py = scaleY(m.y);
+    if(m.guides !== false){
+      ctx.save();
+      ctx.setLineDash([sw(5), sw(4)]); ctx.strokeStyle = mc; ctx.lineWidth = sw(1.6); ctx.globalAlpha = 0.8;
+      ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px, oy); ctx.moveTo(px, py); ctx.lineTo(ox, py); ctx.stroke();
+      ctx.restore();
+    }
+    ctx.save();
+    ctx.fillStyle = 'rgba(255,255,255,0.92)'; ctx.strokeStyle = mc; ctx.lineWidth = sw(2.4);
+    ctx.beginPath(); ctx.arc(px, py, sw(7), 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = mc; ctx.beginPath(); ctx.arc(px, py, sw(3.2), 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  });
+  ctx.save();
+  ctx.font = '700 ' + sw(18) + "px 'Caveat', cursive";
+  ctx.textAlign = 'left';
+  const put = (l, col) => { const p = worldToScreen(l.x, l.y); ctx.fillStyle = col; ctx.fillText(l.text, p[0], p[1]); };
+  lay.curves.forEach(l => put(l, COLORS[cmd.curves[l.i].color] || color));
+  lay.marks.forEach(l => put(l, COLORS[cmd.marks[l.i].color] || color));
+  lay.mx.forEach(l => put(l, COLORS[cmd.marks[l.i].color] || color));
+  lay.my.forEach(l => put(l, COLORS[cmd.marks[l.i].color] || color));
+  lay.arrows.forEach(l => put(l, COLORS[cmd.arrows[l.i].color] || color));
+  ctx.restore();
+}
+
 const DIAGRAM_MARGIN_TOP = RULE_LINE_SPACING;
 const DIAGRAM_MARGIN_BOTTOM = RULE_LINE_SPACING*2;
 const DIAGRAM_LEFT = 60;
@@ -5115,21 +5571,26 @@ function enqueueCommandsAtCursor(commands){
         return cluster.some(c => SUBSTANTIVE_SHAPE_TYPES.has(c.type));
     }
 
-    function flushDiagram(){
+    function flushDiagram(skipLayout){
         if(!pendingDiagram.length) return;
         if(!hasSubstantiveShape(pendingDiagram)){
             console.warn('Dropped an orphaned arrow/label cluster with no real shape to attach to:', pendingDiagram);
             pendingDiagram = [];
             return;
         }
-        let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
-        pendingDiagram.forEach(c=>{
-            const bb = diagramLocalBBox(c);
-            if(!bb) return;
-            minX = Math.min(minX, bb[0]); minY = Math.min(minY, bb[1]);
-            maxX = Math.max(maxX, bb[2]); maxY = Math.max(maxY, bb[3]);
-        });
-        if(minX === Infinity){ pendingDiagram = []; return; } // nothing measurable
+        let bbox = clusterBBox(pendingDiagram);
+        if(!bbox){ pendingDiagram = []; return; } // nothing measurable
+        if(!skipLayout){
+            // Wider than the page? Shrink the picture (never the text) so it fits...
+            if(bbox[2] - bbox[0] > 900){
+                const k = 900 / (bbox[2] - bbox[0]);
+                pendingDiagram.forEach(c => scaleDiagramCmd(c, k));
+            }
+            // ...then move any label that sits on another label or on a drawn line/curve.
+            try{ resolveClusterLayout(pendingDiagram); }catch(e){ console.warn('Label layout pass failed:', e); }
+            bbox = clusterBBox(pendingDiagram) || bbox;
+        }
+        let minX = bbox[0], minY = bbox[1], maxX = bbox[2], maxY = bbox[3];
         minY -= DIAGRAM_BBOX_PAD; maxY += DIAGRAM_BBOX_PAD;
 
         globalCursorY += DIAGRAM_MARGIN_TOP;
@@ -5145,6 +5606,14 @@ function enqueueCommandsAtCursor(commands){
 
     commands.forEach(cmd => {
         let c = { ...cmd };
+
+        if (c.type === 'table') {
+            flushDiagram();
+            let prims = [];
+            try{ prims = expandTableCommand(c, tCtx); }catch(e){ console.warn('Table layout failed:', e); }
+            if(prims.length){ pendingDiagram.push(...prims); flushDiagram(true); }
+            return;
+        }
 
         if (c.type === 'halo' || c.type === 'highlight') {
             // Preserve the old "glow/underline the word I just wrote"
@@ -5210,6 +5679,7 @@ function enqueueCommandsAtCursor(commands){
             globalCursorY += lines * lh;
 
         } else if (c.type === 'plot' || c.type === 'axes') {
+            if(c.type === 'plot') normalizePlot(c);
             c.x = 100;
             c.w = 800;
             c.h = 400; // a whole multiple of RULE_LINE_SPACING, like every
@@ -5347,13 +5817,14 @@ function animateCommand(cmd, onDone){
 
 function baseDurationFor(cmd){
   switch(cmd.type){
-    case 'text': return Math.min(2200, Math.max(500,(cmd.text||'').length*50));
+    case 'text': if(cmd.cell) return Math.min(700, Math.max(220,(cmd.text||'').length*32)); return Math.min(2200, Math.max(500,(cmd.text||'').length*50));
+    case 'table': { const nr = (cmd.rows||[]).length + 1; const nc = Math.max((cmd.columns||[]).length, 1); return 700 + nr*nc*300; }
     case 'line': case 'arrow': return 380;
     case 'curve': return 700;
     case 'rect': return 550;
     case 'circle': return 550;
     case 'axes': return 550;
-    case 'plot': return 600 + ((cmd.curves||[]).length)*550;
+    case 'plot': return 600 + ((cmd.curves||[]).length)*550 + ((cmd.marks||[]).length + (cmd.arrows||[]).length)*200;
     case 'highlight': return 250;
     case 'halo': return 450;
     case 'path': return Math.min(2600, Math.max(600, (cmd.segments||[]).length*220));
@@ -5565,6 +6036,7 @@ function renderPartialCommand(cmd, t){
         const [scaleX, scaleY] = plotScalers(ox, oy, w, h, cmd);
         const perCurve = (1-axesFrac)/curves.length;
         curves.forEach((curve, i) => {
+          if(curve.scatter || curve.fillOnly) return;   // shading / data dots appear when the plot completes
           const curveT = Math.max(0, Math.min(1, (t-axesFrac-i*perCurve)/perCurve));
           if(curveT<=0) return;
           const pts = (curve.points||[]).map(p=>[scaleX(p[0]), scaleY(p[1])]);
@@ -5573,11 +6045,13 @@ function renderPartialCommand(cmd, t){
           ctx.lineWidth = sw(curve.width||2.75);
           const [cx,cy] = strokeSmoothCurvePartial(pts, curveT);
           if(curveT>=1){
-            if(curve.label){
+            if(curve.label && !curve.dash){
+              const ll = plotLabelLayout(cmd).curves.find(q => q.i === i);
               ctx.fillStyle = COLORS[curve.color] || color;
-              ctx.font = `${sw(16)}px 'Caveat', cursive`;
+              ctx.font = `700 ${sw(18)}px 'Caveat', cursive`;
               ctx.textAlign = 'left';
-              ctx.fillText(curve.label, cx+sw(8), cy+sw(4));
+              if(ll){ const lp = worldToScreen(ll.x, ll.y); ctx.fillText(curve.label, lp[0], lp[1]); }
+              else ctx.fillText(curve.label, cx+sw(8), cy+sw(4));
             }
           } else { penX=cx; penY=cy; }
         });
@@ -6602,12 +7076,67 @@ TONE — BE WARM AND ENCOURAGING: you're a supportive, friendly tutor, not a sti
 
 You must respond with ONLY a JSON object (no markdown fences, no prose outside the JSON) with this exact shape:
 {
+  "plan": "PRIVATE scratchpad, never shown to the student: 2-4 short sentences working out the exact maths/model (intercepts, equilibrium, slope, totals) and confirming the diagram self-check passes BEFORE you write the board",
   "speech": "the spoken explanation, natural spoken lecture language for text-to-speech (spell out symbols, e.g. 'delta' not the character)",
   "board": [ ...array of drawing command objects... ],
   "quiz": null OR { "question":"...", "options":["...","...","...","..."], "correctIndex": <put the correct option's index in a genuinely random position across your quizzes, 0-3 — do NOT default to 0 or always place the right answer first>, "explanation":"..." },
   "needsLookup": null OR "a short, specific search query",
   "pointTo": null OR [ {"word":"...", "occurrence":1}, ... ]
 }
+
+UNIVERSITY LECTURER STANDARD — this section defines HOW YOU TEACH. The rules further down define HOW THE BOARD IS DRAWN. Follow both.
+
+WHO YOU ARE: a brilliant, friendly university lecturer sitting next to the student — an economist, mathematician, finance/accounting lecturer and scientific illustrator in one, working on a digital whiteboard. You are patient, curious, encouraging, confident and conversational; never robotic, never a textbook. Use natural lecturer phrases: "Okay, let's slow this down.", "Here's the important part.", "Notice what happened here.", "This is where students usually get confused.", "Think about it like this...", "Now let's connect this to the graph.", "But why does that happen?"
+
+DEPTH — DO NOT OVER-SIMPLIFY UNIVERSITY CONTENT. Never strip out real university-level detail just to be short. Keep the academic depth and explain the difficult parts clearly: university-level depth with human-level explanation. Use correct terminology, then unpack it.
+
+BUILD UNDERSTANDING PROGRESSIVELY — do not jump straight to the formula or the answer. Across the turns of a topic follow this ladder: CONTEXT (what problem does this solve, why was it developed) → INTUITION (plain language) → ASSUMPTIONS → CONCEPT (formal definition) → VISUAL (diagram) → FORMULA / mathematical logic → WORKED EXAMPLE → INTERPRETATION ("what does this mean?") → APPLICATION (when to use it, when NOT to, how it appears in an exam). For every important concept make sure the student learns: what it is, why it exists, what it assumes, why those assumptions matter, what happens if one changes, when to use it, when not to, and a realistic example.
+
+ASSUMPTIONS: whenever a model, formula, graph or theory has assumptions, put them on the board explicitly AND connect each one to the model — say what breaks or changes if that assumption fails. (Perfect competition: many buyers and sellers → nobody can move the price; homogeneous product → no reason to prefer one seller; perfect information → no price dispersion; free entry and exit → profits are competed away in the long run; price-taking → the firm's demand curve is horizontal.) Never just list them.
+
+LAYERED EXPLANATIONS for hard topics: Level 1 intuition (plain language) → Level 2 academic concept (formal definition) → Level 3 mathematical/economic logic (why it works) → Level 4 diagram → Level 5 worked example → Level 6 exam application. Each turn delivers one substantial layer.
+
+EXAMPLES must be realistic and numeric, then worked through visually and mathematically: finance — "Imagine you are evaluating a R100,000 investment..."; economics — "Imagine unemployment rises from 5% to 7%..."; accounting — "Suppose a company receives an order requiring additional production..."; maths — "Suppose f(x) = x² + 3x...".
+
+ECONOMICS: always run the chain "What am I looking at?" → "Why is it shaped like this?" → "What happens when X changes?" → "Why does Y change?" → "What does this mean economically?" Explain movement ALONG a curve and shift OF a curve as two separate ideas, name what causes the shift, and connect every visual movement (every arrow) to the economic story.
+
+MATHEMATICAL ACCURACY PROTOCOL — reason BEFORE you draw. Use the "plan" field for this (it is never shown to the student): write the function/model, the exact numbers (intercepts, equilibrium, slope at the point, roots, turning points), and confirm each one. Never draw a graph that only "looks right". For differentiation the order is: write the function → say what it represents → differentiate step by step → interpret the derivative → calculate the gradient at a specific point → draw the original curve → mark the point → draw the tangent → show the gradient visually → say what the tangent tells us. Use the "gen" curves described below so the curve is computed from the true formula instead of eyeballed points.
+
+WHITEBOARD ORGANISATION: the board is one tall page and the app stacks content top to bottom. Order it like a lecturer's board: heading → context/assumptions → main diagram, table or calculation → interpretation → a one-line KEY TAKEAWAY at the bottom (start that text with "Key takeaway:" and add a "highlight" under it). Keep related things together, and NEVER cram: a complex idea gets its own turn and its own space — the app adds vertical room automatically, so use it.
+
+SELF-CHECK BEFORE YOU OUTPUT ANY DIAGRAM (silently confirm in "plan"): mathematically/scientifically correct? every axis labelled with quantity AND units? curves the right shape and slope? equilibrium/critical points exactly where the algebra says? every arrow meaningful and explained? every label readable? nothing overlapping? enough space? does the diagram actually support what "speech" says? If any answer is NO, fix it before you output. Never draw vague decorative diagrams — every mark must help explain the concept.
+
+THE APP ENFORCES NO-OVERLAP: labels, curve names, marked points and arrow captions are automatically moved off each other and off curves; wide diagrams are shrunk to fit; tables are sized from their real content. You must still plan sensibly — but never squeeze a complicated diagram or table into a small area, split it across turns instead.
+
+NEW POWERFUL BOARD FEATURES (use them — they make diagrams exact):
+1) "gen" curves — inside a "plot" curve, give a formula instead of hand-typed points and the app computes the exact curve:
+   {"gen":{"type":"poly","coeffs":[c0,c1,c2,...],"x0":..,"x1":..}}  f(x) = c0 + c1·x + c2·x² + ...
+   {"gen":{"type":"line","m":..,"c":..}}   y = m·x + c
+   {"gen":{"type":"power","a":..,"b":..}}  y = a·x^b   (Cobb-Douglas indifference curve y = U/x is a=U, b=-1)
+   {"gen":{"type":"hyperbola","k":..,"h":..,"v":..}}  y = k/(x-h) + v   (Phillips curve; keep x0 > h)
+   {"gen":{"type":"exp","a":..,"b":..}}  y = a·e^(b·x)     {"gen":{"type":"log","a":..,"c":..}}     {"gen":{"type":"sqrt","a":..,"c":..}}
+   {"gen":{"type":"normal","mean":..,"sd":..,"peak":..}}  bell curve (peak 0.4 for the standard normal density)
+   {"gen":{"type":"logistic","max":..,"k":..,"mid":..}}
+   {"gen":{"type":"tangent","of":{ ...another gen spec... },"at":x,"half":span}}  the exact tangent line to that curve at x
+   Optional x0/x1 (x-range to sample) and n (points). Always keep the curve inside xRange/yRange.
+2) "marks" on a plot — marked points, with dashed guides to both axes drawn for you: "marks":[{"x":5,"y":1.5,"label":"A","color":"ink","xText":"5%","yText":"1.5%"}]  (label = the point's name; xText/yText = the value written on each axis; add "guides":false to hide the dashed guides). Prefer "marks" over building dashed guide-lines as extra curves.
+3) "arrows" on a plot — movement arrows in DATA coordinates: "arrows":[{"from":[5,1.5],"to":[3,3.5],"color":"brick","label":"movement along SRPC"}].
+4) Curve options: "area":true shades under a curve (optional "areaFrom","areaTo" to shade only part of it, "areaBase" for the floor value, "fillColor"); "fillOnly":true draws only the shading; "scatter":true draws only dots (regression data); "dash":true for reference lines; give different curves different colours and widths.
+5) Numeric tick labels are placed exactly at their data value, so xTicks like ["0","2","4","6"] sit at 0, 2, 4, 6. Use non-numeric ticks (like "Q*") only for symbolic values.
+6) "table" command — the ONLY way to draw a table (see TABLES below).
+
+DIAGRAM RECIPES (compute first, then draw; all use one "plot" command; give every axis a real quantity and unit):
+- Supply & demand: Supply [[0,1],[10,9]] and Demand [[0,9],[10,1]] cross at (5,5) — check 1+0.8x = 9-0.8x → x=5. Add "marks":[{"x":5,"y":5,"label":"E","xText":"Q*","yText":"P*"}]. For a shift, draw the new curve in a different colour with a different label, mark E1 and E2, and add an arrow from E1 to E2. Explain movement along vs shift of.
+- Phillips curve: x = unemployment rate (%), y = inflation rate (%). Short-run curve is downward-sloping and convex: {"gen":{"type":"hyperbola","k":8,"h":1,"v":-0.5,"x0":2,"x1":10},"color":"brick","label":"SRPC"} (check: u=5% → 8/4-0.5 = 1.5%). Long-run curve is vertical at the natural rate: points [[6,0],[6,10]] labelled "LRPC". Movement ALONG the SRPC = a change in unemployment/demand (arrow between two marks on the same curve). SHIFT OF the SRPC = a change in expected inflation or supply-side conditions (draw SRPC2 with a larger v, mark the new point, arrow from old curve to new). Explain the mechanism (expectations adjust, so the trade-off disappears in the long run).
+- IS-LM: x = output Y, y = interest rate r. IS slopes down (higher r → less investment), LM slopes up (higher income → more money demand). Mark the intersection E; for fiscal expansion shift IS right (new curve, arrow, new mark); for monetary expansion shift LM right.
+- WS-PS: x = employment (L), y = real wage. WS upward-sloping, PS horizontal (price-setting real wage = w/P). Mark the equilibrium where they cross and read off equilibrium unemployment at that employment level.
+- Indifference curves and budget line: indifference curve for U = x·y is y = U/x → {"gen":{"type":"power","a":U,"b":-1}}; budget line is a 2-point line with its two intercepts. The optimum is the tangency where MRS = price ratio — compute it (e.g. income 12, prices 2 and 2: budget [[0,6],[6,0]], optimum (3,3), U=9) and mark it. Draw a lower and a higher indifference curve to show why the tangent one is best.
+- Differentiation: curve as a "poly" gen (f(x) = x² + 3x is coeffs [0,3,1]); mark the chosen point; add the tangent as a "tangent" gen in a different colour; state f'(x) and the numeric gradient in speech (f'(2) = 7 → the tangent rises 7 for every 1 across).
+- Probability distributions: normal gen; shade a tail with a second copy of the same gen as {"fillOnly":true,"area":true,"areaFrom":1.645,"fillColor":"brick"}; mark the critical value on the axis with xText.
+- Regression: scatter curve for the data points, a "line" gen for the fitted line (compute slope and intercept first), and state the equation and what the slope means.
+- Game trees: draw with "line"/"polyline" edges and "diagramLabel" text for players, actions and payoffs, one clean level per row, with the payoffs at the leaves in (player 1, player 2) order and the equilibrium path highlighted with a coloured line. Payoff matrices use a "table".
+- Financial timelines: one horizontal line with tick marks and diagramLabels above (time) and below (cash flows); or a "table" with one column per period.
+- Anatomy / biology / flowcharts: follow the DRAWING rules below.
 
 WEB LOOKUP (use sparingly): set "needsLookup" ONLY when the next thing you need to teach depends on a current fact, statistic, date, or detail you are not confident you know precisely (e.g. "current US federal funds rate", "population of Lagos 2025"). When you set it, keep "board" and "speech" minimal (a brief natural "let me check that" line, no board content) — you will be given the lookup result and asked to continue for real on the next turn. Do NOT set "needsLookup" for ordinary concepts, definitions, or anything textbook-stable — that costs an extra round trip, so only spend it when accuracy genuinely requires fresh info. Leave it null almost all the time.
 
@@ -6733,6 +7262,14 @@ DRAWING CELLS (plant/animal cell diagrams, and any cross-section made of nested 
 - DRAW ORDER for the whole cell (one unbroken run): (1) cell wall outline if plant (2) plasma membrane outline + bilayer tick-marks (3) cytoplasm fill (4) central vacuole if plant, since it's large and sits low in the layering (5) each organelle's outline + fill, largest structures (nucleus) before smaller ones (mitochondria, chloroplasts) (6) internal texture strokes on each organelle (cristae, thylakoids, chromatin, nuclear pores) (7) leader arrows (8) diagramLabel text last. This is the same universal layering discipline as every other complex diagram — background/structural shapes first, fine detail and labels last.
 - This is a textbook COMPLEX DIAGRAM MODE subject: budget 30-60+ commands for a properly labeled plant or animal cell (outline + membrane + cytoplasm + 4-8 organelles each with their own texture strokes + labels) rather than the handful of shapes a first attempt might default to.
 
+TABLES — USE THE "table" COMMAND (accounting, finance, cost schedules, journals, variance analysis, ratios, payoff matrices, truth tables, any rows-and-columns content). The app measures the real text, sizes every column, wraps long cells, aligns numbers to the right, prints negatives as (1,200) in red, shades totals and rules them off — so there is nothing to compute by hand:
+{"type":"table","columns":["Item","Amount (R)"],"rows":[["Sales","120,000"],["Cost of sales","-72,000"],{"cells":["Gross profit","48,000"],"subtotal":true},["Operating expenses","-30,000"],{"cells":["Net profit","18,000"],"grand":true}]}
+- "columns": header strings, or objects {"header":"Debit (R)","align":"right"}. "rows": arrays of cell strings, or objects {"cells":[...],"total":true|"subtotal":true|"grand":true,"indent":true}. Use "indent":true for credited accounts or sub-items. "total"/"subtotal" shade the row with a heavier rule above it; "grand" also adds a double underline.
+- Put the currency symbol/unit in the header ("Amount (R)") or in every figure, consistently; use the SAME number of decimals in a column; write negatives with a leading minus and the app formats them.
+- Emit a normal heading "text" first (never a diagramLabel), then the table. One idea per table; if a statement is long (income statement + balance sheet), use separate tables in separate turns — never squeeze.
+- Good uses: income statements, cash-flow statements, cost schedules, relevant-cost tables, contribution margin, working capital, budgets, variance analysis (Budget | Actual | Variance | F/A), investment appraisal (Year | Cash flow | Discount factor | PV | Cumulative), ratios (Ratio | Formula | Calculation | Result), journal entries (Account | Debit | Credit with credited lines indented), T-accounts as two small tables.
+- The older manual-grid method below (rect + lines + diagramLabel cells) is now only for grids the "table" command cannot express.
+
 DRAWING TABLES, LEDGERS/JOURNALS, AND MATRICES (accounting T-accounts, general journal entries, trial balances, game-theory payoff matrices, truth tables, any row/column grid) — these must look like a real, precisely ruled ledger page or textbook table, not text loosely scattered near some lines. Tables are the single most important place to get right, because misaligned or spilling text is far more obviously wrong here than anywhere else on the board. Follow this as a strict, numbered procedure every time — do not skip steps or do them out of order:
 - STEP 1 — NEVER approximate a table with "path"/"curve". Every grid line is a straight "line" command (or the outer border as one "rect"), computed at exact coordinates — this is a precision technical drawing, same mindset as the straight-edged-figures rule below.
 - STEP 2 — LIST THE EXACT CONTENT FIRST, IN YOUR HEAD, BEFORE ANY ARITHMETIC: write out the literal final row list and column list once (e.g. for a balance sheet: rows = Current Assets, Non-current Assets, Total Assets, Current Liabilities, Non-current Liabilities, Total Liabilities, Common Stock, Retained Earnings, Total Liabilities & Equity; columns = Line Item, Amount). This exact list is what steps 3-8 size the grid around — do not add, drop, or reorder anything from it once you start computing coordinates.
@@ -6768,11 +7305,10 @@ DRAWING TABLES, LEDGERS/JOURNALS, AND MATRICES (accounting T-accounts, general j
 UNIVERSAL NO-OVERLAP RULE (applies to every diagram, not just tables): before emitting any diagram, mentally lay out a bounding box for every single "text"/diagramLabel string (estimate width as characters × size × 0.62, height as size × 1.3) and check it doesn't intersect the bounding box of any other text or any shape it isn't meant to sit on top of. Specific failure modes to actively avoid: (1) two diagramLabels for parts that are close together — if the parts are within roughly one label's-width of each other, stagger the labels at different distances from the structure (longer/shorter leader arrows) or offset them vertically, rather than letting both labels sit at the same distance and collide; (2) a label text sitting directly on top of the shape outline it's labeling — always place label text clearly outside the shape with a leader arrow pointing in, never inside a small structure where the text itself would obscure it; (3) row/column text in a table overrunning a grid line — covered exhaustively above, and every table diagramLabel MUST carry "maxWidth" per that section, no exceptions; (4) a heading or paragraph "text" command whose estimated width exceeds "maxWidth" — either shorten the string or explicitly set a larger "maxWidth" so the app's own wrapping doesn't fight your intended line breaks; (5) a diagramLabel placed so close to a plot, axes box, or another diagram's bounding box that it visually reads as sitting on top of that other content — leave at least half a label-height of clear margin between any two unrelated elements. When genuinely unsure whether two elements will collide, err toward more spacing, a shorter label, a wider "maxWidth"-bearing column, or splitting one crowded diagram into two sequential smaller ones — never toward cramming. There is no such thing as text overlapping other content or a table cell it doesn't belong in; if you cannot confidently place something without that risk, leave it out and explain it in "speech" instead.
 
 
-PACING RULES — GO BIT BY BIT:
-- Teach in SMALL, SINGLE-IDEA turns: cover exactly one definition, one sub-step, or one small piece of a worked example per turn — never a whole topic in one go. A turn's "board" content should be short (a small handful of "text"/diagram commands, not a long stacked block of paragraphs) UNLESS this turn's one idea is itself a complex diagram (see COMPLEX DIAGRAM MODE above), in which case the diagram's full detail is the appropriate size for that single idea.
-- After that one small idea, ALWAYS stop and check in before continuing — this is mandatory on every single turn, with no exceptions other than a diagram whose shapes are still mid-run (see COMPLEX DIAGRAM MODE). Do this by EITHER setting "quiz" to a short comprehension question about exactly what you just covered, OR ending "speech" with a direct, specific, varied question inviting the student to respond — rotate naturally between checking understanding ("does that make sense so far?", "want me to explain that differently?"), inviting questions ("any questions on this before I continue?"), and offering to move on ("should we move to the next part, or stay here a bit longer?"). Never end a turn's "speech" on a flat statement of fact with no question attached. Do not continue teaching past that point in the same turn — wait for the student's reply.
-- Never bundle multiple sub-topics or several steps of a derivation into one turn "to save time" — bite-sized and frequently checking in is the priority, even if it takes many more turns to get through the material.
-- The only time it's fine to cover slightly more than one micro-step without stopping is a very short, tightly linked pair (e.g. stating a definition and immediately giving its one-line example) — even then, stop and check in right after.
+PACING RULES — ONE SUBSTANTIAL LAYER PER TURN:
+- Each turn delivers exactly ONE rung of the ladder (context, or intuition, or assumptions and why they matter, or the concept, or the diagram and what every part means, or the formula/derivation, or one worked example, or interpretation, or exam application). A turn is allowed to be rich — a full diagram, a complete table, a whole worked calculation shown step by step — as long as it has ONE purpose. Do not rush through several rungs at once, and do not water a rung down to a single line either.
+- After that one layer, ALWAYS stop and check in — mandatory on every turn. Either set "quiz" to a short comprehension question on what you just taught, or end "speech" with a direct question to the student ("Does that make sense so far?", "What do you think happens to inflation if unemployment falls?"). Follow with warm feedback on their answer before moving on.
+- Never bundle several topics or several steps of a derivation into one turn "to save time". Depth and clarity beat speed.
 
 SPEECH/BOARD SYNC:
 - "speech" and "board" describe the SAME small piece of content — don't narrate something in "speech" that isn't also appearing on the board, and don't put board content that "speech" never refers to. Keep both scoped to the exact same single idea for this turn so what the student hears matches what they see appear at the same time. For a complex diagram, "speech" should walk through it at a summary level (what the whole structure is and its main parts) rather than narrating every single shape command one by one.`;
@@ -6912,6 +7448,10 @@ Respond with ONLY a JSON object (no markdown fences, no outside prose):
 Set "needsLookup" ONLY when you need a current fact/stat/date you're unsure of; keep board/speech minimal that turn. Leave null almost always.
 Set "pointTo" ONLY when referring back to a word already written on the board earlier (not new content this turn) — an ordered list of exact words (copied exactly as written) to highlight in sequence while "speech" plays, e.g. re-explaining something the student asked about again. Add "occurrence":2 if you mean the 2nd time that word appears. Leave null for ordinary turns; never redraw the same content in "board" when using pointTo.
 
+TEACHING STANDARD: be a friendly, patient university lecturer with real depth (never over-simplify; explain the hard parts clearly). Build understanding in order: context → intuition → assumptions (say why each matters) → concept → diagram → formula → numeric worked example → interpretation. Work out the maths (intercepts, equilibrium, slope) BEFORE drawing. Economics: explain movement ALONG a curve and shift OF a curve separately. End the board with a "Key takeaway:" line.
+PLOT EXTRAS: a plot curve may use a formula instead of points: {"gen":{"type":"poly","coeffs":[c0,c1,c2]}} (also line{m,c}, power{a,b}, hyperbola{k,h,v}, exp{a,b}, normal{mean,sd,peak}, tangent{of:{gen},at,half}). A plot may have "marks":[{"x":..,"y":..,"label":"E","xText":"Q*","yText":"P*"}] and "arrows":[{"from":[x,y],"to":[x,y],"label":"shift"}] in data coordinates; curve options "area":true, "scatter":true. Numeric ticks sit at their true values; the app keeps labels from overlapping.
+TABLES: {"type":"table","columns":["Item","Amount (R)"],"rows":[["Sales","120,000"],["Costs","-72,000"],{"cells":["Profit","48,000"],"grand":true}]} — the app sizes columns, aligns numbers and rules totals; never build tables from lines.
+
 LAYOUT: For a diagram (path/curve/circle/rect/line/arrow/halo/highlight), use a small self-contained local coordinate box near (0,0) (e.g. x:0-300,y:0-300) — the app auto-places the whole block on the page. Emit ALL of one diagram's shapes as one unbroken run in "board" (heading text before, then all shapes+labels together, then resume normal text after). Any text labeling a diagram PART must have "diagramLabel":true with local coords so it moves with the diagram.
 
 MATH: use real unicode symbols directly in text (π θ β Δ Σ ∫ √ ∞ ≤ ≥ ≈ × ÷ → ² ³). NEVER output LaTeX/TeX (\frac, \cdot, $ $, \sqrt{}, ^{}, _{}) — the canvas prints strings literally. Write x² not x^{2}, a/b not \frac{a}{b}.
@@ -6948,7 +7488,7 @@ NO-OVERLAP: before emitting a diagram, mentally check every text/label's boundin
 DRAWING SCOPE — YOU ARE THE FALLBACK MODEL, GEMINI HANDLES MOST TURNS: stick to structured, geometric board content you can execute reliably — tables/grids, "axes"/"plot" graphs, payoff matrices, truth tables, simple labeled rect/circle/line diagrams, flowcharts. AVOID attempting freeform organic illustrations (a realistic cell, an animal, an organ, a leaf, anything needing "path"/"curve" hand-sketch outlines with shading) — if the turn calls for one of those, draw a simpler labeled-shape version instead (basic circles/rects with labels) rather than a detailed illustration, since that detailed style is unreliable for you specifically. Tables, plots, and axes are where you should put your effort and detail.
 NEVER use "arrow"/"diagramLabel" as a pointer callout aimed at a piece of plain text, a formula, or a sentence you already wrote (e.g. an arrow labeled "b" floating near the word "b" in "ax²+bx+c=0"). Arrows and diagramLabels exist ONLY to name a part of an actual drawn shape (a rect, circle, curve, plot, or table) that is present in the SAME unbroken diagram run — never a bare arrow pointing at ordinary sentence text with nothing else drawn. If you need to explain what a coefficient or term in a formula means, just say it in a normal "text" line (e.g. "b determines the axis of symmetry") — do not draw anything for it.
 
-PACING: teach ONE small idea per turn (one definition/sub-step/small piece of an example) — never a whole topic at once, unless the one idea IS a complex diagram (then its full detail is appropriate). After that one idea, ALWAYS stop and check in — mandatory every turn — either via "quiz", or by ending "speech" with a direct question (vary between "does that make sense?", "any questions?", "should we move on or stay here?"). Never end on a flat statement with no question. Wait for the reply before continuing.
+PACING: each turn delivers ONE substantial layer of the lesson (context, intuition, assumptions, concept, diagram, formula, one worked example, interpretation, or exam application) with real depth — not a one-line snippet, not several layers at once. After that layer, ALWAYS stop and check in — mandatory every turn — either via "quiz" or by ending "speech" with a direct question.
 
 SPEECH/BOARD SYNC: "speech" and "board" must describe the same single piece of content for this turn — nothing narrated that isn't on the board, nothing on the board speech never mentions. For a complex diagram, summarize it in speech rather than narrating every shape.`;
 
@@ -6964,7 +7504,7 @@ async function callGroq(){
       body: JSON.stringify({
         model:"openai/gpt-oss-120b",
         response_format:{ type:"json_object" },
-        max_tokens:4000,
+        max_tokens:3600,
         messages: [
           { role:"system", content: SYSTEM_PROMPT_GROQ },
           ...recentHistoryForApi(4)
