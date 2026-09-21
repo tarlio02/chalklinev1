@@ -3747,6 +3747,15 @@ function lineHeightFor(sizeWorld){
   return mult * RULE_LINE_SPACING;
 }
 
+// Line pitch for the bigger paragraph text (commands stamped with .hm). The old rule-line
+// quantisation (multiples of 40) turned 35px handwriting into an 80-unit pitch — double spacing.
+// New text uses a tight 1.12 × size pitch on a fine 5-unit grid; older saved commands keep the
+// original behaviour so existing lessons look exactly as before.
+function lineHeightForCmd(cmd, sizeWorld){
+  if(cmd && cmd.hm) return Math.max(20, Math.ceil(sizeWorld * 1.12 / 5) * 5);
+  return lineHeightFor(sizeWorld);
+}
+
 const TOP_MARGIN = 80; // must be a whole multiple of RULE_LINE_SPACING so the
                         // very first line of writing starts baseline-aligned
                         // to a rule line, same as every line after it
@@ -4371,7 +4380,7 @@ function commandScreenBBox(cmd){
       const [sx,sy] = worldToScreen(cmd.x, cmd.y);
       if(cmd.maxWidth){
         const lines = wrapTextToLines(cmd.text||'', sw(cmd.maxWidth));
-        const lineHeight = sw(lineHeightFor(size));
+        const lineHeight = sw(lineHeightForCmd(cmd, size));
         const width = Math.max(0, ...lines.map(l=>ctx.measureText(l).width));
         return pad(sx, sy - sw(size)*1.05, sx + width, sy + lineHeight*(lines.length-1) + sw(size)*0.25);
       }
@@ -4532,7 +4541,7 @@ function renderCommand(cmd){
       }
       if(cmd.maxWidth && !cmd.diagramLabel){
         const lines = wrapTextToLines(cmd.text||'', sw(cmd.maxWidth));
-        const lineHeight = sw(lineHeightFor(size));
+        const lineHeight = sw(lineHeightForCmd(cmd, size));
         lines.forEach((line,i) => {
           const ly = sy + i*lineHeight;
           ctx.fillText(line, sx, ly);
@@ -5656,13 +5665,13 @@ function enqueueCommandsAtCursor(commands){
                 else { cur = test; }
             });
             
-            const lh = lineHeightFor(size);
+            const lh = lineHeightForCmd(c, size);
             // A heading skips one blank ruled line before it starts, so it
             // reads as a new section rather than butting straight up
             // against whatever came before — but only if something is
             // already on the board above it (no pointless gap at the very
             // top of a fresh page).
-            if(c.heading && globalCursorY > TOP_MARGIN) globalCursorY += RULE_LINE_SPACING;
+            if(c.heading && globalCursorY > TOP_MARGIN) globalCursorY += RULE_LINE_SPACING/2;
             // Baseline sits exactly ON the rule line at the bottom of this
             // first allotted line-space (not floating near the top of it),
             // so the handwriting visually rests on the ruled paper the way
@@ -5872,7 +5881,7 @@ function renderPartialCommand(cmd, t){
       }
       if(cmd.maxWidth && !cmd.diagramLabel){
         const lines = wrapTextToLines(full, sw(cmd.maxWidth));
-        const lineHeight = sw(lineHeightFor(size));
+        const lineHeight = sw(lineHeightForCmd(cmd, size));
         let charsLeft = Math.max(1, Math.round(full.length*t));
         let lastX = sx, lastY = sy;
         for(let i=0;i<lines.length;i++){
@@ -6722,7 +6731,7 @@ function wordBoxesForTextCommand(cmd){
   // exactly like every other piece of drawn content.
   ctx.save();
   ctx.font = `${weight} ${size}px ${fam}`;
-  const lineHeight = cmd.maxWidth ? lineHeightFor(size) : size*1.3;
+  const lineHeight = cmd.maxWidth ? lineHeightForCmd(cmd, size) : size*1.3;
   const lines = cmd.maxWidth ? wrapTextToLines(cmd.text, cmd.maxWidth) : [cmd.text];
   const boxes = [];
   lines.forEach((line, li) => {
