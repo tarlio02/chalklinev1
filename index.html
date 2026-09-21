@@ -532,6 +532,34 @@ body.landing-active #shell-auth{ display:none; }
   #ld-root .ld-laptop{ animation:none; }
 }
 
+/* ---- Responsive: same look on every device ---- */
+#ld-root{ -webkit-text-size-adjust:100%; }
+#ld-root h1,#ld-root h2,#ld-root h3,#ld-root p,#ld-root span,#ld-root b{ overflow-wrap:break-word; }
+/* The laptop mockup is drawn at a fixed 960px and scaled to fit (see ldFit). */
+#ld-root .ld-fit{ width:100%; position:relative; }
+#ld-root .ld-scale{ width:960px; transform-origin:top left; }
+#ld-root .ld-laptop{ width:960px; }
+#ld-modal{ max-height:calc(100vh - 40px); max-height:calc(100dvh - 40px); overflow-y:auto; }
+@media (max-width:700px){
+  #ld-root header .ld-bar{ padding:10px 16px; }
+  #ld-root nav.ld-links{ display:none; }
+  #ld-root .ld-brand span{ font-size:24px; }
+  #ld-root .ld-hero{ padding:48px 18px 0; }
+  #ld-root .ld-hero p.ld-sub{ font-size:16px; }
+  #ld-root .ld-stage{ margin-top:34px; padding:0 12px 24px; }
+  #ld-root .ld-features{ padding:48px 18px 10px; }
+  #ld-root .ld-features .ld-grid{ grid-template-columns:1fr; gap:32px; }
+  #ld-root .ld-trust{ padding:60px 18px 10px; }
+  #ld-root .ld-badges{ gap:22px; }
+  #ld-root .ld-how{ padding:64px 18px; }
+  #ld-root .ld-how h2{ margin-bottom:38px; }
+  #ld-root .ld-say{ padding:20px 18px 64px; }
+  #ld-root .ld-banner{ padding:0 18px 64px; }
+  #ld-root .ld-banner .ld-card{ padding:44px 20px; }
+  #ld-root footer{ padding:36px 18px 28px; }
+  #ld-root .ld-foot-cols{ gap:36px; }
+}
+
 #ld-overlay{ position:fixed; inset:0; z-index:9600; display:none; align-items:center; justify-content:center; background:rgba(42,36,16,0.45); padding:20px; }
 #ld-overlay.open{ display:flex; }
 #ld-modal{ background:#fff; width:100%; max-width:380px; border-radius:20px; padding:30px 26px 26px; position:relative;
@@ -587,6 +615,7 @@ body.landing-active #shell-auth{ display:none; }
 </section>
 
 <div class="ld-stage">
+  <div class="ld-fit"><div class="ld-scale">
   <div class="ld-laptop">
     <div class="ld-screen">
       <div class="ld-board">
@@ -616,6 +645,7 @@ body.landing-active #shell-auth{ display:none; }
       </div>
     </div>
   </div>
+  </div></div>
 </div>
 
 <section class="ld-features" id="ld-features">
@@ -13895,6 +13925,24 @@ setTimeout(()=>{ try{ window.ChalklineTour && window.ChalklineTour.resume(); }ca
   document.getElementById('ld-foot-go-app').addEventListener('click', (e)=>{ e.preventDefault(); openLdModal(); });
   document.getElementById('ld-modal-close').addEventListener('click', closeLdModal);
   document.getElementById('ld-overlay').addEventListener('click', (e)=>{ if(e.target.id === 'ld-overlay') closeLdModal(); });
+
+  // ---- scale the laptop mockup to fit any screen width ----
+  function ldFit(){
+    document.querySelectorAll('#ld-root .ld-fit').forEach(fit=>{
+      const sc = fit.firstElementChild;
+      const w = fit.clientWidth;
+      if(!w) return;
+      const s = Math.min(1, w / 960);
+      sc.style.transform = 'scale(' + s + ')';
+      fit.style.height = Math.ceil(sc.offsetHeight * s) + 'px';
+    });
+  }
+  if(window.ResizeObserver){
+    document.querySelectorAll('#ld-root .ld-fit').forEach(el => new ResizeObserver(ldFit).observe(el));
+  }
+  window.addEventListener('resize', ldFit);
+  window.addEventListener('load', ldFit);
+  ldFit();
 
   // ---- scroll reveal ----
   const ldIo = new IntersectionObserver((entries)=>{
