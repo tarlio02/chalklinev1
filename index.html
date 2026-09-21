@@ -461,6 +461,10 @@ body.landing-active #shell-auth{ display:none; }
 #ld-root .ld-side-card:nth-child(2){ animation-delay:1.2s; }
 #ld-root .ld-side-card:nth-child(3){ animation-delay:1.4s; }
 @keyframes ldCardIn{ to{ opacity:1; transform:translateX(0); } }
+/* ---- Whiteboard slideshow: several boards share one fixed-size screen, crossfading one at a time ---- */
+#ld-root .ld-slides{ position:absolute; inset:0; }
+#ld-root .ld-slide{ position:absolute; inset:0; opacity:0; visibility:hidden; transition:opacity .6s ease; }
+#ld-root .ld-slide.ld-slide-active{ opacity:1; visibility:visible; }
 /* ---- Whiteboard "drawn live" animation: only opacity / stroke reveals, so nothing moves or resizes ---- */
 #ld-root .ld-board.ld-drawing .ld-ch{ opacity:0; transition:opacity .09s linear; }
 #ld-root .ld-board.ld-drawing .ld-ch.on{ opacity:1; }
@@ -645,24 +649,75 @@ body.landing-active #shell-auth{ display:none; }
   <div class="ld-laptop">
     <div class="ld-screen">
       <div class="ld-board">
-        <div class="ld-chalk-tag" style="top:8px;left:0;font-size:15px;">How students actually spend study time</div>
-        <svg viewBox="0 0 140 140" width="150" height="150" style="left:0;top:40px;">
-          <circle cx="70" cy="70" r="58" fill="none" stroke="#2A2410" stroke-width="2"/>
-          <path d="M70 70 L70 12 A58 58 0 0 1 118 96 Z" fill="none" stroke="#2E7DBE" stroke-width="2"/>
-          <path d="M70 70 L118 96 A58 58 0 0 1 34 118 Z" fill="none" stroke="#F0B94D" stroke-width="2"/>
-          <path d="M70 70 L34 118 A58 58 0 0 1 70 12 Z" fill="none" stroke="#C98A2B" stroke-width="2"/>
-          <text x="88" y="46" font-family="Caveat" font-weight="700" font-size="13" fill="#2E7DBE">Rereading 45%</text>
-          <text x="30" y="134" font-family="Caveat" font-weight="700" font-size="13" fill="#C98A2B">Practice 35%</text>
-          <text x="6" y="60" font-family="Caveat" font-weight="700" font-size="13" fill="#8A8267">Review 20%</text>
-        </svg>
-        <div class="ld-chalk-tag" style="left:190px; top:36px; font-size:14px; max-width:150px;">If only "rereading" actually worked...</div>
-        <div class="ld-chalk-tag" style="left:190px; top:64px; font-size:13px; color:#2E7DBE; max-width:170px;">so let's swap it for something that does —</div>
+        <div class="ld-slides">
+          <div class="ld-slide ld-slide-active" data-slide="study">
+            <div class="ld-chalk-tag" style="top:8px;left:0;font-size:15px;">How students actually spend study time</div>
+            <svg viewBox="0 0 140 140" width="150" height="150" style="left:0;top:40px;">
+              <circle cx="70" cy="70" r="58" fill="none" stroke="#2A2410" stroke-width="2"/>
+              <path d="M70 70 L70 12 A58 58 0 0 1 118 96 Z" fill="none" stroke="#2E7DBE" stroke-width="2"/>
+              <path d="M70 70 L118 96 A58 58 0 0 1 34 118 Z" fill="none" stroke="#F0B94D" stroke-width="2"/>
+              <path d="M70 70 L34 118 A58 58 0 0 1 70 12 Z" fill="none" stroke="#C98A2B" stroke-width="2"/>
+              <text x="88" y="46" font-family="Caveat" font-weight="700" font-size="13" fill="#2E7DBE">Rereading 45%</text>
+              <text x="30" y="134" font-family="Caveat" font-weight="700" font-size="13" fill="#C98A2B">Practice 35%</text>
+              <text x="6" y="60" font-family="Caveat" font-weight="700" font-size="13" fill="#8A8267">Review 20%</text>
+            </svg>
+            <div class="ld-chalk-tag" style="left:190px; top:36px; font-size:14px; max-width:150px;">If only "rereading" actually worked...</div>
+            <div class="ld-chalk-tag" style="left:190px; top:64px; font-size:13px; color:#2E7DBE; max-width:170px;">so let's swap it for something that does —</div>
+            <div class="ld-board-caption"><b>Chalkline:</b> so — what are you actually trying to understand right now?</div>
+          </div>
+          <div class="ld-slide" data-slide="biology">
+            <div class="ld-chalk-tag" style="top:8px;left:0;font-size:15px;">Okay — let's zoom into a cell</div>
+            <svg viewBox="0 0 140 140" width="150" height="150" style="left:6px;top:38px;">
+              <path d="M70 14 C110 14 126 46 122 76 C118 108 92 126 62 124 C32 122 12 96 16 66 C20 34 40 14 70 14 Z" fill="none" stroke="#2A2410" stroke-width="2"/>
+              <circle cx="64" cy="68" r="24" fill="none" stroke="#2E7DBE" stroke-width="2"/>
+              <circle cx="64" cy="68" r="8" fill="none" stroke="#2E7DBE" stroke-width="1.6"/>
+              <path d="M100 44 C110 42 116 50 112 58 C108 66 96 66 94 58 C92 50 92 46 100 44 Z" fill="none" stroke="#C98A2B" stroke-width="2"/>
+              <path d="M96 92 C106 90 112 98 108 106 C104 114 92 114 90 106 C88 98 88 94 96 92 Z" fill="none" stroke="#C98A2B" stroke-width="2"/>
+              <text x="30" y="26" font-family="Caveat" font-weight="700" font-size="12" fill="#8A8267">membrane</text>
+              <text x="44" y="72" font-family="Caveat" font-weight="700" font-size="12" fill="#2E7DBE">nucleus</text>
+              <text x="106" y="36" font-family="Caveat" font-weight="700" font-size="11" fill="#C98A2B">mitochondria</text>
+            </svg>
+            <div class="ld-chalk-tag" style="left:190px; top:36px; font-size:14px; max-width:160px;">this little guy makes the cell's energy</div>
+            <div class="ld-chalk-tag" style="left:190px; top:64px; font-size:13px; color:#2E7DBE; max-width:170px;">and the nucleus keeps the DNA safe</div>
+            <div class="ld-board-caption"><b>Chalkline:</b> mitochondria — the cell's power plant. Want a closer look?</div>
+          </div>
+          <div class="ld-slide" data-slide="math">
+            <div class="ld-chalk-tag" style="top:8px;left:0;font-size:15px;">Quick example: y = x² − 4</div>
+            <svg viewBox="0 0 140 140" width="150" height="150" style="left:0;top:40px;">
+              <path d="M8 70 H132" fill="none" stroke="#2A2410" stroke-width="1.6"/>
+              <path d="M70 8 V132" fill="none" stroke="#2A2410" stroke-width="1.6"/>
+              <path d="M20 118 Q70 8 120 118" fill="none" stroke="#2E7DBE" stroke-width="2"/>
+              <circle cx="38" cy="70" r="3.2" fill="none" stroke="#C98A2B" stroke-width="2"/>
+              <circle cx="102" cy="70" r="3.2" fill="none" stroke="#C98A2B" stroke-width="2"/>
+              <text x="16" y="82" font-family="Caveat" font-weight="700" font-size="12" fill="#C98A2B">x = -2</text>
+              <text x="90" y="82" font-family="Caveat" font-weight="700" font-size="12" fill="#C98A2B">x = 2</text>
+            </svg>
+            <div class="ld-chalk-tag" style="left:190px; top:36px; font-size:14px; max-width:160px;">set y = 0 and solve for x</div>
+            <div class="ld-chalk-tag" style="left:190px; top:64px; font-size:13px; color:#2E7DBE; max-width:170px;">two roots — right where it crosses zero</div>
+            <div class="ld-board-caption"><b>Chalkline:</b> see where the curve crosses zero? Those are your two answers.</div>
+          </div>
+          <div class="ld-slide" data-slide="history">
+            <div class="ld-chalk-tag" style="top:8px;left:0;font-size:15px;">Let's put this on a timeline</div>
+            <svg viewBox="0 0 150 100" width="150" height="100" style="left:0;top:52px;">
+              <path d="M8 50 H142" fill="none" stroke="#2A2410" stroke-width="2"/>
+              <circle cx="20" cy="50" r="4.2" fill="none" stroke="#2E7DBE" stroke-width="2.2"/>
+              <circle cx="75" cy="50" r="4.2" fill="none" stroke="#F0B94D" stroke-width="2.2"/>
+              <circle cx="130" cy="50" r="4.2" fill="none" stroke="#C98A2B" stroke-width="2.2"/>
+              <text x="4" y="34" font-family="Caveat" font-weight="700" font-size="12" fill="#2E7DBE">1914</text>
+              <text x="62" y="34" font-family="Caveat" font-weight="700" font-size="12" fill="#8A8267">1917</text>
+              <text x="112" y="34" font-family="Caveat" font-weight="700" font-size="12" fill="#C98A2B">1918</text>
+              <text x="4" y="72" font-family="Caveat" font-weight="700" font-size="11" fill="#4A4020">war begins</text>
+              <text x="98" y="72" font-family="Caveat" font-weight="700" font-size="11" fill="#4A4020">armistice</text>
+            </svg>
+            <div class="ld-chalk-tag" style="left:190px; top:8px; font-size:14px; max-width:160px;">four years reshaped everything after</div>
+            <div class="ld-board-caption"><b>Chalkline:</b> want me to walk through what happened in between?</div>
+          </div>
+        </div>
         <div class="ld-side-cards">
           <div class="ld-side-card"><div class="ld-ic ld-gold">📘</div><div><b>Any subject</b><span>Bio, calc, history, code…</span></div></div>
           <div class="ld-side-card"><div class="ld-ic ld-blue">⚡</div><div><b>1:1 lessons</b><span>Built live, just for this</span></div></div>
           <div class="ld-side-card"><div class="ld-ic ld-gold">✏️</div><div><b>Ask anything</b><span>Interrupt whenever</span></div></div>
         </div>
-        <div class="ld-board-caption"><b>Chalkline:</b> so — what are you actually trying to understand right now?</div>
       </div>
       <div class="ld-inputbar">
         <div class="ld-round">✎</div>
@@ -13984,11 +14039,20 @@ setTimeout(()=>{ try{ window.ChalklineTour && window.ChalklineTour.resume(); }ca
   window.addEventListener('load', ldFit);
   ldFit();
 
-  // ---- whiteboard "drawn live" animation (opacity / stroke reveals only, so layout never shifts) ----
+  // ---- whiteboard slideshow: cycles several boards through one fixed-size screen ----
+  // (opacity / stroke reveals + crossfades only — the screen itself never changes size)
   (function ldBoardDraw(){
     const board = document.querySelector('#ld-root .ld-board');
     if(!board) return;
-    if(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const slides = Array.from(board.querySelectorAll('.ld-slide'));
+    if(!slides.length) return;
+
+    if(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches){
+      // No animation, no cycling — just leave the first slide showing.
+      slides.forEach((s, i) => s.classList.toggle('ld-slide-active', i === 0));
+      return;
+    }
+
     const sleep = ms => new Promise(r => setTimeout(r, ms));
     const SVGNS = 'http://www.w3.org/2000/svg';
 
@@ -14032,47 +14096,73 @@ setTimeout(()=>{ try{ window.ChalklineTour && window.ChalklineTour.resume(); }ca
       await sleep(ms + 60);
     }
 
-    async function run(){
-      const tags = board.querySelectorAll(':scope > .ld-chalk-tag');
-      const svg = board.querySelector(':scope > svg');
+    // Undo a slide's reveal state so it can be replayed next time it comes around.
+    function resetSlide(slide){
+      slide.querySelectorAll('.ld-ch').forEach(c => c.classList.remove('on', 'ld-cur'));
+      slide.querySelectorAll('.ld-stroke').forEach(s => s.classList.remove('on'));
+    }
+
+    // Play one slide's tags + drawing + caption, in DOM order, whatever it contains.
+    async function playSlide(slide){
+      const tags = slide.querySelectorAll(':scope > .ld-chalk-tag');
+      const svg = slide.querySelector(':scope > svg');
       const shapes = svg ? svg.querySelectorAll('circle, path') : [];
       const labels = svg ? svg.querySelectorAll('text') : [];
-      const cards = board.querySelectorAll('.ld-side-card');
-      const caption = board.querySelector('.ld-board-caption');
+      const caption = slide.querySelector('.ld-board-caption');
 
       if(tags[0]) await write(tags[0], 26);
       await sleep(120);
-      // pie chart: outline first, then each slice with its label
       if(shapes[0]) await draw(shapes[0], 800);
       for(let i = 1; i < shapes.length; i++){
         await draw(shapes[i], 450);
         if(labels[i - 1]) await write(labels[i - 1], 22);
       }
+      for(let i = shapes.length ? shapes.length - 1 : 0; i < labels.length; i++){
+        if(labels[i] && !labels[i].querySelector('.ld-ch.on')) await write(labels[i], 22);
+      }
       await sleep(150);
-      if(tags[1]) await write(tags[1], 24);
-      await sleep(100);
-      if(tags[2]) await write(tags[2], 24);
+      for(let i = 1; i < tags.length; i++){ await write(tags[i], 24); await sleep(100); }
       await sleep(150);
-      for(const card of cards){
+      if(caption) await write(caption, 16);
+    }
+
+    // The three product cards sit outside the slideshow and only ever play once.
+    async function showCards(){
+      for(const card of board.querySelectorAll(':scope > .ld-side-cards .ld-side-card')){
         card.classList.add('ld-show');
         await sleep(220);
         const b = card.querySelector('b'), sp = card.querySelector('span');
         if(b) await write(b, 18);
         if(sp) await write(sp, 14);
       }
-      await sleep(150);
-      if(caption) await write(caption, 16);
     }
 
     wrapLetters(board);
-    board.querySelectorAll(':scope > svg circle, :scope > svg path').forEach(s => {
+    board.querySelectorAll('.ld-slide svg circle, .ld-slide svg path').forEach(s => {
       s.setAttribute('pathLength', '1');
       s.classList.add('ld-stroke');
     });
     board.classList.add('ld-drawing');
     void board.offsetWidth; // commit the hidden starting state before animating
 
-    const start = () => sleep(900).then(run);   // wait for the laptop to finish fading in
+    async function loop(){
+      let idx = 0;
+      let cardsShown = false;
+      while(true){
+        const slide = slides[idx];
+        resetSlide(slide);
+        slide.classList.add('ld-slide-active');
+        const cardsPromise = cardsShown ? null : (cardsShown = true, showCards());
+        await playSlide(slide);
+        if(cardsPromise) await cardsPromise;
+        await sleep(2600);                 // let the finished board sit for a moment
+        slide.classList.remove('ld-slide-active');
+        await sleep(650);                  // let it crossfade out before the next one starts
+        idx = (idx + 1) % slides.length;
+      }
+    }
+
+    const start = () => sleep(900).then(loop);   // wait for the laptop to finish fading in
     if('IntersectionObserver' in window){
       const io = new IntersectionObserver(es => {
         if(es.some(e => e.isIntersecting)){ io.disconnect(); start(); }
