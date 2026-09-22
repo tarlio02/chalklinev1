@@ -12088,11 +12088,14 @@ input, textarea, .note-textbox{ -webkit-user-select:text; user-select:text; }
 .ne-num{ width:52px; }
 .ne-tool-label{ color:var(--muted); }
 
-.ne-body{ flex:1; overflow-y:auto; overflow-x:hidden; background:#DCD6C4; padding:26px 0 60px;
+.ne-body{ flex:1; overflow-y:auto; overflow-x:auto; background:#DCD6C4; padding:26px 0 60px;
   display:flex; flex-direction:column; align-items:center; gap:22px; -webkit-overflow-scrolling:touch; }
 
+/* Base A4-proportioned width, scaled by --notes-zoom (set from the zoom in/out
+   controls). aspect-ratio comes from an inline style per page instead of a
+   fixed CSS rule, since it depends on the current note's orientation. */
 .note-page{
-  position:relative; width:min(92vw,780px); aspect-ratio:780/1010;
+  position:relative; width:calc(min(92vw,780px) * var(--notes-zoom, 1));
   background:#fff; box-shadow:0 3px 14px rgba(0,0,0,0.18); border-radius:3px; flex-shrink:0;
 }
 .note-page canvas{ position:absolute; top:0; left:0; width:100%; height:100%; display:block; }
@@ -12118,7 +12121,7 @@ input, textarea, .note-textbox{ -webkit-user-select:text; user-select:text; }
 .note-textbox:focus{ border-color:var(--accent-soft); background:rgba(255,255,255,0.72); }
 .note-textbox:empty:before{ content:attr(data-placeholder); color:#C9C2AA; }
 
-.ne-add-page-row{ width:min(92vw,780px); display:flex; justify-content:center; }
+.ne-add-page-row{ width:calc(min(92vw,780px) * var(--notes-zoom, 1)); display:flex; justify-content:center; }
 .ne-add-page-btn{
   border:1px dashed var(--border); background:transparent; color:var(--muted);
   padding:10px 18px; border-radius:10px; cursor:pointer; font-family:'JetBrains Mono',monospace; font-size:12px;
@@ -12222,6 +12225,16 @@ input, textarea, .note-textbox{ -webkit-user-select:text; user-select:text; }
         </div>
         <div class="ne-tool-sep"></div>
         <div class="ne-tool-group">
+          <button type="button" class="ne-tool-btn" id="tool-orientation" title="Switch page orientation">📄 Portrait</button>
+        </div>
+        <div class="ne-tool-sep"></div>
+        <div class="ne-tool-group">
+          <button type="button" class="ne-tool-btn" id="zoom-out" title="Zoom out">−</button>
+          <span class="ne-tool-label" id="zoom-level">100%</span>
+          <button type="button" class="ne-tool-btn" id="zoom-in" title="Zoom in">+</button>
+        </div>
+        <div class="ne-tool-sep"></div>
+        <div class="ne-tool-group">
           <button type="button" class="ne-tool-btn" id="tool-import-pdf" title="Import PDF">📄 Import PDF</button>
           <input type="file" id="pdf-file-input" accept="application/pdf" style="display:none;">
         </div>
@@ -12320,7 +12333,30 @@ let currentTool = 'pen';   // 'pen' | 'eraser'
 let penColor = '#2A2410';
 let penSize = 3;
 
-const PAGE_W = 780, PAGE_H = 1010;   // note-unit coordinate space (matches CSS aspect ratio)
+// A4 at 96dpi, so page proportions match a real sheet of paper. Orientation is
+// per-note (note.orientation, 'portrait'|'landscape'); PAGE_W/PAGE_H always
+// reflect whichever note is currently open — see applyOrientation().
+const PAGE_W_A4 = 794, PAGE_H_A4 = 1123;
+let PAGE_W = PAGE_W_A4, PAGE_H = PAGE_H_A4;
+function applyOrientation(note){
+  if(note.orientation === 'landscape'){ PAGE_W = PAGE_H_A4; PAGE_H = PAGE_W_A4; }
+  else { PAGE_W = PAGE_W_A4; PAGE_H = PAGE_H_A4; }
+}
+// Rotates a note's existing ink/text 90° in place when its orientation is
+// flipped, so a diagram drawn in portrait doesn't just get stretched/cropped
+// when the page becomes landscape (or vice versa) — it's carried over the
+// way turning a physical sheet of paper would.
+function rotateNoteContent90(note, oldW, oldH){
+  note.pages.forEach(page=>{
+    (page.strokes||[]).forEach(s=>{
+      s.points = s.points.map(p=> ({ x: oldH - p.y, y: p.x }));
+    });
+    (page.textBoxes||[]).forEach(t=>{
+      const nx = oldH - t.y, ny = t.x;
+      t.x = nx; t.y = ny;
+    });
+  });
+}
 const RENDER_SCALE = 2;              // canvas backing-store multiplier for crisp pencil strokes
 
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
@@ -12352,6 +12388,7 @@ function blankPage(){
 // single new page.
 function migrateNoteIfNeeded(note){
   if(!note.subject) note.subject = 'Unsorted';
+  if(!note.orientation) note.orientation = 'portrait';
   if(note.pages) return note;
   note.pages = [blankPage()];
   note.ruledOverride = null;
@@ -12456,18 +12493,22 @@ async function openNote(id){
   document.getElementById('notes-title-input').value = note.title || '';
   document.getElementById('notes-status').textContent = 'Saved';
   syncStyleControlsFromNote(note);
+  applyOrientation(note);
+  syncOrientationControl(note);
   renderAllPages(note);
   renderNotesList();
 }
 
 function createNote(){
-  const note = { id: uid(), title:'', updatedAt: Date.now(), ruledOverride:null, pages:[blankPage()], subject: currentNotesSubject || 'Unsorted' };
+  const note = { id: uid(), title:'', updatedAt: Date.now(), ruledOverride:null, orientation:'portrait', pages:[blankPage()], subject: currentNotesSubject || 'Unsorted' };
   notesCache.unshift(note);
   currentNoteId = note.id;
   showEditor();
   document.getElementById('notes-title-input').value = '';
   document.getElementById('notes-status').textContent = 'Saved';
   syncStyleControlsFromNote(note);
+  applyOrientation(note);
+  syncOrientationControl(note);
   renderAllPages(note);
   renderNotesList();
   persistCurrentNote();
@@ -12654,6 +12695,7 @@ function renderAllPages(note){
 function buildPageEl(note, page, idx){
   const wrap = document.createElement('div');
   wrap.className = 'note-page';
+  wrap.style.aspectRatio = PAGE_W + ' / ' + PAGE_H;
 
   const bg = document.createElement('canvas'); bg.className = 'np-bg';
   const ink = document.createElement('canvas'); ink.className = 'np-ink';
@@ -12846,6 +12888,41 @@ function setTool(tool){
 document.getElementById('tool-text').addEventListener('click', ()=> setTool('text'));
 document.getElementById('tool-pen').addEventListener('click', ()=> setTool('pen'));
 document.getElementById('tool-eraser').addEventListener('click', ()=> setTool('eraser'));
+
+// ---------- orientation ----------
+function syncOrientationControl(note){
+  const btn = document.getElementById('tool-orientation');
+  const landscape = note && note.orientation === 'landscape';
+  btn.textContent = landscape ? '📄 Landscape' : '📄 Portrait';
+}
+document.getElementById('tool-orientation').addEventListener('click', ()=>{
+  const note = currentNote();
+  if(!note) return;
+  const oldW = PAGE_W, oldH = PAGE_H;
+  note.orientation = note.orientation === 'landscape' ? 'portrait' : 'landscape';
+  rotateNoteContent90(note, oldW, oldH);
+  applyOrientation(note);
+  syncOrientationControl(note);
+  renderAllPages(note);
+  scheduleSave();
+});
+
+// ---------- zoom ----------
+let notesZoom = 1;
+const ZOOM_MIN = 0.5, ZOOM_MAX = 2;
+function applyZoom(){
+  document.getElementById('ne-body').style.setProperty('--notes-zoom', notesZoom);
+  document.getElementById('zoom-level').textContent = Math.round(notesZoom * 100) + '%';
+}
+document.getElementById('zoom-in').addEventListener('click', ()=>{
+  notesZoom = Math.min(ZOOM_MAX, Math.round((notesZoom + 0.1) * 10) / 10);
+  applyZoom();
+});
+document.getElementById('zoom-out').addEventListener('click', ()=>{
+  notesZoom = Math.max(ZOOM_MIN, Math.round((notesZoom - 0.1) * 10) / 10);
+  applyZoom();
+});
+applyZoom();
 
 document.querySelectorAll('.ne-color-swatch').forEach(sw=>{
   sw.addEventListener('click', ()=>{
