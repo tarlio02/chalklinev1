@@ -12713,6 +12713,46 @@ function sizePages(){
 }
 window.addEventListener('resize', sizePages);
 
+// A plain 'resize' listener is enough for desktop window drags, but a
+// phone/tablet rotation is a different animal: mobile Safari (and other
+// mobile browsers) can take noticeably longer than one frame to finish
+// reflowing after the device turns — the address bar/chrome animates in
+// or out, dvh units settle late, and #ne-body's getBoundingClientRect()
+// can keep reporting the pre-rotation size for a little while. So on top
+// of the immediate 'resize' call above, we also listen for the rotation
+// itself (orientationchange / screen.orientation, for browsers that
+// support them) and visualViewport's own resize event, which fires as
+// the real viewport actually settles rather than on a guessed timer —
+// then poll briefly until the reported size stops changing before we
+// stop resizing the pages. Same approach the tutor whiteboard page uses
+// for its canvas.
+function sizePagesWhenStable(maxWaitMs){
+  const body = document.getElementById('ne-body');
+  if(!body) return;
+  const deadline = performance.now() + maxWaitMs;
+  let lastW = -1, lastH = -1, stableFrames = 0;
+  function tick(){
+    const rect = body.getBoundingClientRect();
+    if (Math.abs(rect.width-lastW) < 0.5 && Math.abs(rect.height-lastH) < 0.5) {
+      stableFrames++;
+    } else {
+      stableFrames = 0;
+      lastW = rect.width; lastH = rect.height;
+    }
+    sizePages();
+    if (stableFrames >= 3 || performance.now() > deadline) return;
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+window.addEventListener('orientationchange', () => sizePagesWhenStable(1000));
+if (screen.orientation && screen.orientation.addEventListener) {
+  screen.orientation.addEventListener('change', () => sizePagesWhenStable(1000));
+}
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', () => sizePagesWhenStable(1000));
+}
+
 function buildPageEl(note, page, idx){
   const wrap = document.createElement('div');
   wrap.className = 'note-page';
