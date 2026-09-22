@@ -12956,6 +12956,21 @@ if (window.visualViewport) {
 // load event (webfonts, etc.), re-measure once everything has finished.
 window.addEventListener('load', () => sizePagesWhenStable(1000));
 
+// The 600ms settle window above is a guess, not a guarantee: on a real
+// (especially mobile) connection, the @import'd Google Fonts (Caveat,
+// Source Serif 4, JetBrains Mono) can easily take longer than that to
+// actually arrive -- particularly on a cold cache. When they do, the
+// toolbar re-wraps to its final layout *after* sizePagesWhenStable has
+// already declared things stable and stopped watching, leaving the page
+// sized for the wrong (usually taller/more-wrapped) toolbar. Nothing
+// else ever re-measures after that, so the page stays too small until
+// something else happens to call sizePages() -- like pressing zoom.
+// document.fonts.ready resolves exactly when webfonts are actually done,
+// however long that took, so re-measuring off of it closes that gap.
+if(document.fonts && document.fonts.ready){
+  document.fonts.ready.then(() => sizePagesWhenStable(600));
+}
+
 function buildPageEl(note, page, idx){
   const wrap = document.createElement('div');
   wrap.className = 'note-page';
