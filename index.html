@@ -12644,6 +12644,30 @@ function createNote(){
 
 function currentNote(){ return notesCache.find(n=>n.id===currentNoteId); }
 
+// requestIdleCallback polyfill: Safari has never shipped requestIdleCallback
+// by default (it's behind a hidden experimental flag almost nobody enables),
+// and since every browser on iOS is WebKit under the hood, that means
+// window.requestIdleCallback is undefined on iPad/iPhone -- exactly the
+// devices this page is built for (Apple Pencil). Without this polyfill,
+// both call sites below silently fell through to their "else" branch and
+// ran persistCurrentNote() immediately/on a flat timer, which reintroduces
+// the very stall (a synchronous JSON.stringify + storage write landing on
+// top of a fresh stroke) that the idle-callback deferral exists to avoid.
+// A double requestAnimationFrame is a reasonable proxy for "the browser
+// just finished its current work and painted" on platforms without a real
+// idle scheduler, so the save is far less likely to land on the opening of
+// a new stroke than a bare setTimeout would be.
+const runIdle = window.requestIdleCallback
+  ? (cb, opts) => window.requestIdleCallback(cb, opts)
+  : (cb) => {
+      requestAnimationFrame(()=>{
+        requestAnimationFrame(()=>{
+          const start = Date.now();
+          cb({ didTimeout: false, timeRemaining: ()=> Math.max(0, 50 - (Date.now() - start)) });
+        });
+      });
+    };
+
 async function persistCurrentNote(){
   // The save is debounced off the *end* of a stroke (see scheduleSave,
   // called from finishStroke), but with normal handwriting the next
@@ -12657,11 +12681,7 @@ async function persistCurrentNote(){
   // again shortly instead of forcing the save into the middle of a
   // stroke — nothing is lost, it simply lands in the next natural gap.
   if(activePenPointerId !== null){
-    if(window.requestIdleCallback){
-      requestIdleCallback(persistCurrentNote, { timeout: 1200 });
-    } else {
-      saveTimer = setTimeout(persistCurrentNote, 120);
-    }
+    runIdle(persistCurrentNote, { timeout: 1200 });
     return;
   }
   const note = currentNote();
@@ -12694,11 +12714,7 @@ function scheduleSave(){
     // browsers without requestIdleCallback and because an idle callback
     // given a timeout can still be forced to run under deadline pressure
     // even if the browser isn't fully idle yet.
-    if(window.requestIdleCallback){
-      requestIdleCallback(persistCurrentNote, { timeout: 1200 });
-    } else {
-      persistCurrentNote();
-    }
+    runIdle(persistCurrentNote, { timeout: 1200 });
   }, 500);
 }
 
