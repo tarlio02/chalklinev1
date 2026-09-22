@@ -13093,27 +13093,47 @@ function wirePageInput(pageWrap, ink, textLayer, page){
     if(!drawing) return;
 
     if(isStylusLike(e)){
-      const p = notePointFromEvent(ink, e);
+      // A stylus (and Apple Pencil in particular) samples position at a
+      // much higher rate than the browser actually dispatches pointermove
+      // events at — the extra in-between samples get coalesced into the
+      // next event instead of firing their own. Using only e.clientX/Y
+      // means fast strokes only get the sparser, once-per-dispatched-event
+      // points, which is exactly what shows up as visible skips/facets in
+      // quick handwriting even though nothing was ever dropped. Reading
+      // getCoalescedEvents() recovers every real sample so the line drawn
+      // matches the actual pen path instead of a coarser approximation of it.
+      const events = (typeof e.getCoalescedEvents === 'function' && e.getCoalescedEvents().length)
+        ? e.getCoalescedEvents() : [e];
+      const pts = events.map(ev => notePointFromEvent(ink, ev));
+
       if(currentTool === 'eraser' || scribbleErasing){
         // Only worth a full redraw when a stroke actually got erased —
         // most of a drag across empty page hits nothing.
-        if(eraseNear(page, p.x, p.y)) redrawInk(ink, page);
+        let erased = false;
+        pts.forEach(p => { if(eraseNear(page, p.x, p.y)) erased = true; });
+        if(erased) redrawInk(ink, page);
       } else {
-        const prevPoint = stroke.points[stroke.points.length - 1];
-        stroke.points.push(p);
-        if(isScribbleMotion(stroke.points)){
-          // Mid-stroke scribble detected: treat the rest of this
-          // gesture as erasing rather than inking, and discard the
-          // ink drawn so far for this stroke. A full redraw is the
-          // simplest correct way to wipe ink that was drawn live but
-          // never got committed to page.strokes — this path is rare,
-          // so its cost doesn't matter the way the plain-inking path
-          // below does.
-          scribbleErasing = true;
-          stroke = null;
-          eraseNear(page, p.x, p.y);
-          redrawInk(ink, page);
-        } else {
+        const ctx = ink.getContext('2d');
+        ctx.setTransform(RENDER_SCALE,0,0,RENDER_SCALE,0,0);
+        ctx.strokeStyle = stroke.color; ctx.lineWidth = stroke.size;
+        ctx.lineCap='round'; ctx.lineJoin='round';
+        for(const p of pts){
+          const prevPoint = stroke.points[stroke.points.length - 1];
+          stroke.points.push(p);
+          if(isScribbleMotion(stroke.points)){
+            // Mid-stroke scribble detected: treat the rest of this
+            // gesture as erasing rather than inking, and discard the
+            // ink drawn so far for this stroke. A full redraw is the
+            // simplest correct way to wipe ink that was drawn live but
+            // never got committed to page.strokes — this path is rare,
+            // so its cost doesn't matter the way the plain-inking path
+            // below does.
+            scribbleErasing = true;
+            stroke = null;
+            eraseNear(page, p.x, p.y);
+            redrawInk(ink, page);
+            break;
+          }
           // Draw only the newest segment on top of what's already on
           // the canvas, instead of clearing the page and re-stroking
           // every committed stroke *plus* retracing this whole stroke
@@ -13124,10 +13144,6 @@ function wirePageInput(pageWrap, ink, textLayer, page){
           // fast stroke cost quadratically more work as it goes. On a
           // real device that main-thread cost is exactly what shows up
           // as dropped pointer events — visible skips in the ink.
-          const ctx = ink.getContext('2d');
-          ctx.setTransform(RENDER_SCALE,0,0,RENDER_SCALE,0,0);
-          ctx.strokeStyle = stroke.color; ctx.lineWidth = stroke.size;
-          ctx.lineCap='round'; ctx.lineJoin='round';
           ctx.beginPath();
           ctx.moveTo(prevPoint.x, prevPoint.y);
           ctx.lineTo(p.x, p.y);
