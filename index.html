@@ -11940,7 +11940,16 @@ body{
   height:100vh;
   height:100dvh;
   overflow:hidden;
+  /* Dragging the mouse to draw (mouse is treated as a pen — see
+     isStylusLike in the page script) is otherwise indistinguishable
+     from a text-selection drag to the browser, which would paint its
+     native blue selection highlight across the whole page as the
+     person writes. Turning selection off page-wide, then explicitly
+     re-enabling it just for the controls people actually type into,
+     avoids that without breaking normal text editing. */
+  -webkit-user-select:none; user-select:none;
 }
+input, textarea, .note-textbox{ -webkit-user-select:text; user-select:text; }
 .notes-shell{ display:flex; height:100vh; height:100dvh; }
 
 /* ---------- LEFT: note list ---------- */
