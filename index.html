@@ -13977,18 +13977,69 @@ setTimeout(()=>{ try{ window.ChalklineTour && window.ChalklineTour.resume(); }ca
   if(!supported){ btn.classList.add('hide'); return; }
   function isFs(){ return !!(document.fullscreenElement || document.webkitFullscreenElement); }
   function sync(){ btn.textContent = isFs() ? '⛝' : '⛶'; btn.title = isFs() ? 'Exit fullscreen' : 'Enter fullscreen'; }
-  btn.addEventListener('click', ()=>{
+  function doRequest(){
     const el = document.documentElement;
+    const req = el.requestFullscreen || el.webkitRequestFullscreen;
+    try{ const p = req.call(el); if(p && p.catch) p.catch(()=>{}); }catch(e){}
+  }
+  function doExit(){
+    const exit = document.exitFullscreen || document.webkitExitFullscreen;
+    try{ const p = exit.call(document); if(p && p.catch) p.catch(()=>{}); }catch(e){}
+  }
+
+  // Lock: some mobile browsers (notably Android Chrome) silently drop fullscreen
+  // mid-scroll/mid-gesture even though the user never asked to exit. We only want
+  // real exits (the ⛝ button, the browser's own "Exit fullscreen" affordance, Esc)
+  // to stick. So: track whether *we* initiated the exit; if fullscreen drops any
+  // other way, treat it as a spurious drop and re-request it on the very next user
+  // gesture (a fresh requestFullscreen() call needs one, so it can't be called
+  // straight from the fullscreenchange handler with no gesture nearby).
+  let deliberateExit = false;
+  let relockPending = false;
+
+  function armRelock(){
+    if(relockPending) return;
+    relockPending = true;
+    const tryRelock = ()=>{
+      relockPending = false;
+      document.removeEventListener('touchend', tryRelock, true);
+      document.removeEventListener('pointerup', tryRelock, true);
+      document.removeEventListener('click', tryRelock, true);
+      document.removeEventListener('scroll', tryRelock, true);
+      if(!isFs()) doRequest();
+    };
+    // Any of these count as a user gesture we can piggyback the re-request on.
+    document.addEventListener('touchend', tryRelock, true);
+    document.addEventListener('pointerup', tryRelock, true);
+    document.addEventListener('click', tryRelock, true);
+    document.addEventListener('scroll', tryRelock, { capture:true, passive:true });
+  }
+
+  btn.addEventListener('click', ()=>{
     if(!isFs()){
-      const req = el.requestFullscreen || el.webkitRequestFullscreen;
-      try{ req.call(el).catch(()=>{}); }catch(e){}
+      deliberateExit = false;
+      doRequest();
     } else {
-      const exit = document.exitFullscreen || document.webkitExitFullscreen;
-      try{ exit.call(document).catch(()=>{}); }catch(e){}
+      deliberateExit = true;
+      doExit();
     }
   });
-  document.addEventListener('fullscreenchange', sync);
-  document.addEventListener('webkitfullscreenchange', sync);
+
+  document.addEventListener('keydown', (e)=>{
+    if(e.key === 'Escape' && isFs()) deliberateExit = true;
+  }, true);
+
+  function onChange(){
+    sync();
+    if(!isFs() && !deliberateExit){
+      // Wasn't asked for — most likely a scroll/gesture-triggered drop. Re-lock
+      // on the next available user gesture instead of leaving the app windowed.
+      armRelock();
+    }
+    deliberateExit = false;
+  }
+  document.addEventListener('fullscreenchange', onChange);
+  document.addEventListener('webkitfullscreenchange', onChange);
   sync();
 })();
 </script>
