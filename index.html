@@ -363,6 +363,10 @@
 #tour-tip .tt-actions{ display:flex; align-items:center; gap:8px; }
 #tour-tip .tt-skip{ border:none; background:none; color:#8a9aab; font-size:12.5px; cursor:pointer; padding:6px 4px; font-family:inherit; }
 #tour-tip .tt-skip:hover{ color:#5c6f80; text-decoration:underline; }
+#tour-tip .tt-mute{ border:none; background:#f0f3f6; color:#4a5b6c; width:30px; height:30px; border-radius:50%;
+  font-size:14px; cursor:pointer; display:flex; align-items:center; justify-content:center; flex:0 0 auto; transition:background .15s; }
+#tour-tip .tt-mute:hover{ background:#e4e9ee; }
+#tour-tip .tt-mute.speaking{ background:#FDF1DC; color:#C98A2B; }
 #tour-tip .tt-spacer{ flex:1; }
 #tour-tip .tt-next{ border:none; background:#2E7DBE; color:#fff; font-weight:600; font-size:14px; border-radius:999px;
   padding:9px 18px; cursor:pointer; font-family:inherit; box-shadow:0 2px 8px rgba(46,125,190,.35); }
@@ -925,6 +929,7 @@ body.landing-active #shell-auth{ display:none; }
     <p id="tt-body"></p>
     <div class="tt-actions">
       <button type="button" class="tt-skip" id="tt-skip">Skip tour</button>
+      <button type="button" class="tt-mute" id="tt-mute" aria-label="Mute tour narration">🔊</button>
       <span class="tt-spacer"></span>
       <span class="tt-hint" id="tt-hint" style="display:none;"><span class="tt-finger">👆</span><span id="tt-hint-text">Tap the highlighted button</span></span>
       <button type="button" class="tt-next" id="tt-next">Next</button>
@@ -13999,6 +14004,40 @@ function navTo(page, pushHistory, navPayload, isInitialLoad){
 
   const stepAt = (i) => STEPS[i];
 
+  /* ---------------- Voiceover audio ----------------
+     Pre-generated mp3 narration, one file per step id, in AUDIO_BASE.
+     Files are made offline (see generate-tour-audio.js) — nothing is synthesised live. */
+  const AUDIO_BASE = 'assets/tour-audio/';
+  const tourAudio = new Audio();
+  tourAudio.preload = 'auto';
+  function isMuted(){ try{ return localStorage.getItem('chalkline:tour:muted') === '1'; }catch(e){ return false; } }
+  function updateMuteBtn(){
+    const b = $('tt-mute'); if(!b) return;
+    b.textContent = isMuted() ? '🔇' : '🔊';
+    b.setAttribute('aria-label', isMuted() ? 'Unmute tour narration' : 'Mute tour narration');
+  }
+  function stopAudio(){ try{ tourAudio.pause(); tourAudio.currentTime = 0; }catch(e){} $('tt-mute') && $('tt-mute').classList.remove('speaking'); }
+  function playStepAudio(step){
+    stopAudio();
+    if(isMuted() || !step || !step.id) return;
+    tourAudio.src = AUDIO_BASE + step.id + '.mp3';
+    const mb = $('tt-mute');
+    tourAudio.onended = () => { mb && mb.classList.remove('speaking'); };
+    tourAudio.onerror = () => { mb && mb.classList.remove('speaking'); }; // file missing -> fail silently, tour still works
+    const p = tourAudio.play();
+    if(p && p.then){
+      p.then(() => { mb && mb.classList.add('speaking'); })
+       .catch(() => { /* blocked pre-first-gesture; next() click will retry and typically succeed */ });
+    }
+  }
+  $('tt-mute') && $('tt-mute').addEventListener('click', () => {
+    const next = !isMuted();
+    try{ localStorage.setItem('chalkline:tour:muted', next ? '1' : '0'); }catch(e){}
+    updateMuteBtn();
+    if(next) stopAudio(); else { const st = state && stepAt(state.i); if(st) playStepAudio(st); }
+  });
+  updateMuteBtn();
+
   /* ---------------- Element resolving ---------------- */
   function frameDoc(k){ try{ return frames[k] && frames[k].contentDocument; }catch(e){ return null; } }
   function isVisible(el){
@@ -14107,6 +14146,7 @@ function navTo(page, pushHistory, navPayload, isInitialLoad){
     if(step.ensureCourseView){ prepareCourseView(); }
 
     setCopy(step, i);
+    playStepAudio(step);
 
     // Centred card (no target).
     if(!step.frame || !step.sel){
@@ -14195,6 +14235,7 @@ function navTo(page, pushHistory, navPayload, isInitialLoad){
   function hideOverlay(){
     root.classList.remove('on'); tip.classList.remove('show'); clearInterval(pollTimer); runToken++;
     currentEl = null; currentFrameKey = null;
+    stopAudio();
   }
 
   function finishTour(status){
