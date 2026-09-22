@@ -4589,21 +4589,13 @@ function measureLayoutInsets(){
 // padding on each side. (It used to be pinned 24px from the left, which pushed the right edge of
 // the writing outside the frame on phones.)
 //
-// Fit-to-width alone (the old behavior) only accounts for viewW. That's fine in portrait, where
-// the screen is naturally tall and width is always the tighter constraint. In landscape the
-// screen is wide but short, so a pure width-fit still picks a large scale — and since that same
-// scale applies vertically too, board content that would sit comfortably on a portrait screen
-// (e.g. a single axes chart) ends up tall enough in pixels to spill past the bottom of a short
-// landscape viewport, forcing a scroll just to see one diagram. Also capping by the available
-// *height* (using PAGE_W as the reference "how tall is a typical piece of content" — most board
-// diagrams are roughly as tall as they are wide) means whichever dimension is tighter wins, so
-// landscape scales content down enough to actually fit while portrait is unaffected.
-function fitScale(){
-  const widthScale = (viewW - 32) / PAGE_W;
-  const availH = viewH - PAGE_TOP_GUTTER_PX - PAGE_BOTTOM_GUTTER_PX;
-  const heightScale = availH / PAGE_W;
-  return Math.max(0.05, Math.min(1.5, Math.min(widthScale, heightScale)));
-}
+// Fit-to-width only: the page is sized off viewW alone, and is allowed to run taller than the
+// viewport (the camera scrolls through it) rather than being shrunk to squeeze inside the visible
+// height. A previous version also capped the scale by available height to keep a single diagram
+// from spilling off a short landscape screen, but that made the board feel too small/zoomed-out
+// there — bigger content that requires scrolling is preferred over a board that always fits but
+// looks tiny.
+function fitScale(){ return Math.max(0.05, Math.min(1.5, (viewW - 32) / PAGE_W)); }
 function idealCameraX(scale){ return PAGE_W / 2; }
 
 // Kick off loading the handwriting webfonts immediately at page load
@@ -4616,8 +4608,23 @@ function idealCameraX(scale){ return PAGE_W / 2; }
   document.fonts.load(f).catch(()=>{});
 });
 
-const PAGE_W = 1000;
-const PAGE_H = Math.round(PAGE_W * Math.SQRT2);
+const PAGE_W_PORTRAIT = 1000;
+const PAGE_W_LANDSCAPE = 1400; // wider "logical" page in landscape: fixed-size world-unit
+                                // text/diagrams then occupy a smaller fraction of the screen,
+                                // so more content fits — without changing the fit-to-width
+                                // camera scale itself. Portrait uses the normal, larger unit.
+let PAGE_W = PAGE_W_PORTRAIT;
+let PAGE_H = Math.round(PAGE_W * Math.SQRT2);
+// Called from resizeCanvas() (after viewW/viewH are current) so the page's logical width — and
+// therefore how large a fixed-world-unit letter/diagram renders on screen — automatically
+// switches between the portrait and landscape value whenever the device rotates.
+function updatePageWidthForOrientation(){
+  const target = (viewW > viewH) ? PAGE_W_LANDSCAPE : PAGE_W_PORTRAIT;
+  if(target !== PAGE_W){
+    PAGE_W = target;
+    PAGE_H = Math.round(PAGE_W * Math.SQRT2);
+  }
+}
 const RULE_LINE_SPACING = 40;
 
 // The multiplier that converts an author-specified "size" into the actual
@@ -4829,6 +4836,7 @@ function resizeCanvas(){
   const rect = boardWrap.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
   viewW = rect.width; viewH = rect.height;
+  updatePageWidthForOrientation();
 
   // Re-measure the actual on-screen top bar / bottom dock before doing
   // any camera math below — their heights change across the phone /
