@@ -12635,8 +12635,19 @@ function drawBackground(canvas, page, note){
 
 function redrawInk(canvas, page){
   const ctx = canvas.getContext('2d');
-  canvas.width = PAGE_W * RENDER_SCALE;
-  canvas.height = PAGE_H * RENDER_SCALE;
+  // Resizing a canvas's backing store — even by re-assigning the same
+  // width/height it already has — wipes it and is a comparatively costly
+  // operation. This function used to do that unconditionally on every
+  // call, including from the pointermove hot path while actively
+  // drawing, which added real overhead to every single stroke redraw for
+  // no benefit once the canvas is already the right size. Only resize
+  // when the size has actually changed (a fresh canvas, or a genuine
+  // page-dimension change).
+  const w = PAGE_W * RENDER_SCALE, h = PAGE_H * RENDER_SCALE;
+  if(canvas.width !== w || canvas.height !== h){
+    canvas.width = w;
+    canvas.height = h;
+  }
   ctx.setTransform(RENDER_SCALE,0,0,RENDER_SCALE,0,0);
   ctx.clearRect(0,0,PAGE_W,PAGE_H);
   ctx.lineCap = 'round';
@@ -12879,7 +12890,7 @@ function wirePageInput(pageWrap, ink, textLayer, page){
       scribbleErasing = (currentTool === 'eraser');
       const p = notePointFromEvent(ink, e);
       stroke = { color: penColor, size: penSize, points: [p] };
-      if(scribbleErasing){ eraseNear(page, p.x, p.y); redrawInk(ink, page); }
+      if(scribbleErasing){ if(eraseNear(page, p.x, p.y)) redrawInk(ink, page); }
       e.preventDefault();
       return;
     }
@@ -12903,28 +12914,42 @@ function wirePageInput(pageWrap, ink, textLayer, page){
     if(isStylusLike(e)){
       const p = notePointFromEvent(ink, e);
       if(currentTool === 'eraser' || scribbleErasing){
-        eraseNear(page, p.x, p.y);
-        redrawInk(ink, page);
+        // Only worth a full redraw when a stroke actually got erased —
+        // most of a drag across empty page hits nothing.
+        if(eraseNear(page, p.x, p.y)) redrawInk(ink, page);
       } else {
+        const prevPoint = stroke.points[stroke.points.length - 1];
         stroke.points.push(p);
         if(isScribbleMotion(stroke.points)){
           // Mid-stroke scribble detected: treat the rest of this
           // gesture as erasing rather than inking, and discard the
-          // ink drawn so far for this stroke.
+          // ink drawn so far for this stroke. A full redraw is the
+          // simplest correct way to wipe ink that was drawn live but
+          // never got committed to page.strokes — this path is rare,
+          // so its cost doesn't matter the way the plain-inking path
+          // below does.
           scribbleErasing = true;
           stroke = null;
           eraseNear(page, p.x, p.y);
-        }
-        redrawInk(ink, page);
-        if(stroke){
-          // live preview of the in-progress stroke
+          redrawInk(ink, page);
+        } else {
+          // Draw only the newest segment on top of what's already on
+          // the canvas, instead of clearing the page and re-stroking
+          // every committed stroke *plus* retracing this whole stroke
+          // from its first point — on every single pointermove. That
+          // full redraw is fine for a page with a little ink on it, but
+          // it gets slower as a note fills up, and re-tracing an
+          // in-progress stroke from scratch each move makes one long or
+          // fast stroke cost quadratically more work as it goes. On a
+          // real device that main-thread cost is exactly what shows up
+          // as dropped pointer events — visible skips in the ink.
           const ctx = ink.getContext('2d');
           ctx.setTransform(RENDER_SCALE,0,0,RENDER_SCALE,0,0);
           ctx.strokeStyle = stroke.color; ctx.lineWidth = stroke.size;
           ctx.lineCap='round'; ctx.lineJoin='round';
           ctx.beginPath();
-          ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
-          for(let i=1;i<stroke.points.length;i++) ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
+          ctx.moveTo(prevPoint.x, prevPoint.y);
+          ctx.lineTo(p.x, p.y);
           ctx.stroke();
         }
       }
