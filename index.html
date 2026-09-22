@@ -12519,6 +12519,21 @@ function createNote(){
 function currentNote(){ return notesCache.find(n=>n.id===currentNoteId); }
 
 async function persistCurrentNote(){
+  // The save is debounced off the *end* of a stroke (see scheduleSave,
+  // called from finishStroke), but with normal handwriting the next
+  // stroke often starts again within that debounce window — so the timer
+  // can still come due while a new stroke is actively being drawn. Doing
+  // the real work here (JSON.stringify of the whole note, then the
+  // storage write) runs on the main thread, and running it exactly then
+  // stalls that in-progress stroke long enough that pointermove events
+  // get coalesced or dropped, which is what shows up as a skip/jump in
+  // the ink. So if the pen is still down when this fires, just check
+  // again shortly instead of forcing the save into the middle of a
+  // stroke — nothing is lost, it simply lands in the next natural gap.
+  if(activePenPointerId !== null){
+    saveTimer = setTimeout(persistCurrentNote, 120);
+    return;
+  }
   const note = currentNote();
   if(!note) return;
   note.title = document.getElementById('notes-title-input').value;
