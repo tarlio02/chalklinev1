@@ -12531,7 +12531,11 @@ async function persistCurrentNote(){
   // again shortly instead of forcing the save into the middle of a
   // stroke — nothing is lost, it simply lands in the next natural gap.
   if(activePenPointerId !== null){
-    saveTimer = setTimeout(persistCurrentNote, 120);
+    if(window.requestIdleCallback){
+      requestIdleCallback(persistCurrentNote, { timeout: 1200 });
+    } else {
+      saveTimer = setTimeout(persistCurrentNote, 120);
+    }
     return;
   }
   const note = currentNote();
@@ -12551,7 +12555,25 @@ async function persistCurrentNote(){
 function scheduleSave(){
   document.getElementById('notes-status').textContent = 'Saving…';
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(persistCurrentNote, 500);
+  saveTimer = setTimeout(()=>{
+    // Hand the real work off to the browser's own idle scheduler rather
+    // than just running it the instant this timer elapses. A plain
+    // setTimeout fires on a wall-clock schedule with no regard for what
+    // else the browser is doing right then; requestIdleCallback only
+    // runs once the browser has genuinely finished higher-priority work
+    // like handling the next pointer event and painting the current
+    // frame, so the save can no longer land squarely on top of the start
+    // of a new stroke the way it could before. The activePenPointerId
+    // check inside persistCurrentNote stays as a fallback, both for
+    // browsers without requestIdleCallback and because an idle callback
+    // given a timeout can still be forced to run under deadline pressure
+    // even if the browser isn't fully idle yet.
+    if(window.requestIdleCallback){
+      requestIdleCallback(persistCurrentNote, { timeout: 1200 });
+    } else {
+      persistCurrentNote();
+    }
+  }, 500);
 }
 
 async function deleteNote(id){
