@@ -12691,7 +12691,16 @@ function renderAllPages(note){
   const container = document.getElementById('ne-pages-container');
   container.innerHTML = '';
   note.pages.forEach((page, idx)=> container.appendChild(buildPageEl(note, page, idx)));
+  // Size immediately so the page never flashes at its unstyled native
+  // size, then re-measure for a moment afterward: opening a note is
+  // usually the very first thing that happens on this page, and at that
+  // instant the webfonts (which change how the toolbar wraps, and so how
+  // much height #ne-body actually has) and the safe-area insets haven't
+  // always finished resolving yet. Without the follow-up pass, a note can
+  // open pinned to that too-small first measurement — small page, big
+  // empty margins — instead of the full space it actually has.
   sizePages();
+  sizePagesWhenStable(600);
 }
 
 // Fits every page to the available room in #ne-body — using BOTH its width
@@ -12752,6 +12761,10 @@ if (screen.orientation && screen.orientation.addEventListener) {
 if (window.visualViewport) {
   window.visualViewport.addEventListener('resize', () => sizePagesWhenStable(1000));
 }
+// Belt-and-suspenders for the same "opened before layout finished
+// settling" case: if a note happened to render before the window's
+// load event (webfonts, etc.), re-measure once everything has finished.
+window.addEventListener('load', () => sizePagesWhenStable(1000));
 
 function buildPageEl(note, page, idx){
   const wrap = document.createElement('div');
