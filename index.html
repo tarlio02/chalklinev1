@@ -11042,6 +11042,11 @@ window.addEventListener('message', (e)=>{
   else return;
   applyScopeTH();
   refreshTutorHistory();
+  // Tell the shell which course (if any) this page is scoped to, so a
+  // real browser refresh — which re-creates this iframe from scratch and
+  // would otherwise land back on the unscoped "everything" view — can
+  // restore the same course filter instead of silently dropping it.
+  try{ parent.postMessage({ chalklineHistoryFilter:true, page:'tutor-history', subject: historySubjectTH || null }, '*'); }catch(e){}
 });
 
 let thUser = null;
@@ -11643,6 +11648,11 @@ window.addEventListener('message', (e)=>{
   else return;
   applyScopeSH();
   refreshSummaryHistory();
+  // Tell the shell which course (if any) this page is scoped to, so a
+  // real browser refresh — which re-creates this iframe from scratch and
+  // would otherwise land back on the unscoped "everything" view — can
+  // restore the same course filter instead of silently dropping it.
+  try{ parent.postMessage({ chalklineHistoryFilter:true, page:'summary-history', subject: historySubjectSH || null }, '*'); }catch(e){}
 });
 
 let shUser = null;
@@ -12164,6 +12174,11 @@ window.addEventListener('message', (e)=>{
   else return;
   applyScopeQH();
   refreshQuizHistory();
+  // Tell the shell which course (if any) this page is scoped to, so a
+  // real browser refresh — which re-creates this iframe from scratch and
+  // would otherwise land back on the unscoped "everything" view — can
+  // restore the same course filter instead of silently dropping it.
+  try{ parent.postMessage({ chalklineHistoryFilter:true, page:'quiz-history', subject: historySubjectQH || null }, '*'); }catch(e){}
 });
 
 let qhUser = null;
@@ -14728,6 +14743,33 @@ function readActiveShell(page, sub){
   return null;
 }
 
+// Same idea, but for the three "Previous ..." history pages (tutor-history,
+// summary-history, quiz-history). Each one is course-scoped only via a
+// presetSubject postMessage sent at the moment you navigate in from a course
+// card — nothing an iframe writes to its own storage survives the fresh
+// srcdoc reparse a real browser refresh causes. Without this, refreshing
+// while looking at one course's history silently fell back to "show
+// everything" (every course's tutorials/summaries/quizzes at once), even
+// though HISTORY_PAGES below correctly treats a *normal, in-app* arrival
+// with no payload as "show everything" on purpose.
+const HISTORY_FILTER_KEY_PREFIX = 'chalkline_history_filter_';
+function rememberHistoryFilter(page, sub, subject){
+  if(!sub) return;
+  try{
+    if(subject) localStorage.setItem(HISTORY_FILTER_KEY_PREFIX + page, JSON.stringify({ sub, subject }));
+    else localStorage.removeItem(HISTORY_FILTER_KEY_PREFIX + page);
+  } catch(e){ /* best-effort only */ }
+}
+function readHistoryFilter(page, sub){
+  try{
+    const raw = localStorage.getItem(HISTORY_FILTER_KEY_PREFIX + page);
+    if(!raw) return null;
+    const parsed = JSON.parse(raw);
+    if(parsed && parsed.sub === sub) return parsed.subject;
+  } catch(e){}
+  return null;
+}
+
 window.addEventListener('message', (e)=>{
   const d = e.data;
   if(d && d.chalklineDashboard){
@@ -14756,6 +14798,9 @@ window.addEventListener('message', (e)=>{
     if(d.cleared) forgetActiveShell(page);
     else rememberActiveShell(page, d.sub, d.id);
   }
+  if(d && d.chalklineHistoryFilter && shellUser){
+    rememberHistoryFilter(d.page, shellUser.sub, d.subject || null);
+  }
 });
 
 window.addEventListener('popstate', (e)=>{
@@ -14773,6 +14818,9 @@ let initialPayload = null;
 if((initial === 'tutor' || initial === 'summary') && shellUser){
   const rememberedId = readActiveShell(initial, shellUser.sub);
   if(rememberedId) initialPayload = { loadSessionId: rememberedId };
+} else if(HISTORY_PAGES[initial] && shellUser){
+  const rememberedSubject = readHistoryFilter(initial, shellUser.sub);
+  if(rememberedSubject) initialPayload = { presetSubject: rememberedSubject };
 }
 navTo(initial, false, initialPayload, true);
 setTimeout(()=>{ try{ window.ChalklineTour && window.ChalklineTour.resume(); }catch(e){} }, 900);
