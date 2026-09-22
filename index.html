@@ -2272,6 +2272,93 @@ body{
 .dash-feature h4{ font-size:14.5px; font-weight:600; color:var(--ink); margin:0 0 6px; font-family:'Fraunces','Source Serif 4',Georgia,serif; }
 .dash-feature p{ font-size:12.5px; line-height:1.5; color:rgba(42,36,16,0.6); margin:0; }
 
+/* ---------- Course activity calendar ---------- */
+.course-calendar-wrap{
+  margin-top:38px; position:relative; border-radius:24px; padding:26px 26px 22px;
+  background:linear-gradient(160deg, #FFFFFF 0%, #FFF7E0 100%);
+  border:1px solid rgba(0,0,0,0.05);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.7) inset,
+    0 -18px 30px -18px rgba(120,90,20,0.08) inset,
+    0 22px 34px -18px rgba(120,90,20,0.16);
+  overflow:hidden;
+}
+.course-calendar-wrap::before{
+  content:''; position:absolute; inset:0; border-radius:24px; padding:1.5px;
+  background:linear-gradient(135deg, var(--ochre), var(--gold-deep) 55%, transparent 100%);
+  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor; mask-composite:exclude;
+  opacity:0.5; pointer-events:none;
+}
+.course-calendar-wrap::after{
+  content:''; position:absolute; top:-30%; right:-10%; width:55%; height:120%;
+  background:radial-gradient(circle, var(--gold-deep) 0%, transparent 70%);
+  opacity:0.10; filter:blur(10px); pointer-events:none;
+}
+.cc-head{ display:flex; align-items:center; justify-content:space-between; gap:14px; position:relative; z-index:1; margin-bottom:16px; }
+.cc-head-left{ display:flex; align-items:center; gap:12px; }
+.cc-head-icon{
+  width:42px; height:42px; border-radius:13px; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; font-size:20px;
+  background:linear-gradient(140deg, var(--ochre), var(--gold-deep));
+  box-shadow:0 6px 14px -6px rgba(120,90,20,0.30), 0 1px 0 rgba(255,255,255,0.35) inset, 0 0 0 4px rgba(255,255,255,0.55);
+}
+.cc-head-left h3{ font-family:'Fraunces','Source Serif 4',Georgia,serif; font-size:17px; font-weight:600; color:var(--ink); margin:0 0 2px; }
+.cc-head-left p{ font-size:12px; color:rgba(42,36,16,0.55); margin:0; }
+.cc-nav{ display:flex; align-items:center; gap:6px; }
+.cc-nav button{
+  border:1px solid rgba(0,0,0,0.06); background:rgba(255,255,255,0.75); color:var(--ink);
+  border-radius:10px; cursor:pointer; font-family:inherit; font-size:13px;
+  padding:7px 10px; line-height:1; transition:transform .15s ease, background .15s ease, box-shadow .15s ease;
+  box-shadow:0 1px 0 rgba(255,255,255,0.6) inset;
+}
+.cc-nav button:hover{ background:#fff; transform:translateY(-1px); box-shadow:0 4px 10px -4px rgba(120,90,20,0.24); }
+.cc-nav button:active{ transform:translateY(0) scale(0.96); }
+.cc-nav #cc-today{ font-family:'JetBrains Mono', monospace; font-size:10.5px; font-weight:600; letter-spacing:0.3px; text-transform:uppercase; color:var(--gold-deep); }
+.cc-weekdays{
+  display:grid; grid-template-columns:repeat(7,1fr); gap:6px; position:relative; z-index:1;
+  font-family:'JetBrains Mono', monospace; font-size:10px; font-weight:600; letter-spacing:0.4px;
+  color:rgba(42,36,16,0.45); text-align:center; margin-bottom:6px; text-transform:uppercase;
+}
+.cc-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:6px; position:relative; z-index:1; }
+.cc-day{
+  aspect-ratio:1; border-radius:11px; position:relative; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; font-size:12px; color:rgba(42,36,16,0.35);
+  background:rgba(255,255,255,0.4); border:1px solid rgba(0,0,0,0.04);
+  transition:transform .15s ease, box-shadow .15s ease;
+}
+.cc-day.other-month{ opacity:0; pointer-events:none; }
+.cc-day.has-activity{
+  color:var(--ink); font-weight:600; background:rgba(255,255,255,0.85);
+  box-shadow:0 4px 10px -6px rgba(120,90,20,0.30), 0 0 0 1px rgba(120,90,20,0.10);
+  cursor:default;
+}
+.cc-day.has-activity:hover{ transform:translateY(-2px) scale(1.06); box-shadow:0 8px 16px -8px rgba(120,90,20,0.36), 0 0 0 1px rgba(120,90,20,0.16); z-index:2; }
+.cc-day.is-today{ box-shadow:0 0 0 2px var(--gold-deep), 0 4px 10px -6px rgba(120,90,20,0.30); }
+.cc-day .cc-dots-row{ display:flex; gap:2px; margin-top:2px; }
+.cc-day .cc-dot{ width:5px; height:5px; border-radius:50%; background:var(--d); display:inline-block; }
+.cc-day .cc-count{
+  position:absolute; top:-4px; right:-4px; min-width:15px; height:15px; padding:0 3px;
+  border-radius:999px; background:linear-gradient(140deg, var(--ochre), var(--gold-deep)); color:#fff;
+  font-size:9px; font-weight:700; display:flex; align-items:center; justify-content:center;
+  box-shadow:0 2px 6px -2px rgba(120,90,20,0.4), 0 0 0 2px #FFF7E0;
+}
+.cc-legend{
+  display:flex; flex-wrap:wrap; gap:14px; margin-top:16px; padding-top:14px;
+  border-top:1px dashed rgba(0,0,0,0.08); position:relative; z-index:1;
+}
+.cc-legend span{ display:inline-flex; align-items:center; gap:6px; font-size:11.5px; color:rgba(42,36,16,0.6); }
+.cc-legend .cc-dot{ width:7px; height:7px; border-radius:50%; background:var(--d); display:inline-block; }
+.cc-widgets{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:16px; position:relative; z-index:1; }
+@media (max-width:680px){ .cc-widgets{ grid-template-columns:1fr 1fr; } }
+.cc-widget{
+  border-radius:14px; padding:12px 12px 11px; text-align:center;
+  background:rgba(255,255,255,0.75); border:1px solid rgba(0,0,0,0.06);
+  box-shadow:0 6px 14px -10px rgba(120,90,20,0.20);
+}
+.cc-widget .cc-w-num{ font-family:'Fraunces','Source Serif 4',Georgia,serif; font-size:22px; font-weight:600; color:var(--w-color,var(--ochre)); line-height:1; }
+.cc-widget .cc-w-label{ font-size:10.5px; color:rgba(42,36,16,0.55); margin-top:4px; }
+
 /* ---------- Add-course modal (same visual language as the tutor
    page's subject-name modal, duplicated here since this page is a
    separate srcdoc document and can't share the tutor page's styles) --- */
@@ -2595,6 +2682,33 @@ html,body{ height:100%; overflow:hidden; }
       <p id="course-detail-sub" style="font-size:14.5px;color:rgba(42,36,16,0.6);margin:-18px 0 30px 52px;"></p>
 
       <div class="dash-grid" id="course-action-grid" style="max-width:780px;"></div>
+
+      <!-- ---------- Course activity calendar ---------- -->
+      <div class="course-calendar-wrap fade-up" style="max-width:780px;">
+        <div class="cc-head">
+          <div class="cc-head-left">
+            <span class="cc-head-icon">🗓️</span>
+            <div>
+              <h3 id="cc-month-label">Month Year</h3>
+              <p>Days you showed up for this course</p>
+            </div>
+          </div>
+          <div class="cc-nav">
+            <button type="button" id="cc-prev" title="Previous month" aria-label="Previous month">‹</button>
+            <button type="button" id="cc-today">Today</button>
+            <button type="button" id="cc-next" title="Next month" aria-label="Next month">›</button>
+          </div>
+        </div>
+        <div class="cc-weekdays"><span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span></div>
+        <div class="cc-grid" id="cc-grid"></div>
+        <div class="cc-legend">
+          <span><i class="cc-dot" style="--d:var(--ochre)"></i>Lesson</span>
+          <span><i class="cc-dot" style="--d:var(--sage)"></i>Quiz</span>
+          <span><i class="cc-dot" style="--d:var(--gold-deep)"></i>Summary</span>
+          <span><i class="cc-dot" style="--d:var(--brick)"></i>Note</span>
+        </div>
+        <div class="cc-widgets" id="cc-widgets"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -2951,8 +3065,126 @@ html,body{ height:100%; overflow:hidden; }
 
     dashListView.style.display = 'none';
     dashCourseView.style.display = 'block';
+    loadCourseCalendar(name);
   }
   window.openCourseDetail = openCourseDetail;
+
+  /* ---------------- Course activity calendar ----------------
+     Walks every session/quiz/summary/notes record belonging to this
+     course's subject and buckets them by calendar day, then renders
+     a decorated month grid (colored dots + count badge per active
+     day) plus a row of small stat widgets underneath. */
+  let ccActivity = {};        // 'YYYY-M-D' -> {lessons,quizzes,summaries,notes}
+  let ccViewDate = new Date(); // month currently shown
+
+  function ccDateKey(d){ return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate(); }
+  function ccAdd(ts, field){
+    const d = new Date(ts);
+    const key = ccDateKey(d);
+    if(!ccActivity[key]) ccActivity[key] = { lessons:0, quizzes:0, summaries:0, notes:0 };
+    ccActivity[key][field]++;
+  }
+  function ccWord(n, singular, plural){ return n + ' ' + (n===1 ? singular : plural); }
+
+  async function loadCourseCalendar(name){
+    ccActivity = {};
+    ccViewDate = new Date();
+    const grid = document.getElementById('cc-grid');
+    if(grid) grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;font-size:12.5px;color:rgba(42,36,16,0.5);">Loading…</div>';
+    if(!homeShellUser){ renderCourseCalendar(); renderCourseWidgets(); return; }
+    const sub = homeShellUser.sub;
+    const sources = [
+      { prefix:'session:'+sub+':', field:'lessons' },
+      { prefix:'quiz:'+sub+':', field:'quizzes' },
+      { prefix:'summary:'+sub+':', field:'summaries' },
+      { prefix:'notes:'+sub+':', field:'notes' }
+    ];
+    for(const src of sources){
+      try{
+        const listResult = await window.storage.list(src.prefix, false);
+        for(const key of (listResult.keys || [])){
+          try{
+            const rec = await window.storage.get(key, false);
+            if(!rec) continue;
+            const item = JSON.parse(rec.value);
+            if((item.subject || 'Unsorted') !== name) continue;
+            const ts = item.savedAt;
+            if(!ts) continue;
+            ccAdd(ts, src.field);
+          } catch(e){ /* skip corrupt entry */ }
+        }
+      } catch(e){ console.error('Loading calendar data failed:', e); }
+    }
+    if(openCourseName === name){
+      renderCourseCalendar();
+      renderCourseWidgets();
+    }
+  }
+
+  function renderCourseCalendar(){
+    const grid = document.getElementById('cc-grid');
+    const label = document.getElementById('cc-month-label');
+    if(!grid || !label) return;
+    label.textContent = ccViewDate.toLocaleDateString(undefined, { month:'long', year:'numeric' });
+    const year = ccViewDate.getFullYear(), month = ccViewDate.getMonth();
+    const startWeekday = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month+1, 0).getDate();
+    const today = new Date();
+    const todayKey = ccDateKey(today);
+    let html = '';
+    for(let i=0;i<startWeekday;i++){ html += '<div class="cc-day other-month"></div>'; }
+    for(let day=1; day<=daysInMonth; day++){
+      const key = ccDateKey(new Date(year, month, day));
+      const act = ccActivity[key];
+      const isToday = key === todayKey;
+      let cls = 'cc-day' + (act ? ' has-activity' : '') + (isToday ? ' is-today' : '');
+      let dots = '', countBadge = '', titleAttr = '';
+      if(act){
+        const total = act.lessons + act.quizzes + act.summaries + act.notes;
+        if(act.lessons) dots += '<i class="cc-dot" style="--d:var(--ochre)"></i>';
+        if(act.quizzes) dots += '<i class="cc-dot" style="--d:var(--sage)"></i>';
+        if(act.summaries) dots += '<i class="cc-dot" style="--d:var(--gold-deep)"></i>';
+        if(act.notes) dots += '<i class="cc-dot" style="--d:var(--brick)"></i>';
+        if(total>1) countBadge = `<span class="cc-count">${total}</span>`;
+        const parts = [];
+        if(act.lessons) parts.push(ccWord(act.lessons,'lesson','lessons'));
+        if(act.quizzes) parts.push(ccWord(act.quizzes,'quiz','quizzes'));
+        if(act.summaries) parts.push(ccWord(act.summaries,'summary','summaries'));
+        if(act.notes) parts.push(ccWord(act.notes,'note','notes'));
+        titleAttr = ` title="${parts.join(', ')}"`;
+      }
+      html += `<div class="${cls}"${titleAttr}><span>${day}</span><span class="cc-dots-row">${dots}</span>${countBadge}</div>`;
+    }
+    grid.innerHTML = html;
+  }
+
+  function renderCourseWidgets(){
+    const wrap = document.getElementById('cc-widgets');
+    if(!wrap) return;
+    const keys = Object.keys(ccActivity);
+    const year = ccViewDate.getFullYear(), month = ccViewDate.getMonth();
+    let monthLessons=0, monthQuizzes=0;
+    keys.forEach(k=>{
+      const parts = k.split('-').map(Number);
+      if(parts[0]===year && (parts[1]-1)===month){
+        monthLessons += ccActivity[k].lessons;
+        monthQuizzes += ccActivity[k].quizzes;
+      }
+    });
+    let streak = 0;
+    let cursor = new Date();
+    if(!ccActivity[ccDateKey(cursor)]) cursor.setDate(cursor.getDate()-1);
+    while(ccActivity[ccDateKey(cursor)]){ streak++; cursor.setDate(cursor.getDate()-1); }
+    wrap.innerHTML = `
+      <div class="cc-widget"><div class="cc-w-num" style="--w-color:var(--ochre);">${monthLessons}</div><div class="cc-w-label">Lessons this month</div></div>
+      <div class="cc-widget"><div class="cc-w-num" style="--w-color:var(--sage);">${monthQuizzes}</div><div class="cc-w-label">Quizzes this month</div></div>
+      <div class="cc-widget"><div class="cc-w-num" style="--w-color:var(--gold-deep);">${streak}</div><div class="cc-w-label">Day streak</div></div>
+      <div class="cc-widget"><div class="cc-w-num" style="--w-color:var(--brick);">${keys.length}</div><div class="cc-w-label">Active days total</div></div>
+    `;
+  }
+  document.getElementById('cc-prev').addEventListener('click', ()=>{ ccViewDate.setMonth(ccViewDate.getMonth()-1); renderCourseCalendar(); });
+  document.getElementById('cc-next').addEventListener('click', ()=>{ ccViewDate.setMonth(ccViewDate.getMonth()+1); renderCourseCalendar(); });
+  document.getElementById('cc-today').addEventListener('click', ()=>{ ccViewDate = new Date(); renderCourseCalendar(); });
 
   function startCourseAction(page){
     parent.postMessage({ nav: page, presetSubject: openCourseName }, '*');
