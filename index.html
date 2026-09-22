@@ -2320,6 +2320,40 @@ body{
 }
 .subject-modal .sm-go:hover{ background:#0f1c2c; }
 .course-action-card p{ max-width:none !important; }
+/* ---------- extra decoration for the course action buttons
+   (Live tutor / Quizzes / Summaries / Notes) — top accent ribbon,
+   a halo ring behind the icon, a corner dot pattern, and a
+   circular "go" arrow that slides in on hover ---------- */
+.course-action-card{ padding-top:26px; }
+.course-action-card::before{ padding:2px; opacity:0.85; }
+.course-action-card .card-top-bar{
+  position:absolute; top:0; left:18px; right:18px; height:4px; border-radius:0 0 4px 4px;
+  background:linear-gradient(90deg, var(--card-a), var(--card-b));
+  box-shadow:0 1px 0 rgba(255,255,255,0.4) inset;
+}
+.course-action-card .card-dots{
+  position:absolute; top:16px; right:16px; width:44px; height:44px; pointer-events:none;
+  background-image:radial-gradient(var(--card-b) 1.4px, transparent 1.4px);
+  background-size:8px 8px; opacity:0.16;
+}
+.course-action-card .icon-badge{
+  box-shadow:
+    0 0 0 4px rgba(255,255,255,0.55),
+    0 0 0 5px var(--card-a),
+    0 6px 14px -6px rgba(120,90,20,0.30),
+    0 1px 0 rgba(255,255,255,0.35) inset;
+}
+.course-action-card .card-go{
+  position:absolute; right:18px; bottom:18px; width:32px; height:32px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center; z-index:1;
+  background:linear-gradient(140deg, var(--card-a), var(--card-b));
+  color:#fff; font-size:15px; line-height:1;
+  box-shadow:0 6px 14px -6px rgba(120,90,20,0.34), 0 1px 0 rgba(255,255,255,0.35) inset;
+  opacity:0; transform:translate(6px,6px) scale(0.85);
+  transition:opacity .2s ease, transform .22s cubic-bezier(.2,.8,.3,1.1);
+}
+.course-action-card:hover .card-go{ opacity:1; transform:translate(0,0) scale(1); }
+.course-action-card:hover .card-dots{ opacity:0.28; }
 
 /* ---------- Course info button + info/delete modal ---------- */
 .course-info-btn{
@@ -2332,7 +2366,8 @@ body{
   font-size:15px; line-height:1; color:var(--gold-deep);
   transition:transform .15s ease, background .15s ease, box-shadow .15s ease;
 }
-.course-info-btn:hover{ background:#fff; transform:scale(1.1); box-shadow:0 4px 12px rgba(120,90,20,0.26), 0 0 0 1px rgba(120,90,20,0.16); }
+.course-info-btn{ box-shadow:0 2px 8px rgba(120,90,20,0.18), 0 0 0 1px rgba(120,90,20,0.10), 0 0 0 3px rgba(255,255,255,0.55); }
+.course-info-btn:hover{ background:#fff; transform:scale(1.1); box-shadow:0 4px 12px rgba(120,90,20,0.26), 0 0 0 1px rgba(120,90,20,0.16), 0 0 0 3px rgba(255,255,255,0.7); }
 .course-info-btn:active{ transform:scale(0.94); }
 .course-info-btn:focus-visible{ outline:2px solid var(--ochre); outline-offset:2px; }
 
@@ -2857,24 +2892,32 @@ html,body{ height:100%; overflow:hidden; }
     const encName = escapeHtmlHome(name);
     actionGrid.innerHTML = `
       <div class="dash-card course-action-card fade-up" style="--card-a:var(--ochre);--card-b:var(--gold-deep);" onclick="startCourseAction('tutor-history');">
+        <span class="card-top-bar"></span><span class="card-dots"></span>
         <span class="icon-badge">🎓</span>
         <h2>Live tutor</h2>
         <p>Your previous lessons for ${encName}, or start a new one.</p>
+        <span class="card-go">→</span>
       </div>
       <div class="dash-card course-action-card fade-up" style="animation-delay:.06s;--card-a:var(--sage);--card-b:var(--emerald);" onclick="startCourseAction('quiz-history');">
+        <span class="card-top-bar"></span><span class="card-dots"></span>
         <span class="icon-badge">🧠</span>
         <h2>Quizzes</h2>
         <p>Your previous quizzes for ${encName}, or start a new one.</p>
+        <span class="card-go">→</span>
       </div>
       <div class="dash-card course-action-card fade-up" style="animation-delay:.12s;--card-a:var(--gold-deep);--card-b:var(--gold);" onclick="startCourseAction('summary-history');">
+        <span class="card-top-bar"></span><span class="card-dots"></span>
         <span class="icon-badge">📄</span>
         <h2>Summaries</h2>
         <p>Your previous summaries for ${encName}, or summarize a new PDF.</p>
+        <span class="card-go">→</span>
       </div>
       <div class="dash-card course-action-card fade-up" style="animation-delay:.18s;--card-a:var(--brick);--card-b:var(--gold-deep);" onclick="startCourseAction('notes');">
+        <span class="card-top-bar"></span><span class="card-dots"></span>
         <span class="icon-badge">🗒️</span>
         <h2>Notes</h2>
         <p>Open notes saved under ${encName}.</p>
+        <span class="card-go">→</span>
       </div>`;
 
     dashListView.style.display = 'none';
