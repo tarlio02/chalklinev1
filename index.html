@@ -11924,8 +11924,14 @@ body{
 .notes-list-pane{
   width:280px; flex-shrink:0; height:100vh; height:100dvh;
   background:var(--list-bg); border-right:1px solid var(--border);
-  display:flex; flex-direction:column;
+  display:flex; flex-direction:column; overflow:hidden;
+  transition:width .32s cubic-bezier(.22,.9,.32,1.1), border-color .32s ease;
 }
+/* Collapsed: same trick as the dashboard sidebar — the pane's own width
+   goes to 0 (clipping its fixed-width contents via overflow:hidden above)
+   so the editor pane, right next to it in the flex row, immediately
+   reflows to fill the freed space and the page gets more room to write. */
+.notes-shell.list-collapsed .notes-list-pane{ width:0; border-right-color:transparent; }
 .nl-topbar{
   display:flex; align-items:center; gap:8px;
   padding:calc(14px + var(--safe-top)) 14px 10px calc(14px + var(--safe-left));
@@ -11937,6 +11943,22 @@ body{
 }
 .nl-back:hover{ background:rgba(0,0,0,0.1); }
 .nl-title{ font-family:'Fraunces','Source Serif 4',serif; font-weight:700; font-size:19px; }
+
+/* Sidebar collapse toggle: lives in the editor topbar (not the pane
+   itself) so it stays put and clickable whether the list is open or
+   collapsed, same idea as the dashboard's sidebar-toggle. */
+.ne-sidebar-toggle{
+  border:none; background:rgba(0,0,0,0.05); color:var(--ink);
+  width:30px; height:30px; border-radius:8px; cursor:pointer; font-size:14px;
+  display:flex; align-items:center; justify-content:center; flex-shrink:0;
+}
+.ne-sidebar-toggle:hover{ background:rgba(0,0,0,0.1); }
+@media (max-width:760px){
+  /* Mobile already shows the list and editor as separate full-screen
+     panes toggled by .editing / the back button, so this extra desktop
+     collapse control would be redundant there. */
+  .ne-sidebar-toggle{ display:none; }
+}
 
 .nl-search{
   margin:0 14px 10px; position:relative;
@@ -12044,7 +12066,8 @@ body{
 .note-page canvas{ position:absolute; top:0; left:0; width:100%; height:100%; display:block; }
 .note-page .np-bg{ z-index:1; }
 .note-page .np-ink{ z-index:2; touch-action:none; }
-.note-page .np-text-layer{ position:absolute; inset:0; z-index:3; }
+.note-page .np-text-layer{ position:absolute; inset:0; z-index:3; pointer-events:none; }
+.note-page .np-text-layer > *{ pointer-events:auto; }
 .note-page .np-page-tools{
   position:absolute; top:6px; right:6px; z-index:4; display:none; gap:4px;
 }
@@ -12122,6 +12145,7 @@ body{
     <div id="notes-editor" style="display:none; flex-direction:column; height:100%;">
       <div class="ne-topbar">
         <div class="ne-topbar-left">
+          <button type="button" class="ne-sidebar-toggle" id="notes-sidebar-toggle" title="Toggle note list" aria-label="Toggle note list">☰</button>
           <input type="text" id="notes-title-input" class="ne-title-input" placeholder="Title">
         </div>
         <span class="ne-status" id="notes-status">Saved</span>
@@ -12239,6 +12263,15 @@ window.addEventListener('message', (e)=>{
   if(d && d.presetSubject){
     currentNotesSubject = d.presetSubject;
     document.getElementById('nl-title').textContent = d.presetSubject;
+    // The course scope and the sign-in status arrive as two separate
+    // messages, in no guaranteed order. refreshNotesList() (triggered
+    // below once sign-in is known) re-renders using whatever
+    // currentNotesSubject is set at that moment — so if this message
+    // lands AFTER that render already ran, the list would be left
+    // showing every note, unscoped, until something else happened to
+    // re-render it. Re-render right here too so the course filter
+    // always takes effect as soon as it's known, regardless of order.
+    renderNotesList();
   }
   if(!d || !d.chalklineAuth) return;
   notesShellUser = d.signedIn ? d.user : null;
@@ -12445,6 +12478,12 @@ async function deleteNote(id){
 }
 
 document.getElementById('notes-new-btn').addEventListener('click', createNote);
+
+// Collapsible note list, mirroring the dashboard sidebar: frees up width
+// for the page itself when the person just wants room to write.
+document.getElementById('notes-sidebar-toggle').addEventListener('click', ()=>{
+  document.getElementById('notes-shell').classList.toggle('list-collapsed');
+});
 document.getElementById('notes-title-input').addEventListener('input', scheduleSave);
 document.getElementById('notes-search').addEventListener('input', renderNotesList);
 document.getElementById('notes-delete-btn').addEventListener('click', ()=>{
