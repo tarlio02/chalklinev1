@@ -12171,6 +12171,7 @@ body{
         <div class="ne-tool-group">
           <button type="button" class="ne-tool-btn active" id="tool-pen" title="Pen">✏️ Pen</button>
           <button type="button" class="ne-tool-btn" id="tool-eraser" title="Eraser">🧽 Eraser</button>
+          <button type="button" class="ne-tool-btn" id="tool-text" title="Add text box">🔤 Text</button>
         </div>
         <div class="ne-tool-sep"></div>
         <div class="ne-tool-group ne-color-row" id="ne-color-row">
@@ -12735,7 +12736,8 @@ function wirePageInput(pageWrap, ink, textLayer, page){
       return;
     }
 
-    // touch (finger)
+    // touch (finger): scrolling only — see the pointermove/finishStroke
+    // touch branches below for why nothing else happens on a bare finger.
     if(activePenPointerId !== null){ e.preventDefault(); return; } // palm during pencil use
     ink.setPointerCapture(e.pointerId);
     touchStartPoint = notePointFromEvent(ink, e);
@@ -12743,8 +12745,6 @@ function wirePageInput(pageWrap, ink, textLayer, page){
     touchScrollStartY = e.clientY;
     touchScrollStartTop = scrollParent.scrollTop;
     drawing = true;
-    scribbleErasing = false;
-    stroke = { color: penColor, size: penSize, points: [touchStartPoint] };
     e.preventDefault();
   });
 
@@ -12784,19 +12784,13 @@ function wirePageInput(pageWrap, ink, textLayer, page){
       return;
     }
 
-    // touch (finger): scroll the page, or scribble-erase if the motion
-    // looks like a small scrub rather than a swipe.
+    // touch (finger): scrolling only. A bare finger never draws, erases,
+    // or places anything — the hand is purely for moving the page around;
+    // only the pencil (or a mouse, for testing on a laptop) marks the page.
     if(activePenPointerId !== null){ e.preventDefault(); return; }
-    const p = notePointFromEvent(ink, e);
-    stroke.points.push(p);
-    touchMoved = touchMoved || Math.hypot(p.x-touchStartPoint.x, p.y-touchStartPoint.y) > 6;
-    if(isScribbleMotion(stroke.points)){
-      eraseNear(page, p.x, p.y);
-      redrawInk(ink, page);
-    } else if(touchMoved){
-      const dy = e.clientY - touchScrollStartY;
-      scrollParent.scrollTop = touchScrollStartTop - dy;
-    }
+    const dy = e.clientY - touchScrollStartY;
+    scrollParent.scrollTop = touchScrollStartTop - dy;
+    touchMoved = touchMoved || Math.abs(dy) > 6;
     e.preventDefault();
   });
 
@@ -12810,13 +12804,12 @@ function wirePageInput(pageWrap, ink, textLayer, page){
       }
       redrawInk(ink, page);
       scheduleSave();
-    } else {
-      // touch lifted: if it never moved and wasn't a scribble, treat it
-      // as a tap that places a text box (only fingers place text boxes).
-      if(!touchMoved && touchStartPoint){
-        addTextBoxAt(page, textLayer, touchStartPoint.x, touchStartPoint.y);
-      }
+    } else if(currentTool === 'text' && !touchMoved && touchStartPoint){
+      // Deliberate placement only: the Text tool has to be selected on
+      // purpose, so an ordinary scrolling tap never drops a text box.
+      addTextBoxAt(page, textLayer, touchStartPoint.x, touchStartPoint.y);
     }
+    // touch (finger) otherwise: nothing to do — it was only ever scrolling.
     stroke = null;
     touchStartPoint = null;
   }
@@ -12831,7 +12824,9 @@ function setTool(tool){
   currentTool = tool;
   document.getElementById('tool-pen').classList.toggle('active', tool==='pen');
   document.getElementById('tool-eraser').classList.toggle('active', tool==='eraser');
+  document.getElementById('tool-text').classList.toggle('active', tool==='text');
 }
+document.getElementById('tool-text').addEventListener('click', ()=> setTool('text'));
 document.getElementById('tool-pen').addEventListener('click', ()=> setTool('pen'));
 document.getElementById('tool-eraser').addEventListener('click', ()=> setTool('eraser'));
 
