@@ -4588,7 +4588,22 @@ function measureLayoutInsets(){
 // The page is fitted to the board frame and CENTRED in it: 8px screen margin + 10px frame + 2px
 // padding on each side. (It used to be pinned 24px from the left, which pushed the right edge of
 // the writing outside the frame on phones.)
-function fitScale(){ return Math.max(0.05, Math.min(1.5, (viewW - 32) / PAGE_W)); }
+//
+// Fit-to-width alone (the old behavior) only accounts for viewW. That's fine in portrait, where
+// the screen is naturally tall and width is always the tighter constraint. In landscape the
+// screen is wide but short, so a pure width-fit still picks a large scale — and since that same
+// scale applies vertically too, board content that would sit comfortably on a portrait screen
+// (e.g. a single axes chart) ends up tall enough in pixels to spill past the bottom of a short
+// landscape viewport, forcing a scroll just to see one diagram. Also capping by the available
+// *height* (using PAGE_W as the reference "how tall is a typical piece of content" — most board
+// diagrams are roughly as tall as they are wide) means whichever dimension is tighter wins, so
+// landscape scales content down enough to actually fit while portrait is unaffected.
+function fitScale(){
+  const widthScale = (viewW - 32) / PAGE_W;
+  const availH = viewH - PAGE_TOP_GUTTER_PX - PAGE_BOTTOM_GUTTER_PX;
+  const heightScale = availH / PAGE_W;
+  return Math.max(0.05, Math.min(1.5, Math.min(widthScale, heightScale)));
+}
 function idealCameraX(scale){ return PAGE_W / 2; }
 
 // Kick off loading the handwriting webfonts immediately at page load
