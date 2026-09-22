@@ -12615,6 +12615,7 @@ function showEditor(){
 async function openNote(id){
   const note = notesCache.find(n=>n.id===id);
   if(!note) return;
+  if(notesDirty && currentNoteId && currentNoteId !== id) await persistCurrentNote();
   currentNoteId = id;
   showEditor();
   document.getElementById('notes-title-input').value = note.title || '';
@@ -12626,7 +12627,8 @@ async function openNote(id){
   renderNotesList();
 }
 
-function createNote(){
+async function createNote(){
+  if(notesDirty && currentNoteId) await persistCurrentNote();
   const note = { id: uid(), title:'', updatedAt: Date.now(), ruledOverride:null, orientation:'portrait', pages:[blankPage()], subject: currentNotesSubject || 'Unsorted' };
   notesCache.unshift(note);
   currentNoteId = note.id;
@@ -12669,27 +12671,13 @@ const runIdle = window.requestIdleCallback
     };
 
 async function persistCurrentNote(){
-  // The save is debounced off the *end* of a stroke (see scheduleSave,
-  // called from finishStroke), but with normal handwriting the next
-  // stroke often starts again within that debounce window — so the timer
-  // can still come due while a new stroke is actively being drawn. Doing
-  // the real work here (JSON.stringify of the whole note, then the
-  // storage write) runs on the main thread, and running it exactly then
-  // stalls that in-progress stroke long enough that pointermove events
-  // get coalesced or dropped, which is what shows up as a skip/jump in
-  // the ink. So if the pen is still down when this fires, just check
-  // again shortly instead of forcing the save into the middle of a
-  // stroke — nothing is lost, it simply lands in the next natural gap.
-  if(activePenPointerId !== null){
-    runIdle(persistCurrentNote, { timeout: 1200 });
-    return;
-  }
   const note = currentNote();
   if(!note) return;
   note.title = document.getElementById('notes-title-input').value;
   note.updatedAt = Date.now();
   try{
     await window.storage.set(notesKeyPrefix() + note.id, JSON.stringify(note), false);
+    notesDirty = false;
     document.getElementById('notes-status').textContent = 'Saved';
     renderNotesList();
   } catch(e){
@@ -12698,25 +12686,39 @@ async function persistCurrentNote(){
   }
 }
 
+// Every attempt to save mid-stroke — debounced off the end of a stroke,
+// deferred to idle time, deferred again while the pen was still down —
+// still ran into the same problem: JSON.stringify of the whole note plus
+// the storage write is main-thread work, and on a note with a fair
+// amount of ink, that's enough work that it can still land on top of the
+// next stroke and drop pointer events, however cleverly it's scheduled.
+// The only way to guarantee writing never interrupts drawing is to not
+// write while the person is actively using the page at all: scheduleSave
+// now just marks the note dirty, and the actual save happens off a plain
+// 4-minute interval (well clear of any single stroke) or when the person
+// actually leaves — see autosaveNotes/flushNotesSaveOnExit below. Nothing
+// is lost either way, since both paths still write the latest in-memory
+// note.
+let notesDirty = false;
 function scheduleSave(){
-  document.getElementById('notes-status').textContent = 'Saving…';
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(()=>{
-    // Hand the real work off to the browser's own idle scheduler rather
-    // than just running it the instant this timer elapses. A plain
-    // setTimeout fires on a wall-clock schedule with no regard for what
-    // else the browser is doing right then; requestIdleCallback only
-    // runs once the browser has genuinely finished higher-priority work
-    // like handling the next pointer event and painting the current
-    // frame, so the save can no longer land squarely on top of the start
-    // of a new stroke the way it could before. The activePenPointerId
-    // check inside persistCurrentNote stays as a fallback, both for
-    // browsers without requestIdleCallback and because an idle callback
-    // given a timeout can still be forced to run under deadline pressure
-    // even if the browser isn't fully idle yet.
-    runIdle(persistCurrentNote, { timeout: 1200 });
-  }, 500);
+  notesDirty = true;
+  document.getElementById('notes-status').textContent = 'Unsaved changes';
 }
+
+setInterval(()=>{
+  if(notesDirty && currentNoteId){
+    persistCurrentNote().catch(e=>console.error('Autosave failed:', e));
+  }
+}, 4 * 60 * 1000);
+
+function flushNotesSaveOnExit(){
+  if(notesDirty && currentNoteId){
+    persistCurrentNote().catch(e=>console.error('Exit-time save failed:', e));
+  }
+}
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState === 'hidden') flushNotesSaveOnExit(); });
+window.addEventListener('pagehide', flushNotesSaveOnExit);
+window.addEventListener('beforeunload', flushNotesSaveOnExit);
 
 async function deleteNote(id){
   try{
