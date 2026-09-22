@@ -12253,38 +12253,164 @@ input, textarea, .note-textbox{ -webkit-user-select:text; user-select:text; }
 
 <script>
 /* ---------------------------------------------------------------
-   window.storage shim: identical to the one used on the other
-   Chalkline pages (tutor/summary) — real backend inside the
-   Claude.ai artifact preview, localStorage-backed fallback once
-   deployed on GitHub Pages.
+   window.storage shim: real backend inside the Claude.ai artifact
+   preview; once deployed on GitHub Pages, backed by IndexedDB.
+   (The other Chalkline pages — tutor/summary/etc. — still use a
+   simpler localStorage-backed fallback, which is fine for the small
+   values they save. This page specifically needs the non-blocking
+   version: `localStorage.setItem` runs synchronously no matter that
+   it's called from inside an `async` function — `async` only wraps
+   the return value in a Promise, it doesn't defer the work inside —
+   and on iOS Safari in particular that write is backed by synchronous
+   disk I/O that gets slower as the value grows. Every save here writes
+   the *entire* note — every stroke, every point — so on a note with a
+   fair amount of ink on it, that write can block the main thread for
+   a real, perceptible stretch. If that happens to land right as the
+   next stroke starts — which normal writing cadence makes likely —
+   the pointer events for that stroke's opening get stalled behind it,
+   which is exactly the skip landing right when it says "Saving…".
+   IndexedDB does the same job without blocking the main thread.)
    ------------------------------------------------------------- */
 if(!window.storage || !window.storage.__isRealBackend){
   const STORAGE_NS = 'chalkline:';
-  window.storage = {
-    __isRealBackend: false,
-    async get(key){
-      const raw = localStorage.getItem(STORAGE_NS + key);
-      return raw === null ? null : { key, value: raw, shared: false };
-    },
-    async set(key, value){
-      try{ localStorage.setItem(STORAGE_NS + key, value); return { key, value, shared: false }; }
-      catch(e){ console.error('localStorage set failed:', e); return null; }
-    },
-    async delete(key){
-      const existed = localStorage.getItem(STORAGE_NS + key) !== null;
-      localStorage.removeItem(STORAGE_NS + key);
-      return { key, deleted: existed, shared: false };
-    },
-    async list(prefix){
-      const keys = [];
-      const full = STORAGE_NS + (prefix || '');
-      for(let i=0;i<localStorage.length;i++){
-        const k = localStorage.key(i);
-        if(k && k.startsWith(full)) keys.push(k.slice(STORAGE_NS.length));
+
+  if(window.indexedDB){
+    const DB_NAME = 'chalkline-kv';
+    const STORE = 'kv';
+    let dbPromise = null;
+    function openDb(){
+      if(!dbPromise){
+        dbPromise = new Promise((resolve, reject)=>{
+          const req = indexedDB.open(DB_NAME, 1);
+          req.onupgradeneeded = ()=>{ req.result.createObjectStore(STORE); };
+          req.onsuccess = ()=> resolve(req.result);
+          req.onerror = ()=> reject(req.error);
+        });
       }
-      return { keys, prefix, shared: false };
+      return dbPromise;
     }
-  };
+    function idbGet(key){
+      return openDb().then(db => new Promise((resolve, reject)=>{
+        const req = db.transaction(STORE, 'readonly').objectStore(STORE).get(key);
+        req.onsuccess = ()=> resolve(req.result === undefined ? null : req.result);
+        req.onerror = ()=> reject(req.error);
+      }));
+    }
+    function idbSet(key, value){
+      return openDb().then(db => new Promise((resolve, reject)=>{
+        const tx = db.transaction(STORE, 'readwrite');
+        tx.objectStore(STORE).put(value, key);
+        tx.oncomplete = ()=> resolve();
+        tx.onerror = ()=> reject(tx.error);
+      }));
+    }
+    function idbDelete(key){
+      return openDb().then(db => new Promise((resolve, reject)=>{
+        const tx = db.transaction(STORE, 'readwrite');
+        tx.objectStore(STORE).delete(key);
+        tx.oncomplete = ()=> resolve();
+        tx.onerror = ()=> reject(tx.error);
+      }));
+    }
+    function idbAllKeys(){
+      return openDb().then(db => new Promise((resolve, reject)=>{
+        const store = db.transaction(STORE, 'readonly').objectStore(STORE);
+        if(store.getAllKeys){
+          const req = store.getAllKeys();
+          req.onsuccess = ()=> resolve(req.result);
+          req.onerror = ()=> reject(req.error);
+        } else {
+          const keys = [];
+          const req = store.openCursor();
+          req.onsuccess = (e)=>{
+            const cur = e.target.result;
+            if(cur){ keys.push(cur.key); cur.continue(); } else resolve(keys);
+          };
+          req.onerror = ()=> reject(req.error);
+        }
+      }));
+    }
+
+    // One-time migration so notes already saved under the old
+    // localStorage shim (before this page switched to IndexedDB)
+    // aren't orphaned — move them over, then clear the old copies.
+    let migratePromise = null;
+    function migrateFromLocalStorageOnce(){
+      if(!migratePromise){
+        migratePromise = (async ()=>{
+          try{
+            const toMove = [];
+            for(let i=0;i<localStorage.length;i++){
+              const k = localStorage.key(i);
+              if(k && k.startsWith(STORAGE_NS)) toMove.push(k);
+            }
+            for(const k of toMove){
+              const v = localStorage.getItem(k);
+              if(v !== null) await idbSet(k.slice(STORAGE_NS.length), v);
+              localStorage.removeItem(k);
+            }
+          }catch(e){ console.error('Migrating old notes storage failed:', e); }
+        })();
+      }
+      return migratePromise;
+    }
+
+    window.storage = {
+      __isRealBackend: false,
+      async get(key){
+        await migrateFromLocalStorageOnce();
+        const value = await idbGet(key);
+        return value === null ? null : { key, value, shared: false };
+      },
+      async set(key, value){
+        await migrateFromLocalStorageOnce();
+        try{ await idbSet(key, value); return { key, value, shared: false }; }
+        catch(e){ console.error('Saving note failed:', e); return null; }
+      },
+      async delete(key){
+        await migrateFromLocalStorageOnce();
+        const prior = await idbGet(key);
+        await idbDelete(key);
+        return { key, deleted: prior !== null, shared: false };
+      },
+      async list(prefix){
+        await migrateFromLocalStorageOnce();
+        const allKeys = await idbAllKeys();
+        const full = prefix || '';
+        const keys = allKeys.filter(k => typeof k === 'string' && k.startsWith(full));
+        return { keys, prefix, shared: false };
+      }
+    };
+  } else {
+    // IndexedDB unavailable (rare — some locked-down browsing modes):
+    // fall back to the old synchronous, localStorage-backed shim so the
+    // page still works, just without the non-blocking benefit.
+    window.storage = {
+      __isRealBackend: false,
+      async get(key){
+        const raw = localStorage.getItem(STORAGE_NS + key);
+        return raw === null ? null : { key, value: raw, shared: false };
+      },
+      async set(key, value){
+        try{ localStorage.setItem(STORAGE_NS + key, value); return { key, value, shared: false }; }
+        catch(e){ console.error('localStorage set failed:', e); return null; }
+      },
+      async delete(key){
+        const existed = localStorage.getItem(STORAGE_NS + key) !== null;
+        localStorage.removeItem(STORAGE_NS + key);
+        return { key, deleted: existed, shared: false };
+      },
+      async list(prefix){
+        const keys = [];
+        const full = STORAGE_NS + (prefix || '');
+        for(let i=0;i<localStorage.length;i++){
+          const k = localStorage.key(i);
+          if(k && k.startsWith(full)) keys.push(k.slice(STORAGE_NS.length));
+        }
+        return { keys, prefix, shared: false };
+      }
+    };
+  }
 }
 
 // ---------- auth (mirrors the pattern used on tutor/summary pages):
