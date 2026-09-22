@@ -12091,11 +12091,12 @@ input, textarea, .note-textbox{ -webkit-user-select:text; user-select:text; }
 .ne-body{ flex:1; overflow-y:auto; overflow-x:auto; background:#DCD6C4; padding:26px 0 60px;
   display:flex; flex-direction:column; align-items:center; gap:22px; -webkit-overflow-scrolling:touch; }
 
-/* Base A4-proportioned width, scaled by --notes-zoom (set from the zoom in/out
-   controls). aspect-ratio comes from an inline style per page instead of a
-   fixed CSS rule, since it depends on the current note's orientation. */
+/* Width is set inline per page by sizePages() (JS) instead of a fixed CSS
+   value, since the right size depends on the current note's orientation
+   (landscape should use the room a portrait page doesn't need) and the
+   available container size — not just viewport width. */
 .note-page{
-  position:relative; width:calc(min(92vw,780px) * var(--notes-zoom, 1));
+  position:relative;
   background:#fff; box-shadow:0 3px 14px rgba(0,0,0,0.18); border-radius:3px; flex-shrink:0;
 }
 .note-page canvas{ position:absolute; top:0; left:0; width:100%; height:100%; display:block; }
@@ -12121,7 +12122,7 @@ input, textarea, .note-textbox{ -webkit-user-select:text; user-select:text; }
 .note-textbox:focus{ border-color:var(--accent-soft); background:rgba(255,255,255,0.72); }
 .note-textbox:empty:before{ content:attr(data-placeholder); color:#C9C2AA; }
 
-.ne-add-page-row{ width:calc(min(92vw,780px) * var(--notes-zoom, 1)); display:flex; justify-content:center; }
+.ne-add-page-row{ display:flex; justify-content:center; }
 .ne-add-page-btn{
   border:1px dashed var(--border); background:transparent; color:var(--muted);
   padding:10px 18px; border-radius:10px; cursor:pointer; font-family:'JetBrains Mono',monospace; font-size:12px;
@@ -12690,7 +12691,27 @@ function renderAllPages(note){
   const container = document.getElementById('ne-pages-container');
   container.innerHTML = '';
   note.pages.forEach((page, idx)=> container.appendChild(buildPageEl(note, page, idx)));
+  sizePages();
 }
+
+// Fits every page to the available room in #ne-body — using BOTH its width
+// and height as the constraint, not width alone — so a landscape page
+// actually spreads out to fill the wide-but-short space it has, instead of
+// being capped at the same width a portrait page would use. Multiplied by
+// the zoom level on top of that fit.
+function sizePages(){
+  const body = document.getElementById('ne-body');
+  if(!body) return;
+  const rect = body.getBoundingClientRect();
+  if(rect.width <= 0 || rect.height <= 0) return;
+  const pad = 24; // breathing room so the page never touches the tray edges
+  const availW = Math.max(100, rect.width - pad*2);
+  const availH = Math.max(100, rect.height - pad*2);
+  const aspect = PAGE_W / PAGE_H; // width/height of the current note's orientation
+  const w = Math.min(availW, availH * aspect) * notesZoom;
+  document.querySelectorAll('.note-page').forEach(el=>{ el.style.width = w + 'px'; });
+}
+window.addEventListener('resize', sizePages);
 
 function buildPageEl(note, page, idx){
   const wrap = document.createElement('div');
@@ -12911,8 +12932,8 @@ document.getElementById('tool-orientation').addEventListener('click', ()=>{
 let notesZoom = 1;
 const ZOOM_MIN = 0.5, ZOOM_MAX = 2;
 function applyZoom(){
-  document.getElementById('ne-body').style.setProperty('--notes-zoom', notesZoom);
   document.getElementById('zoom-level').textContent = Math.round(notesZoom * 100) + '%';
+  sizePages();
 }
 document.getElementById('zoom-in').addEventListener('click', ()=>{
   notesZoom = Math.min(ZOOM_MAX, Math.round((notesZoom + 0.1) * 10) / 10);
