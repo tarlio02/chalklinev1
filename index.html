@@ -9423,6 +9423,10 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 .btn-primary:disabled{ background:#cfc9b4; cursor:not-allowed; box-shadow:none; }
 .btn-primary:not(:disabled):hover{ transform:translateY(-2px); box-shadow:0 10px 20px -8px rgba(120,90,20,0.42), 0 1px 0 rgba(255,255,255,0.25) inset; }
 .status-line{ font-family:'JetBrains Mono', monospace; font-size:11.5px; color:var(--muted); margin-top:10px; min-height:14px; }
+#summary-save-note{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:8px; padding:9px 12px; border-radius:10px;
+  background:#FFF6DD; border:1px solid #E9CF8A; color:#6b5312; font-size:13px; }
+#summary-save-note button{ border:none; border-radius:999px; padding:6px 14px; background:#2E7DBE; color:#fff; font-weight:600; font-size:12.5px; cursor:pointer; }
+#summary-save-note button:hover{ background:#256aa3; }
 
 #output-wrap{ margin-top:38px; display:none; }
 #output-wrap.show{ display:block; }
@@ -9703,6 +9707,10 @@ html,body{ height:100%; overflow:hidden; }
     <button id="btn-summarize" class="btn-primary" disabled>Summarize</button>
   </div>
   <div class="status-line" id="status-line"></div>
+  <div id="summary-save-note" style="display:none;">
+    <span>This summary isn't saved yet.</span>
+    <button type="button" id="btn-summary-signin">Sign in to save it</button>
+  </div>
 
   <div id="output-wrap">
     <div class="output-head">
@@ -9789,6 +9797,9 @@ const statusLine = document.getElementById('status-line');
 let currentUser = null;
 let currentSummarySessionId = 'summary_' + Date.now();
 let currentSummaryTitle = null;
+let lastSummarizedFile = null;   // which PDF the current session id belongs to (a different PDF gets its own saved summary)
+let summaryUnsaved = false;      // a summary is on screen that has not been stored yet (nobody signed in / storage refused)
+function showSummarySaveNote(on){ const n = document.getElementById('summary-save-note'); if(n) n.style.display = on ? 'flex' : 'none'; }
 const summarySubjectInput = document.getElementById('summary-subject-input');
 function currentSummarySubject(){ return (summarySubjectInput.value || '').trim(); }
 
@@ -9798,6 +9809,7 @@ function summarySessionKeyPrefix(){
 
 function resetSummaryViewState(){
   currentSummarySessionId = 'summary_' + Date.now(); currentSummaryTitle = null;
+  lastSummarizedFile = null; summaryUnsaved = false; showSummarySaveNote(false);
   pdfText=''; pdfFileName=''; summarySubjectInput.value = '';
   uploadZone.classList.remove('has-file');
   uploadZone.innerHTML = `Drop a PDF here, or click to choose a file.<input type="file" id="pdf-input" accept="application/pdf">`;
@@ -9825,6 +9837,9 @@ window.addEventListener('message', (e)=>{
   }
   refreshSummarySessionList();
   if(pendingSummaryLoad) loadSummarySessionById(pendingSummaryLoad);
+  // A summary was generated before we knew who was signed in (late sign-in message, or the person
+  // signed in from the sidebar afterwards): save it now instead of dropping it.
+  if(currentUser && summaryUnsaved && summaryPanel.innerHTML.trim()) persistSummarySession(summaryPanel.innerHTML);
 });
 
 // If the shell tells us to open a specific saved summary (e.g. from the
@@ -9851,21 +9866,40 @@ async function loadSummarySessionById(id){
 }
 
 async function persistSummarySession(html){
-  // Guest (signed-out) summaries must never be written to durable,
-  // sharable storage — otherwise closing and reopening the site, or a
-  // different visitor on the same browser, would still see them. Only
-  // persist once someone is actually signed in.
-  if(!currentUser) return;
+  // Guest (signed-out) summaries must never be written to durable, sharable storage — otherwise closing
+  // and reopening the site, or a different visitor on the same browser, would still see them. So they are
+  // kept in memory only, and the person is told plainly (this used to fail without a word).
+  if(!currentUser){
+    summaryUnsaved = true;
+    setStatus('done — not saved yet');
+    showSummarySaveNote(true);
+    return false;
+  }
+  const subject = currentSummarySubject() || 'Unsorted';
   const payload = {
     id: currentSummarySessionId,
     title: currentSummaryTitle || (pdfFileName ? pdfFileName.replace(/\.pdf$/i,'') : 'Untitled summary'),
-    subject: currentSummarySubject() || 'Unsorted',
+    subject: subject,
     savedAt: Date.now(),
     pdfFileName, html
   };
-  try{ await window.storage.set(summarySessionKeyPrefix() + currentSummarySessionId, JSON.stringify(payload), false); }
+  let saved = null;
+  try{ saved = await window.storage.set(summarySessionKeyPrefix() + currentSummarySessionId, JSON.stringify(payload), false); }
   catch(e){ console.error('Saving summary failed:', e); }
+  if(!saved){
+    summaryUnsaved = true;
+    setStatus("done — couldn't save it (this browser's storage is full)");
+    showSummarySaveNote(false);
+    return false;
+  }
+  summaryUnsaved = false;
+  showSummarySaveNote(false);
+  try{ parent.postMessage({ syncSoon:true }, '*'); } catch(e){}
+  setStatus(subject === 'Unsorted'
+    ? 'done — saved, but not filed under a course (type a course above to add it to one)'
+    : 'done — saved to ' + subject);
   refreshSummarySessionList();
+  return true;
 }
 
 let summarySessionListReq = 0;
@@ -9909,6 +9943,7 @@ async function refreshSummarySessionList(){
 function loadSummarySession(item){
   currentSummarySessionId = item.id; currentSummaryTitle = item.title;
   pdfFileName = item.pdfFileName || '';
+  lastSummarizedFile = pdfFileName; summaryUnsaved = false; showSummarySaveNote(false);
   summarySubjectInput.value = (item.subject && item.subject !== 'Unsorted') ? item.subject : '';
   outputTitle.textContent = `Summary — ${(pdfFileName || item.title || '').replace(/\.pdf$/i,'')}`;
   summaryPanel.innerHTML = item.html || '';
@@ -9917,6 +9952,11 @@ function loadSummarySession(item){
   outputWrap.scrollIntoView({behavior:'smooth', block:'start'});
 }
 
+document.getElementById('btn-summary-signin').addEventListener('click', ()=>{ parent.postMessage({ requestLogin:true }, '*'); });
+// Course typed (or changed) AFTER the summary was made: re-save it under that course.
+summarySubjectInput.addEventListener('change', ()=>{
+  if(outputWrap.classList.contains('show') && summaryPanel.innerHTML.trim()) persistSummarySession(summaryPanel.innerHTML);
+});
 document.getElementById('btn-new-summary-session').addEventListener('click', ()=>{
   resetSummaryViewState();
   setStatus('new summary');
@@ -10107,6 +10147,11 @@ btnSummarize.addEventListener('click', async ()=>{
   const mode = document.getElementById('length-select').value;
   btnSummarize.disabled = true;
   setStatus('reading and summarizing…');
+  if(lastSummarizedFile && lastSummarizedFile !== pdfFileName){
+    // Second PDF in the same visit: give it its own saved summary instead of overwriting the first one.
+    currentSummarySessionId = 'summary_' + Date.now(); currentSummaryTitle = null;
+  }
+  lastSummarizedFile = pdfFileName;
   const result = await summarizeText(pdfText, mode);
   btnSummarize.disabled = false;
   if(!result.ok){
@@ -10118,7 +10163,7 @@ btnSummarize.addEventListener('click', async ()=>{
   outputWrap.classList.add('show');
   setStatus('done');
   outputWrap.scrollIntoView({behavior:'smooth', block:'start'});
-  persistSummarySession(result.html);
+  await persistSummarySession(result.html);
 });
 
 document.getElementById('btn-copy').addEventListener('click', ()=>{
@@ -13237,16 +13282,58 @@ const frames = {
 const loaded = { home:false, tutor:false, summary:false, quiz:false, 'tutor-history':false, 'summary-history':false, 'quiz-history':false, notes:false };
 let current = 'home';
 
+// A page frame can only hear messages once its own script has run. The shell used to guess how long
+// that takes (60ms for the sign-in state, 110ms for the nav payload); on a slower device or a cold
+// load the page wasn't listening yet, the messages were silently dropped, and the page believed nobody
+// was signed in (so, for example, a finished summary was never saved) and had no course name.
+// Now we wait for the new document to actually finish parsing, then deliver, in order.
+const frameReady = {};    // page -> true once its current document is parsed and listening
+const frameWatch = {};    // page -> { q:[callbacks], t:intervalId, fire:fn } while it is still loading
+function onFrameReady(page, cb){
+  if(frameReady[page]){ try{ cb(); }catch(e){ console.error(e); } return; }
+  const w = frameWatch[page];
+  if(w) w.q.push(cb); else { try{ cb(); }catch(e){ console.error(e); } }
+}
+function startFrameWatch(page, startDoc){
+  const f = frames[page];
+  const old = frameWatch[page];
+  if(old){ clearInterval(old.t); f.removeEventListener('load', old.fire); }
+  frameReady[page] = false;
+  const w = frameWatch[page] = { q:[], t:null, fire:null };
+  let tries = 0, opaque = false;
+  w.fire = ()=>{
+    if(frameWatch[page] !== w) return;
+    clearInterval(w.t); f.removeEventListener('load', w.fire);
+    delete frameWatch[page]; frameReady[page] = true;
+    w.q.forEach(fn => { try{ fn(); }catch(e){ console.error('frame-ready callback failed', e); } });
+  };
+  f.addEventListener('load', w.fire);
+  w.t = setInterval(()=>{
+    tries++;
+    try{
+      const d = f.contentDocument;
+      // A NEW document (not the previous page still on screen) that has finished parsing its scripts.
+      if(d && d !== startDoc && d.readyState !== 'loading') return w.fire();
+    }catch(e){ opaque = true; }
+    if((opaque && tries >= 38) || tries >= 250) w.fire();   // can't inspect it: ~1.5s; absolute cap: ~10s
+  }, 40);
+}
+
 function ensureLoaded(page){
   if(loaded[page]) return;
+  let startDoc = null;
+  try{ startDoc = frames[page].contentDocument; }catch(e){}
   frames[page].srcdoc = unwrap('src-' + page);
   loaded[page] = true;
+  startFrameWatch(page, startDoc);
   // A fresh frame doesn't know the sign-in state yet — broadcastAuthState
   // only fires on sign-in/out events, not on frame load — so tell this
-  // one directly once it's parsed and listening.
-  setTimeout(()=>{
+  // one directly. Early nudge kept for quick loads, then the reliable one once it is truly listening.
+  const sendAuth = ()=>{
     try{ frames[page].contentWindow.postMessage({ chalklineAuth:true, signedIn: !!shellUser, user: shellUser }, '*'); }catch(e){}
-  }, 60);
+  };
+  setTimeout(sendAuth, 60);
+  onFrameReady(page, sendAuth);
 }
 
 // Pages that represent an active "session" (a live lesson or summary in
@@ -13316,9 +13403,9 @@ function navTo(page, pushHistory, navPayload, isInitialLoad){
   // be told immediately.
   if(navPayload){
     const send = ()=>{ try{ frames[page].contentWindow.postMessage(navPayload, '*'); }catch(e){} };
-    // Slightly after the auth broadcast (60ms) so the target frame
-    // already knows sign-in state before it looks up the session key.
-    wasLoaded ? send() : setTimeout(send, 110);
+    // Delivered once the frame is really listening (queued behind its sign-in message, so the page
+    // already knows who is signed in before it looks up a course or saved item); immediately if it already is.
+    onFrameReady(page, send);
   }
   try{ if(window.ChalklineTour && !isInitialLoad) window.ChalklineTour.onNav(page); }catch(e){ console.error('tour onNav', e); }
 }
