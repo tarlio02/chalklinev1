@@ -2205,6 +2205,7 @@ body{
   transition:opacity .25s ease, transform .25s ease;
 }
 .dash-card.summary{ --card-a:var(--sage); --card-b:var(--emerald); }
+.dash-card.course{ min-height:186px; }
 .dash-card:hover{
   transform:translateY(-6px) translateZ(18px) rotateX(4deg);
   box-shadow:
@@ -2325,25 +2326,26 @@ body{
    a halo ring behind the icon, a corner dot pattern, and a
    circular "go" arrow that slides in on hover ---------- */
 .course-action-card{ padding-top:26px; }
-.course-action-card::before{ padding:2px; opacity:0.85; }
-.course-action-card .card-top-bar{
+.dash-card.course{ padding-top:26px; }
+.course-action-card::before, .dash-card.course::before{ padding:2px; opacity:0.85; }
+.course-action-card .card-top-bar, .dash-card.course .card-top-bar{
   position:absolute; top:0; left:18px; right:18px; height:4px; border-radius:0 0 4px 4px;
   background:linear-gradient(90deg, var(--card-a), var(--card-b));
   box-shadow:0 1px 0 rgba(255,255,255,0.4) inset;
 }
-.course-action-card .card-dots{
+.course-action-card .card-dots, .dash-card.course .card-dots{
   position:absolute; top:16px; right:16px; width:44px; height:44px; pointer-events:none;
   background-image:radial-gradient(var(--card-b) 1.4px, transparent 1.4px);
   background-size:8px 8px; opacity:0.16;
 }
-.course-action-card .icon-badge{
+.course-action-card .icon-badge, .dash-card.course .icon-badge{
   box-shadow:
     0 0 0 4px rgba(255,255,255,0.55),
     0 0 0 5px var(--card-a),
     0 6px 14px -6px rgba(120,90,20,0.30),
     0 1px 0 rgba(255,255,255,0.35) inset;
 }
-.course-action-card .card-go{
+.course-action-card .card-go, .dash-card.course .card-go{
   position:absolute; right:18px; bottom:18px; width:32px; height:32px; border-radius:50%;
   display:flex; align-items:center; justify-content:center; z-index:1;
   background:linear-gradient(140deg, var(--card-a), var(--card-b));
@@ -2352,8 +2354,28 @@ body{
   opacity:0; transform:translate(6px,6px) scale(0.85);
   transition:opacity .2s ease, transform .22s cubic-bezier(.2,.8,.3,1.1);
 }
-.course-action-card:hover .card-go{ opacity:1; transform:translate(0,0) scale(1); }
-.course-action-card:hover .card-dots{ opacity:0.28; }
+.course-action-card:hover .card-go, .dash-card.course:hover .card-go{ opacity:1; transform:translate(0,0) scale(1); }
+.course-action-card:hover .card-dots, .dash-card.course:hover .card-dots{ opacity:0.28; }
+
+/* ---------- course tile stat pills (lessons/quizzes/summaries/notes),
+   replacing the plain "·"-joined line with little decorated chips ---------- */
+.dash-card.course .course-stats{
+  display:flex; flex-wrap:wrap; gap:6px; position:relative; z-index:1; margin-top:2px;
+}
+.dash-card.course .course-stat-pill{
+  display:inline-flex; align-items:center; gap:4px;
+  font-family:'JetBrains Mono', monospace; font-size:10.5px; font-weight:600;
+  color:var(--card-b); background:rgba(255,255,255,0.65);
+  border:1px solid rgba(0,0,0,0.06); border-radius:999px;
+  padding:3px 9px 3px 7px;
+  box-shadow:0 1px 0 rgba(255,255,255,0.6) inset;
+}
+.dash-card.course .course-stat-pill .dot{
+  width:5px; height:5px; border-radius:50%;
+  background:linear-gradient(140deg, var(--card-a), var(--card-b));
+  flex-shrink:0;
+}
+.dash-card.course:hover .course-stat-pill{ background:#fff; }
 
 /* ---------- Course info button + info/delete modal ---------- */
 .course-info-btn{
@@ -2850,10 +2872,17 @@ html,body{ height:100%; overflow:hidden; }
       const summaryWord = c.summaries===1 ? 'summary' : 'summaries';
       const noteWord = c.notes===1 ? 'note' : 'notes';
       return `<div class="dash-card course fade-up" data-course-name="${escapeHtmlHome(name)}" style="animation-delay:${(idx*0.06).toFixed(2)}s;--card-a:${a};--card-b:${b};">
+        <span class="card-top-bar"></span><span class="card-dots"></span>
         <button type="button" class="course-info-btn" title="Course info" aria-label="Course info for ${escapeHtmlHome(name)}">i</button>
         <span class="icon-badge">📘</span>
         <h2>${escapeHtmlHome(name)}</h2>
-        <p>${c.lessons} ${lessonWord} · ${c.quizzes} ${quizWord} · ${c.summaries} ${summaryWord} · ${c.notes||0} ${noteWord}</p>
+        <div class="course-stats">
+          <span class="course-stat-pill"><span class="dot"></span>${c.lessons} ${lessonWord}</span>
+          <span class="course-stat-pill"><span class="dot"></span>${c.quizzes} ${quizWord}</span>
+          <span class="course-stat-pill"><span class="dot"></span>${c.summaries} ${summaryWord}</span>
+          <span class="course-stat-pill"><span class="dot"></span>${c.notes||0} ${noteWord}</span>
+        </div>
+        <span class="card-go">→</span>
       </div>`;
     }).join('');
     // Delegated via addEventListener rather than an inline onclick= attribute:
