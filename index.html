@@ -363,6 +363,12 @@
 #tour-tip .tt-actions{ display:flex; align-items:center; gap:8px; }
 #tour-tip .tt-skip{ border:none; background:none; color:#8a9aab; font-size:12.5px; cursor:pointer; padding:6px 4px; font-family:inherit; }
 #tour-tip .tt-skip:hover{ color:#5c6f80; text-decoration:underline; }
+#tour-tip .tt-mute{
+  border:none; background:#f2f5f8; color:#5c6f80; width:30px; height:30px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center; font-size:14px; cursor:pointer; padding:0; flex:0 0 auto;
+}
+#tour-tip .tt-mute:hover{ background:#e7edf3; color:#1E2B3A; }
+#tour-tip .tt-mute.muted{ color:#b7c2cc; }
 #tour-tip .tt-spacer{ flex:1; }
 #tour-tip .tt-next{ border:none; background:#2E7DBE; color:#fff; font-weight:600; font-size:14px; border-radius:999px;
   padding:9px 18px; cursor:pointer; font-family:inherit; box-shadow:0 2px 8px rgba(46,125,190,.35); }
@@ -925,11 +931,13 @@ body.landing-active #shell-auth{ display:none; }
     <p id="tt-body"></p>
     <div class="tt-actions">
       <button type="button" class="tt-skip" id="tt-skip">Skip tour</button>
+      <button type="button" class="tt-mute" id="tt-mute" title="Mute narration" aria-label="Mute narration">🔊</button>
       <span class="tt-spacer"></span>
       <span class="tt-hint" id="tt-hint" style="display:none;"><span class="tt-finger">👆</span><span id="tt-hint-text">Tap the highlighted button</span></span>
       <button type="button" class="tt-next" id="tt-next">Next</button>
     </div>
   </div>
+  <audio id="tour-audio" preload="none"></audio>
 </div>
 
 <div id="tour-done" role="dialog" aria-modal="true" aria-labelledby="td-title">
@@ -13901,47 +13909,70 @@ function navTo(page, pushHistory, navPayload, isInitialLoad){
   const root  = document.getElementById('tour-root');
   const spot  = document.getElementById('tour-spot');
   const tip   = document.getElementById('tour-tip');
+  const narr  = document.getElementById('tour-audio');
   const $ = (id) => document.getElementById(id);
+
+  /* ---------------- Voice narration ---------------- */
+  let muted = false;
+  try{ muted = localStorage.getItem('chalkline:tour:muted') === '1'; }catch(e){}
+  function paintMuteBtn(){
+    const btn = $('tt-mute'); if(!btn) return;
+    btn.textContent = muted ? '🔇' : '🔊';
+    btn.classList.toggle('muted', muted);
+    btn.title = muted ? 'Unmute narration' : 'Mute narration';
+    btn.setAttribute('aria-label', btn.title);
+  }
+  function stopNarration(){ try{ narr.pause(); narr.removeAttribute('src'); narr.load(); }catch(e){} }
+  function playNarration(step){
+    stopNarration();
+    if(muted || !step || !step.audio) return;
+    try{
+      narr.src = step.audio;
+      narr.currentTime = 0;
+      const p = narr.play();
+      if(p && p.catch) p.catch(()=>{ /* autoplay blocked until the user interacts once; silently ignore */ });
+    }catch(e){}
+  }
 
   /* ---------------- Step script ---------------- */
   const STEPS = [
     /* ===== PHASE 0: brand-new account, empty dashboard: teach how to add a course ===== */
-    { id:'welcome', phase:'start', frame:null, sel:null, mode:'next',
+    { id:'welcome', audio:'audio/welcome.mp3', phase:'start', frame:null, sel:null, mode:'next',
       title:'Welcome to Chalkline 👋',
       body:'Your AI study companion. This quick tour shows you how everything works, starting with adding your first course.' },
-    { id:'add-course', phase:'start', frame:'home', sel:'#add-course-btn', mode:'click', advanceWhen:'#add-course-modal.open .sm-card',
+    { id:'add-course', audio:'audio/add-course.mp3', phase:'start', frame:'home', sel:'#add-course-btn', mode:'click', advanceWhen:'#add-course-modal.open .sm-card',
       title:'First, add a course',
       body:'A course is a folder for one subject, like STA2020 or Managerial Accounting. Your lessons, quizzes, summaries and notes all live inside it. Tap Add new course.' },
-    { id:'name-course', phase:'start', frame:'home', sel:'#add-course-modal.open .sm-card', mode:'waitclick', advanceOn:'course-created',
+    { id:'name-course', audio:'audio/name-course.mp3', phase:'start', frame:'home', sel:'#add-course-modal.open .sm-card', mode:'waitclick', advanceOn:'course-created',
       backTo:'add-course', resumeAs:'add-course', patience:6000, hint:'Type a name, then tap Create course',
       title:'Give it a name',
       body:'Type the subject you are studying, for example "STA2020", then tap Create course.' },
 
     /* ===== PHASE 1: course page (right after the first course is created) ===== */
-    { id:'course-intro', phase:'course', frame:'home', sel:'#dash-course-view .dash-head', mode:'next',
+    { id:'course-intro', audio:'audio/course-intro.mp3', phase:'course', frame:'home', sel:'#dash-course-view .dash-head', mode:'next',
       title:'This is your course page',
       body:'Everything for this subject lives here. Let me show you what each button does.' },
-    { id:'card-tutor', phase:'course', frame:'home', sel:'#course-action-grid .dash-card:nth-child(1)', mode:'next',
+    { id:'card-tutor', audio:'audio/card-tutor.mp3', phase:'course', frame:'home', sel:'#course-action-grid .dash-card:nth-child(1)', mode:'next',
       title:'🎓 Live tutor',
       body:'Your AI teacher. Ask about any topic and it teaches on a whiteboard while it talks. Your past lessons are saved here too.' },
-    { id:'card-quiz', phase:'course', frame:'home', sel:'#course-action-grid .dash-card:nth-child(2)', mode:'next',
+    { id:'card-quiz', audio:'audio/card-quiz.mp3', phase:'course', frame:'home', sel:'#course-action-grid .dash-card:nth-child(2)', mode:'next',
       title:'🧠 Quizzes',
       body:'Test yourself on what you have learned. Your previous quizzes show up here, and you can start a new one any time.' },
-    { id:'card-summary', phase:'course', frame:'home', sel:'#course-action-grid .dash-card:nth-child(3)', mode:'next',
+    { id:'card-summary', audio:'audio/card-summary.mp3', phase:'course', frame:'home', sel:'#course-action-grid .dash-card:nth-child(3)', mode:'next',
       title:'📄 Summaries',
       body:'Import a chapter or slide deck (PDF) and get a clean summary to revise from.' },
-    { id:'card-notes', phase:'course', frame:'home', sel:'#course-action-grid .dash-card:nth-child(4)', mode:'next',
+    { id:'card-notes', audio:'audio/card-notes.mp3', phase:'course', frame:'home', sel:'#course-action-grid .dash-card:nth-child(4)', mode:'next',
       title:'🗒️ Notes',
       body:'Write your own notes and keep them filed under this course.' },
-    { id:'go-tutor', phase:'course', frame:'home', sel:'#course-action-grid .dash-card:nth-child(1)', mode:'click', advanceOn:'nav:tutor-history',
+    { id:'go-tutor', audio:'audio/go-tutor.mp3', phase:'course', frame:'home', sel:'#course-action-grid .dash-card:nth-child(1)', mode:'click', advanceOn:'nav:tutor-history',
       title:"Let's start a new lesson",
       body:'Tap Live tutor to open your lessons.' },
 
     /* ===== PHASE 2: tutor history page ===== */
-    { id:'history-list', phase:'history', frame:'tutor-history', sel:'#th-content', mode:'next',
+    { id:'history-list', audio:'audio/history-list.mp3', phase:'history', frame:'tutor-history', sel:'#th-content', mode:'next',
       title:'Your past lessons live here',
       body:'Every lesson you finish is saved in this list, so you can reopen it and pick up exactly where you left off. It is empty for now.' },
-    { id:'history-start', phase:'history', frame:'tutor-history', sel:'#th-new-btn', mode:'click', advanceOn:'nav:tutor',
+    { id:'history-start', audio:'audio/history-start.mp3', phase:'history', frame:'tutor-history', sel:'#th-new-btn', mode:'click', advanceOn:'nav:tutor',
       title:"Let's start your first lesson",
       body:'Tap Start new lesson.' },
 
@@ -13949,39 +13980,39 @@ function navTo(page, pushHistory, navPayload, isInitialLoad){
     { id:'canvas-topic', phase:'canvas', frame:'tutor', sel:'#topic-modal.open .sm-card', altSel:'#subject-modal.open .sm-card', mode:'waitclick', optional:true, patience:6000,
       title:'What do you want to learn?',
       body:'Type a topic, for example "ANOVA", then press Start lesson. Your tutor will begin teaching straight away.' },
-    { id:'canvas-board', phase:'canvas', frame:'tutor', sel:'#board-wrap', mode:'next',
+    { id:'canvas-board', audio:'audio/canvas-board.mp3', phase:'canvas', frame:'tutor', sel:'#board-wrap', mode:'next',
       title:'This is the whiteboard',
       body:'Your tutor draws and writes here while it explains. You can watch, and the tutor also narrates out loud.' },
-    { id:'canvas-ask', phase:'canvas', frame:'tutor', sel:'#ask-zone', mode:'next',
+    { id:'canvas-ask', audio:'audio/canvas-ask.mp3', phase:'canvas', frame:'tutor', sel:'#ask-zone', mode:'next',
       title:'Ask anything, any time',
       body:'Type a follow-up question here. Use 🎙 to speak to your tutor, or 📎 to attach a photo, PDF or text file for it to teach from.' },
-    { id:'canvas-replay', phase:'canvas', frame:'tutor', sel:'#btn-replay', mode:'next',
+    { id:'canvas-replay', audio:'audio/canvas-replay.mp3', phase:'canvas', frame:'tutor', sel:'#btn-replay', mode:'next',
       title:'🔊 Replay',
       body:'Missed something? Replay the tutor’s last explanation.' },
-    { id:'canvas-transcript', phase:'canvas', frame:'tutor', sel:'#btn-toggle-transcript', mode:'next',
+    { id:'canvas-transcript', audio:'audio/canvas-transcript.mp3', phase:'canvas', frame:'tutor', sel:'#btn-toggle-transcript', mode:'next',
       title:'💬 Transcript',
       body:'Read back everything that has been said in this lesson.' },
-    { id:'canvas-menu', phase:'canvas', frame:'tutor', sel:'#btn-menu', mode:'next',
+    { id:'canvas-menu', audio:'audio/canvas-menu.mp3', phase:'canvas', frame:'tutor', sel:'#btn-menu', mode:'next',
       title:'☰ Menu',
       body:'Open this for lesson tools such as Export PDF, board backgrounds and the Chalkline assistant.' },
-    { id:'canvas-exit', phase:'canvas', frame:'tutor', sel:'#btn-exit-lesson', mode:'next', lessonExitHook:true,
+    { id:'canvas-exit', audio:'audio/canvas-exit.mp3', phase:'canvas', frame:'tutor', sel:'#btn-exit-lesson', mode:'next', lessonExitHook:true,
       title:'🚪 Exit Lesson',
       body:'When you are done, tap Exit Lesson. Your progress saves automatically. Go ahead and exit now to finish your first lesson.' },
 
     /* ===== PHASE 4: after the completion screen. Remaining tour, back on the dashboard. ===== */
-    { id:'after-quiz', phase:'after', frame:'home', sel:'#course-action-grid .dash-card:nth-child(2)', mode:'next', ensureCourseView:true,
+    { id:'after-quiz', audio:'audio/after-quiz.mp3', phase:'after', frame:'home', sel:'#course-action-grid .dash-card:nth-child(2)', mode:'next', ensureCourseView:true,
       title:'Next: take a quiz',
       body:'Now that you have learned something, use Quizzes to check it stuck. During lessons the tutor also pops up quick questions. If you are stuck, tap "I’m not sure yet".' },
-    { id:'after-summary', phase:'after', frame:'home', sel:'#course-action-grid .dash-card:nth-child(3)', mode:'next', ensureCourseView:true,
+    { id:'after-summary', audio:'audio/after-summary.mp3', phase:'after', frame:'home', sel:'#course-action-grid .dash-card:nth-child(3)', mode:'next', ensureCourseView:true,
       title:'Summarise a PDF',
       body:'Got lecture slides or a textbook chapter? Import the PDF here for a clean summary.' },
-    { id:'after-notes', phase:'after', frame:'home', sel:'#course-action-grid .dash-card:nth-child(4)', mode:'next', ensureCourseView:true,
+    { id:'after-notes', audio:'audio/after-notes.mp3', phase:'after', frame:'home', sel:'#course-action-grid .dash-card:nth-child(4)', mode:'next', ensureCourseView:true,
       title:'Keep notes',
       body:'Jot down anything worth remembering. Notes stay attached to this course.' },
-    { id:'after-assistant', phase:'after', frame:'home', sel:'.sidebar-nav a[onclick*="openAssistant"]', altSel:'#sidebar-toggle', mode:'next', ensureCourseView:true,
+    { id:'after-assistant', audio:'audio/after-assistant.mp3', phase:'after', frame:'home', sel:'.sidebar-nav a[onclick*="openAssistant"]', altSel:'#sidebar-toggle', mode:'next', ensureCourseView:true,
       title:'💬 Chalkline assistant',
       body:'For quick questions and study help, tap "Chalkline assistant" in the sidebar. On a phone, open the sidebar with ☰ first. It is available on every page.' },
-    { id:'finish', phase:'after', frame:null, sel:null, mode:'next', last:true,
+    { id:'finish', audio:'audio/finish.mp3', phase:'after', frame:null, sel:null, mode:'next', last:true,
       title:'You are all set! 🎉',
       body:'That is the whole tour. You can replay it any time from Settings → Getting-started guide.' }
   ];
@@ -14107,6 +14138,7 @@ function navTo(page, pushHistory, navPayload, isInitialLoad){
     if(step.ensureCourseView){ prepareCourseView(); }
 
     setCopy(step, i);
+    playNarration(step);
 
     // Centred card (no target).
     if(!step.frame || !step.sel){
@@ -14195,6 +14227,7 @@ function navTo(page, pushHistory, navPayload, isInitialLoad){
   function hideOverlay(){
     root.classList.remove('on'); tip.classList.remove('show'); clearInterval(pollTimer); runToken++;
     currentEl = null; currentFrameKey = null;
+    stopNarration();
   }
 
   function finishTour(status){
@@ -14267,6 +14300,19 @@ function navTo(page, pushHistory, navPayload, isInitialLoad){
   $('tt-skip').addEventListener('click', ()=>{
     if(confirm('Skip the tour? You can replay it any time from Settings.')) finishTour('skipped');
   });
+  $('tt-mute').addEventListener('click', ()=>{
+    muted = !muted;
+    try{ localStorage.setItem('chalkline:tour:muted', muted ? '1' : '0'); }catch(e){}
+    paintMuteBtn();
+    if(muted){ stopNarration(); } else { playNarration(stepAt(state && state.i)); }
+  });
+  paintMuteBtn();
+  // Browsers block audio that autoplays before any user gesture, which can swallow the very
+  // first (automatically-shown) step's narration. Once the person taps anything in the tour,
+  // retry the current step's clip so it isn't silently skipped.
+  root.addEventListener('pointerdown', ()=>{
+    if(!muted && narr.paused && narr.src && narr.currentTime === 0){ narr.play().catch(()=>{}); }
+  }, true);
 
   /* ---------------- Hooks the rest of the app calls ---------------- */
   // A course was just created by the user.
