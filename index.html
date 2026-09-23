@@ -3385,6 +3385,31 @@ html,body{ height:100%; overflow:hidden; }
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <title>Chalkline — AI Whiteboard Tutor</title>
+<script>
+  // Mobile Safari (and some iPad/WebView builds) can report a taller
+  // `100vh`/`100dvh` than what's actually visible whenever its own
+  // address bar / tab bar / bottom toolbar is expanded — the page still
+  // thinks it has the full "toolbar collapsed" height, so the bottom
+  // dock (Replay / Ask / Transcript) ends up pinned below the real
+  // bottom edge of the screen, hidden under the browser's own chrome.
+  // window.visualViewport tracks the *actually visible* area and fires
+  // its own resize/scroll events exactly when that chrome shows or
+  // hides, which dvh alone doesn't always catch — so mirror it into a
+  // CSS var and let --real-vh win over the dvh fallback below.
+  (function(){
+    function setRealVH(){
+      var h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+      document.documentElement.style.setProperty('--real-vh', h + 'px');
+    }
+    setRealVH();
+    window.addEventListener('resize', setRealVH);
+    window.addEventListener('orientationchange', setRealVH);
+    if(window.visualViewport){
+      window.visualViewport.addEventListener('resize', setRealVH);
+      window.visualViewport.addEventListener('scroll', setRealVH);
+    }
+  })();
+<\/script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"><\/script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"><\/script>
 <script src="https://accounts.google.com/gsi/client" async defer><\/script>
@@ -3451,6 +3476,7 @@ body{
   color:var(--ink);
   height:100vh;
   height:100dvh;
+  height:var(--real-vh, 100dvh);
   overflow:hidden;
   background:#FFFFFF;
 }
