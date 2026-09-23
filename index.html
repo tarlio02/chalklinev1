@@ -4982,10 +4982,10 @@ const RULE_LINE_SPACING = 40;
 
 // The multiplier that converts an author-specified "size" into the actual
 // world-unit font size used for handwriting. Readable but still compact.
-const HAND_SIZE_MULT = 0.92;
+const HAND_SIZE_MULT = 0.8464;
 // Paragraph / heading text is written bigger. The multiplier is stamped onto each command
 // (cmd.hm) when it is placed, so lessons saved before this change keep their original size.
-const HAND_TEXT_MULT = 1.35;
+const HAND_TEXT_MULT = 1.242;
 function handSize(cmd){ return (cmd.size || 26) * (cmd.diagramLabel ? HAND_SIZE_MULT : (cmd.hm || HAND_SIZE_MULT)); }
 // Line height for a block of text at a given (already-multiplied) world
 // font size, snapped to a whole number of ruled-paper lines so every line
