@@ -4260,6 +4260,11 @@ body.panel-open .side-panel:not(.conv-panel){ box-shadow:
   margin:0 0 10px 0;
   display:flex;justify-content:space-between;align-items:center;
 }
+.p-hint{
+  font-family:'Source Serif 4', Georgia, serif;
+  font-size:12.5px; line-height:1.45; color:var(--muted);
+  margin:-4px 0 10px 0;
+}
 .link-btn{
   font-family:'JetBrains Mono', monospace;font-size:10px;
   color:var(--ochre);background:none;border:none;cursor:pointer;
@@ -4690,12 +4695,14 @@ body:not(.panel-open) .sidebar-toggle{ left:0 !important; }
     <!-- Board actions -->
     <div class="p-section">
       <h2>Board</h2>
+      <p class="p-hint">Keep a copy of today's chalkboard, diagrams and all.</p>
       <button class="p-btn" id="btn-export-pdf" title="Export board as PDF" style="width:100%;">📄 Export PDF</button>
     </div>
 
     <!-- Source material: drop a PDF. -->
     <div class="p-section">
       <h2>Source material</h2>
+      <p class="p-hint">Give Chalkline something to teach from — a chapter, a slide deck, your own notes.</p>
       <div class="upload-zone" id="upload-zone">
         Drop a PDF, or click to import a chapter, slide deck or notes.
         <input type="file" id="pdf-input" accept="application/pdf">
@@ -4709,10 +4716,12 @@ body:not(.panel-open) .sidebar-toggle{ left:0 !important; }
     <!-- Background picker + board transparency (visible) -->
     <div class="p-section">
       <h2>Background</h2>
+      <p class="p-hint">A board that's kind to your eyes for long study sessions.</p>
       <div class="bg-grid" id="bg-picker"></div>
     </div>
     <div class="p-section">
       <h2>Board transparency <span id="board-transparency-val">0%</span></h2>
+      <p class="p-hint">See your background through the board while you write.</p>
       <input type="range" class="board-slider" id="board-transparency" min="0" max="90" step="1" value="0" aria-label="Board transparency">
     </div>
 
@@ -4755,7 +4764,7 @@ body:not(.panel-open) .sidebar-toggle{ left:0 !important; }
     <button class="panel-close" id="btn-conv-close">✕</button>
   </div>
   <div class="panel-body" style="padding:0;display:flex;flex-direction:column;">
-    <div class="transcript" id="transcript" style="flex:1;overflow-y:auto;"><div class="empty-note">Your lecture transcript and quiz questions will appear here as we go.</div></div>
+    <div class="transcript" id="transcript" style="flex:1;overflow-y:auto;"><div class="empty-note">Everything Chalkline teaches you shows up here as it happens — read back over it any time, mid-lesson or after.</div></div>
     <div class="ask-zone" id="conv-ask-zone" style="flex-shrink:0;">
       <input type="text" id="conv-ask-input" placeholder="Ask a question…">
       <button id="btn-conv-ask" title="Send">➤</button>
@@ -10057,6 +10066,7 @@ html,body{ height:100%; overflow:hidden; }
       <h2 style="font-size:15px;margin:0;">Previous summaries</h2>
       <button class="icon-link" id="btn-new-summary-session">new</button>
     </div>
+    <p style="font-family:'Source Serif 4', Georgia, serif; font-size:12.5px; color:var(--muted); margin:6px 0 0 0;">Everything you've had Chalkline distill for you, ready to revisit.</p>
     <div class="session-list" id="summary-session-list" style="margin-top:10px;"><div class="empty-hint">Sign in to save and revisit your summaries.</div></div>
   </div>
 
@@ -10065,6 +10075,7 @@ html,body{ height:100%; overflow:hidden; }
     <input type="file" id="pdf-input" accept="application/pdf">
   </div>
 
+  <p style="font-family:'Source Serif 4', Georgia, serif; font-size:12.5px; color:var(--muted); margin:10px 0 0 0;">Tell us what this is for and how much detail you want — we'll shape the summary around it.</p>
   <div class="controls">
     <input type="text" id="summary-subject-input" class="length-select" placeholder="Subject or course (optional)" style="flex:1;min-width:160px;">
     <select id="length-select" class="length-select">
@@ -10288,7 +10299,7 @@ async function refreshSummarySessionList(){
     const result = await window.storage.list(summarySessionKeyPrefix(), false);
     if(myReq !== summarySessionListReq) return; // superseded by a newer auth state
     const keys = (result && result.keys) ? result.keys : [];
-    if(keys.length===0){ listEl.innerHTML = '<div class="empty-hint">No saved summaries yet.</div>'; return; }
+    if(keys.length===0){ listEl.innerHTML = '<div class="empty-hint">No saved summaries yet — summarize a PDF below and it\'ll land here.</div>'; return; }
     const items = [];
     for(const key of keys){
       try{ const rec = await window.storage.get(key, false); if(rec) items.push(JSON.parse(rec.value)); } catch(e){}
@@ -12539,6 +12550,7 @@ input, textarea, .note-textbox{ -webkit-user-select:text; user-select:text; }
     <div class="ne-empty-state" id="notes-empty-state">
       <span class="es-ic">🗒️</span>
       <p>Select a note, or create a new one.</p>
+      <p style="font-family:'Source Serif 4', Georgia, serif; font-size:13px; color:var(--muted); max-width:280px; margin:-6px auto 10px; line-height:1.5;">A ruled page, a pen, and nothing else — write it the way you would on paper.</p>
       <button type="button" onclick="createNote();">+ New Note</button>
     </div>
 
@@ -12809,6 +12821,11 @@ window.addEventListener('message', (e)=>{
     // re-render it. Re-render right here too so the course filter
     // always takes effect as soon as it's known, regardless of order.
     renderNotesList();
+    // Tell the shell which course this page is scoped to, so a real
+    // browser refresh — which re-creates this iframe from scratch and
+    // would otherwise land back on the unscoped "every note" view — can
+    // restore the same course filter instead of silently dropping it.
+    try{ parent.postMessage({ chalklineHistoryFilter:true, page:'notes', subject: currentNotesSubject || null }, '*'); }catch(e){}
   }
   if(!d || !d.chalklineAuth) return;
   notesShellUser = d.signedIn ? d.user : null;
@@ -12933,7 +12950,7 @@ function renderNotesList(){
     : scoped;
 
   if(filtered.length === 0){
-    container.innerHTML = `<div class="nl-empty-hint">${query ? 'No notes match your search.' : 'No notes yet — create your first one.'}</div>`;
+    container.innerHTML = `<div class="nl-empty-hint">${query ? 'No notes match your search.' : 'No notes yet — start one and it\'ll be right here next time.'}</div>`;
     return;
   }
 
@@ -14818,7 +14835,7 @@ let initialPayload = null;
 if((initial === 'tutor' || initial === 'summary') && shellUser){
   const rememberedId = readActiveShell(initial, shellUser.sub);
   if(rememberedId) initialPayload = { loadSessionId: rememberedId };
-} else if(HISTORY_PAGES[initial] && shellUser){
+} else if((HISTORY_PAGES[initial] || initial === 'notes') && shellUser){
   const rememberedSubject = readHistoryFilter(initial, shellUser.sub);
   if(rememberedSubject) initialPayload = { presetSubject: rememberedSubject };
 }
