@@ -3848,6 +3848,18 @@ body{
   justify-content:center;
   gap:var(--control-gap);
   padding:12px var(--content-padding) 12px;
+  opacity:1;
+  transform:translateY(0);
+  transition:opacity 0.22s ease, transform 0.22s ease;
+}
+/* Hidden while the tutor is talking; a tap anywhere brings it back
+   (see revealBottomBarOnTap in the speaking-UI script) without
+   interrupting playback. pointer-events:none while hidden so it
+   can't be tapped/clicked by accident mid-fade. */
+.bottom-bar.tutor-hidden{
+  opacity:0;
+  transform:translateY(14px);
+  pointer-events:none;
 }
 /* Replay/Transcript keep their fixed round size on every device; only
    the ask bar (which now also holds Talk, docked beside Send) grows/
@@ -7792,8 +7804,36 @@ function voiceLevelLoop(){
   voiceRafId = requestAnimationFrame(voiceLevelLoop);
 }
 
+// Ask bar + Replay/Transcript buttons auto-hide while the tutor is
+// talking (out of the way of the board) and auto-reappear the moment
+// she stops. A tap/click anywhere on screen while she's still talking
+// brings them back early without stopping playback; tearBottomBarShown
+// tracks whether that manual reveal has already happened for the
+// CURRENT speaking turn so it doesn't refight the hide on every tap.
+const bottomDock = document.getElementById('bottom-dock');
+const bottomBarEl = bottomDock ? bottomDock.querySelector('.bottom-bar') : null;
+let tutorIsSpeaking = false;
+let bottomBarRevealedEarly = false;
+
+function hideBottomBar(){
+  if(bottomBarEl) bottomBarEl.classList.add('tutor-hidden');
+  bottomBarRevealedEarly = false;
+}
+function showBottomBar(){
+  if(bottomBarEl) bottomBarEl.classList.remove('tutor-hidden');
+}
+function revealBottomBarOnTap(){
+  if(!tutorIsSpeaking || bottomBarRevealedEarly) return;
+  bottomBarRevealedEarly = true;
+  showBottomBar();
+}
+document.addEventListener('click', revealBottomBarOnTap);
+document.addEventListener('touchstart', revealBottomBarOnTap, { passive:true });
+
 function setTutorSpeakingUI(active){
   avatar.classList.toggle('speaking', active);
+  tutorIsSpeaking = active;
+  if(active){ hideBottomBar(); } else { showBottomBar(); }
   if(!askZone) return;
   askZone.classList.toggle('tutor-speaking', active);
   if(active){
@@ -8600,6 +8640,13 @@ CRITICAL LAYOUT RULES - THE APP WILL OVERRIDE YOUR COORDINATES:
 1. THE PAGE IS TWO COLUMNS, SIDE BY SIDE — NOT ONE LONG VERTICAL STACK. The app automatically places each of your turns as a whole into whichever column currently has less content, so new material can appear beside earlier material instead of only ever growing downward. You never choose or specify the column and you never try to position text next to a graph or diagram WITHIN a turn — everything inside one turn still stacks vertically inside whichever single column the app assigned it to. But BECAUSE the page is now two columns, each column is only about HALF the width a full page used to be: keep every diagram and every "text" block sized for a narrow column, not a wide page. Never plan a diagram, table, or paragraph as if it has the full page width to work with.
 2. NEVER DRAW A WIDE DIAGRAM. Diagrams are shrunk automatically if they're too wide for their column, but a diagram planned wide to begin with just comes out cramped and hard to read once shrunk — plan every diagram's local coordinate box narrow and somewhat tall from the start (e.g. roughly 260–320 units wide rather than 500+), the way you'd actually sketch something in a notebook-width column rather than across a whiteboard.
 3. NEVER WRITE A WIDE, LONG-RUNNING SENTENCE. Because a column is narrow, a long unbroken sentence wraps into many lines and eats a column's height fast — favor several short sentences/short bullet-style lines over one long one, the same "smallest next thing" discipline the pacing rules already ask for, but now doubly important because it's what keeps a column's content readable.
+
+3b. WRITE BOARD TEXT IN POINT FORM, NOT FLOWING PARAGRAPHS. This is a hard formatting rule for every "text" command that is body/paragraph content (color "ink" or "sage", diagramLabel omitted/false — see rule 8 for diagramLabel text, which follows its own diagram-part-label sizing rules instead). Default to one short "text" command per point rather than merging several ideas into one dense paragraph block:
+   - Prefix each point with a short bullet mark ("-" or "•") or, for a sequential process/derivation/steps, a number ("1.", "2.", "3."), as the first characters of the "text" string.
+   - Each bullet/numbered line should carry ONE idea, definition, assumption, step, or result — not several stitched together with "and"/semicolons.
+   - Still emit them as separate consecutive "text" commands stacking top-to-bottom (per rule 1), not as one string with manual line breaks.
+   - EXCEPTIONS — these stay as ordinary flowing sentences, not bullets: the short heading/intro line that introduces a concept or diagram (heading:true text, and the one lead-in "sage" line before a bulleted list); a single one-line "Key takeaway:" statement; a short worked-example narrative sentence that is genuinely one continuous thought (e.g. framing a scenario) rather than a list of separate facts. Use judgement — the goal is a scannable board a student can revise from at a glance, not fragmenting every sentence into meaningless one-word bullets.
+   - This rule governs the "board" (what's written/visible) only — "speech" (spoken TTS narration) must stay natural, flowing spoken sentences, never read out bullet symbols or numbered-list punctuation.
 4. ONLY use "text" commands for paragraph explanations. DO NOT use "text" commands to title or label graphs (use the "plot"/"axes" title/xlabel/ylabel properties instead).
 5. FOR GRAPHS, use ONLY the "plot" command. Put the title, xlabel, and ylabel INSIDE the plot command properties. DO NOT use separate text commands near it.
 6. FOR A DIAGRAM (a labeled picture built from "path"/"curve"/"circle"/"rect"/"line"/"arrow"/"halo"/"highlight"): draw every shape in that diagram using a small, self-consistent local coordinate box starting near (0,0), sized narrow per rule 2 above — e.g. everything within roughly x:0–280, y:0–320. Don't try to guess an absolute page position; the app automatically moves the whole diagram as one block into the current turn's column and reserves vertical space for it, so overlapping text is impossible as long as you keep it self-contained and narrow.
@@ -8910,6 +8957,8 @@ PLOT EXTRAS: a plot curve may use a formula instead of points: {"gen":{"type":"p
 TABLES: {"type":"table","columns":["Item","Amount (R)"],"rows":[["Sales","120,000"],["Costs","-72,000"],{"cells":["Profit","48,000"],"grand":true}]} — the app sizes columns, aligns numbers and rules totals; never build tables from lines.
 
 LAYOUT: The page is TWO SIDE-BY-SIDE COLUMNS — the app auto-places each whole turn into whichever column has less content, so keep every diagram and every block of text sized for a narrow column (roughly half the old full-page width), never wide. Diagram: use a small self-contained local coordinate box near (0,0), narrow rather than wide (e.g. x:0-260,y:0-320) — the app auto-places the whole block inside the chosen column. Emit ALL of one diagram's shapes as one unbroken run in "board" (heading text before, then all shapes+labels together, then resume normal text after). Any text labeling a diagram PART must have "diagramLabel":true with local coords so it moves with the diagram. Keep sentences short — a narrow column wraps long sentences into many lines fast.
+
+BOARD TEXT = POINT FORM, NOT PARAGRAPHS: every ordinary body "text" command (color "ink"/"sage", diagramLabel false/omitted) must start with "-" or "•" (or "1.","2.","3." for sequential steps) and carry exactly ONE idea/definition/step/result — one short "text" command per point, stacked, never a dense multi-idea paragraph. Exceptions (stay as plain sentences): the heading/intro line, the "Key takeaway:" line, a short one-thought example-framing sentence. "speech" stays natural spoken sentences regardless — never read bullet symbols aloud.
 
 MATH: use real unicode symbols directly in text (π θ β Δ Σ ∫ √ ∞ ≤ ≥ ≈ × ÷ → ² ³). NEVER output LaTeX/TeX (\frac, \cdot, $ $, \sqrt{}, ^{}, _{}) — the canvas prints strings literally. Write x² not x^{2}, a/b not \frac{a}{b}.
 
