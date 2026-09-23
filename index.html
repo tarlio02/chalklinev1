@@ -5038,7 +5038,9 @@ let globalCursorY = TOP_MARGIN;
 // older code that reads it (camera clamping, quiz-card placement, session save) keeps working
 // unchanged — it just now means "the bottom of the taller column" rather than "the only column".
 let columnCursorY = [TOP_MARGIN, TOP_MARGIN];
-const COLUMN_GUTTER = 56;      // empty gap between the two columns
+const COLUMN_GUTTER = 420;     // empty gap between the two columns — wide enough that the
+                                // right column sits well outside the default frame, so writing
+                                // there triggers a real horizontal camera pan to follow it
 const COLUMN_SIDE_MARGIN = 16; // left/right page margin, matches the old single-column margin
 function columnGeometry(){
   const w = Math.max(260, Math.floor((PAGE_W - COLUMN_SIDE_MARGIN*2 - COLUMN_GUTTER) / 2));
