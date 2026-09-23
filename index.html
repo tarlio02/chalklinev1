@@ -4968,15 +4968,31 @@ const PAGE_W_LANDSCAPE = 1400; // wider "logical" page in landscape: fixed-size 
                                 // camera scale itself. Portrait uses the normal, larger unit.
 let PAGE_W = PAGE_W_PORTRAIT;
 let PAGE_H = Math.round(PAGE_W * Math.SQRT2);
+
+// WRITE_W is a wider virtual writing surface than PAGE_W. The visible frame (the on-screen
+// whiteboard border) always stays exactly PAGE_W wide on screen — see boardFrameRect(), which
+// now anchors the frame to a fixed screen position instead of deriving it from the live camera —
+// but the world itself extends out to WRITE_W on either side of that window, and camera.x is
+// free to pan across it (see the "HORIZONTAL CAMERA FOLLOW" section below). Ordinary paragraph
+// text still always starts at the left edge (x=16) and wraps at the normal PAGE_W-ish width, so
+// normal lessons look and behave exactly as before and the camera stays centered at rest. Only
+// wide diagrams/tables (see flushDiagram's shrink threshold) are allowed to spread further out —
+// that's what the horizontal auto-follow actually reveals.
+const WRITE_W_PORTRAIT = 1700;
+const WRITE_W_LANDSCAPE = 2300;
+let WRITE_W = WRITE_W_PORTRAIT;
+
 // Called from resizeCanvas() (after viewW/viewH are current) so the page's logical width — and
 // therefore how large a fixed-world-unit letter/diagram renders on screen — automatically
 // switches between the portrait and landscape value whenever the device rotates.
 function updatePageWidthForOrientation(){
-  const target = (viewW > viewH) ? PAGE_W_LANDSCAPE : PAGE_W_PORTRAIT;
+  const landscape = viewW > viewH;
+  const target = landscape ? PAGE_W_LANDSCAPE : PAGE_W_PORTRAIT;
   if(target !== PAGE_W){
     PAGE_W = target;
     PAGE_H = Math.round(PAGE_W * Math.SQRT2);
   }
+  WRITE_W = landscape ? WRITE_W_LANDSCAPE : WRITE_W_PORTRAIT;
 }
 const RULE_LINE_SPACING = 40;
 
@@ -5020,11 +5036,13 @@ let sessionQuizCount = 0; // how many quiz cards this lesson has shown — surfa
 
 function resetRegionCursors(){
   globalCursorY = TOP_MARGIN;
+  lastBlockCenterX = PAGE_W / 2;
   isUserScrolling = false;
   // Invalidate any in-flight scroll animation from before this reset
   // (e.g. a "follow the pen" scroll queued by the previous session's
   // last teaching turn) so it can't fight the reset below.
   panToken++;
+  panTokenX++;
 
   if (viewW > 0) {
       camera.scale = fitScale();
@@ -5065,6 +5083,7 @@ function setCameraYProgrammatically(v){
 function noteManualScrollActivity(){
   isUserScrolling = true;
   panToken++; // cancel any in-flight auto-follow animation immediately — never fight the user's drag
+  panTokenX++; // ...and the horizontal equivalent, so a manual drag stops an in-flight x-pan too
   clampScrollLimits();
 }
 
@@ -5075,7 +5094,82 @@ function clampCamera(){
   const maxY = Math.max(0, getMaxYWorld() + 400 - viewH/camera.scale);
   if(camera.y < 0) setCameraYProgrammatically(0);
   if(camera.y > maxY) setCameraYProgrammatically(maxY);
+  clampCameraX();
 }
+
+// ---------------------------------------------------------------------
+// HORIZONTAL CAMERA FOLLOW (camera.x)
+// ---------------------------------------------------------------------
+// Mirrors the vertical auto-follow model above, but sideways: the frame
+// itself never moves or resizes (see boardFrameRect's fixed-window
+// math), only camera.x — the world-x that sits at the horizontal
+// center of that fixed frame — pans left/right. At rest camera.x sits
+// at idealCameraX() (PAGE_W/2), which keeps ordinary single-column
+// text looking exactly as before. It only actually moves when the
+// tutor writes something wide enough to fall outside the frame's
+// PAGE_W-wide window (see flushDiagram's wider shrink threshold),
+// then eases back home the next time normal left-anchored content is
+// placed.
+function setCameraXProgrammatically(v){
+  camera.x = v;
+}
+function clampCameraX(){
+  const minX = PAGE_W / 2;
+  const maxX = Math.max(minX, WRITE_W - PAGE_W / 2);
+  if(camera.x < minX) setCameraXProgrammatically(minX);
+  if(camera.x > maxX) setCameraXProgrammatically(maxX);
+}
+let panTokenX = 0; // cancels any in-flight horizontal camera animation, independent of panToken (Y)
+
+function animateScrollToX(targetCameraX, duration, onDone){
+  const myToken = ++panTokenX;
+  const startX = camera.x;
+  const dx = targetCameraX - startX;
+  const start = performance.now();
+  let finished = false;
+  function finish(){ if(!finished){ finished = true; if(onDone) onDone(); } }
+  function ease(t){ return t<0.5 ? 4*t*t*t : 1-Math.pow(-2*t+2,3)/2; }
+  function frame(now){
+    if(myToken !== panTokenX || isUserScrolling){ finish(); return; }
+    const raw = Math.min(1, (now-start)/duration);
+    const t = ease(raw);
+    setCameraXProgrammatically(startX + dx*t);
+    redrawAll();
+    if(raw < 1) requestAnimationFrame(frame);
+    else {
+      setCameraXProgrammatically(targetCameraX);
+      redrawAll();
+      finish();
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+// Auto-follow entry point for the horizontal axis: pan so that world-x
+// `targetX` sits comfortably inside the fixed frame window. Like
+// panCameraToCursor, this is a no-op if the target is already visible
+// (so ordinary narrow content never triggers any horizontal motion at
+// all) — it only actually pans for content that spills outside the
+// PAGE_W-wide window, then centers on it.
+function panCameraXToCursor(targetX, onDone){
+  if(isUserScrolling){ if(onDone) onDone(); return; }
+
+  const bb = boardBounds();
+  const sx = worldToScreen(targetX, 0)[0];
+  if(sx >= bb.left + 24 && sx <= bb.right - 24){
+    if(onDone) onDone();
+    return;
+  }
+
+  const minX = PAGE_W / 2, maxX = Math.max(minX, WRITE_W - PAGE_W / 2);
+  const targetCameraX = Math.min(maxX, Math.max(minX, targetX));
+  animateScrollToX(targetCameraX, 900, onDone);
+}
+
+// Tracks the horizontal center of whatever content block was most recently placed on the board
+// (a paragraph, a plot, or a diagram cluster) — i.e. "where the pen currently is, sideways".
+// Read once per batch in enqueueCommandsAtCursor to decide whether/where to pan camera.x.
+let lastBlockCenterX = PAGE_W / 2;
 function clampScrollLimits(){
   clampCamera();
   redrawAll();
@@ -5120,20 +5214,23 @@ function animateScrollTo(targetCameraY, duration, onDone){
 // these are the only source of user-driven vertical movement. Both
 // paths just adjust camera.y directly and redraw; noteManualScrollActivity()
 // marks the gesture as manual so auto-follow steps aside for it.
-let dragPan = null; // { pointerId, lastY } while a touch/mouse drag is active
+let dragPan = null; // { pointerId, lastY, lastX } while a touch/mouse drag is active
 
 boardWrap.addEventListener('pointerdown', (e)=>{
   if(drawing && drawQueue.length){ /* still allow grabbing control mid-write */ }
-  dragPan = { pointerId: e.pointerId, lastY: e.clientY };
+  dragPan = { pointerId: e.pointerId, lastY: e.clientY, lastX: e.clientX };
   try{ boardWrap.setPointerCapture(e.pointerId); }catch(err){}
 });
 boardWrap.addEventListener('pointermove', (e)=>{
   if(!dragPan || e.pointerId !== dragPan.pointerId) return;
   const dy = e.clientY - dragPan.lastY;
+  const dx = e.clientX - dragPan.lastX;
   dragPan.lastY = e.clientY;
-  if(dy === 0) return;
+  dragPan.lastX = e.clientX;
+  if(dy === 0 && dx === 0) return;
   noteManualScrollActivity();
-  setCameraYProgrammatically(camera.y - dy / camera.scale);
+  if(dy !== 0) setCameraYProgrammatically(camera.y - dy / camera.scale);
+  if(dx !== 0) setCameraXProgrammatically(camera.x - dx / camera.scale);
   clampCamera();
   scheduleRedraw();
 });
@@ -5149,6 +5246,7 @@ boardWrap.addEventListener('wheel', (e)=>{
   e.preventDefault();
   noteManualScrollActivity();
   setCameraYProgrammatically(camera.y + e.deltaY / camera.scale);
+  if(e.deltaX) setCameraXProgrammatically(camera.x + e.deltaX / camera.scale);
   clampCamera();
   scheduleRedraw();
 }, {passive:false});
@@ -5446,7 +5544,15 @@ function boardFrameRect(){
   const typing = !!(ae && /^(INPUT|TEXTAREA)$/.test(ae.tagName));
   // While typing, a phone keyboard shrinks the viewport — keep the frame exactly as it was.
   if(frameLock && (frameLock.key === key || (typing && frameLock.w0 === Math.round(viewW)))) return frameLock.r;
-  const pageL = worldToScreen(0, 0)[0], pageR = worldToScreen(PAGE_W, 0)[0];
+  // NOTE: this deliberately does NOT use worldToScreen(0,0)/worldToScreen(PAGE_W,0) — those
+  // depend on the live camera.x, and now that camera.x can pan sideways to follow wide content
+  // (see the horizontal auto-follow below), that would drag the frame itself around the screen.
+  // The frame's screen position/size must stay fixed at all times; only the world underneath it
+  // pans. So this computes where the page edges WOULD be if camera.x sat at its resting/home
+  // position (PAGE_W/2, i.e. idealCameraX) — which is exactly a fixed-width window centered on
+  // the viewport, independent of wherever camera.x has actually panned to right now.
+  const pageL = viewW / 2 - (PAGE_W / 2) * camera.scale;
+  const pageR = viewW / 2 + (PAGE_W / 2) * camera.scale;
   const pad = BOARD_FRAME_BORDER + 2;
   const x = Math.max(4, pageL - pad);
   const right = Math.min(viewW - 4, pageR + pad);
@@ -6844,10 +6950,18 @@ function enqueueCommandsAtCursor(commands){
         }
         let bbox = clusterBBox(pendingDiagram);
         if(!bbox){ pendingDiagram = []; return; } // nothing measurable
+        // How wide a diagram is allowed to be before it gets shrunk. This used to be a flat 900
+        // (matching the old single-page-width writing area), which is why every wide diagram got
+        // squeezed down to fit inside the visible frame. Now that the world extends out to
+        // WRITE_W beyond the frame's own window (see WRITE_W above) and the camera can pan
+        // sideways to follow it, a diagram only needs to shrink once it would run past the far
+        // edge of that wider surface — the frame itself just shows whichever slice of it the
+        // camera is currently centered on.
+        const diagramMaxW = Math.max(900, WRITE_W - DIAGRAM_LEFT - 100);
         if(!skipLayout){
-            // Wider than the page? Shrink the picture (never the text) so it fits...
-            if(bbox[2] - bbox[0] > 900){
-                const k = 900 / (bbox[2] - bbox[0]);
+            // Wider than the writing surface? Shrink the picture (never the text) so it fits...
+            if(bbox[2] - bbox[0] > diagramMaxW){
+                const k = diagramMaxW / (bbox[2] - bbox[0]);
                 pendingDiagram.forEach(c => scaleDiagramCmd(c, k));
             }
             // ...then move any label that sits on another label or on a drawn line/curve.
@@ -6861,6 +6975,10 @@ function enqueueCommandsAtCursor(commands){
         const dx = DIAGRAM_LEFT - minX;
         const dy = globalCursorY - minY;
         pendingDiagram.forEach(c=>{ translateDiagramCmd(c, dx, dy); placedAll.push(c); });
+        // Record where (horizontally) this diagram ended up, so the batch-level pan at the end
+        // of enqueueCommandsAtCursor can bring the camera sideways to it if it runs past the
+        // normally-visible window — see "HORIZONTAL CAMERA FOLLOW" above.
+        lastBlockCenterX = DIAGRAM_LEFT + (maxX - minX) / 2;
         // Reserve exactly the cluster's own height plus a bottom margin —
         // same pattern as the "plot" case below — so whatever text comes
         // next starts safely below the lowest shape in the diagram.
@@ -6935,6 +7053,10 @@ function enqueueCommandsAtCursor(commands){
             // actual notebook paper.
             c.y = globalCursorY + lh;
             placedAll.push(c);
+            // Ordinary paragraph text always starts at the fixed left margin, so its center is
+            // always the normal page center — this is what brings the camera back home
+            // horizontally after it has panned away to show a wide diagram.
+            lastBlockCenterX = c.x + c.maxWidth / 2;
             // Advance by exactly the block's own height — no extra blank
             // gap tacked on — so consecutive notes stack tight against each
             // other like continuous handwriting, while every line (of this
@@ -6952,6 +7074,7 @@ function enqueueCommandsAtCursor(commands){
             globalCursorY += RULE_LINE_SPACING; // Title margin
             c.y = globalCursorY + c.h; // Origin is bottom-left
             placedAll.push(c);
+            lastBlockCenterX = c.x + c.w / 2;
             // X-axis label margin. MUST be a whole multiple of
             // RULE_LINE_SPACING like every other vertical measurement in
             // this function — otherwise globalCursorY drifts off the rule
@@ -6977,6 +7100,11 @@ function enqueueCommandsAtCursor(commands){
 
     redrawAll();
 
+    // Horizontal follow runs independently of (and concurrently with) the vertical follow above —
+    // it only actually moves the camera when this batch's content (tracked via lastBlockCenterX)
+    // fell outside the frame's normally-visible window, e.g. a diagram wide enough to spill past
+    // it. Ordinary text batches resolve to the normal page center and are a no-op here.
+    panCameraXToCursor(lastBlockCenterX);
     panCameraToCursor(panTargetY, () => enqueueCommands(placedAll));
 }
 
