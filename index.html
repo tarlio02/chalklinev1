@@ -5040,10 +5040,17 @@ let sessionQuizCount = 0; // how many quiz cards this lesson has shown — surfa
 // Null when the board is in its normal single-column state.
 let columnMode = null; // { leftX, leftW, leftY, rightBottom }
 const COLUMN_GAP = 28;
+// SIDE-BY-SIDE LAYOUT: a diagram or graph is drawn in the LEFT column and the text that explains
+// it flows into the RIGHT column. (columnMode's leftX/leftW/leftY fields hold the TEXT column —
+// the names are kept so sessions saved by older versions still restore.)
 const COLUMN_LEFT_X = 16;
-const COLUMN_LEFT_W = 440;                                           // narrower notes column next to a graph
-const COLUMN_RIGHT_X = COLUMN_LEFT_X + COLUMN_LEFT_W + COLUMN_GAP;   // 484
-const COLUMN_RIGHT_W = 968 - COLUMN_LEFT_W - COLUMN_GAP;             // 500 — (968 matches the full-width text column elsewhere)
+const COLUMN_LEFT_W = 470;                                           // diagram / graph column
+const COLUMN_RIGHT_X = COLUMN_LEFT_X + COLUMN_LEFT_W + COLUMN_GAP;   // 514 — explanation column
+const COLUMN_RIGHT_W = 984 - COLUMN_RIGHT_X;                         // 470 — (984 = right edge of the full-width text column, 16 + 968)
+const DIAGRAM_SIDE_BY_SIDE_MIN_VIEW_W = 700;   // narrower screens keep the old stacked layout (half-width text would be too small)
+const DIAGRAM_MIN_SCALE = 0.55;                // a diagram that would need shrinking below this stays full-width
+const DIAGRAM_COLUMN_FIRST_BLOCK_WORDS = 90;   // the first explanation block beside a diagram may be this long...
+const DIAGRAM_COLUMN_LONG_PARAGRAPH_WORDS = 60;// ...later blocks beside a diagram this long
 // A "long paragraph" of text is judged too substantial to sit as a compact
 // note beside a graph — it closes the column and reclaims the full page
 // width, per the "two columns while drawing a graph, one column for long
@@ -6971,10 +6978,18 @@ function enqueueCommandsAtCursor(commands){
         }
         let bbox = clusterBBox(pendingDiagram);
         if(!bbox){ pendingDiagram = []; return; } // nothing measurable
+        // Side-by-side (diagram left, explanation right) is used only for a real hand-drawn diagram
+        // (not a table), on a screen wide enough for half-width text, and only if the diagram fits the
+        // left column without being shrunk too much. Otherwise the old full-width stacked layout is used.
+        let sideBySide = false;
         if(!skipLayout){
-            // Wider than the page? Shrink the picture (never the text) so it fits...
-            if(bbox[2] - bbox[0] > 900){
-                const k = 900 / (bbox[2] - bbox[0]);
+            const w0 = bbox[2] - bbox[0];
+            sideBySide = viewW >= DIAGRAM_SIDE_BY_SIDE_MIN_VIEW_W && w0 > 0 &&
+                         (w0 <= COLUMN_LEFT_W || COLUMN_LEFT_W / w0 >= DIAGRAM_MIN_SCALE);
+            // Wider than its slot? Shrink the picture (never the text) so it fits...
+            const fitW = sideBySide ? COLUMN_LEFT_W : 900;
+            if(w0 > fitW){
+                const k = fitW / w0;
                 pendingDiagram.forEach(c => scaleDiagramCmd(c, k));
             }
             // ...then move any label that sits on another label or on a drawn line/curve.
@@ -6985,13 +7000,27 @@ function enqueueCommandsAtCursor(commands){
         minY -= DIAGRAM_BBOX_PAD; maxY += DIAGRAM_BBOX_PAD;
 
         globalCursorY += DIAGRAM_MARGIN_TOP;
-        const dx = DIAGRAM_LEFT - minX;
+        // Side-by-side: centre the picture inside the left column; stacked: the old fixed left inset.
+        const dx = sideBySide
+            ? COLUMN_LEFT_X + Math.max(0, (COLUMN_LEFT_W - (maxX - minX)) / 2) - minX
+            : DIAGRAM_LEFT - minX;
         const dy = globalCursorY - minY;
         pendingDiagram.forEach(c=>{ translateDiagramCmd(c, dx, dy); placedAll.push(c); });
-        // Reserve exactly the cluster's own height plus a bottom margin —
-        // same pattern as the "plot" case below — so whatever text comes
-        // next starts safely below the lowest shape in the diagram.
-        globalCursorY += (maxY - minY) + DIAGRAM_MARGIN_BOTTOM;
+        if(sideBySide){
+            // Open the right-hand explanation column beside the diagram (same mechanism graphs use).
+            // The cursor stops at the diagram's bottom; endColumnMode() later jumps past whichever
+            // side ended up taller.
+            const top = globalCursorY;
+            const bottom = globalCursorY + (maxY - minY);
+            globalCursorY = bottom;
+            columnMode = { leftX: COLUMN_RIGHT_X, leftW: COLUMN_RIGHT_W, leftY: top, rightBottom: bottom,
+                           diagram: true, textStarted: false };
+        } else {
+            // Reserve exactly the cluster's own height plus a bottom margin —
+            // same pattern as the "plot" case below — so whatever text comes
+            // next starts safely below the lowest shape in the diagram.
+            globalCursorY += (maxY - minY) + DIAGRAM_MARGIN_BOTTOM;
+        }
         pendingDiagram = [];
     }
 
@@ -7058,8 +7087,14 @@ function enqueueCommandsAtCursor(commands){
             // full-width single column — see COLUMN_LONG_PARAGRAPH_WORDS.
             if(columnMode){
                 const { words } = measureLines(columnMode.leftW);
-                const longParagraph = !c.heading && words.length > COLUMN_LONG_PARAGRAPH_WORDS;
-                const noRoomLeft = columnMode.leftY + RULE_LINE_SPACING > columnMode.rightBottom;
+                // The first explanation beside a diagram always gets in (even if the diagram is short
+                // or the paragraph is fairly long) — otherwise the right column would stay empty.
+                const firstBlock = !columnMode.textStarted;
+                const wordLimit = columnMode.diagram
+                    ? (firstBlock ? DIAGRAM_COLUMN_FIRST_BLOCK_WORDS : DIAGRAM_COLUMN_LONG_PARAGRAPH_WORDS)
+                    : COLUMN_LONG_PARAGRAPH_WORDS;
+                const longParagraph = !c.heading && words.length > wordLimit;
+                const noRoomLeft = !firstBlock && columnMode.leftY + RULE_LINE_SPACING > columnMode.rightBottom;
                 if(c.heading || longParagraph || noRoomLeft) endColumnMode();
             }
 
@@ -7071,6 +7106,7 @@ function enqueueCommandsAtCursor(commands){
                 c.y = columnMode.leftY + lh;
                 placedAll.push(c);
                 columnMode.leftY += lines * lh;
+                columnMode.textStarted = true;
                 globalCursorY = Math.max(globalCursorY, columnMode.leftY);
             } else {
                 c.x = 16;          // start at the far left of the board
@@ -7103,14 +7139,14 @@ function enqueueCommandsAtCursor(commands){
             if(c.type === 'plot') normalizePlot(c);
             // A plot/axes always starts a fresh two-column pairing: the graph
             // claims a narrower right column, and text placed right after it
-            // is free to flow into a left notes column at the same height
+            // is free to flow into a right-hand notes column at the same height
             // instead of being pushed below the whole graph — see COLUMN MODE
             // above. A second graph in a row first closes out the pairing
             // it interrupted.
             if(columnMode) endColumnMode();
             const top = globalCursorY + RULE_LINE_SPACING; // Title margin
-            c.x = COLUMN_RIGHT_X;
-            c.w = COLUMN_RIGHT_W;
+            c.x = DIAGRAM_LEFT;                                  // leaves room for the y-axis tick labels
+            c.w = COLUMN_LEFT_W - (DIAGRAM_LEFT - COLUMN_LEFT_X);  // graph fills the LEFT column
             c.h = 400; // a whole multiple of RULE_LINE_SPACING, like every
                        // other vertical measurement here — see note below
             c.y = top + c.h; // Origin is bottom-left
@@ -7122,7 +7158,7 @@ function enqueueCommandsAtCursor(commands){
             // placed after it stops resting on the ruled lines (it'll
             // visually "float" between them instead of sitting on one).
             const rightBottom = c.y + RULE_LINE_SPACING*2;
-            columnMode = { leftX: COLUMN_LEFT_X, leftW: COLUMN_LEFT_W, leftY: top, rightBottom };
+            columnMode = { leftX: COLUMN_RIGHT_X, leftW: COLUMN_RIGHT_W, leftY: top, rightBottom, textStarted: false };
             globalCursorY = Math.max(globalCursorY, rightBottom);
         }
     });
@@ -8553,7 +8589,7 @@ ECONOMICS: always run the chain "What am I looking at?" → "Why is it shaped li
 
 MATHEMATICAL ACCURACY PROTOCOL — reason BEFORE you draw. Use the "plan" field for this (it is never shown to the student): write the function/model, the exact numbers (intercepts, equilibrium, slope at the point, roots, turning points), and confirm each one. Never draw a graph that only "looks right". For differentiation the order is: write the function → say what it represents → differentiate step by step → interpret the derivative → calculate the gradient at a specific point → draw the original curve → mark the point → draw the tangent → show the gradient visually → say what the tangent tells us. Use the "gen" curves described below so the curve is computed from the true formula instead of eyeballed points.
 
-WHITEBOARD ORGANISATION: the board is one tall page and the app stacks content top to bottom. Order it like a lecturer's board: heading → context/assumptions → main diagram, table or calculation → interpretation → a one-line KEY TAKEAWAY at the bottom (start that text with "Key takeaway:" and add a "highlight" under it). Keep related things together, and NEVER cram: a complex idea gets its own turn and its own space — the app adds vertical room automatically, so use it. Whenever that "main diagram" is a "plot"/"axes" graph, it always draws in the right-hand column, and the interpretation for it is what goes directly beside it on the left as short bullets, per the REQUIRED — EVERY GRAPH GETS A LEFT-SIDE EXPLANATION rule below — not further down the page.
+WHITEBOARD ORGANISATION: the board is one tall page and the app stacks content top to bottom. Order it like a lecturer's board: heading → context/assumptions → main diagram, table or calculation → interpretation → a one-line KEY TAKEAWAY at the bottom (start that text with "Key takeaway:" and add a "highlight" under it). Keep related things together, and NEVER cram: a complex idea gets its own turn and its own space — the app adds vertical room automatically, so use it. Whenever that "main diagram" is a "plot"/"axes" graph, it always draws in the left-hand column, and the interpretation for it is what goes directly beside it on the right as short bullets, per the REQUIRED — EVERY GRAPH GETS A RIGHT-SIDE EXPLANATION rule below — not further down the page.
 
 SELF-CHECK BEFORE YOU OUTPUT ANY DIAGRAM (silently confirm in "plan"): mathematically/scientifically correct? every axis labelled with quantity AND units? curves the right shape and slope? equilibrium/critical points exactly where the algebra says? every arrow meaningful and explained? every label readable? nothing overlapping? enough space? does the diagram actually support what "speech" says? If any answer is NO, fix it before you output. Never draw vague decorative diagrams — every mark must help explain the concept.
 
@@ -8604,13 +8640,14 @@ STRICT TEXT COLOR RULE — this is a hard rule, not a stylistic suggestion, and 
 - diagramLabel text (labels naming a part of a diagram) is exempt from this rule and may use "ink" or a color matching the structure it's labeling, since diagram color is a separate visual system from handwriting hierarchy.
 
 CRITICAL LAYOUT RULES - THE APP WILL OVERRIDE YOUR COORDINATES:
-1. Everything is stacked vertically in a single column by the engine, with ONE automatic exception: right after a "plot"/"axes" command, the engine opens a narrower left-hand notes column beside the graph, and short "text" commands that immediately follow flow into that column instead of being pushed below the whole graph — exactly like a page of annotated notes with the graph on one side. This closes itself automatically (back to the normal single full-width column) the moment a heading, a genuinely long paragraph, or a hand-drawn diagram/table appears, or once the notes run out of room next to the graph. You do not control any of this with coordinates — just emit a "plot"/"axes" command, then the required short "text" bullets described next.
+1. Everything is stacked vertically in a single column by the engine, with ONE automatic exception: right after a "plot"/"axes" command, the engine draws the graph in a left-hand column and opens a narrower right-hand notes column beside it, and short "text" commands that immediately follow flow into that column instead of being pushed below the whole graph — exactly like a page of annotated notes with the graph on one side. The same applies to a hand-drawn diagram (a run of shapes + diagramLabels — not a table): the app draws it in the left column and the short "text" commands right after it flow into the right column beside it. This closes itself automatically (back to the normal single full-width column) the moment a heading, a genuinely long paragraph, or a hand-drawn diagram/table appears, or once the notes run out of room next to the graph. You do not control any of this with coordinates — just emit a "plot"/"axes" command, then the required short "text" bullets described next.
 
-REQUIRED — EVERY GRAPH GETS A LEFT-SIDE EXPLANATION: every single time you draw a "plot" or "axes" command, the very next command(s) in "board" MUST be a small number of short "text" bullets (plain, non-heading, each well under the ~28-word column limit — one short sentence per bullet is ideal) explaining what the graph shows: what's on each axis, what the curve(s) mean, what a marked point/shift represents. These are the graph's caption, written where a lecturer would jot notes beside their sketch — see STUDY-NOTE STYLE below for the bullet format. This is not optional and not something to skip for a "quick" graph. Do NOT put a heading, a long paragraph, or another diagram/table directly after a plot — any of those ends the column early and pushes the explanation below the graph instead of beside it, which is wrong. EVERY bullet in that left column must be ABOUT THIS GRAPH SPECIFICALLY — what it shows, what moved, what it means — never a segue into the next topic, a general remark, or a check-in question; those belong in "speech" or in a later turn, not in the column. If you have more to say than fits in a few short bullets, say the rest in "speech" or defer it to a later turn rather than breaking the left-column explanation.
+REQUIRED — EVERY GRAPH GETS A RIGHT-SIDE EXPLANATION: every single time you draw a "plot" or "axes" command, the very next command(s) in "board" MUST be a small number of short "text" bullets (plain, non-heading, each well under the ~28-word column limit — one short sentence per bullet is ideal) explaining what the graph shows: what's on each axis, what the curve(s) mean, what a marked point/shift represents. These are the graph's caption, written where a lecturer would jot notes beside their sketch — see STUDY-NOTE STYLE below for the bullet format. This is not optional and not something to skip for a "quick" graph. Do NOT put a heading, a long paragraph, or another diagram/table directly after a plot — any of those ends the column early and pushes the explanation below the graph instead of beside it, which is wrong. EVERY bullet in that right column must be ABOUT THIS GRAPH SPECIFICALLY — what it shows, what moved, what it means — never a segue into the next topic, a general remark, or a check-in question; those belong in "speech" or in a later turn, not in the column. If you have more to say than fits in a few short bullets, say the rest in "speech" or defer it to a later turn rather than breaking the right-column explanation.
 2. ONLY use "text" commands for paragraph explanations. DO NOT use "text" commands to title or label graphs (use the "plot"/"axes" title/xlabel/ylabel properties instead).
 3. FOR GRAPHS, use ONLY the "plot" command. Put the title, xlabel, and ylabel INSIDE the plot command properties. DO NOT use separate text commands near it.
 4. FOR A DIAGRAM (a labeled picture built from "path"/"curve"/"circle"/"rect"/"line"/"arrow"/"halo"/"highlight"): draw every shape in that diagram using a small, self-consistent local coordinate box starting near (0,0) — e.g. everything within roughly x:0–300, y:0–300. Don't try to guess an absolute page position; the app automatically moves the whole diagram as one block to the next free spot on the page and reserves vertical space for it, so overlapping text is impossible as long as you keep it self-contained.
 5. EVERY command that belongs to one diagram must be emitted as one unbroken run in the "board" array — do not interleave a diagram's shapes with unrelated paragraph "text" commands. Put a normal heading/intro "text" command (with "diagramLabel" omitted) BEFORE the run starts, then all of that diagram's shapes and part-labels back to back, then resume normal paragraph text afterward.
+5b. DIAGRAM + EXPLANATION SIDE BY SIDE: a hand-drawn diagram (a run of shapes + diagramLabels — NOT a table and NOT a plot) is drawn by the app in a LEFT column, and the very next command(s) after the run MUST be one to three short plain "text" paragraphs or bullets (non-heading, about 20-60 words each) explaining what THIS diagram shows — the app places them in a RIGHT column beside it. Put any heading BEFORE the diagram, never between the diagram and its explanation: a heading, another diagram, a table or a long paragraph ends the side-by-side layout early. Keep the diagram's local box compact (about 450 units wide or less, and no more than about 400 tall) so it fits its column without being shrunk. Anything that is not about this diagram belongs in a later block or in "speech".
 6. Any "text" command used to label a PART of a diagram (not a paragraph) must include "diagramLabel":true and use small local coordinates in the same box as the diagram's shapes — this tells the app to move the label together with the diagram instead of stacking it as its own paragraph line.
 
 TEXT ON THE BOARD MUST USE REAL SYMBOLS, NOT SPELLED-OUT WORDS: π, θ, β, α, γ, Δ, Σ, ∫, √, ∞, ≤, ≥, ≈, ×, ÷, →, ², ³, ₁, ₂, etc. directly inside "text" strings. Use "mono":true for alignment if drawing equations.
@@ -8925,8 +8962,8 @@ EXPLAIN LIKE I'M 5, THEN UNIVERSITY-LEVEL: never open a new concept with jargon 
 PLOT EXTRAS: a plot curve may use a formula instead of points: {"gen":{"type":"poly","coeffs":[c0,c1,c2]}} (also line{m,c}, power{a,b}, hyperbola{k,h,v}, exp{a,b}, normal{mean,sd,peak}, tangent{of:{gen},at,half}). A plot may have "marks":[{"x":..,"y":..,"label":"E","xText":"Q*","yText":"P*"}] and "arrows":[{"from":[x,y],"to":[x,y],"label":"shift"}] in data coordinates; curve options "area":true, "scatter":true. Numeric ticks sit at their true values; the app keeps labels from overlapping.
 TABLES: {"type":"table","columns":["Item","Amount (R)"],"rows":[["Sales","120,000"],["Costs","-72,000"],{"cells":["Profit","48,000"],"grand":true}]} — the app sizes columns, aligns numbers and rules totals; never build tables from lines.
 
-LAYOUT: For a diagram (path/curve/circle/rect/line/arrow/halo/highlight), use a small self-contained local coordinate box near (0,0) (e.g. x:0-300,y:0-300) — the app auto-places the whole block on the page. Emit ALL of one diagram's shapes as one unbroken run in "board" (heading text before, then all shapes+labels together, then resume normal text after). Any text labeling a diagram PART must have "diagramLabel":true with local coords so it moves with the diagram.
-GRAPHS — RIGHT COLUMN + REQUIRED LEFT-SIDE EXPLANATION: a "plot"/"axes" command always draws in a right-hand column. REQUIRED: the very next command(s) after it in "board" must be a few short plain "text" bullets (non-heading, one short sentence each) explaining what the graph shows — axes, what each curve means, what a marked point/shift represents — so the app places them beside the graph in a left notes column. Every one of those bullets must be about THIS graph specifically, not a segue to the next topic or a general remark. Never put a heading, a long paragraph, or another diagram/table directly after a plot — that ends the column early and pushes the explanation below the graph instead of beside it.
+LAYOUT: For a diagram (path/curve/circle/rect/line/arrow/halo/highlight), use a small self-contained local coordinate box near (0,0) (e.g. x:0-300,y:0-300) — the app auto-places the whole block on the page. Emit ALL of one diagram's shapes as one unbroken run in "board" (heading text before, then all shapes+labels together, then resume normal text after). Any text labeling a diagram PART must have "diagramLabel":true with local coords so it moves with the diagram. SIDE BY SIDE: the app draws a diagram (not a table) in a left column, so the very next command(s) after it must be 1-3 short plain "text" paragraphs (non-heading, about 20-60 words each) explaining that diagram — they appear in a right column beside it. Put any heading BEFORE the diagram, keep the diagram's local box compact (about 450 wide or less), and never put a heading, another diagram or a table right after it.
+GRAPHS — LEFT COLUMN + REQUIRED RIGHT-SIDE EXPLANATION: a "plot"/"axes" command always draws in a left-hand column. REQUIRED: the very next command(s) after it in "board" must be a few short plain "text" bullets (non-heading, one short sentence each) explaining what the graph shows — axes, what each curve means, what a marked point/shift represents — so the app places them beside the graph in a right notes column. Every one of those bullets must be about THIS graph specifically, not a segue to the next topic or a general remark. Never put a heading, a long paragraph, or another diagram/table directly after a plot — that ends the column early and pushes the explanation below the graph instead of beside it.
 
 MATH: use real unicode symbols directly in text (π θ β Δ Σ ∫ √ ∞ ≤ ≥ ≈ × ÷ → ² ³). NEVER output LaTeX/TeX (\frac, \cdot, $ $, \sqrt{}, ^{}, _{}) — the canvas prints strings literally. Write x² not x^{2}, a/b not \frac{a}{b}.
 
@@ -8947,7 +8984,7 @@ COMMAND TYPES:
 Any shape accepts "dash":true for reference/equilibrium/hidden lines only — not everything.
 "rect" accepts "radius" (world units) for a rounded-corner box — use with "fill":true, "fillOpacity":0.08-0.12 for a callout/"key takeaway" box.
 
-STUDY-NOTE STYLE (for review/summary turns, or "write that as notes"): numbered headings ("1. What is it?") as "text" with heading:true, optionally a "highlight" box behind the key words. Emphasize a phrase with a "highlight" rect under it (emit before the text so ink draws on top) or a colored "line" underline. A callout/"key takeaway" box is a rounded "rect" (radius+fill) with text placed inside at local coords, box first. Bullets: prefix "text" with "• ". On a "plot", explain what a curve segment MEANS with an "arrows" entry that has a short "label" and a "color" — the renderer auto-places it clear of the curve. The board is normally single-column, EXCEPT right after a "plot": the engine then opens a narrower left notes column beside the graph automatically, and the required short "text" bullets right after the plot (see GRAPHS — RIGHT COLUMN + REQUIRED LEFT-SIDE EXPLANATION above) flow into it — a heading, a long paragraph, a diagram, or a table all close that column and return to full width on their own, no coordinates needed. Save the richer callout-box/highlight look for consolidating already-taught material, not a concept's first pass.
+STUDY-NOTE STYLE (for review/summary turns, or "write that as notes"): numbered headings ("1. What is it?") as "text" with heading:true, optionally a "highlight" box behind the key words. Emphasize a phrase with a "highlight" rect under it (emit before the text so ink draws on top) or a colored "line" underline. A callout/"key takeaway" box is a rounded "rect" (radius+fill) with text placed inside at local coords, box first. Bullets: prefix "text" with "• ". On a "plot", explain what a curve segment MEANS with an "arrows" entry that has a short "label" and a "color" — the renderer auto-places it clear of the curve. The board is normally single-column, EXCEPT right after a "plot": the engine then opens a narrower right notes column beside the graph automatically, and the required short "text" bullets right after the plot (see GRAPHS — LEFT COLUMN + REQUIRED RIGHT-SIDE EXPLANATION above) flow into it — a heading, a long paragraph, a diagram, or a table all close that column and return to full width on their own, no coordinates needed. Save the richer callout-box/highlight look for consolidating already-taught material, not a concept's first pass.
 
 GRAPH PRECISION STANDARD — every "plot"/"axes" diagram (not just economics) must read as a precise, university-level figure: work out each curve's real shape first (linear gets exactly 2 points for a dead-straight line; a genuinely curved function gets 8-15 points sampled along the real curve, not a faceted guess). Pick xRange/yRange so curves and any marked point sit well inside the box (middle 60-80%), never clipped at an edge — and double check every point you give a curve actually falls inside the xRange/yRange you chose; a point outside that range draws outside the axes box, which must never happen.
 
