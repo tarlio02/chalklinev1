@@ -29,6 +29,12 @@
   /* The outgoing page stays visible (z-index below the incoming one)
      just long enough to crossfade out, instead of vanishing instantly. */
   .shell-page.leaving{ opacity:0; visibility:visible; pointer-events:none; z-index:1; }
+  /* VISIBLE-HEIGHT FIX (not fullscreen): on phones/tablets the browser's own toolbar/address bar takes
+     space, and `height:100%` on a fixed element can resolve to the FULL screen height, so the bottom of
+     every page ended up hidden behind that bar. --shell-h is the real visible height (window.innerHeight),
+     kept up to date by the script below; the fallback is the old 100%. */
+  html,body{ height:var(--shell-h, 100%); }
+  .shell-page{ top:0; bottom:auto; height:var(--shell-h, 100%); }
 
   /* Real Google Sign-In must live in the top-level page — a srcdoc
      iframe reports location.origin as "null", and Google's Identity
@@ -859,6 +865,19 @@ body.landing-active #shell-auth{ display:none; }
   try{
     if(!localStorage.getItem('chalkline_shell_user')) document.body.classList.add('landing-active');
   }catch(e){ document.body.classList.add('landing-active'); }
+  // Keep --shell-h equal to the height that is actually visible right now (see the CSS note above).
+  (function(){
+    function setShellH(){
+      var h = Math.round(window.innerHeight || document.documentElement.clientHeight || 0);
+      if(h > 0) document.documentElement.style.setProperty('--shell-h', h + 'px');
+    }
+    setShellH();
+    window.addEventListener('resize', setShellH);
+    window.addEventListener('orientationchange', function(){ setTimeout(setShellH, 150); });
+    window.addEventListener('pageshow', setShellH);
+    document.addEventListener('fullscreenchange', function(){ setTimeout(setShellH, 100); });
+    document.addEventListener('webkitfullscreenchange', function(){ setTimeout(setShellH, 100); });
+  })();
 </script>
 
 <div id="shell-auth">
