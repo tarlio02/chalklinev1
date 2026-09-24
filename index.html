@@ -5651,7 +5651,7 @@ function commandScreenBBox(cmd){
   switch(cmd.type){
     case 'text': {
       const fam = "'Kalam', 'Caveat', cursive";
-      const weight = cmd.weight || 700;
+      const weight = cmd.weight || 500;
       const size = handSize(cmd);
       ctx.font = `${weight} ${sw(size)}px ${fam}`;
       const [sx,sy] = worldToScreen(cmd.x, cmd.y);
@@ -5790,7 +5790,7 @@ function renderCommand(cmd){
   switch(cmd.type){
     case 'text': {
       const fam = "'Kalam', 'Caveat', cursive";
-      const weight = cmd.weight || 700;
+      const weight = cmd.weight || 500;
       let size = handSize(cmd);
       ctx.font = `${weight} ${sw(size)}px ${fam}`;
       ctx.textBaseline = 'alphabetic';
@@ -6466,7 +6466,7 @@ function resolveClusterLayout(cluster){
   const gridLike = hl >= 3 && vl >= 2;             // a hand-ruled table: labels sit between the rules on purpose
   const boxOf = (c, dx, dy) => {
     const size = handSize(c);
-    let w = measureTextW(c.text || '', c.weight || 700, size, fam);
+    let w = measureTextW(c.text || '', c.weight || 500, size, fam);
     if(c.maxWidth) w = Math.min(w, c.maxWidth);
     return [c.x + dx, c.y + dy - size*0.95, c.x + dx + w, c.y + dy + size*0.28];
   };
@@ -6958,7 +6958,7 @@ function enqueueCommandsAtCursor(commands){
             const fam = "'Kalam', 'Caveat', cursive";
             c.hm = HAND_TEXT_MULT;
             const size = handSize(c);
-            tCtx.font = `${c.weight || 700} ${size}px ${fam}`;
+            tCtx.font = `${c.weight || 500} ${size}px ${fam}`;
 
             const measureLines = (maxWidth) => {
                 const words = (c.text || '').split(/\s+/).filter(Boolean);
@@ -7205,7 +7205,7 @@ function renderPartialCommand(cmd, t){
     case 'text': {
       const full = cmd.text || '';
       const fam = "'Kalam', 'Caveat', cursive";
-      const weight = cmd.weight || 700;
+      const weight = cmd.weight || 500;
       let size = handSize(cmd);
       ctx.font = `${weight} ${sw(size)}px ${fam}`;
       const [sx,sy] = worldToScreen(cmd.x, cmd.y);
@@ -8082,7 +8082,7 @@ function dismissQuizCard(){
 function wordBoxesForTextCommand(cmd){
   if(cmd.type !== 'text' || !cmd.text) return [];
   const fam = "'Kalam', 'Caveat', cursive";
-  const weight = cmd.weight || 700;
+  const weight = cmd.weight || 500;
   const size = handSize(cmd);
   // Measure in WORLD units (scale=1 font) so results are resolution-
   // independent, then the caller (worldToScreen) applies camera.scale —
@@ -8549,7 +8549,7 @@ NEVER WRITE LaTeX/TeX MARKUP ON THE BOARD. There is no math typesetting engine �
 This rule applies to every "text" command, including headings, definitions, and worked equations — plain readable notation only, exactly like natural handwriting on a real whiteboard.
 
 Available command types:
-- {"type":"text","x":..,"y":..,"text":"...","size":26,"color":"ink|sage|sky","mono":false,"weight":700,"maxWidth":800,"heading":false,"diagramLabel":false} — keep body/paragraph text bold and easy to read from a distance: use "size" around 24-28 for normal notes, and 18-20 for a diagram's small "diagramLabel" part-labels. For plain (non-diagramLabel) text, "color" must be "ink" (body text, the default/majority case), "sage" (a short sub-heading lead-in), or "sky" (heading:true text only) — see STRICT TEXT COLOR RULE above; do not use any other color value here. Set "diagramLabel":true when this text labels a part of a diagram rather than being paragraph prose (see diagram rules above) — diagramLabel text is exempt from the 3-color rule and may use any color; otherwise leave it false/omitted. Set "heading":true ONLY for a section/topic title (e.g. "2. The Friedman-Phelps Critique"). The app automatically underlines heading text and inserts a blank ruled line above it, so DO NOT manually add a blank line or a "---"/underscore divider before a heading yourself — just set "heading":true and let the app handle the spacing and underline. Use a noticeably larger "size" (e.g. 32-36, NOT 40+) for headings — keep everything compact rather than oversized, but "heading":true is what actually triggers the underline and spacing, not the size alone. FOR ANY diagramLabel THAT SITS INSIDE A KNOWN BOUNDED SPACE — a table/matrix cell, a small shape it must stay inside — ALWAYS also set "maxWidth" to that space's inner width (e.g. a table cell's columnWidth − 2×padding, see the tables section below): the app will auto-shrink that one label's font just enough to guarantee it never visually spills past the boundary you gave it, even if your own width estimate was slightly optimistic. This is a required safety net for every table cell, not an optional extra — get the sizing right per the tables section AND always set "maxWidth" on top of that.
+- {"type":"text","x":..,"y":..,"text":"...","size":26,"color":"ink|sage|sky","mono":false,"weight":500,"maxWidth":800,"heading":false,"diagramLabel":false} — keep body/paragraph text a lighter, natural handwriting weight (NOT bold — 500 is the normal default; reserve 700 for a genuine emphasis moment, not everyday prose) and easy to read from a distance: use "size" around 24-28 for normal notes, and 18-20 for a diagram's small "diagramLabel" part-labels. For plain (non-diagramLabel) text, "color" must be "ink" (body text, the default/majority case), "sage" (a short sub-heading lead-in), or "sky" (heading:true text only) — see STRICT TEXT COLOR RULE above; do not use any other color value here. Set "diagramLabel":true when this text labels a part of a diagram rather than being paragraph prose (see diagram rules above) — diagramLabel text is exempt from the 3-color rule and may use any color; otherwise leave it false/omitted. Set "heading":true ONLY for a section/topic title (e.g. "2. The Friedman-Phelps Critique"). The app automatically underlines heading text and inserts a blank ruled line above it, so DO NOT manually add a blank line or a "---"/underscore divider before a heading yourself — just set "heading":true and let the app handle the spacing and underline. Use a noticeably larger "size" (e.g. 32-36, NOT 40+) for headings — keep everything compact rather than oversized, but "heading":true is what actually triggers the underline and spacing, not the size alone. FOR ANY diagramLabel THAT SITS INSIDE A KNOWN BOUNDED SPACE — a table/matrix cell, a small shape it must stay inside — ALWAYS also set "maxWidth" to that space's inner width (e.g. a table cell's columnWidth − 2×padding, see the tables section below): the app will auto-shrink that one label's font just enough to guarantee it never visually spills past the boundary you gave it, even if your own width estimate was slightly optimistic. This is a required safety net for every table cell, not an optional extra — get the sizing right per the tables section AND always set "maxWidth" on top of that.
 - {"type":"halo","x":..,"y":..,"r":50,"color":"halo|ochre|sage|teal|violet|sky|coral"}
 - {"type":"line","x1":..,"y1":..,"x2":..,"y2":..,"color":"ink","width":2.5,"dash":false}
 - {"type":"arrow","x1":..,"y1":..,"x2":..,"y2":..,"color":"ochre","width":2.5,"dash":false}
@@ -8853,7 +8853,7 @@ GRAPHS — RIGHT COLUMN + REQUIRED LEFT-SIDE EXPLANATION: a "plot"/"axes" comman
 MATH: use real unicode symbols directly in text (π θ β Δ Σ ∫ √ ∞ ≤ ≥ ≈ × ÷ → ² ³). NEVER output LaTeX/TeX (\frac, \cdot, $ $, \sqrt{}, ^{}, _{}) — the canvas prints strings literally. Write x² not x^{2}, a/b not \frac{a}{b}.
 
 COMMAND TYPES:
-- {"type":"text","x":..,"y":..,"text":"...","size":26,"color":"ink|sage|sky","mono":false,"weight":700,"maxWidth":800,"heading":false,"diagramLabel":false} — plain body text color MUST be "ink" (default/majority), "sage" (short sub-heading lead-in), or "sky" (heading:true only). diagramLabel text is exempt and may use any color. heading:true only for a section title (app auto-underlines it; don't add your own divider). Body size 24-28, diagramLabel size 18-20, heading size 32-36. Any diagramLabel inside a table cell MUST also set "maxWidth" to that cell's inner width (columnWidth − 2×padding) — required safety net against text spilling past the grid line.
+- {"type":"text","x":..,"y":..,"text":"...","size":26,"color":"ink|sage|sky","mono":false,"weight":500,"maxWidth":800,"heading":false,"diagramLabel":false} — plain body text color MUST be "ink" (default/majority), "sage" (short sub-heading lead-in), or "sky" (heading:true only). Keep body text at a lighter, natural handwriting weight — 500 is the normal default, NOT bold; only use 700 for genuine emphasis. diagramLabel text is exempt and may use any color. heading:true only for a section title (app auto-underlines it; don't add your own divider). Body size 24-28, diagramLabel size 18-20, heading size 32-36. Any diagramLabel inside a table cell MUST also set "maxWidth" to that cell's inner width (columnWidth − 2×padding) — required safety net against text spilling past the grid line.
 - {"type":"halo","x":..,"y":..,"r":50,"color":"halo|ochre|sage|teal|violet|sky|coral"}
 - {"type":"line","x1":..,"y1":..,"x2":..,"y2":..,"color":"ink","width":2.5,"dash":false}
 - {"type":"arrow","x1":..,"y1":..,"x2":..,"y2":..,"color":"ochre","width":2.5,"dash":false}
