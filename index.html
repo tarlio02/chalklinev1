@@ -75,6 +75,13 @@
     font-family:inherit;
   }
   #shell-account-menu button:hover{ background:#FBEDE9; }
+  #shell-account-menu #shell-upgrade-btn{
+    width:calc(100% - 28px); margin:2px 14px 8px; padding:9px 14px; text-align:center;
+    border-radius:999px; color:#fff; font-weight:600;
+    background:linear-gradient(135deg,#8B5CF6,#6D28D9);
+    box-shadow:0 4px 10px -4px rgba(109,40,217,0.55);
+  }
+  #shell-account-menu #shell-upgrade-btn:hover{ background:linear-gradient(135deg,#9B73F8,#7C3AED); }
 
   /* "Start for free" sign-in-or-skip prompt. Lives in the top-level shell
      (not one of the page iframes) so the real Google button — which can
@@ -324,6 +331,13 @@
 }
 #fullscreen-toggle:hover{ opacity:1; }
 #fullscreen-toggle.hide{ display:none; }
+/* While the account icon is showing (top-right, 38px wide, 20px from the edge — see #shell-auth),
+   the fullscreen button sits immediately to its left, on the same row. Where the icon is hidden
+   (landing, Notes, Tutor) it stays in its original corner spot. */
+body.account-chip-visible #fullscreen-toggle{
+  top:calc(16px + env(safe-area-inset-top,0px));
+  right:calc(20px + 38px + 10px + env(safe-area-inset-right,0px));
+}
 @media (display-mode: standalone), (display-mode: fullscreen){
   /* Already fullscreen (installed as an app) — the browser has no address bar to hide, so the
      button would do nothing useful; keep the UI clean. */
@@ -857,6 +871,7 @@ body.landing-active #shell-auth{ display:none; }
     </button>
     <div id="shell-account-menu">
       <div class="shell-menu-name" id="shell-menu-name"></div>
+      <button type="button" id="shell-upgrade-btn">Upgrade</button>
       <button type="button" id="shell-sign-out">Sign out</button>
     </div>
   </div>
@@ -1003,6 +1018,7 @@ function updateAccountChip(page){
     && !document.body.classList.contains('landing-active')
     && !ACCOUNT_CHIP_HIDDEN_PAGES.has(accountChipPage);
   chip.style.display = visible ? 'block' : 'none';
+  document.body.classList.toggle('account-chip-visible', visible);   // lets CSS move the fullscreen button beside the icon
   if(!visible){ const m = document.getElementById('shell-account-menu'); if(m) m.classList.remove('open'); }
   if(!shellUser) return;
   const fullName = shellUser.name || shellUser.email || 'Signed in';
@@ -1044,6 +1060,16 @@ function toggleShellAccountMenu(forceOpen){
   const shouldOpen = forceOpen !== undefined ? forceOpen : !menu.classList.contains('open');
   menu.classList.toggle('open', shouldOpen);
 }
+
+// Upgrade button in the account dropdown. NOT configured yet: set UPGRADE_URL (pricing / checkout page)
+// or replace the body of handleUpgradeClick() with an in-app upgrade flow.
+const UPGRADE_URL = '';
+function handleUpgradeClick(){
+  toggleShellAccountMenu(false);
+  if(UPGRADE_URL) window.open(UPGRADE_URL, '_blank', 'noopener');
+  else console.info('Upgrade button pressed — not configured yet (see UPGRADE_URL).');
+}
+document.getElementById('shell-upgrade-btn').addEventListener('click', (e)=>{ e.stopPropagation(); handleUpgradeClick(); });
 
 document.getElementById('shell-account-btn').addEventListener('click', (e)=>{
   e.stopPropagation();
