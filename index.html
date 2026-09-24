@@ -2414,7 +2414,7 @@ body{
 .subject-modal .sm-go:hover{ background:#0f1c2c; }
 .course-action-card p{ max-width:none !important; }
 /* ---------- extra decoration for the course action buttons
-   (Live tutor / Quizzes / Summaries / Notes) — top accent ribbon,
+   (Immersive Classroom / Quizzes / Summaries / Notes) — top accent ribbon,
    a halo ring behind the icon, a corner dot pattern, and a
    circular "go" arrow that slides in on hover ---------- */
 .course-action-card{ padding-top:26px; }
@@ -3042,7 +3042,7 @@ html,body{ height:100%; overflow:hidden; }
       <div class="dash-card course-action-card fade-up" style="--card-a:var(--ochre);--card-b:var(--gold-deep);" onclick="startCourseAction('tutor-history');">
         <span class="card-top-bar"></span><span class="card-dots"></span>
         <span class="icon-badge">🎓</span>
-        <h2>Live tutor</h2>
+        <h2>Immersive Classroom</h2>
         <p>Your previous lessons for ${encName}, or start a new one.</p>
         <span class="card-go">→</span>
       </div>
@@ -11206,7 +11206,7 @@ if(!window.storage || !window.storage.__isRealBackend){
 let historySubjectTH = null;
 function applyScopeTH(){
   const scoped = !!historySubjectTH;
-  document.getElementById('th-title').textContent = scoped ? "Live tutor" : "Previous tutorials";
+  document.getElementById('th-title').textContent = scoped ? "Immersive Classroom" : "Previous tutorials";
   document.getElementById('th-sub').textContent = scoped
     ? "Your previous lessons for " + historySubjectTH + ". Pick one to continue, or start a new lesson."
     : "Your saved whiteboard lessons, grouped by subject or course.";
@@ -14488,7 +14488,7 @@ function navTo(page, pushHistory, navPayload, isInitialLoad){
       title:'This is your course page',
       body:'Everything for this subject lives here. Let me show you what each button does.' },
     { id:'card-tutor', phase:'course', frame:'home', sel:'#course-action-grid .dash-card:nth-child(1)', mode:'next',
-      title:'🎓 Live tutor',
+      title:'🎓 Immersive Classroom',
       body:'Your AI teacher. Ask about any topic and it teaches on a whiteboard while it talks. Your past lessons are saved here too.' },
     { id:'card-quiz', phase:'course', frame:'home', sel:'#course-action-grid .dash-card:nth-child(2)', mode:'next',
       title:'🧠 Quizzes',
@@ -14501,7 +14501,7 @@ function navTo(page, pushHistory, navPayload, isInitialLoad){
       body:'Write your own notes and keep them filed under this course.' },
     { id:'go-tutor', phase:'course', frame:'home', sel:'#course-action-grid .dash-card:nth-child(1)', mode:'click', advanceOn:'nav:tutor-history',
       title:"Let's start a new lesson",
-      body:'Tap Live tutor to open your lessons.' },
+      body:'Tap Immersive Classroom to open your lessons.' },
 
     /* ===== PHASE 2: tutor history page ===== */
     { id:'history-list', phase:'history', frame:'tutor-history', sel:'#th-content', mode:'next',
