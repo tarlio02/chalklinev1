@@ -47,13 +47,17 @@
   #shell-account-btn{
     display:flex; align-items:center; gap:8px;
     background:#fff; border:1px solid #D3E6F5; border-radius:999px;
-    padding:6px 16px 6px 6px; font-size:14.5px; color:#1E2B3A;
+    padding:3px; font-size:14.5px; color:#1E2B3A;
     box-shadow:0 1px 4px rgba(0,0,0,0.08);
     cursor:pointer; font-family:inherit;
   }
   #shell-account-btn:hover{ background:#F7FBFF; }
   #shell-account-btn img{ width:30px; height:30px; border-radius:50%; }
-  #shell-account-btn .shell-chevron{ font-size:10.5px; color:#7C93A8; }
+  #shell-account-btn .shell-chevron{ display:none; }   /* icon only — no name / chevron beside it */
+  #shell-account-btn #shell-account-name-short{        /* letter avatar, used when the account has no photo */
+    display:none; width:30px; height:30px; border-radius:50%; background:#2E7DBE; color:#fff;
+    align-items:center; justify-content:center; font-weight:600; font-size:14px;
+  }
   #shell-account-menu{
     display:none; position:absolute; top:calc(100% + 8px); right:0;
     background:#fff; border:1px solid #D3E6F5; border-radius:12px;
@@ -988,6 +992,35 @@ function decodeShellIdToken(jwt){
   return JSON.parse(json);
 }
 
+// The account icon (top-right) shows on every page except the landing page, Notes and the Tutor.
+const ACCOUNT_CHIP_HIDDEN_PAGES = new Set(['tutor', 'notes']);
+let accountChipPage = 'home';   // tracked here (not read from navTo's `current`) so it is safe to call before that is declared
+function updateAccountChip(page){
+  if(page) accountChipPage = page;
+  const chip = document.getElementById('shell-account-chip');
+  if(!chip) return;
+  const visible = !!shellUser
+    && !document.body.classList.contains('landing-active')
+    && !ACCOUNT_CHIP_HIDDEN_PAGES.has(accountChipPage);
+  chip.style.display = visible ? 'block' : 'none';
+  if(!visible){ const m = document.getElementById('shell-account-menu'); if(m) m.classList.remove('open'); }
+  if(!shellUser) return;
+  const fullName = shellUser.name || shellUser.email || 'Signed in';
+  const img = document.getElementById('shell-account-avatar');
+  const ini = document.getElementById('shell-account-name-short');
+  document.getElementById('shell-account-btn').title = fullName;
+  ini.textContent = (fullName.trim()[0] || '?').toUpperCase();
+  const showInitial = () => { img.style.display = 'none'; ini.style.display = 'flex'; };
+  if(shellUser.picture){
+    img.referrerPolicy = 'no-referrer';
+    img.onerror = showInitial;
+    if(img.getAttribute('src') !== shellUser.picture) img.src = shellUser.picture;
+    img.style.display = 'block'; ini.style.display = 'none';
+  } else {
+    showInitial();
+  }
+}
+
 function broadcastAuthState(){
   try{
     const so = document.getElementById('settings-modal-overlay');
@@ -999,12 +1032,11 @@ function broadcastAuthState(){
 
 function showSignedInChip(user){
   document.getElementById('shell-signin-btn').style.display = 'none';
-  // The account name/avatar now lives in each page's own sidebar
-  // (mirrors shellUser via chalklineAuth broadcasts below), so the
-  // top-right chip is intentionally never shown anymore — just keep
-  // it hidden and stash the name for the (now-unused) dropdown.
+  // The top-right account icon is shown or hidden per page by updateAccountChip()
+  // (everywhere except landing, Notes and Tutor); here we just fill in the name for its dropdown.
   const fullName = user.name || user.email || 'Signed in';
   document.getElementById('shell-menu-name').textContent = fullName;
+  updateAccountChip();
 }
 
 function toggleShellAccountMenu(forceOpen){
@@ -14436,6 +14468,7 @@ function navTo(page, pushHistory, navPayload, isInitialLoad){
   }
   Object.keys(frames).forEach(k => frames[k].classList.toggle('active', k === page));
   current = page;
+  updateAccountChip(page);
   if(pushHistory !== false){
     history.pushState({page}, '', '#' + page);
   }
