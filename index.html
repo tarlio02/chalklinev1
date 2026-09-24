@@ -194,7 +194,12 @@
   #assistant-msgs{ flex:1; overflow-y:auto; padding:16px 16px 8px; display:flex; flex-direction:column; gap:10px; -webkit-overflow-scrolling:touch; }
   .as-msg{ max-width:88%; padding:10px 13px; border-radius:16px; font-size:15px; line-height:1.5; overflow-wrap:anywhere; }
   .as-msg p{ margin:0 0 6px; } .as-msg p:last-child{ margin-bottom:0; }
-  .as-msg ul{ margin:4px 0 6px 18px; padding:0; } .as-msg li{ margin:2px 0; }
+  .as-msg ul,.as-msg ol{ margin:4px 0 8px 20px; padding:0; } .as-msg li{ margin:2px 0; }
+  .as-msg h4,.as-msg h5,.as-msg h6{ margin:10px 0 4px; line-height:1.3; font-weight:700; }
+  .as-msg h4:first-child,.as-msg h5:first-child,.as-msg h6:first-child{ margin-top:0; }
+  .as-msg h4{ font-size:16px; } .as-msg h5{ font-size:15px; } .as-msg h6{ font-size:15px; opacity:.85; }
+  .as-msg hr{ border:none; border-top:1px solid rgba(0,0,0,0.10); margin:8px 0; }
+  .as-msg em{ font-style:italic; }
   .as-msg code{ font-family:'JetBrains Mono', monospace; font-size:13px; background:rgba(0,0,0,0.06); padding:1px 5px; border-radius:5px; }
   .as-msg.user{ align-self:flex-end; background:#FFF1CC; border:1px solid #F0DCA0; border-bottom-right-radius:5px; }
   .as-msg.bot{ align-self:flex-start; background:#fff; border:1px solid #ECE3C8; border-bottom-left-radius:5px; box-shadow:0 1px 4px rgba(60,40,5,0.06); }
@@ -1633,7 +1638,7 @@ function appendBgSection(body){
 }
 
 // ---- Chalkline assistant: a general chat with the AI, opened from any page's sidebar ----
-const ASSISTANT_SYSTEM = "You are the Chalkline Assistant, a friendly, knowledgeable study helper inside Chalkline — an AI whiteboard tutoring app (an AI tutor teaches on a handwritten whiteboard; there are saved lessons, summaries, quizzes, notes and a dashboard of courses). Chat naturally: answer any question, explain concepts clearly with university-level accuracy, help plan studying and prepare for exams and assignments, and help the student use Chalkline. Keep replies concise for a phone screen: short paragraphs, and short bullet lists only when they genuinely help. Ask one brief follow-up question only when it is useful. Use plain text and real Unicode symbols (², √, ≤, ∑, π) — never LaTeX, never $ delimiters. If the student wants a full lesson with diagrams drawn on the whiteboard, tell them to start a new lesson from the Dashboard (you can still explain the idea in chat first). Be warm, patient and encouraging, never robotic. If you are unsure of something, say so instead of guessing.";
+const ASSISTANT_SYSTEM = "You are the Chalkline Assistant, a friendly, knowledgeable study helper inside Chalkline — an AI whiteboard tutoring app (an AI tutor teaches on a handwritten whiteboard; there are saved lessons, summaries, quizzes, notes and a dashboard of courses). Chat naturally: answer any question, explain concepts clearly with university-level accuracy, help plan studying and prepare for exams and assignments, and help the student use Chalkline. Match structure to the question: a quick factual question gets a short plain-text answer, no formatting scaffolding needed. A multi-part answer — a study plan, a comparison, a step-by-step process, a set of options — gets real structure: use '## '/'### ' headers to separate sections (e.g. one per day of a study plan, one per option being compared), numbered lists (1. 2. 3.) for sequential steps, '- ' bullets for a set of unordered points, and **bold** on the key term or number in a line so it's scannable at a glance. Never use headers/lists just to pad a one-idea answer — reserve them for when the content genuinely has multiple parts. Keep it phone-screen sized: short paragraphs and lines, nothing that reads like padding. Ask one brief follow-up question only when it is useful. Use plain text and real Unicode symbols (², √, ≤, ∑, π) — never LaTeX, never $ delimiters. If the student wants a full lesson with diagrams drawn on the whiteboard, tell them to start a new lesson from the Dashboard (you can still explain the idea in chat first). Be warm, patient and encouraging, never robotic. If you are unsure of something, say so instead of guessing.";
 let assistantMsgs = [];
 let assistantBusy = false;
 function assistantKey(){ return 'chalkline_assistant_chat:' + ((typeof shellUser !== 'undefined' && shellUser && shellUser.sub) || 'guest'); }
@@ -1651,15 +1656,28 @@ function assistantAuthHeaders(){
 function assistantEsc(t){ return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function assistantRender(text){
   const lines = assistantEsc(text).split('\n');
-  const out = []; let inList = false;
-  const inline = (x) => x.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/`([^`]+)`/g,'<code>$1</code>');
+  const out = []; let listType = null; // null | 'ul' | 'ol'
+  const inline = (x) => x
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g,'$1<em>$2</em>')
+    .replace(/`([^`]+)`/g,'<code>$1</code>');
+  const closeList = () => { if(listType){ out.push('</' + listType + '>'); listType = null; } };
   lines.forEach(line => {
-    const li = /^\s*(?:[-*•]|\d+[.)])\s+(.*)$/.exec(line);
-    if(li){ if(!inList){ out.push('<ul>'); inList = true; } out.push('<li>' + inline(li[1]) + '</li>'); return; }
-    if(inList){ out.push('</ul>'); inList = false; }
+    const h = /^\s*(#{1,4})\s+(.*)$/.exec(line);
+    if(h){ closeList(); const lvl = Math.min(h[1].length + 3, 6); out.push('<h' + lvl + '>' + inline(h[2]) + '</h' + lvl + '>'); return; }
+    if(/^\s*(?:-{3,}|\*{3,})\s*$/.test(line)){ closeList(); out.push('<hr>'); return; }
+    const ol = /^\s*\d+[.)]\s+(.*)$/.exec(line);
+    const ul = !ol && /^\s*[-*•]\s+(.*)$/.exec(line);
+    if(ol || ul){
+      const wantType = ol ? 'ol' : 'ul';
+      if(listType !== wantType){ closeList(); out.push('<' + wantType + '>'); listType = wantType; }
+      out.push('<li>' + inline((ol || ul)[1]) + '</li>');
+      return;
+    }
+    closeList();
     if(line.trim()) out.push('<p>' + inline(line) + '</p>');
   });
-  if(inList) out.push('</ul>');
+  closeList();
   return out.join('');
 }
 function assistantScrollDown(){ const m = document.getElementById('assistant-msgs'); m.scrollTop = m.scrollHeight; }
