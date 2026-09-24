@@ -1361,21 +1361,24 @@ function handleShellCredential(response){
   shellUser = decodeShellIdToken(response.credential);
   try{ localStorage.setItem(SHELL_AUTH_STORAGE_KEY, JSON.stringify(shellUser)); }
   catch(e){ console.error('Could not persist sign-in:', e); }
-  showSignedInChip(shellUser);
-  broadcastAuthState();
-  // If this credential came from the "Start for free" modal, finish that
-  // flow now: close the modal and take the person into the app.
-  const modal = document.getElementById('start-modal-overlay');
-  if(modal.classList.contains('open')){
-    const stayPut = startModalFromApp;   // read before closing; a sidebar login keeps you on the same page
-    closeStartModal();
-    if(!stayPut) navTo('home');
-  }
-  // If this credential came from the landing page's own sign-up modal,
-  // dismiss the landing page and drop the person straight into the app.
-  if(document.body.classList.contains('landing-active')){
-    if(typeof hideLanding === 'function') hideLanding();
-    navTo('home');
+  // Dismiss every sign-in sheet FIRST, before anything below that could throw, so a failure
+  // later in this function can never leave a sheet stuck open on top of the app.
+  //  - the "Start for free" / sidebar sign-in modal (#start-modal-overlay)
+  //  - the landing page's own sign-up sheet (#ld-overlay) — it is a fixed overlay that sits OUTSIDE
+  //    #ld-root, so hiding the landing page alone does not close it (that was the "sheet stays" bug)
+  const startWasOpen = document.getElementById('start-modal-overlay').classList.contains('open');
+  const stayPut = startModalFromApp;   // read before closing; a sidebar login keeps you on the same page
+  const landingWasActive = document.body.classList.contains('landing-active');
+  closeStartModal();
+  const ldSheet = document.getElementById('ld-overlay');
+  if(ldSheet) ldSheet.classList.remove('open');
+  if(landingWasActive && typeof hideLanding === 'function') hideLanding();
+  try{ showSignedInChip(shellUser); }catch(e){ console.warn(e); }
+  try{ broadcastAuthState(); }catch(e){ console.warn(e); }
+  // A credential from the "Start for free" modal, or from the landing page, takes the person into
+  // the app; a sidebar login (stayPut) keeps them on the page they were on.
+  if(landingWasActive || (startWasOpen && !stayPut)){
+    try{ navTo('home'); }catch(e){ console.warn(e); }
   }
   // Verify the credential on the worker, then load/merge this person's saved
   // work. If the worker is unreachable the app keeps working locally.
