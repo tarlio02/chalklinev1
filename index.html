@@ -2029,25 +2029,14 @@ body{
   backdrop-filter:blur(18px) saturate(160%);
   -webkit-backdrop-filter:blur(18px) saturate(160%);
   border-right:1px solid rgba(0,0,0,0.06);
-  box-shadow:
-    3px 0 1px rgba(255,255,255,0.6) inset,
-    10px 0 24px -8px rgba(120,90,20,0.14),
-    26px 0 46px -20px rgba(120,90,20,0.10);
-  transform-origin:left center;
-  transform:translateX(0) rotateY(0deg);
+  box-shadow:8px 0 20px -10px rgba(120,90,20,0.14);
+  transform:translateX(0);
   transition:transform .38s cubic-bezier(.22,.9,.32,1.1), box-shadow .38s ease;
 }
-/* the "spine" — a thin gradient strip that reads as the panel's edge/thickness */
-.sidebar::after{
-  content:''; position:absolute; top:0; right:-5px; bottom:0; width:5px;
-  background:linear-gradient(90deg, rgba(120,90,20,0.16), rgba(120,90,20,0));
-  pointer-events:none;
-}
 .app-shell.sidebar-closed .sidebar{
-  transform:translateX(-104%) rotateY(-18deg);
+  transform:translateX(-104%);
   box-shadow:none;
 }
-.app-shell.sidebar-closed .sidebar::after{ opacity:0; }
 
 .sidebar-brand{
   font-family:'Caveat', cursive; font-weight:700; font-size:26px;
@@ -2548,78 +2537,56 @@ html,body{ height:100%; overflow:hidden; }
   overscroll-behavior:contain;
 }
 
-/* ---- 3D sidebar ---------------------------------------------------
-   The sidebar is a slab standing in space: turned slightly toward the
-   content, with a thick lit edge, a long cast shadow, and raised
-   buttons that lift on hover and press in when tapped. */
+/* ---- Sidebar (flat, 2D) --------------------------------------------
+   A simple flat panel: no perspective/tilt, no raised-button shadows —
+   just a solid background, a thin border, and flat colour changes on
+   hover/active/current-page state. */
 .app-shell{ perspective:none; }
 .sidebar{
-  transform:perspective(1500px) translateX(0) rotateY(3deg);
-  transform-origin:left center;
-  background:linear-gradient(100deg, #FFFFFF 0%, #FFF9E8 42%, #F3E2B0 135%);
-  border-right:1px solid rgba(120,90,20,0.20);
-  box-shadow:
-    inset 2px 0 0 rgba(255,255,255,0.95),
-    inset 0 2px 0 rgba(255,255,255,0.9),
-    inset -1px 0 0 rgba(120,90,20,0.14),
-    12px 0 22px -8px rgba(90,65,10,0.30),
-    34px 0 58px -20px rgba(90,65,10,0.26);
-}
-.sidebar::after{
-  content:''; position:absolute; top:0; right:-10px; bottom:0; width:10px;
-  background:linear-gradient(90deg, #CDB57A 0%, #E6D5A2 45%, rgba(230,213,162,0) 100%);
-  pointer-events:none;
-}
-.app-shell.sidebar-closed .sidebar{
-  transform:perspective(1500px) translateX(-100%) rotateY(-10deg);
+  transform:translateX(0);
+  background:#FFF9E8;
+  border-right:1px solid rgba(120,90,20,0.16);
   box-shadow:none;
 }
-.app-shell.sidebar-closed .sidebar::after{ opacity:0; }
+.app-shell.sidebar-closed .sidebar{
+  transform:translateX(-104%);
+  box-shadow:none;
+}
 
 .sidebar-account,
 .sidebar-nav a,
 .sidebar-footer a{
-  transition:transform .16s cubic-bezier(.2,.8,.3,1.1), box-shadow .16s ease, background .16s ease, color .15s ease;
+  transition:background .15s ease, color .15s ease;
 }
 .sidebar-account{
-  background:linear-gradient(180deg, #FFFFFF, #F8EFD4);
+  background:#FFFFFF;
   border:1px solid rgba(120,90,20,0.14);
-  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.20), 0 10px 14px -8px rgba(120,90,20,0.40);
 }
-.sidebar-account:hover{ background:linear-gradient(180deg, #FFFFFF, #F8EFD4); transform:translateY(-2px);
-  box-shadow:0 1px 0 #fff inset, 0 5px 0 rgba(160,120,40,0.20), 0 14px 18px -8px rgba(120,90,20,0.45); }
-.sidebar-account:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
+.sidebar-account:hover{ background:#FBF2D8; }
+.sidebar-account:active{ background:#F3E6C0; }
 
 .sidebar-nav{ gap:7px; }
 .sidebar-nav a{
-  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
-  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.20), 0 8px 12px -8px rgba(120,90,20,0.40);
+  background:transparent;
 }
 .sidebar-nav a:hover{
-  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
-  transform:translateY(-2px);
-  box-shadow:0 1px 0 #fff inset, 0 5px 0 rgba(160,120,40,0.20), 0 12px 16px -8px rgba(120,90,20,0.45);
+  background:rgba(120,90,20,0.07);
 }
-.sidebar-nav a:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
+.sidebar-nav a:active{ background:rgba(120,90,20,0.13); }
 .sidebar-nav a.active{
-  background:linear-gradient(180deg, #F3D07A, #F8E2A6);
-  transform:translateY(2px);
-  box-shadow:0 2px 5px rgba(150,105,25,0.35) inset, 0 1px 0 rgba(255,255,255,0.8);
+  background:#F3D07A;
 }
 
 .sidebar-footer a{
-  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
-  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.18), 0 8px 12px -8px rgba(120,90,20,0.35);
+  background:transparent;
 }
-.sidebar-footer a:hover{ transform:translateY(-2px); background:linear-gradient(180deg, #FFFFFF, #FBF2D8); }
-.sidebar-footer a:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
+.sidebar-footer a:hover{ background:rgba(120,90,20,0.07); }
+.sidebar-footer a:active{ background:rgba(120,90,20,0.13); }
 .sidebar-footer a.active{
-  background:linear-gradient(180deg, #F3D07A, #F8E2A6);
-  transform:translateY(2px);
-  box-shadow:0 2px 5px rgba(150,105,25,0.35) inset, 0 1px 0 rgba(255,255,255,0.8);
+  background:#F3D07A;
 }
-.sidebar-recent a:hover{ transform:translateX(3px); }
-.sidebar-recent a{ transition:transform .16s ease, background .15s ease; }
+.sidebar-recent a:hover{ background:rgba(120,90,20,0.06); }
+.sidebar-recent a{ transition:background .15s ease; }
 
 /* ---- Menu tab ------------------------------------------------------
    Icon only, hinged onto the sidebar's right edge. It lives inside the
@@ -10130,78 +10097,56 @@ html,body{ height:100%; overflow:hidden; }
   overscroll-behavior:contain;
 }
 
-/* ---- 3D sidebar ---------------------------------------------------
-   The sidebar is a slab standing in space: turned slightly toward the
-   content, with a thick lit edge, a long cast shadow, and raised
-   buttons that lift on hover and press in when tapped. */
+/* ---- Sidebar (flat, 2D) --------------------------------------------
+   A simple flat panel: no perspective/tilt, no raised-button shadows —
+   just a solid background, a thin border, and flat colour changes on
+   hover/active/current-page state. */
 .app-shell{ perspective:none; }
 .sidebar{
-  transform:perspective(1500px) translateX(0) rotateY(3deg);
-  transform-origin:left center;
-  background:linear-gradient(100deg, #FFFFFF 0%, #FFF9E8 42%, #F3E2B0 135%);
-  border-right:1px solid rgba(120,90,20,0.20);
-  box-shadow:
-    inset 2px 0 0 rgba(255,255,255,0.95),
-    inset 0 2px 0 rgba(255,255,255,0.9),
-    inset -1px 0 0 rgba(120,90,20,0.14),
-    12px 0 22px -8px rgba(90,65,10,0.30),
-    34px 0 58px -20px rgba(90,65,10,0.26);
-}
-.sidebar::after{
-  content:''; position:absolute; top:0; right:-10px; bottom:0; width:10px;
-  background:linear-gradient(90deg, #CDB57A 0%, #E6D5A2 45%, rgba(230,213,162,0) 100%);
-  pointer-events:none;
-}
-.app-shell.sidebar-closed .sidebar{
-  transform:perspective(1500px) translateX(-100%) rotateY(-10deg);
+  transform:translateX(0);
+  background:#FFF9E8;
+  border-right:1px solid rgba(120,90,20,0.16);
   box-shadow:none;
 }
-.app-shell.sidebar-closed .sidebar::after{ opacity:0; }
+.app-shell.sidebar-closed .sidebar{
+  transform:translateX(-104%);
+  box-shadow:none;
+}
 
 .sidebar-account,
 .sidebar-nav a,
 .sidebar-footer a{
-  transition:transform .16s cubic-bezier(.2,.8,.3,1.1), box-shadow .16s ease, background .16s ease, color .15s ease;
+  transition:background .15s ease, color .15s ease;
 }
 .sidebar-account{
-  background:linear-gradient(180deg, #FFFFFF, #F8EFD4);
+  background:#FFFFFF;
   border:1px solid rgba(120,90,20,0.14);
-  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.20), 0 10px 14px -8px rgba(120,90,20,0.40);
 }
-.sidebar-account:hover{ background:linear-gradient(180deg, #FFFFFF, #F8EFD4); transform:translateY(-2px);
-  box-shadow:0 1px 0 #fff inset, 0 5px 0 rgba(160,120,40,0.20), 0 14px 18px -8px rgba(120,90,20,0.45); }
-.sidebar-account:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
+.sidebar-account:hover{ background:#FBF2D8; }
+.sidebar-account:active{ background:#F3E6C0; }
 
 .sidebar-nav{ gap:7px; }
 .sidebar-nav a{
-  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
-  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.20), 0 8px 12px -8px rgba(120,90,20,0.40);
+  background:transparent;
 }
 .sidebar-nav a:hover{
-  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
-  transform:translateY(-2px);
-  box-shadow:0 1px 0 #fff inset, 0 5px 0 rgba(160,120,40,0.20), 0 12px 16px -8px rgba(120,90,20,0.45);
+  background:rgba(120,90,20,0.07);
 }
-.sidebar-nav a:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
+.sidebar-nav a:active{ background:rgba(120,90,20,0.13); }
 .sidebar-nav a.active{
-  background:linear-gradient(180deg, #F3D07A, #F8E2A6);
-  transform:translateY(2px);
-  box-shadow:0 2px 5px rgba(150,105,25,0.35) inset, 0 1px 0 rgba(255,255,255,0.8);
+  background:#F3D07A;
 }
 
 .sidebar-footer a{
-  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
-  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.18), 0 8px 12px -8px rgba(120,90,20,0.35);
+  background:transparent;
 }
-.sidebar-footer a:hover{ transform:translateY(-2px); background:linear-gradient(180deg, #FFFFFF, #FBF2D8); }
-.sidebar-footer a:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
+.sidebar-footer a:hover{ background:rgba(120,90,20,0.07); }
+.sidebar-footer a:active{ background:rgba(120,90,20,0.13); }
 .sidebar-footer a.active{
-  background:linear-gradient(180deg, #F3D07A, #F8E2A6);
-  transform:translateY(2px);
-  box-shadow:0 2px 5px rgba(150,105,25,0.35) inset, 0 1px 0 rgba(255,255,255,0.8);
+  background:#F3D07A;
 }
-.sidebar-recent a:hover{ transform:translateX(3px); }
-.sidebar-recent a{ transition:transform .16s ease, background .15s ease; }
+.sidebar-recent a:hover{ background:rgba(120,90,20,0.06); }
+.sidebar-recent a{ transition:background .15s ease; }
 
 /* ---- Menu tab ------------------------------------------------------
    Icon only, hinged onto the sidebar's right edge. It lives inside the
@@ -11030,78 +10975,56 @@ html,body{ height:100%; overflow:hidden; }
   overscroll-behavior:contain;
 }
 
-/* ---- 3D sidebar ---------------------------------------------------
-   The sidebar is a slab standing in space: turned slightly toward the
-   content, with a thick lit edge, a long cast shadow, and raised
-   buttons that lift on hover and press in when tapped. */
+/* ---- Sidebar (flat, 2D) --------------------------------------------
+   A simple flat panel: no perspective/tilt, no raised-button shadows —
+   just a solid background, a thin border, and flat colour changes on
+   hover/active/current-page state. */
 .app-shell{ perspective:none; }
 .sidebar{
-  transform:perspective(1500px) translateX(0) rotateY(3deg);
-  transform-origin:left center;
-  background:linear-gradient(100deg, #FFFFFF 0%, #FFF9E8 42%, #F3E2B0 135%);
-  border-right:1px solid rgba(120,90,20,0.20);
-  box-shadow:
-    inset 2px 0 0 rgba(255,255,255,0.95),
-    inset 0 2px 0 rgba(255,255,255,0.9),
-    inset -1px 0 0 rgba(120,90,20,0.14),
-    12px 0 22px -8px rgba(90,65,10,0.30),
-    34px 0 58px -20px rgba(90,65,10,0.26);
-}
-.sidebar::after{
-  content:''; position:absolute; top:0; right:-10px; bottom:0; width:10px;
-  background:linear-gradient(90deg, #CDB57A 0%, #E6D5A2 45%, rgba(230,213,162,0) 100%);
-  pointer-events:none;
-}
-.app-shell.sidebar-closed .sidebar{
-  transform:perspective(1500px) translateX(-100%) rotateY(-10deg);
+  transform:translateX(0);
+  background:#FFF9E8;
+  border-right:1px solid rgba(120,90,20,0.16);
   box-shadow:none;
 }
-.app-shell.sidebar-closed .sidebar::after{ opacity:0; }
+.app-shell.sidebar-closed .sidebar{
+  transform:translateX(-104%);
+  box-shadow:none;
+}
 
 .sidebar-account,
 .sidebar-nav a,
 .sidebar-footer a{
-  transition:transform .16s cubic-bezier(.2,.8,.3,1.1), box-shadow .16s ease, background .16s ease, color .15s ease;
+  transition:background .15s ease, color .15s ease;
 }
 .sidebar-account{
-  background:linear-gradient(180deg, #FFFFFF, #F8EFD4);
+  background:#FFFFFF;
   border:1px solid rgba(120,90,20,0.14);
-  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.20), 0 10px 14px -8px rgba(120,90,20,0.40);
 }
-.sidebar-account:hover{ background:linear-gradient(180deg, #FFFFFF, #F8EFD4); transform:translateY(-2px);
-  box-shadow:0 1px 0 #fff inset, 0 5px 0 rgba(160,120,40,0.20), 0 14px 18px -8px rgba(120,90,20,0.45); }
-.sidebar-account:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
+.sidebar-account:hover{ background:#FBF2D8; }
+.sidebar-account:active{ background:#F3E6C0; }
 
 .sidebar-nav{ gap:7px; }
 .sidebar-nav a{
-  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
-  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.20), 0 8px 12px -8px rgba(120,90,20,0.40);
+  background:transparent;
 }
 .sidebar-nav a:hover{
-  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
-  transform:translateY(-2px);
-  box-shadow:0 1px 0 #fff inset, 0 5px 0 rgba(160,120,40,0.20), 0 12px 16px -8px rgba(120,90,20,0.45);
+  background:rgba(120,90,20,0.07);
 }
-.sidebar-nav a:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
+.sidebar-nav a:active{ background:rgba(120,90,20,0.13); }
 .sidebar-nav a.active{
-  background:linear-gradient(180deg, #F3D07A, #F8E2A6);
-  transform:translateY(2px);
-  box-shadow:0 2px 5px rgba(150,105,25,0.35) inset, 0 1px 0 rgba(255,255,255,0.8);
+  background:#F3D07A;
 }
 
 .sidebar-footer a{
-  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
-  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.18), 0 8px 12px -8px rgba(120,90,20,0.35);
+  background:transparent;
 }
-.sidebar-footer a:hover{ transform:translateY(-2px); background:linear-gradient(180deg, #FFFFFF, #FBF2D8); }
-.sidebar-footer a:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
+.sidebar-footer a:hover{ background:rgba(120,90,20,0.07); }
+.sidebar-footer a:active{ background:rgba(120,90,20,0.13); }
 .sidebar-footer a.active{
-  background:linear-gradient(180deg, #F3D07A, #F8E2A6);
-  transform:translateY(2px);
-  box-shadow:0 2px 5px rgba(150,105,25,0.35) inset, 0 1px 0 rgba(255,255,255,0.8);
+  background:#F3D07A;
 }
-.sidebar-recent a:hover{ transform:translateX(3px); }
-.sidebar-recent a{ transition:transform .16s ease, background .15s ease; }
+.sidebar-recent a:hover{ background:rgba(120,90,20,0.06); }
+.sidebar-recent a{ transition:background .15s ease; }
 
 /* ---- Menu tab ------------------------------------------------------
    Icon only, hinged onto the sidebar's right edge. It lives inside the
@@ -11636,78 +11559,56 @@ html,body{ height:100%; overflow:hidden; }
   overscroll-behavior:contain;
 }
 
-/* ---- 3D sidebar ---------------------------------------------------
-   The sidebar is a slab standing in space: turned slightly toward the
-   content, with a thick lit edge, a long cast shadow, and raised
-   buttons that lift on hover and press in when tapped. */
+/* ---- Sidebar (flat, 2D) --------------------------------------------
+   A simple flat panel: no perspective/tilt, no raised-button shadows —
+   just a solid background, a thin border, and flat colour changes on
+   hover/active/current-page state. */
 .app-shell{ perspective:none; }
 .sidebar{
-  transform:perspective(1500px) translateX(0) rotateY(3deg);
-  transform-origin:left center;
-  background:linear-gradient(100deg, #FFFFFF 0%, #FFF9E8 42%, #F3E2B0 135%);
-  border-right:1px solid rgba(120,90,20,0.20);
-  box-shadow:
-    inset 2px 0 0 rgba(255,255,255,0.95),
-    inset 0 2px 0 rgba(255,255,255,0.9),
-    inset -1px 0 0 rgba(120,90,20,0.14),
-    12px 0 22px -8px rgba(90,65,10,0.30),
-    34px 0 58px -20px rgba(90,65,10,0.26);
-}
-.sidebar::after{
-  content:''; position:absolute; top:0; right:-10px; bottom:0; width:10px;
-  background:linear-gradient(90deg, #CDB57A 0%, #E6D5A2 45%, rgba(230,213,162,0) 100%);
-  pointer-events:none;
-}
-.app-shell.sidebar-closed .sidebar{
-  transform:perspective(1500px) translateX(-100%) rotateY(-10deg);
+  transform:translateX(0);
+  background:#FFF9E8;
+  border-right:1px solid rgba(120,90,20,0.16);
   box-shadow:none;
 }
-.app-shell.sidebar-closed .sidebar::after{ opacity:0; }
+.app-shell.sidebar-closed .sidebar{
+  transform:translateX(-104%);
+  box-shadow:none;
+}
 
 .sidebar-account,
 .sidebar-nav a,
 .sidebar-footer a{
-  transition:transform .16s cubic-bezier(.2,.8,.3,1.1), box-shadow .16s ease, background .16s ease, color .15s ease;
+  transition:background .15s ease, color .15s ease;
 }
 .sidebar-account{
-  background:linear-gradient(180deg, #FFFFFF, #F8EFD4);
+  background:#FFFFFF;
   border:1px solid rgba(120,90,20,0.14);
-  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.20), 0 10px 14px -8px rgba(120,90,20,0.40);
 }
-.sidebar-account:hover{ background:linear-gradient(180deg, #FFFFFF, #F8EFD4); transform:translateY(-2px);
-  box-shadow:0 1px 0 #fff inset, 0 5px 0 rgba(160,120,40,0.20), 0 14px 18px -8px rgba(120,90,20,0.45); }
-.sidebar-account:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
+.sidebar-account:hover{ background:#FBF2D8; }
+.sidebar-account:active{ background:#F3E6C0; }
 
 .sidebar-nav{ gap:7px; }
 .sidebar-nav a{
-  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
-  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.20), 0 8px 12px -8px rgba(120,90,20,0.40);
+  background:transparent;
 }
 .sidebar-nav a:hover{
-  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
-  transform:translateY(-2px);
-  box-shadow:0 1px 0 #fff inset, 0 5px 0 rgba(160,120,40,0.20), 0 12px 16px -8px rgba(120,90,20,0.45);
+  background:rgba(120,90,20,0.07);
 }
-.sidebar-nav a:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
+.sidebar-nav a:active{ background:rgba(120,90,20,0.13); }
 .sidebar-nav a.active{
-  background:linear-gradient(180deg, #F3D07A, #F8E2A6);
-  transform:translateY(2px);
-  box-shadow:0 2px 5px rgba(150,105,25,0.35) inset, 0 1px 0 rgba(255,255,255,0.8);
+  background:#F3D07A;
 }
 
 .sidebar-footer a{
-  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
-  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.18), 0 8px 12px -8px rgba(120,90,20,0.35);
+  background:transparent;
 }
-.sidebar-footer a:hover{ transform:translateY(-2px); background:linear-gradient(180deg, #FFFFFF, #FBF2D8); }
-.sidebar-footer a:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
+.sidebar-footer a:hover{ background:rgba(120,90,20,0.07); }
+.sidebar-footer a:active{ background:rgba(120,90,20,0.13); }
 .sidebar-footer a.active{
-  background:linear-gradient(180deg, #F3D07A, #F8E2A6);
-  transform:translateY(2px);
-  box-shadow:0 2px 5px rgba(150,105,25,0.35) inset, 0 1px 0 rgba(255,255,255,0.8);
+  background:#F3D07A;
 }
-.sidebar-recent a:hover{ transform:translateX(3px); }
-.sidebar-recent a{ transition:transform .16s ease, background .15s ease; }
+.sidebar-recent a:hover{ background:rgba(120,90,20,0.06); }
+.sidebar-recent a{ transition:background .15s ease; }
 
 /* ---- Menu tab ------------------------------------------------------
    Icon only, hinged onto the sidebar's right edge. It lives inside the
@@ -12162,78 +12063,56 @@ html,body{ height:100%; overflow:hidden; }
   overscroll-behavior:contain;
 }
 
-/* ---- 3D sidebar ---------------------------------------------------
-   The sidebar is a slab standing in space: turned slightly toward the
-   content, with a thick lit edge, a long cast shadow, and raised
-   buttons that lift on hover and press in when tapped. */
+/* ---- Sidebar (flat, 2D) --------------------------------------------
+   A simple flat panel: no perspective/tilt, no raised-button shadows —
+   just a solid background, a thin border, and flat colour changes on
+   hover/active/current-page state. */
 .app-shell{ perspective:none; }
 .sidebar{
-  transform:perspective(1500px) translateX(0) rotateY(3deg);
-  transform-origin:left center;
-  background:linear-gradient(100deg, #FFFFFF 0%, #FFF9E8 42%, #F3E2B0 135%);
-  border-right:1px solid rgba(120,90,20,0.20);
-  box-shadow:
-    inset 2px 0 0 rgba(255,255,255,0.95),
-    inset 0 2px 0 rgba(255,255,255,0.9),
-    inset -1px 0 0 rgba(120,90,20,0.14),
-    12px 0 22px -8px rgba(90,65,10,0.30),
-    34px 0 58px -20px rgba(90,65,10,0.26);
-}
-.sidebar::after{
-  content:''; position:absolute; top:0; right:-10px; bottom:0; width:10px;
-  background:linear-gradient(90deg, #CDB57A 0%, #E6D5A2 45%, rgba(230,213,162,0) 100%);
-  pointer-events:none;
-}
-.app-shell.sidebar-closed .sidebar{
-  transform:perspective(1500px) translateX(-100%) rotateY(-10deg);
+  transform:translateX(0);
+  background:#FFF9E8;
+  border-right:1px solid rgba(120,90,20,0.16);
   box-shadow:none;
 }
-.app-shell.sidebar-closed .sidebar::after{ opacity:0; }
+.app-shell.sidebar-closed .sidebar{
+  transform:translateX(-104%);
+  box-shadow:none;
+}
 
 .sidebar-account,
 .sidebar-nav a,
 .sidebar-footer a{
-  transition:transform .16s cubic-bezier(.2,.8,.3,1.1), box-shadow .16s ease, background .16s ease, color .15s ease;
+  transition:background .15s ease, color .15s ease;
 }
 .sidebar-account{
-  background:linear-gradient(180deg, #FFFFFF, #F8EFD4);
+  background:#FFFFFF;
   border:1px solid rgba(120,90,20,0.14);
-  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.20), 0 10px 14px -8px rgba(120,90,20,0.40);
 }
-.sidebar-account:hover{ background:linear-gradient(180deg, #FFFFFF, #F8EFD4); transform:translateY(-2px);
-  box-shadow:0 1px 0 #fff inset, 0 5px 0 rgba(160,120,40,0.20), 0 14px 18px -8px rgba(120,90,20,0.45); }
-.sidebar-account:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
+.sidebar-account:hover{ background:#FBF2D8; }
+.sidebar-account:active{ background:#F3E6C0; }
 
 .sidebar-nav{ gap:7px; }
 .sidebar-nav a{
-  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
-  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.20), 0 8px 12px -8px rgba(120,90,20,0.40);
+  background:transparent;
 }
 .sidebar-nav a:hover{
-  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
-  transform:translateY(-2px);
-  box-shadow:0 1px 0 #fff inset, 0 5px 0 rgba(160,120,40,0.20), 0 12px 16px -8px rgba(120,90,20,0.45);
+  background:rgba(120,90,20,0.07);
 }
-.sidebar-nav a:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
+.sidebar-nav a:active{ background:rgba(120,90,20,0.13); }
 .sidebar-nav a.active{
-  background:linear-gradient(180deg, #F3D07A, #F8E2A6);
-  transform:translateY(2px);
-  box-shadow:0 2px 5px rgba(150,105,25,0.35) inset, 0 1px 0 rgba(255,255,255,0.8);
+  background:#F3D07A;
 }
 
 .sidebar-footer a{
-  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
-  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.18), 0 8px 12px -8px rgba(120,90,20,0.35);
+  background:transparent;
 }
-.sidebar-footer a:hover{ transform:translateY(-2px); background:linear-gradient(180deg, #FFFFFF, #FBF2D8); }
-.sidebar-footer a:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
+.sidebar-footer a:hover{ background:rgba(120,90,20,0.07); }
+.sidebar-footer a:active{ background:rgba(120,90,20,0.13); }
 .sidebar-footer a.active{
-  background:linear-gradient(180deg, #F3D07A, #F8E2A6);
-  transform:translateY(2px);
-  box-shadow:0 2px 5px rgba(150,105,25,0.35) inset, 0 1px 0 rgba(255,255,255,0.8);
+  background:#F3D07A;
 }
-.sidebar-recent a:hover{ transform:translateX(3px); }
-.sidebar-recent a{ transition:transform .16s ease, background .15s ease; }
+.sidebar-recent a:hover{ background:rgba(120,90,20,0.06); }
+.sidebar-recent a{ transition:background .15s ease; }
 
 /* ---- Menu tab ------------------------------------------------------
    Icon only, hinged onto the sidebar's right edge. It lives inside the
@@ -14150,78 +14029,56 @@ html,body{ height:100%; overflow:hidden; }
   overscroll-behavior:contain;
 }
 
-/* ---- 3D sidebar ---------------------------------------------------
-   The sidebar is a slab standing in space: turned slightly toward the
-   content, with a thick lit edge, a long cast shadow, and raised
-   buttons that lift on hover and press in when tapped. */
+/* ---- Sidebar (flat, 2D) --------------------------------------------
+   A simple flat panel: no perspective/tilt, no raised-button shadows —
+   just a solid background, a thin border, and flat colour changes on
+   hover/active/current-page state. */
 .app-shell{ perspective:none; }
 .sidebar{
-  transform:perspective(1500px) translateX(0) rotateY(3deg);
-  transform-origin:left center;
-  background:linear-gradient(100deg, #FFFFFF 0%, #FFF9E8 42%, #F3E2B0 135%);
-  border-right:1px solid rgba(120,90,20,0.20);
-  box-shadow:
-    inset 2px 0 0 rgba(255,255,255,0.95),
-    inset 0 2px 0 rgba(255,255,255,0.9),
-    inset -1px 0 0 rgba(120,90,20,0.14),
-    12px 0 22px -8px rgba(90,65,10,0.30),
-    34px 0 58px -20px rgba(90,65,10,0.26);
-}
-.sidebar::after{
-  content:''; position:absolute; top:0; right:-10px; bottom:0; width:10px;
-  background:linear-gradient(90deg, #CDB57A 0%, #E6D5A2 45%, rgba(230,213,162,0) 100%);
-  pointer-events:none;
-}
-.app-shell.sidebar-closed .sidebar{
-  transform:perspective(1500px) translateX(-100%) rotateY(-10deg);
+  transform:translateX(0);
+  background:#FFF9E8;
+  border-right:1px solid rgba(120,90,20,0.16);
   box-shadow:none;
 }
-.app-shell.sidebar-closed .sidebar::after{ opacity:0; }
+.app-shell.sidebar-closed .sidebar{
+  transform:translateX(-104%);
+  box-shadow:none;
+}
 
 .sidebar-account,
 .sidebar-nav a,
 .sidebar-footer a{
-  transition:transform .16s cubic-bezier(.2,.8,.3,1.1), box-shadow .16s ease, background .16s ease, color .15s ease;
+  transition:background .15s ease, color .15s ease;
 }
 .sidebar-account{
-  background:linear-gradient(180deg, #FFFFFF, #F8EFD4);
+  background:#FFFFFF;
   border:1px solid rgba(120,90,20,0.14);
-  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.20), 0 10px 14px -8px rgba(120,90,20,0.40);
 }
-.sidebar-account:hover{ background:linear-gradient(180deg, #FFFFFF, #F8EFD4); transform:translateY(-2px);
-  box-shadow:0 1px 0 #fff inset, 0 5px 0 rgba(160,120,40,0.20), 0 14px 18px -8px rgba(120,90,20,0.45); }
-.sidebar-account:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
+.sidebar-account:hover{ background:#FBF2D8; }
+.sidebar-account:active{ background:#F3E6C0; }
 
 .sidebar-nav{ gap:7px; }
 .sidebar-nav a{
-  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
-  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.20), 0 8px 12px -8px rgba(120,90,20,0.40);
+  background:transparent;
 }
 .sidebar-nav a:hover{
-  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
-  transform:translateY(-2px);
-  box-shadow:0 1px 0 #fff inset, 0 5px 0 rgba(160,120,40,0.20), 0 12px 16px -8px rgba(120,90,20,0.45);
+  background:rgba(120,90,20,0.07);
 }
-.sidebar-nav a:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
+.sidebar-nav a:active{ background:rgba(120,90,20,0.13); }
 .sidebar-nav a.active{
-  background:linear-gradient(180deg, #F3D07A, #F8E2A6);
-  transform:translateY(2px);
-  box-shadow:0 2px 5px rgba(150,105,25,0.35) inset, 0 1px 0 rgba(255,255,255,0.8);
+  background:#F3D07A;
 }
 
 .sidebar-footer a{
-  background:linear-gradient(180deg, #FFFFFF, #FBF2D8);
-  box-shadow:0 1px 0 #fff inset, 0 3px 0 rgba(160,120,40,0.18), 0 8px 12px -8px rgba(120,90,20,0.35);
+  background:transparent;
 }
-.sidebar-footer a:hover{ transform:translateY(-2px); background:linear-gradient(180deg, #FFFFFF, #FBF2D8); }
-.sidebar-footer a:active{ transform:translateY(2px); box-shadow:0 1px 3px rgba(120,90,20,0.30) inset; }
+.sidebar-footer a:hover{ background:rgba(120,90,20,0.07); }
+.sidebar-footer a:active{ background:rgba(120,90,20,0.13); }
 .sidebar-footer a.active{
-  background:linear-gradient(180deg, #F3D07A, #F8E2A6);
-  transform:translateY(2px);
-  box-shadow:0 2px 5px rgba(150,105,25,0.35) inset, 0 1px 0 rgba(255,255,255,0.8);
+  background:#F3D07A;
 }
-.sidebar-recent a:hover{ transform:translateX(3px); }
-.sidebar-recent a{ transition:transform .16s ease, background .15s ease; }
+.sidebar-recent a:hover{ background:rgba(120,90,20,0.06); }
+.sidebar-recent a{ transition:background .15s ease; }
 
 /* ---- Menu tab ------------------------------------------------------
    Icon only, hinged onto the sidebar's right edge. It lives inside the
