@@ -3500,23 +3500,51 @@ body{
   background-size:cover; background-position:center; background-repeat:no-repeat;
 }
 
-/* Empty-board welcome: faint logo watermark + greeting. Sits above the canvas but
-   never takes pointer input, and fades out as soon as the tutor starts writing. */
+/* Empty-board welcome: logo + brand tagline + greeting. Sits above the canvas but
+   never takes pointer input, and fades out as soon as the tutor starts writing.
+   On a genuine new-lesson start (see playBoardWelcomeIntro) the logo animates in
+   and the tagline writes itself out slowly, like the rest of the board's
+   handwriting — see #board-welcome.intro/.typing/.greet-in below. */
 #board-welcome{
   position:absolute; inset:0; z-index:1;
   display:flex; flex-direction:column; align-items:center; justify-content:center;
-  gap:20px; padding:24px 24px 16vh; text-align:center;
+  gap:14px; padding:24px 24px 16vh; text-align:center;
   pointer-events:none; user-select:none; -webkit-user-select:none;
   opacity:1; transition:opacity .45s ease;
 }
 #board-welcome.hidden{ opacity:0; visibility:hidden; transition:opacity .45s ease, visibility 0s linear .45s; }
-#board-welcome .bw-logo-svg{ width:min(300px, 50vw); height:auto; display:block; opacity:.14; }
+#board-welcome .bw-logo-svg{ width:min(300px, 50vw); height:auto; display:block; opacity:.14; transform:scale(1); }
+/* Intro entrance: only applied right after a new lesson starts (JS adds/removes
+   the class), so a plain resize/scroll while the welcome is already fully shown
+   never replays it. */
+#board-welcome.intro .bw-logo-svg{ opacity:0; transform:scale(.92); animation:bwLogoIn .7s cubic-bezier(.22,.8,.25,1) forwards; }
+@keyframes bwLogoIn{ to{ opacity:.14; transform:scale(1); } }
+#board-welcome .bw-tagline{
+  font-family:'Kalam','Caveat',cursive; font-weight:700;
+  font-size:clamp(20px, 2.6vw, 28px); line-height:1.3;
+  color:#2A2410; opacity:.55; min-height:1.3em;
+}
+#board-welcome .bw-caret{
+  display:inline-block; width:2px; height:.9em; vertical-align:-0.12em;
+  margin-left:2px; background:currentColor; opacity:0;
+}
+#board-welcome.typing .bw-caret{ opacity:.6; animation:bwCaretBlink .9s steps(1) infinite; }
+@keyframes bwCaretBlink{ 50%{ opacity:0; } }
 #board-welcome .bw-text{
   font-family:'Kalam','Caveat',cursive; font-weight:700;
   font-size:clamp(22px, 3.4vw, 34px); line-height:1.25;
   color:#2A2410; opacity:.6; max-width:min(640px, 90%);
 }
-@media (prefers-reduced-motion: reduce){ #board-welcome, #board-welcome.hidden{ transition:none; } }
+/* During the intro sequence the greeting waits for the tagline to finish
+   writing before it fades in, so the two never appear at once. */
+#board-welcome.intro .bw-text{ opacity:0; transition:opacity .5s ease; }
+#board-welcome.intro.greet-in .bw-text{ opacity:.6; }
+@media (prefers-reduced-motion: reduce){
+  #board-welcome, #board-welcome.hidden{ transition:none; }
+  #board-welcome.intro .bw-logo-svg{ animation:none; opacity:.14; transform:none; }
+  #board-welcome.typing .bw-caret{ animation:none; opacity:0; }
+  #board-welcome.intro .bw-text{ transition:none; opacity:.6; }
+}
 
 /* Pointer used for "point to the exact word/symbol currently being
    explained" (see runTeachingTurn's use of pointToWord/pointToRegion).
@@ -4568,7 +4596,8 @@ body:not(.panel-open) .sidebar-toggle{ left:0 !important; }
 <div id="board-wrap">
   <canvas id="board"></canvas>
   <div id="board-welcome" aria-hidden="true">
-    <img src="%%CL_FULL_LG%%" alt="" aria-hidden="true" class="bw-logo-svg" draggable="false">
+    <img src="%%CL_FULL_LG%%" alt="" aria-hidden="true" class="bw-logo-svg" id="bw-logo" draggable="false">
+    <div class="bw-tagline" id="bw-tagline"><span id="bw-tagline-text"></span><span class="bw-caret" id="bw-caret"></span></div>
     <div class="bw-text" id="bw-text"></div>
   </div>
 </div>
@@ -5393,9 +5422,10 @@ function roundRectPath(ctx, x, y, w, h, r){
 
 let drawnCommands = [];
 
-// Empty-board welcome (watermark + greeting). Shown only while nothing is on the
+// Empty-board welcome (logo + tagline + greeting). Shown only while nothing is on the
 // board and nothing is queued or being drawn; hidden the moment the tutor starts writing.
 // Wrapped in try/catch because this can run before later `let` declarations have executed.
+const BW_TAGLINE = 'Chalkline — your study companion';
 function syncBoardWelcome(){
   try{
     const el = document.getElementById('board-welcome');
@@ -5406,8 +5436,56 @@ function syncBoardWelcome(){
     const msg = name ? 'What are we getting into today, ' + name + '?' : 'What are we getting into today?';
     const t = document.getElementById('bw-text');
     if(t && t.textContent !== msg) t.textContent = msg;
+    // Fallback so the tagline is never left blank when the welcome is shown
+    // without going through playBoardWelcomeIntro() below (e.g. a resize
+    // mid-intro just re-syncs visibility, it doesn't restart the typing).
+    if(!el.classList.contains('intro')){
+      const tag = document.getElementById('bw-tagline-text');
+      if(tag && !tag.textContent) tag.textContent = BW_TAGLINE;
+    }
     const empty = drawnCommands.length === 0 && drawQueue.length === 0 && !drawing;
     el.classList.toggle('hidden', !empty);
+  } catch(e){}
+}
+
+// Plays the "new lesson" welcome animation once: the logo animates in, then the
+// brand tagline writes itself out one letter at a time — slowly, like real
+// handwriting — and once that line is finished the personalized greeting fades
+// in underneath it. Call this only for a genuine new/empty lesson (see
+// resetTutorBoardState); ordinary redraws/resizes go through syncBoardWelcome()
+// above instead, which never replays it. Respects prefers-reduced-motion by
+// skipping straight to the finished state.
+let bwIntroTimer = null;
+function playBoardWelcomeIntro(){
+  try{
+    const el = document.getElementById('board-welcome');
+    const txt = document.getElementById('bw-tagline-text');
+    if(!el || !txt) return;
+    if(bwIntroTimer){ clearTimeout(bwIntroTimer); bwIntroTimer = null; }
+    const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if(reduced){ el.classList.remove('intro','typing','greet-in'); txt.textContent = BW_TAGLINE; return; }
+    txt.textContent = '';
+    el.classList.remove('greet-in');
+    el.classList.add('intro','typing');
+    const CHAR_MS = 55; // slow, legible handwriting pace — ~1.8s for the full line
+    let i = 0;
+    const step = () => {
+      i++;
+      txt.textContent = BW_TAGLINE.slice(0, i);
+      if(i < BW_TAGLINE.length){
+        bwIntroTimer = setTimeout(step, CHAR_MS);
+      } else {
+        // Let the caret blink a beat once the line is finished, then bring
+        // the personalized greeting in underneath, then settle back to the
+        // plain (non-"intro") state so a later resize never replays this.
+        bwIntroTimer = setTimeout(() => {
+          el.classList.remove('typing');
+          el.classList.add('greet-in');
+          bwIntroTimer = setTimeout(() => { el.classList.remove('intro','greet-in'); bwIntroTimer = null; }, 650);
+        }, 500);
+      }
+    };
+    bwIntroTimer = setTimeout(step, CHAR_MS);
   } catch(e){}
 }
 
@@ -9381,6 +9459,7 @@ function resetTutorBoardState(){
   camera.x=500; camera.scale=1;
   resetRegionCursors(); currentTopicLabel='Topic';
   clearBoard();
+  playBoardWelcomeIntro();
   dismissQuizCard(); pendingQuiz = null; boardWritePending = false;
   transcriptEl.innerHTML = '<div class="empty-note">Your lecture transcript and quiz questions will appear here as we go.</div>';
   resetUploadZoneUI();
