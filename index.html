@@ -5018,8 +5018,27 @@ let currentTopicLabel = 'Topic';
 let currentSubject = '';
 let sessionQuizCount = 0; // how many quiz cards this lesson has shown — surfaced on the Dashboard's course cards
 
+// Two-column layout state. Normally the board is one full-width column (see
+// enqueueCommandsAtCursor below). A "plot"/"axes" command automatically opens
+// a narrower right-hand column for the graph and a left-hand notes column
+// beside it, so short bullet-style text can sit next to the graph the way a
+// real page of annotated notes does — see COLUMN MODE in that function.
+// Null when the board is in its normal single-column state.
+let columnMode = null; // { leftX, leftW, leftY, rightBottom }
+const COLUMN_GAP = 28;
+const COLUMN_LEFT_X = 16;
+const COLUMN_LEFT_W = 440;                                           // narrower notes column next to a graph
+const COLUMN_RIGHT_X = COLUMN_LEFT_X + COLUMN_LEFT_W + COLUMN_GAP;   // 484
+const COLUMN_RIGHT_W = 968 - COLUMN_LEFT_W - COLUMN_GAP;             // 500 — (968 matches the full-width text column elsewhere)
+// A "long paragraph" of text is judged too substantial to sit as a compact
+// note beside a graph — it closes the column and reclaims the full page
+// width, per the "two columns while drawing a graph, one column for long
+// paragraphs" design.
+const COLUMN_LONG_PARAGRAPH_WORDS = 28;
+
 function resetRegionCursors(){
   globalCursorY = TOP_MARGIN;
+  columnMode = null;
   isUserScrolling = false;
   // Invalidate any in-flight scroll animation from before this reset
   // (e.g. a "follow the pen" scroll queued by the previous session's
@@ -6836,6 +6855,16 @@ const DIAGRAM_LEFT = 60;
 // a diagram and the text immediately above/below it.
 const DIAGRAM_BBOX_PAD = 18;
 
+// Closes an active two-column layout (see columnMode above): the page
+// cursor jumps past whichever column ended up taller — the graph's right
+// column or the notes written into the left column — plus a section-break
+// margin, and the board goes back to writing full-width.
+function endColumnMode(){
+    if(!columnMode) return;
+    globalCursorY = Math.max(columnMode.leftY, columnMode.rightBottom, globalCursorY) + RULE_LINE_SPACING;
+    columnMode = null;
+}
+
 function enqueueCommandsAtCursor(commands){
     // The AI is actively writing a new batch of content — this is the
     // one and only place auto-follow re-engages after a manual pan.
@@ -6868,6 +6897,10 @@ function enqueueCommandsAtCursor(commands){
 
     function flushDiagram(skipLayout){
         if(!pendingDiagram.length) return;
+        // A hand-drawn shape cluster (or an expanded table) always claims
+        // the full page width — only a "plot"/"axes" graph gets the narrow
+        // right column, so close out any active two-column layout first.
+        if(columnMode) endColumnMode();
         if(!hasSubstantiveShape(pendingDiagram)){
             console.warn('Dropped an orphaned arrow/label cluster with no real shape to attach to:', pendingDiagram);
             pendingDiagram = [];
@@ -6904,6 +6937,7 @@ function enqueueCommandsAtCursor(commands){
 
         if (c.type === 'table') {
             flushDiagram();
+            if(columnMode) endColumnMode(); // a table always spans the full width
             let prims = [];
             try{ prims = expandTableCommand(c, tCtx); }catch(e){ console.warn('Table layout failed:', e); }
             if(prims.length){ pendingDiagram.push(...prims); flushDiagram(true); }
@@ -6936,52 +6970,87 @@ function enqueueCommandsAtCursor(commands){
         flushDiagram();
 
         if (c.type === 'text') {
-            c.x = 16;          // start at the far left of the board
-            c.maxWidth = 968;  // and run to the far right before wrapping
+            const fam = "'Kalam', 'Caveat', cursive";
             c.hm = HAND_TEXT_MULT;
             const size = handSize(c);
-            const fam = "'Kalam', 'Caveat', cursive";
             tCtx.font = `${c.weight || 700} ${size}px ${fam}`;
-            
-            const words = (c.text || '').split(/\s+/).filter(Boolean);
-            let lines = 1; let cur = '';
-            words.forEach(w => {
-                const test = cur ? cur + ' ' + w : w;
-                if(tCtx.measureText(test).width > c.maxWidth){ lines++; cur = w; }
-                else { cur = test; }
-            });
-            
-            const lh = lineHeightForCmd(c, size);
-            // A heading skips one blank ruled line before it starts, so it
-            // reads as a new section rather than butting straight up
-            // against whatever came before — but only if something is
-            // already on the board above it (no pointless gap at the very
-            // top of a fresh page).
-            if(c.heading && globalCursorY > TOP_MARGIN) globalCursorY += RULE_LINE_SPACING/2;
-            // Baseline sits exactly ON the rule line at the bottom of this
-            // first allotted line-space (not floating near the top of it),
-            // so the handwriting visually rests on the ruled paper the way
-            // real handwriting does — ascenders reach up into the block,
-            // descenders dip slightly below the line, just like ink on
-            // actual notebook paper.
-            c.y = globalCursorY + lh;
-            placedAll.push(c);
-            // Advance by exactly the block's own height — no extra blank
-            // gap tacked on — so consecutive notes stack tight against each
-            // other like continuous handwriting, while every line (of this
-            // block and the next) still lands on a whole rule-line boundary
-            // because `lh` is always a whole multiple of RULE_LINE_SPACING.
-            globalCursorY += lines * lh;
+
+            const measureLines = (maxWidth) => {
+                const words = (c.text || '').split(/\s+/).filter(Boolean);
+                let lines = 1, cur = '';
+                words.forEach(w => {
+                    const test = cur ? cur + ' ' + w : w;
+                    if(tCtx.measureText(test).width > maxWidth){ lines++; cur = w; }
+                    else { cur = test; }
+                });
+                return { lines, words };
+            };
+
+            // COLUMN MODE: while a graph is occupying the right column (see
+            // the "plot"/"axes" branch below), short bullet-style notes are
+            // free to sit in the left column beside it instead of being
+            // forced below the whole graph. A heading, a genuinely long
+            // paragraph, or simply running out of vertical room next to the
+            // graph all close the column and fall back to the normal
+            // full-width single column — see COLUMN_LONG_PARAGRAPH_WORDS.
+            if(columnMode){
+                const { words } = measureLines(columnMode.leftW);
+                const longParagraph = !c.heading && words.length > COLUMN_LONG_PARAGRAPH_WORDS;
+                const noRoomLeft = columnMode.leftY + RULE_LINE_SPACING > columnMode.rightBottom;
+                if(c.heading || longParagraph || noRoomLeft) endColumnMode();
+            }
+
+            if(columnMode){
+                c.x = columnMode.leftX;
+                c.maxWidth = columnMode.leftW;
+                const { lines } = measureLines(c.maxWidth);
+                const lh = lineHeightForCmd(c, size);
+                c.y = columnMode.leftY + lh;
+                placedAll.push(c);
+                columnMode.leftY += lines * lh;
+                globalCursorY = Math.max(globalCursorY, columnMode.leftY);
+            } else {
+                c.x = 16;          // start at the far left of the board
+                c.maxWidth = 968;  // and run to the far right before wrapping
+                const { lines } = measureLines(c.maxWidth);
+                const lh = lineHeightForCmd(c, size);
+                // A heading skips one blank ruled line before it starts, so it
+                // reads as a new section rather than butting straight up
+                // against whatever came before — but only if something is
+                // already on the board above it (no pointless gap at the very
+                // top of a fresh page).
+                if(c.heading && globalCursorY > TOP_MARGIN) globalCursorY += RULE_LINE_SPACING/2;
+                // Baseline sits exactly ON the rule line at the bottom of this
+                // first allotted line-space (not floating near the top of it),
+                // so the handwriting visually rests on the ruled paper the way
+                // real handwriting does — ascenders reach up into the block,
+                // descenders dip slightly below the line, just like ink on
+                // actual notebook paper.
+                c.y = globalCursorY + lh;
+                placedAll.push(c);
+                // Advance by exactly the block's own height — no extra blank
+                // gap tacked on — so consecutive notes stack tight against each
+                // other like continuous handwriting, while every line (of this
+                // block and the next) still lands on a whole rule-line boundary
+                // because `lh` is always a whole multiple of RULE_LINE_SPACING.
+                globalCursorY += lines * lh;
+            }
 
         } else if (c.type === 'plot' || c.type === 'axes') {
             if(c.type === 'plot') normalizePlot(c);
-            c.x = 100;
-            c.w = 800;
+            // A plot/axes always starts a fresh two-column pairing: the graph
+            // claims a narrower right column, and text placed right after it
+            // is free to flow into a left notes column at the same height
+            // instead of being pushed below the whole graph — see COLUMN MODE
+            // above. A second graph in a row first closes out the pairing
+            // it interrupted.
+            if(columnMode) endColumnMode();
+            const top = globalCursorY + RULE_LINE_SPACING; // Title margin
+            c.x = COLUMN_RIGHT_X;
+            c.w = COLUMN_RIGHT_W;
             c.h = 400; // a whole multiple of RULE_LINE_SPACING, like every
                        // other vertical measurement here — see note below
-            
-            globalCursorY += RULE_LINE_SPACING; // Title margin
-            c.y = globalCursorY + c.h; // Origin is bottom-left
+            c.y = top + c.h; // Origin is bottom-left
             placedAll.push(c);
             // X-axis label margin. MUST be a whole multiple of
             // RULE_LINE_SPACING like every other vertical measurement in
@@ -6989,7 +7058,9 @@ function enqueueCommandsAtCursor(commands){
             // grid after the first graph, and every line of handwriting
             // placed after it stops resting on the ruled lines (it'll
             // visually "float" between them instead of sitting on one).
-            globalCursorY = c.y + RULE_LINE_SPACING*2;
+            const rightBottom = c.y + RULE_LINE_SPACING*2;
+            columnMode = { leftX: COLUMN_LEFT_X, leftW: COLUMN_LEFT_W, leftY: top, rightBottom };
+            globalCursorY = Math.max(globalCursorY, rightBottom);
         }
     });
 
@@ -8470,7 +8541,7 @@ STRICT TEXT COLOR RULE — this is a hard rule, not a stylistic suggestion, and 
 - diagramLabel text (labels naming a part of a diagram) is exempt from this rule and may use "ink" or a color matching the structure it's labeling, since diagram color is a separate visual system from handwriting hierarchy.
 
 CRITICAL LAYOUT RULES - THE APP WILL OVERRIDE YOUR COORDINATES:
-1. DO NOT try to position text next to a graph or diagram. Everything is strictly stacked vertically in a single column by the engine.
+1. Everything is stacked vertically in a single column by the engine, with ONE automatic exception: right after a "plot"/"axes" command, the engine opens a narrower left-hand notes column beside the graph, and short "text" commands that immediately follow flow into that column instead of being pushed below the whole graph — exactly like a page of annotated notes with the graph on one side. This closes itself automatically (back to the normal single full-width column) the moment a heading, a genuinely long paragraph, or a hand-drawn diagram/table appears, or once the notes run out of room next to the graph. You do not control any of this with coordinates — just emit a "plot", then, if you want the side-by-side look, follow it with a few short "text" bullets (see STUDY-NOTE STYLE below); otherwise a normal paragraph after the plot will simply end the column and continue full-width as before.
 2. ONLY use "text" commands for paragraph explanations. DO NOT use "text" commands to title or label graphs (use the "plot"/"axes" title/xlabel/ylabel properties instead).
 3. FOR GRAPHS, use ONLY the "plot" command. Put the title, xlabel, and ylabel INSIDE the plot command properties. DO NOT use separate text commands near it.
 4. FOR A DIAGRAM (a labeled picture built from "path"/"curve"/"circle"/"rect"/"line"/"arrow"/"halo"/"highlight"): draw every shape in that diagram using a small, self-consistent local coordinate box starting near (0,0) — e.g. everything within roughly x:0–300, y:0–300. Don't try to guess an absolute page position; the app automatically moves the whole diagram as one block to the next free spot on the page and reserves vertical space for it, so overlapping text is impossible as long as you keep it self-contained.
@@ -8506,7 +8577,7 @@ Available command types:
 - {"type":"highlight","x":..,"y":..,"w":..,"h":26,"color":"ochre"}
 Any shape command above accepts "dash":true for a dashed stroke (equilibrium/reference lines, hidden edges in a 3D sketch, a boundary that's conceptual rather than solid, an asymptote). Leave it false/omitted for a normal solid line — don't dash everything, only where a dashed line has actual meaning.
 
-STUDY-NOTE STYLE — for a review/summary turn, or whenever the student asks for "notes", "a summary", or "write that down": switch from the plainer lecture-board look to this more polished, colorful annotated-notes aesthetic. It is still single-column, top-to-bottom — see CRITICAL LAYOUT RULES, nothing below lets you place things side-by-side — but built from these ingredients:
+STUDY-NOTE STYLE — for a review/summary turn, or whenever the student asks for "notes", "a summary", or "write that down": switch from the plainer lecture-board look to this more polished, colorful annotated-notes aesthetic. Layout still follows CRITICAL LAYOUT RULES above (including its one column exception right after a "plot") — but built from these ingredients:
 - NUMBERED/LETTERED SECTION HEADINGS: a heading like "1. What is it?" is an ordinary "text" command with "heading":true, optionally with a "highlight" box (color "ochre") placed behind just the descriptive words (not the number) to mimic a yellow highlighter stroke — size the highlight to that word span only, not the whole line.
 - KEY-PHRASE HIGHLIGHTING: to emphasize a term inside a sentence, place a "highlight" rect under just that phrase (h ≈ text size × 1.1, w ≈ phrase's character count × size × 0.62) in a color that fits its role ("ochre" for the heading/main term, "sage" for a definition, "coral" or "violet" for a related-but-different idea) — emit the highlight command BEFORE the "text" command it sits behind, so the ink text draws on top and stays legible.
 - KEY-PHRASE UNDERLINING: for lighter emphasis than a full highlight, draw a short "line" (color "sky" or "violet", width ~2) directly under just that phrase instead.
@@ -8810,7 +8881,7 @@ COMMAND TYPES:
 Any shape accepts "dash":true for reference/equilibrium/hidden lines only — not everything.
 "rect" accepts "radius" (world units) for a rounded-corner box — use with "fill":true, "fillOpacity":0.08-0.12 for a callout/"key takeaway" box.
 
-STUDY-NOTE STYLE (for review/summary turns, or "write that as notes"): numbered headings ("1. What is it?") as "text" with heading:true, optionally a "highlight" box behind the key words. Emphasize a phrase with a "highlight" rect under it (emit before the text so ink draws on top) or a colored "line" underline. A callout/"key takeaway" box is a rounded "rect" (radius+fill) with text placed inside at local coords, box first. Bullets: prefix "text" with "• ". On a "plot", explain what a curve segment MEANS with an "arrows" entry that has a short "label" and a "color" — the renderer auto-places it clear of the curve. Still single-column top-to-bottom — save this richer look for consolidating already-taught material, not a concept's first pass.
+STUDY-NOTE STYLE (for review/summary turns, or "write that as notes"): numbered headings ("1. What is it?") as "text" with heading:true, optionally a "highlight" box behind the key words. Emphasize a phrase with a "highlight" rect under it (emit before the text so ink draws on top) or a colored "line" underline. A callout/"key takeaway" box is a rounded "rect" (radius+fill) with text placed inside at local coords, box first. Bullets: prefix "text" with "• ". On a "plot", explain what a curve segment MEANS with an "arrows" entry that has a short "label" and a "color" — the renderer auto-places it clear of the curve. The board is normally single-column, EXCEPT right after a "plot": the engine then opens a narrower left notes column beside the graph automatically, and short "text" bullets right after the plot flow into it — a heading, a long paragraph, a diagram, or a table all close that column and return to full width on their own, no coordinates needed. Save the richer callout-box/highlight look for consolidating already-taught material, not a concept's first pass.
 
 GRAPH PRECISION STANDARD — every "plot"/"axes" diagram (not just economics) must read as a precise, university-level figure: work out each curve's real shape first (linear gets exactly 2 points for a dead-straight line; a genuinely curved function gets 8-15 points sampled along the real curve, not a faceted guess). Pick xRange/yRange so curves and any marked point sit well inside the box (middle 60-80%), never clipped at an edge — and double check every point you give a curve actually falls inside the xRange/yRange you chose; a point outside that range draws outside the axes box, which must never happen.
 
@@ -9446,7 +9517,7 @@ async function persistSession(){
     quizCount: sessionQuizCount,
     pdfFileName, pdfText: pdfText ? pdfText.slice(0,15000) : '',
     conversationHistory, drawnCommands, camera,
-    globalCursorY, currentTopicLabel,
+    globalCursorY, currentTopicLabel, columnMode,
     transcriptHtml: transcriptToHtmlSnapshot()
   };
   // NOTE: window.storage only exists inside a Claude.ai artifact preview.
@@ -9589,6 +9660,7 @@ function loadSession(item){
   if(item.globalCursorY !== undefined) globalCursorY = item.globalCursorY;
   else if(item.regionCursor) globalCursorY = Math.max(item.regionCursor.notes, item.regionCursor.graph, item.regionCursor.detail);
   else globalCursorY = TOP_MARGIN;
+  columnMode = item.columnMode || null;
   
   currentTopicLabel = item.currentTopicLabel || 'Topic';
   transcriptEl.innerHTML = item.transcriptHtml || '<div class="empty-note">No transcript in this session.</div>';
