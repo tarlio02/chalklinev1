@@ -3220,6 +3220,146 @@ body{
 .progress-radar-row .pr-pct{ font-size:11px; font-weight:600; color:rgba(42,36,16,0.6); width:34px; text-align:right; flex-shrink:0; }
 .progress-empty{ font-size:12.5px; color:rgba(42,36,16,0.55); }
 
+/* ---------- CONCEPT PROGRESS list (extends the Weakness Radar rows
+   above with an icon + status badge) and the Concept Mastered / Concept
+   Unlocked celebration modals. Built on the same .subject-modal /
+   .sm-card scaffold used by every other modal on this page (add-course,
+   course-info) so it matches the rest of the design system. ---------- */
+.concept-list{ margin-top:14px; }
+.concept-list-title{
+  font-family:'JetBrains Mono', monospace; font-size:10px; letter-spacing:0.06em;
+  text-transform:uppercase; color:rgba(42,36,16,0.5); margin:0 0 10px; font-weight:600;
+}
+.concept-row{
+  display:flex; align-items:center; gap:11px; padding:9px 4px; border-radius:12px;
+  transition:background .2s ease;
+}
+.concept-row:hover{ background:rgba(0,0,0,0.03); }
+.concept-row .cr-ic{
+  width:30px; height:30px; border-radius:9px; flex-shrink:0; font-size:14px;
+  display:flex; align-items:center; justify-content:center;
+  background:rgba(120,90,20,0.08);
+}
+.concept-row.cr-mastered .cr-ic{ background:rgba(47,168,138,0.16); }
+.concept-row .cr-main{ flex:1; min-width:0; }
+.concept-row .cr-top{ display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin-bottom:5px; }
+.concept-row .cr-name{ font-size:13px; font-weight:600; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.concept-row .cr-status{
+  font-family:'JetBrains Mono', monospace; font-size:9.5px; letter-spacing:.03em; text-transform:uppercase;
+  color:rgba(42,36,16,0.5); flex-shrink:0;
+}
+.concept-row.cr-mastered .cr-status{ color:var(--emerald); }
+.concept-row .cr-bar-row{ display:flex; align-items:center; gap:9px; }
+.concept-row .cr-bar-track{ flex:1; height:7px; border-radius:99px; background:rgba(0,0,0,0.08); overflow:hidden; }
+.concept-row .cr-bar-fill{
+  height:100%; border-radius:99px; width:0%;
+  background:linear-gradient(90deg, var(--brick), var(--gold));
+  transition:width .6s cubic-bezier(.22,.9,.32,1.1);
+}
+.concept-row.cr-mastered .cr-bar-fill{ background:linear-gradient(90deg, var(--sage), var(--emerald)); }
+.concept-row .cr-pct{ font-size:11px; font-weight:600; color:rgba(42,36,16,0.6); width:32px; text-align:right; flex-shrink:0; }
+
+/* Shared celebration overlay scaffold (mirrors .subject-modal exactly) */
+.cx-modal{
+  position:fixed; inset:0; z-index:900; display:flex; align-items:center; justify-content:center;
+  opacity:0; pointer-events:none; transition:opacity .25s ease;
+}
+.cx-modal.open{ opacity:1; pointer-events:auto; }
+.cx-modal .cx-scrim{ position:absolute; inset:0; background:rgba(30,24,8,0.42); backdrop-filter:blur(2px); }
+.cx-modal .cx-card{
+  position:relative; width:min(360px, 88vw); background:#FFFDF6; border-radius:22px;
+  padding:34px 30px 28px; text-align:center;
+  box-shadow:0 24px 60px -20px rgba(42,36,16,0.45), 0 0 0 1px rgba(0,0,0,0.05);
+  transform:scale(0.92); opacity:0; transition:transform .38s cubic-bezier(.22,.9,.32,1.1), opacity .3s ease;
+}
+.cx-modal.open .cx-card{ transform:scale(1); opacity:1; }
+
+/* ---- Concept Mastered ---- */
+#concept-mastered-card{
+  background:radial-gradient(ellipse at 50% 0%, rgba(47,168,138,0.14), transparent 65%), #FFFDF6;
+}
+#concept-mastered-card::before{
+  content:''; position:absolute; inset:-2px; border-radius:24px; z-index:-1;
+  background:radial-gradient(ellipse at 50% 40%, rgba(47,168,138,0.35), transparent 70%);
+  filter:blur(14px); opacity:0; transition:opacity .5s ease;
+}
+.cx-modal.open #concept-mastered-card::before{ opacity:1; }
+.cm-check-wrap{
+  width:56px; height:56px; margin:0 auto 14px; border-radius:50%;
+  background:rgba(47,168,138,0.14); display:flex; align-items:center; justify-content:center;
+}
+.cm-check-wrap svg{ width:30px; height:30px; overflow:visible; }
+.cm-check-wrap path{
+  fill:none; stroke:var(--emerald); stroke-width:3.4; stroke-linecap:round; stroke-linejoin:round;
+  stroke-dasharray:40; stroke-dashoffset:40;
+}
+.cx-modal.open .cm-check-wrap path{ animation:cmDraw .5s .35s cubic-bezier(.22,.9,.32,1.1) forwards; }
+@keyframes cmDraw{ to{ stroke-dashoffset:0; } }
+.cm-eyebrow{
+  font-family:'JetBrains Mono', monospace; font-size:11px; letter-spacing:.1em; font-weight:700;
+  color:var(--emerald); text-transform:uppercase; margin:0 0 6px;
+}
+.cm-name{ font-family:'Fraunces','Source Serif 4',Georgia,serif; font-size:24px; font-weight:700; color:var(--ink); margin:0 0 18px; }
+.cm-bar-track{ height:8px; border-radius:99px; background:rgba(0,0,0,0.08); overflow:hidden; margin-bottom:8px; }
+.cm-bar-fill{ height:100%; border-radius:99px; width:0%; background:linear-gradient(90deg, var(--sage), var(--emerald)); transition:width 1s cubic-bezier(.22,.9,.32,1.1); }
+.cm-pct{ font-size:12px; font-weight:600; color:rgba(42,36,16,0.6); }
+.cm-spark{
+  position:absolute; width:4px; height:4px; border-radius:50%; background:var(--gold);
+  opacity:0; pointer-events:none;
+}
+.cx-modal.open .cm-spark{ animation:cmSpark 1.3s ease-out forwards; }
+@keyframes cmSpark{
+  0%{ opacity:0; transform:translate(0,0) scale(0.5); }
+  15%{ opacity:1; }
+  100%{ opacity:0; transform:translate(var(--sx), var(--sy)) scale(1); }
+}
+
+/* ---- Concept Unlocked ---- */
+#concept-unlock-card{ padding-top:30px; }
+.cu-lock-wrap{
+  width:58px; height:58px; margin:0 auto 16px; border-radius:50%; position:relative;
+  background:rgba(240,185,77,0.16); display:flex; align-items:center; justify-content:center;
+  font-size:26px;
+}
+.cu-lock-wrap::after{
+  content:''; position:absolute; inset:-6px; border-radius:50%;
+  border:1.5px solid rgba(240,185,77,0.5); opacity:0;
+}
+.cx-modal.open .cu-lock-wrap .cu-lock-ic{ animation:cuPulse 1s ease-in-out 2, cuFlip .5s 1.15s cubic-bezier(.22,.9,.32,1.1) forwards; }
+.cx-modal.open .cu-lock-wrap::after{ animation:cuRing 1.1s .3s ease-out; }
+@keyframes cuPulse{ 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.12); } }
+@keyframes cuFlip{ 0%{ transform:rotate(0) scale(1); } 60%{ transform:rotate(-14deg) scale(1.2); } 100%{ transform:rotate(0) scale(1); } }
+@keyframes cuRing{ 0%{ opacity:0.9; transform:scale(0.8); } 100%{ opacity:0; transform:scale(1.6); } }
+.cu-eyebrow{
+  font-family:'JetBrains Mono', monospace; font-size:11px; letter-spacing:.1em; font-weight:700;
+  color:var(--gold-deep); text-transform:uppercase; margin:0 0 6px; opacity:0;
+}
+.cx-modal.open .cu-eyebrow{ animation:cuFadeUp .5s 1.3s ease forwards; }
+.cu-name{
+  font-family:'Fraunces','Source Serif 4',Georgia,serif; font-size:24px; font-weight:700; color:var(--ink);
+  margin:0 0 22px; opacity:0;
+}
+.cx-modal.open .cu-name{ animation:cuFadeUp .5s 1.4s ease forwards; }
+@keyframes cuFadeUp{ from{ opacity:0; transform:translateY(6px); } to{ opacity:1; transform:translateY(0); } }
+.cu-start-btn{
+  font-family:inherit; font-size:14.5px; font-weight:600; color:#fff; cursor:pointer;
+  background:var(--ink); border:none; border-radius:12px; padding:11px 22px;
+  opacity:0; transition:background .15s ease, transform .15s ease;
+}
+.cu-start-btn:hover{ background:#0f1c2c; }
+.cu-start-btn:active{ transform:scale(0.97); }
+.cx-modal.open .cu-start-btn{ animation:cuFadeUp .5s 1.5s ease forwards; }
+
+/* prefers-reduced-motion: skip the choreography, show end state instantly */
+@media (prefers-reduced-motion: reduce){
+  .cx-modal, .cx-modal .cx-card, .cm-check-wrap path, .cu-lock-wrap .cu-lock-ic, .cu-lock-wrap::after,
+  .cu-eyebrow, .cu-name, .cu-start-btn, .cm-bar-fill, .concept-row .cr-bar-fill{ animation:none !important; transition:none !important; }
+  .cx-modal.open .cx-card{ transform:none; opacity:1; }
+  .cm-check-wrap path{ stroke-dashoffset:0; }
+  .cu-eyebrow, .cu-name, .cu-start-btn{ opacity:1; }
+  .cm-spark{ display:none; }
+}
+
 /* ---------- 3D LESSON BUTTONS ---------- */
 .dash-grid{
   display:grid; grid-template-columns:1fr 1fr; gap:24px; max-width:780px;
@@ -3805,6 +3945,31 @@ html,body{ height:100%; overflow:hidden; }
   </div>
 </div>
 
+<!-- ---------- Concept Mastered celebration ---------- -->
+<div class="cx-modal" id="concept-mastered-modal" role="dialog" aria-modal="true" aria-live="polite">
+  <div class="cx-scrim"></div>
+  <div class="cx-card" id="concept-mastered-card">
+    <div class="cm-check-wrap">
+      <svg viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5"></path></svg>
+    </div>
+    <div class="cm-eyebrow">🔓 Concept Mastered</div>
+    <h2 class="cm-name" id="cm-concept-name">Concept</h2>
+    <div class="cm-bar-track"><div class="cm-bar-fill" id="cm-bar-fill"></div></div>
+    <div class="cm-pct">Mastery: <span id="cm-pct-num">100</span>%</div>
+  </div>
+</div>
+
+<!-- ---------- Concept Unlocked celebration ---------- -->
+<div class="cx-modal" id="concept-unlock-modal" role="dialog" aria-modal="true" aria-live="polite">
+  <div class="cx-scrim" onclick="closeConceptUnlockModal();"></div>
+  <div class="cx-card" id="concept-unlock-card">
+    <div class="cu-lock-wrap"><span class="cu-lock-ic" id="cu-lock-ic">🔒</span></div>
+    <div class="cu-eyebrow">New Concept Unlocked</div>
+    <h2 class="cu-name" id="cu-concept-name">Concept</h2>
+    <button type="button" class="cu-start-btn" id="cu-start-btn">Start Learning →</button>
+  </div>
+</div>
+
 <script>
   /* ---------------------------------------------------------------
      window.storage shim: the real window.storage API only exists
@@ -3899,6 +4064,196 @@ html,body{ height:100%; overflow:hidden; }
     { min:1500, label:'Expert' },
     { min:3000, label:'Master' }
   ];
+
+  /* ---------------------------------------------------------------
+     CONCEPT MASTERY celebrations. Reuses the existing per-subject
+     `progress:stats:<sub>` (correct/total) that pgRecordAnswer already
+     writes from the tutor and quiz pages — no new tracking pipeline,
+     just a small extra layer on top of it:
+       - a subject counts as "mastered" once it crosses
+         CONCEPT_MASTERY_THRESHOLD with at least CONCEPT_MIN_QUESTIONS
+         answers (same 80% line the Weakness Radar already uses for
+         its "strong" styling).
+       - `progress:concept-meta:<sub>` remembers, per subject, whether
+         we've already shown the "unlocked" moment (first time it
+         appears) and the "mastered" celebration, so refreshing the
+         page (or revisiting later) never repeats either one. On the
+         very first run for an account (no meta saved yet) everything
+         that's already in progress is silently backfilled instead of
+         firing a flood of celebrations for old work.
+     ------------------------------------------------------------- */
+  const CONCEPT_MASTERY_THRESHOLD = 80;
+  const CONCEPT_MIN_QUESTIONS = 3;
+  const conceptReduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  async function loadConceptMeta(sub){
+    try{
+      const r = await window.storage.get('progress:concept-meta:' + sub);
+      if(r) return JSON.parse(r.value) || {};
+    }catch(e){}
+    return {};
+  }
+  async function saveConceptMeta(sub, meta){
+    try{ await window.storage.set('progress:concept-meta:' + sub, JSON.stringify(meta), false); }
+    catch(e){ console.error('concept-meta save failed:', e); }
+  }
+
+  // Reads current stats against the saved meta, updates the meta in
+  // place, and returns { rows, celebrations } — rows for rendering the
+  // Concept Progress list, celebrations to play (in order).
+  async function processConcepts(sub, stats){
+    const meta = await loadConceptMeta(sub);
+    const firstRun = Object.keys(meta).length === 0;
+    const celebrations = [];
+    const names = Object.keys(stats).filter(s => stats[s] && stats[s].total > 0);
+    const rows = names.map(name => {
+      const st = stats[name];
+      const mastery = Math.round((st.correct / st.total) * 100);
+      const isMastered = mastery >= CONCEPT_MASTERY_THRESHOLD && st.total >= CONCEPT_MIN_QUESTIONS;
+      let m = meta[name];
+      if(!m){
+        m = { seen:true, celebrated:isMastered, lastMastery:mastery };
+        if(!firstRun) celebrations.push({ type:'unlock', name });
+      } else {
+        if(isMastered && !m.celebrated){
+          celebrations.push({ type:'mastered', name, from:m.lastMastery, to:mastery });
+        }
+        m.celebrated = m.celebrated || isMastered;
+        m.lastMastery = mastery;
+      }
+      meta[name] = m;
+      const status = isMastered ? 'mastered' : (st.total < CONCEPT_MIN_QUESTIONS ? 'unlocked' : 'learning');
+      return { name, mastery, status };
+    });
+    await saveConceptMeta(sub, meta);
+    return { rows, celebrations };
+  }
+
+  function conceptStatusMeta(status){
+    if(status === 'mastered') return { icon:'✅', label:'Mastered' };
+    if(status === 'unlocked') return { icon:'🔓', label:'Unlocked' };
+    return { icon:'📖', label:'Learning' };
+  }
+
+  function renderConceptList(rows){
+    if(!rows.length) return '';
+    const sorted = rows.slice().sort((a,b) => b.mastery - a.mastery);
+    const rowsHtml = sorted.map(r => {
+      const sm = conceptStatusMeta(r.status);
+      return `
+        <div class="concept-row${r.status==='mastered' ? ' cr-mastered' : ''}" data-concept="${escapeHtmlHome(r.name)}">
+          <div class="cr-ic">${sm.icon}</div>
+          <div class="cr-main">
+            <div class="cr-top">
+              <div class="cr-name">${escapeHtmlHome(r.name)}</div>
+              <div class="cr-status">${sm.label}</div>
+            </div>
+            <div class="cr-bar-row">
+              <div class="cr-bar-track"><div class="cr-bar-fill" data-target="${r.mastery}"></div></div>
+              <div class="cr-pct">${r.mastery}%</div>
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+    return `<div class="concept-list"><div class="concept-list-title">Concept progress</div>${rowsHtml}</div>`;
+  }
+
+  // Animates every concept bar from 0 to its target width on the next
+  // frame (a fresh render always starts empty, so this is always a
+  // "grow in" — cheap and always correct, no per-bar previous-value
+  // bookkeeping needed).
+  function animateConceptBars(container){
+    if(!container) return;
+    const bars = container.querySelectorAll('.cr-bar-fill');
+    if(conceptReduceMotion){ bars.forEach(b => { b.style.transition = 'none'; b.style.width = b.dataset.target + '%'; }); return; }
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      bars.forEach(b => { b.style.width = b.dataset.target + '%'; });
+    }));
+  }
+
+  let conceptCelebrationBusy = false;
+  async function playConceptCelebrations(queue){
+    if(!queue || !queue.length || conceptCelebrationBusy) return;
+    conceptCelebrationBusy = true;
+    for(const ev of queue){
+      if(ev.type === 'mastered') await showConceptMasteredModal(ev.name, ev.from || 0);
+      else await showConceptUnlockModal(ev.name);
+    }
+    conceptCelebrationBusy = false;
+  }
+
+  function showConceptMasteredModal(name, fromPct){
+    return new Promise(resolve => {
+      const modal = document.getElementById('concept-mastered-modal');
+      const card = document.getElementById('concept-mastered-card');
+      document.getElementById('cm-concept-name').textContent = name;
+      const fill = document.getElementById('cm-bar-fill');
+      const num = document.getElementById('cm-pct-num');
+      fill.style.transition = 'none'; fill.style.width = Math.max(0, Math.min(100, fromPct)) + '%';
+      num.textContent = Math.max(0, Math.min(100, fromPct));
+      card.querySelectorAll('.cm-spark').forEach(s => s.remove());
+      if(!conceptReduceMotion){
+        for(let i=0;i<7;i++){
+          const s = document.createElement('span'); s.className = 'cm-spark';
+          const angle = (Math.PI * 2 / 7) * i + (Math.random()*0.4);
+          const dist = 70 + Math.random()*30;
+          s.style.setProperty('--sx', (Math.cos(angle)*dist).toFixed(0)+'px');
+          s.style.setProperty('--sy', (Math.sin(angle)*dist).toFixed(0)+'px');
+          s.style.left = '50%'; s.style.top = '38%';
+          s.style.animationDelay = (0.5 + i*0.03) + 's';
+          card.appendChild(s);
+        }
+      }
+      requestAnimationFrame(() => {
+        modal.classList.add('open');
+        requestAnimationFrame(() => {
+          fill.style.transition = 'width 1s cubic-bezier(.22,.9,.32,1.1)';
+          fill.style.width = '100%';
+          const dur = conceptReduceMotion ? 0 : 900;
+          const start = performance.now();
+          function tick(t){
+            const p = Math.min(1, (t - start) / dur);
+            num.textContent = Math.round(fromPct + (100 - fromPct) * p);
+            if(p < 1) requestAnimationFrame(tick);
+          }
+          if(!conceptReduceMotion) requestAnimationFrame(tick); else num.textContent = 100;
+        });
+      });
+      const holdMs = conceptReduceMotion ? 1200 : 1800;
+      setTimeout(() => {
+        modal.classList.remove('open');
+        setTimeout(resolve, conceptReduceMotion ? 0 : 260);
+      }, holdMs);
+    });
+  }
+
+  let conceptUnlockResolve = null;
+  function showConceptUnlockModal(name){
+    return new Promise(resolve => {
+      conceptUnlockResolve = () => { conceptUnlockResolve = null; resolve(); };
+      document.getElementById('cu-concept-name').textContent = name;
+      document.getElementById('cu-lock-ic').textContent = '🔒';
+      document.getElementById('concept-unlock-modal').dataset.subject = name;
+      document.getElementById('concept-unlock-modal').classList.add('open');
+      // Flip the lock glyph mid-animation to match the choreography
+      // (locked → unlocked) instead of just fading between two icons.
+      setTimeout(() => {
+        const ic = document.getElementById('cu-lock-ic');
+        if(ic) ic.textContent = '🔓';
+      }, conceptReduceMotion ? 0 : 1150);
+    });
+  }
+  function closeConceptUnlockModal(){
+    const modal = document.getElementById('concept-unlock-modal');
+    modal.classList.remove('open');
+    if(conceptUnlockResolve) setTimeout(conceptUnlockResolve, conceptReduceMotion ? 0 : 220);
+  }
+  document.getElementById('cu-start-btn').addEventListener('click', () => {
+    const name = document.getElementById('concept-unlock-modal').dataset.subject;
+    closeConceptUnlockModal();
+    if(name) openCourseDetail(name);
+  });
+
   async function renderProgressPanel(){
     const panel = document.getElementById('progress-panel');
     if(!panel) return;
@@ -3938,6 +4293,8 @@ html,body{ height:100%; overflow:hidden; }
         </div>`).join('');
     }
 
+    const { rows: conceptRows, celebrations } = await processConcepts(sub, stats);
+
     panel.innerHTML = `
       <div class="progress-xp-badge" style="--pct:${pct};">
         <div class="xp-num">${xp}</div>
@@ -3947,7 +4304,10 @@ html,body{ height:100%; overflow:hidden; }
         <h3>${escapeHtmlHome(cur.label)}${next ? '' : ' — top rank'}</h3>
         <p class="progress-level">${next ? (next.min - xp) + ' XP to ' + escapeHtmlHome(next.label) : "You've reached the top rank"}</p>
         ${radarHtml}
+        ${renderConceptList(conceptRows)}
       </div>`;
+    animateConceptBars(panel.querySelector('.concept-list'));
+    playConceptCelebrations(celebrations);
   }
   // Greets the signed-in person by first name under the Dashboard title;
   // falls back to a generic line when nobody's signed in yet.
