@@ -277,9 +277,17 @@
   #as-side-scrim{ display:none; position:fixed; inset:0; background:rgba(42,36,16,0.32); z-index:1; }
   #as-main{ flex:1; min-width:0; display:flex; flex-direction:column; height:100%; }
   #as-sidebar-toggle{
-    display:none; border:none; background:none; cursor:pointer; color:#8A8267; font-size:15px;
+    display:flex; border:none; background:none; cursor:pointer; color:#8A8267; font-size:15px;
     width:32px; height:32px; border-radius:8px; flex-shrink:0; align-items:center; justify-content:center;
   }
+  /* Desktop/tablet: the sidebar docks and can be collapsed with the same
+     toggle button used on mobile, same as every other page's sidebar. */
+  #page-assistant{ overflow:hidden; }
+  @media (min-width:761px){
+    #as-side{ transition:margin-left .32s cubic-bezier(.22,.9,.32,1.1), box-shadow .32s ease; }
+    #page-assistant:not(.as-sidebar-open) #as-side{ margin-left:-251px; box-shadow:none; }
+  }
+
   #as-sidebar-toggle:hover, #as-sidebar-close:hover{ background:rgba(0,0,0,0.05); color:#2A2410; }
   #assistant-head{
     display:flex; align-items:center; justify-content:space-between; gap:8px; flex-shrink:0;
@@ -338,7 +346,6 @@
   }
   #assistant-send:disabled{ background:#C9CFD6; cursor:default; }
   @media (max-width:760px){
-    #as-sidebar-toggle{ display:flex; }
     #as-sidebar-close{ display:block; }
     #as-side{
       position:fixed; top:0; bottom:0; left:0; width:min(280px, 82vw); z-index:3;
@@ -1501,14 +1508,14 @@ body.landing-active #shell-auth{ display:none; }
       <div id="assistant-conv-list"></div>
     </div>
     <div id="as-side-footer">
-      <a href="#" onclick="navTo('home', true); return false;"><span class="ic">🏠</span>Dashboard</a>
+      <a href="#" onclick="navTo('home', true); return false;"><span class="ic">🏠</span>Back to Dashboard</a>
     </div>
   </aside>
   <div id="as-side-scrim"></div>
   <div id="as-main">
     <div id="assistant-head">
       <div id="assistant-head-left">
-        <button type="button" id="as-sidebar-toggle" aria-label="Recent chats" title="Recent chats">☰</button>
+        <button type="button" id="as-sidebar-toggle" aria-label="Menu" title="Menu">☰</button>
         <div>
           <h2 id="assistant-title">💬 Chalkline assistant</h2>
           <div class="as-sub">ask me anything</div>
@@ -2548,7 +2555,10 @@ function openAssistantPage(){
   }
   assistantRenderConvList();
   assistantDraw();
-  assistantSetSidebarOpen(false);
+  // Open by default on tablet/desktop, where the sidebar docks and pushes
+  // the content over — same as every other page's sidebar. On narrow phone
+  // widths it would swallow the whole screen, so it starts closed there.
+  assistantSetSidebarOpen(!(window.matchMedia && window.matchMedia('(max-width:760px)').matches));
   if(window.matchMedia && window.matchMedia('(pointer:fine)').matches){
     const inp = document.getElementById('assistant-input'); if(inp) inp.focus();
   }
