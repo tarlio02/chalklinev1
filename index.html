@@ -265,47 +265,67 @@
   }
   #settings-modal-overlay.open{ display:flex; }
   #settings-modal-card{
-    position:relative; width:100%; max-width:380px;
-    background:#fff; border:1px solid #ECE3C8; border-radius:20px; overflow:hidden;
+    position:relative; width:100%; max-width:680px;
+    background:#FBF6E8; border:1px solid #ECE3C8; border-radius:24px; overflow:hidden;
     box-shadow:0 24px 60px rgba(60,40,5,0.30);
     font-family:'Source Serif 4', Georgia, serif; color:#2A2410;
   }
-  #settings-modal-head{
-    display:flex; align-items:center; justify-content:space-between;
-    padding:18px 20px 16px 24px; border-bottom:1px solid #ECE3C8;
-    background:linear-gradient(165deg, #FFFFFF 0%, #FFF7E0 130%);
-  }
-  #settings-modal-head h2{ margin:0; font-size:20px; font-weight:600; }
+  #settings-modal-head{ display:none; }
   #settings-modal-close{
-    border:none; background:none; cursor:pointer; font-size:16px; color:#8A8267;
-    padding:6px 8px; border-radius:8px; line-height:1;
+    position:absolute; top:16px; right:16px; z-index:2;
+    border:none; background:rgba(255,255,255,0.7); cursor:pointer; font-size:15px; color:#8A8267;
+    width:32px; height:32px; border-radius:50%; line-height:1;
   }
-  #settings-modal-close:hover{ background:rgba(0,0,0,0.05); color:#2A2410; }
+  #settings-modal-close:hover{ background:#fff; color:#2A2410; }
   #settings-modal-close:focus, #signout-cancel:focus{ outline:none; }
   #settings-modal-close:focus-visible{ box-shadow:0 0 0 2px rgba(46,125,190,0.5); }
   #signout-cancel:focus-visible{ box-shadow:0 0 0 2px rgba(46,125,190,0.5); }
-  #settings-modal-body{ padding:0; max-height:calc(100vh - 140px); max-height:calc(100dvh - 140px); overflow-y:auto; }
-  .st-top{ display:flex; align-items:center; gap:16px; padding:22px 24px; }
+  #settings-modal-body{ padding:0; max-height:calc(100vh - 80px); max-height:calc(100dvh - 80px); overflow-y:auto; }
+  .st-top{
+    display:flex; align-items:center; gap:18px; padding:26px 28px;
+    background:linear-gradient(165deg, #FFFFFF 0%, #FFF7E0 130%);
+    border-bottom:1px solid #ECE3C8;
+  }
   .st-avatar{
-    width:64px; height:64px; border-radius:50%; flex-shrink:0; object-fit:cover;
+    width:68px; height:68px; border-radius:50%; flex-shrink:0; object-fit:cover;
     background:linear-gradient(135deg, #2E7DBE, #F0B94D);
     display:flex; align-items:center; justify-content:center;
-    color:#fff; font-size:26px; font-weight:600;
+    color:#fff; font-size:27px; font-weight:600;
     box-shadow:0 0 0 4px rgba(240,185,77,0.30);
   }
   .st-id{ min-width:0; }
-  .st-name{ font-size:22px; font-weight:600; line-height:1.2; overflow-wrap:anywhere; }
+  .st-kicker{ font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:#8A8267; margin-bottom:4px; }
+  .st-name{ font-size:23px; font-weight:600; line-height:1.2; overflow-wrap:anywhere; }
   .st-email{ font-family:'JetBrains Mono', monospace; font-size:12px; color:#8A8267; margin-top:5px; overflow-wrap:anywhere; }
-  .st-row{
-    display:flex; align-items:center; justify-content:space-between; gap:16px;
-    padding:16px 24px; border-top:1px solid #ECE3C8;
+
+  .st-cols{ display:grid; grid-template-columns:1fr 1fr; gap:22px; padding:22px 28px 28px; align-items:start; }
+  @media (max-width:560px){ .st-cols{ grid-template-columns:1fr; } }
+  .st-col-title{ font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#8A8267; margin:0 0 8px 6px; }
+  .st-card{ background:#fff; border:1px solid #ECE3C8; border-radius:16px; overflow:hidden; margin-bottom:16px; }
+  .st-r{
+    display:flex; align-items:center; gap:13px; padding:13px 15px;
+    border-top:1px solid #F1E9D2; background:none; width:100%; text-align:left;
+    font-family:inherit; color:inherit; cursor:default;
   }
-  .st-row .k{ font-size:15px; color:#5c5847; }
-  .st-row .v{ font-family:'JetBrains Mono', monospace; font-size:19px; font-weight:600; }
-  .st-replay{ font-family:'JetBrains Mono', monospace; font-size:12px; font-weight:600; padding:8px 14px; border-radius:10px; border:1px solid #F0B94D; background:#FFF7E0; color:#2A2410; cursor:pointer; }
+  .st-r:first-child{ border-top:none; }
+  button.st-r{ cursor:pointer; }
+  button.st-r:hover{ background:#FFFAEA; }
+  .st-r-ic{
+    width:36px; height:36px; border-radius:10px; background:#FFF3D6; color:#B5791C;
+    display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0;
+  }
+  .st-r-body{ flex:1; min-width:0; }
+  .st-r-label{ font-size:14.5px; font-weight:600; color:#2A2410; }
+  .st-r-sub{ font-size:12px; color:#8A8267; margin-top:2px; overflow-wrap:anywhere; }
+  .st-r-trail{ font-family:'JetBrains Mono', monospace; font-size:13px; color:#8A8267; flex-shrink:0; white-space:nowrap; }
+  .st-r-chev{ color:#D9CCA0; font-size:16px; flex-shrink:0; }
+  .st-badge{ font-family:'JetBrains Mono', monospace; font-size:11px; font-weight:700; padding:3px 9px; border-radius:999px; background:#FFF3D6; color:#B5791C; margin-right:2px; }
+  .st-replay{ font-family:'JetBrains Mono', monospace; font-size:12px; font-weight:600; padding:7px 13px; border-radius:10px; border:1px solid #F0B94D; background:#FFF7E0; color:#2A2410; cursor:pointer; }
   .st-replay:hover{ background:#FFE9A8; }
-  .st-bg{ padding:18px 24px 22px; border-top:1px solid #ECE3C8; }
-  .st-bg-title{ font-size:15px; color:#5c5847; margin-bottom:12px; }
+  .st-signout-card .st-r{ color:#C0392B; }
+  .st-signout-card .st-r-ic{ background:#FBE4E0; color:#C0392B; }
+  .st-signout-card .st-r-label{ color:#C0392B; }
+  .st-bg{ padding:14px 15px 16px; }
   .st-bg-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
   .st-bg-opt{
     position:relative; padding:0; border:2px solid transparent; border-radius:12px; overflow:hidden;
@@ -1701,7 +1721,6 @@ function setTutorBg(id){
 function appendBgSection(body){
   if(!TUTOR_BGS.length) return;
   const wrap = document.createElement('div'); wrap.className = 'st-bg';
-  const title = document.createElement('div'); title.className = 'st-bg-title'; title.textContent = 'Tutor background';
   const grid = document.createElement('div'); grid.className = 'st-bg-grid';
   const cur = currentBgId();
   TUTOR_BGS.forEach(b => {
@@ -1714,7 +1733,7 @@ function appendBgSection(body){
     btn.addEventListener('click', () => setTutorBg(b.id));
     grid.appendChild(btn);
   });
-  wrap.appendChild(title); wrap.appendChild(grid); body.appendChild(wrap);
+  wrap.appendChild(grid); body.appendChild(wrap);
 }
 
 // ---- Chalkline assistant: a general chat with the AI, opened from any page's sidebar ----
@@ -1859,6 +1878,57 @@ document.getElementById('assistant-input').addEventListener('keydown', (e) => {
 document.getElementById('assistant-input').addEventListener('input', (e) => { e.target.style.height = 'auto'; e.target.style.height = Math.min(120, e.target.scrollHeight) + 'px'; });
 document.addEventListener('keydown', (e) => { if(e.key === 'Escape' && document.getElementById('assistant-overlay').classList.contains('open')) closeAssistant(); });
 
+// Builds one settings row. `trail` is an optional node/string shown on the right
+// (a value, a badge, a button); pass `chevron:true` to append a ">" after it.
+// If `onClick` is given the row renders as a <button>, otherwise a plain <div>.
+function mkSettingsRow(opts){
+  const r = document.createElement(opts.onClick ? 'button' : 'div');
+  if(opts.onClick){ r.type = 'button'; }
+  r.className = 'st-r';
+  const ic = document.createElement('div');
+  ic.className = 'st-r-ic';
+  ic.textContent = opts.icon || '';
+  ic.setAttribute('aria-hidden', 'true');
+  const bodyEl = document.createElement('div');
+  bodyEl.className = 'st-r-body';
+  const lab = document.createElement('div');
+  lab.className = 'st-r-label';
+  lab.textContent = opts.label;
+  bodyEl.appendChild(lab);
+  if(opts.sub){
+    const sub = document.createElement('div');
+    sub.className = 'st-r-sub';
+    sub.textContent = opts.sub;
+    bodyEl.appendChild(sub);
+  }
+  r.appendChild(ic);
+  r.appendChild(bodyEl);
+  if(opts.trail){
+    if(opts.trail instanceof Node){ r.appendChild(opts.trail); }
+    else{
+      const tr = document.createElement('div');
+      tr.className = 'st-r-trail';
+      tr.textContent = opts.trail;
+      r.appendChild(tr);
+    }
+  }
+  if(opts.chevron){
+    const chev = document.createElement('div');
+    chev.className = 'st-r-chev';
+    chev.textContent = '›';
+    chev.setAttribute('aria-hidden', 'true');
+    r.appendChild(chev);
+  }
+  if(opts.onClick) r.addEventListener('click', opts.onClick);
+  return r;
+}
+function mkSettingsGroup(title, cardClass){
+  const col = document.createElement('div');
+  const t = document.createElement('div'); t.className = 'st-col-title'; t.textContent = title;
+  const card = document.createElement('div'); card.className = 'st-card' + (cardClass ? ' ' + cardClass : '');
+  col.appendChild(t); col.appendChild(card);
+  return { col, card };
+}
 function renderSettingsModal(){
   const body = document.getElementById('settings-modal-body');
   body.textContent = '';
@@ -1874,7 +1944,13 @@ function renderSettingsModal(){
     wrap.appendChild(p);
     wrap.appendChild(btn);
     body.appendChild(wrap);
-    appendBgSection(body);
+    if(TUTOR_BGS.length){
+      const cols = document.createElement('div'); cols.className = 'st-cols'; cols.style.gridTemplateColumns = '1fr';
+      const g = mkSettingsGroup('Appearance');
+      appendBgSection(g.card);
+      cols.appendChild(g.col);
+      body.appendChild(cols);
+    }
     return;
   }
   const fullName = shellUser.name || shellUser.email || 'Signed in';
@@ -1899,9 +1975,13 @@ function renderSettingsModal(){
   avatar.classList.add('st-avatar');
   const id = document.createElement('div');
   id.className = 'st-id';
+  const kicker = document.createElement('div');
+  kicker.className = 'st-kicker';
+  kicker.textContent = 'Your account';
   const nameEl = document.createElement('div');
   nameEl.className = 'st-name';
   nameEl.textContent = fullName;
+  id.appendChild(kicker);
   id.appendChild(nameEl);
   if(shellUser.email && shellUser.email !== fullName){
     const emailEl = document.createElement('div');
@@ -1911,27 +1991,46 @@ function renderSettingsModal(){
   }
   top.appendChild(avatar);
   top.appendChild(id);
-
-  const row = document.createElement('div');
-  row.className = 'st-row';
-  const k = document.createElement('div');
-  k.className = 'k';
-  k.textContent = 'Courses';
-  const v = document.createElement('div');
-  v.className = 'v';
-  v.textContent = String(countShellCourses(shellUser.sub));
-  row.appendChild(k);
-  row.appendChild(v);
-
   body.appendChild(top);
-  body.appendChild(row);
-  const trow = document.createElement('div'); trow.className = 'st-row';
-  const tk = document.createElement('div'); tk.className = 'k'; tk.textContent = 'Getting-started guide';
-  const tb = document.createElement('button'); tb.type = 'button'; tb.className = 'st-replay'; tb.textContent = '▶ Replay';
-  tb.addEventListener('click', replayTutorial);
-  trow.appendChild(tk); trow.appendChild(tb);
-  body.appendChild(trow);
-  appendBgSection(body);
+
+  const cols = document.createElement('div');
+  cols.className = 'st-cols';
+
+  // Left column: account
+  const accGroup = mkSettingsGroup('Account');
+  accGroup.card.appendChild(mkSettingsRow({
+    icon: '👤', label: 'Courses',
+    trail: String(countShellCourses(shellUser.sub))
+  }));
+  const replayBtn = document.createElement('button');
+  replayBtn.type = 'button'; replayBtn.className = 'st-replay'; replayBtn.textContent = '▶ Replay';
+  replayBtn.addEventListener('click', (e)=>{ e.stopPropagation(); replayTutorial(); });
+  accGroup.card.appendChild(mkSettingsRow({
+    icon: '🎓', label: 'Getting-started guide',
+    trail: replayBtn
+  }));
+  cols.appendChild(accGroup.col);
+
+  // Right column: appearance (tutor background)
+  if(TUTOR_BGS.length){
+    const bgGroup = mkSettingsGroup('Appearance');
+    appendBgSection(bgGroup.card);
+    cols.appendChild(bgGroup.col);
+  }
+
+  body.appendChild(cols);
+
+  // Sign out, full width beneath the columns
+  const signoutWrap = document.createElement('div');
+  signoutWrap.style.padding = '0 28px 28px';
+  const signoutGroup = document.createElement('div');
+  signoutGroup.className = 'st-card st-signout-card';
+  signoutGroup.appendChild(mkSettingsRow({
+    icon: '↪', label: 'Sign out', chevron: true,
+    onClick: ()=>{ closeSettingsModal(); openSignOutConfirm(); }
+  }));
+  signoutWrap.appendChild(signoutGroup);
+  body.appendChild(signoutWrap);
 }
 function replayTutorial(){
   if(!shellUser) return;
