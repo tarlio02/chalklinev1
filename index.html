@@ -13410,9 +13410,11 @@ if(!window.storage || !window.storage.__isRealBackend){
         migratePromise = (async ()=>{
           try{
             const toMove = [];
+            const notesPrefix = STORAGE_NS + notesKeyPrefix();          // 'chalkline:notes:<sub>:'
+            const notesSettingsPrefix = STORAGE_NS + 'notes-settings:'; // 'chalkline:notes-settings:'
             for(let i=0;i<localStorage.length;i++){
               const k = localStorage.key(i);
-              if(k && k.startsWith(STORAGE_NS)) toMove.push(k);
+              if(k && (k.startsWith(notesPrefix) || k.startsWith(notesSettingsPrefix))) toMove.push(k);
             }
             for(const k of toMove){
               const v = localStorage.getItem(k);
