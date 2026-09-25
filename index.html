@@ -3112,7 +3112,7 @@ html,body{ height:100%; overflow:hidden; }
     <!-- ---------- Course list view ---------- -->
     <div id="dash-list-view">
       <div class="dash-head fade-up">
-        <h1 style="margin:0 0 6px;">📚 My courses</h1>
+        <h1 style="margin:0 0 6px;" id="dash-title">📚 My courses</h1>
         <p id="dash-welcome-text">Welcome back!</p>
       </div>
 
@@ -3291,6 +3291,7 @@ html,body{ height:100%; overflow:hidden; }
       nameEl.textContent = 'Account';
       subEl.textContent = 'tap to sign in';
     }
+    renderDashTitle();
     renderDashWelcomeText();
     renderProgressPanel();
   }
@@ -3358,6 +3359,14 @@ html,body{ height:100%; overflow:hidden; }
   }
   // Greets the signed-in person by first name under the Dashboard title;
   // falls back to a generic line when nobody's signed in yet.
+  // "My courses" reads as "My subjects" for anyone who isn't in college —
+  // school-age students and adult learners think in subjects, not courses.
+  function renderDashTitle(){
+    const el = document.getElementById('dash-title');
+    if(!el) return;
+    const isCollege = homeShellUser && homeShellUser.eduLevel === 'college';
+    el.textContent = isCollege ? '📚 My courses' : '📚 My subjects';
+  }
   function renderDashWelcomeText(){
     const el = document.getElementById('dash-welcome-text');
     if(!el) return;
