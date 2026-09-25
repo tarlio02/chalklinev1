@@ -128,6 +128,49 @@
   #start-modal-card.from-app #start-modal-google-btn{ margin-bottom:4px; }
   #start-modal-error{ font-size:13px; color:#C0392B; line-height:1.45; }
 
+  /* "Tell us about you" — shown once, right after first sign-up, and reopened
+     from Settings to edit the same info later. Same look as start-modal. */
+  #profile-modal-overlay{
+    position:fixed; inset:0; z-index:10000;
+    display:none; align-items:center; justify-content:center;
+    background:rgba(20,32,44,0.45);
+    padding:20px;
+    font-family:-apple-system,Segoe UI,sans-serif;
+  }
+  #profile-modal-overlay.open{ display:flex; }
+  #profile-modal-card{
+    background:#fff; border-radius:20px; padding:30px 28px 28px;
+    max-width:380px; width:100%; text-align:left;
+    box-shadow:0 20px 60px rgba(0,0,0,0.25);
+    position:relative;
+  }
+  #profile-modal-close{
+    position:absolute; top:14px; right:14px;
+    border:none; background:none; font-size:15px; color:#7C93A8; cursor:pointer;
+    padding:4px;
+  }
+  #profile-modal-card h2{ margin:0 0 8px; font-size:20px; color:#1E2B3A; }
+  #profile-modal-card p.pm-sub{ margin:0 0 20px; font-size:14px; color:#5c6f80; line-height:1.5; }
+  #profile-modal-form{ display:flex; flex-direction:column; gap:12px; }
+  #profile-modal-form label{ font-size:12.5px; font-weight:600; color:#2A2410; display:block; margin-bottom:5px; }
+  #profile-modal-form input, #profile-modal-form select{
+    width:100%; padding:11px 14px; border-radius:10px; border:1.5px solid #ECE3C8;
+    font-size:14.5px; font-family:inherit; background:#fff; color:#2A2410;
+  }
+  #profile-modal-form input:focus, #profile-modal-form select:focus{ outline:none; border-color:#2E7DBE; }
+  #pm-major-row{ display:none; }
+  #pm-grade-row{ display:none; }
+  #profile-modal-submit{
+    margin-top:6px; width:100%; padding:12px; border-radius:999px; border:none;
+    background:#2E7DBE; color:#fff; font-size:14.5px; font-weight:600; cursor:pointer; font-family:inherit;
+  }
+  #profile-modal-submit:hover{ background:#276aa3; }
+  #profile-modal-submit:disabled{ opacity:0.6; cursor:default; }
+  #profile-modal-skip{
+    margin-top:8px; width:100%; padding:10px; border-radius:999px; border:none;
+    background:none; color:#7C93A8; font-size:13px; cursor:pointer; font-family:inherit;
+  }
+
   /* Soft "Welcome to Chalkline" moment after skipping sign-in — its own
      deep-blue gradient scene, not a translucent veil over the page
      behind it. */
@@ -948,6 +991,40 @@ body.landing-active #shell-auth{ display:none; }
   </div>
 </div>
 
+<div id="profile-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="profile-modal-title">
+  <div id="profile-modal-card">
+    <button type="button" id="profile-modal-close" aria-label="Close">✕</button>
+    <h2 id="profile-modal-title">Tell us about you</h2>
+    <p class="pm-sub" id="profile-modal-sub">This helps your tutor teach at the right level.</p>
+    <form id="profile-modal-form">
+      <div>
+        <label for="pm-name">Your name</label>
+        <input type="text" id="pm-name" placeholder="Your name" autocomplete="name" required>
+      </div>
+      <div>
+        <label for="pm-level">Current education</label>
+        <select id="pm-level">
+          <option value="elementary">Elementary school</option>
+          <option value="middle">Middle school</option>
+          <option value="high">High school</option>
+          <option value="college">College / University</option>
+          <option value="other">Adult learner / Other</option>
+        </select>
+      </div>
+      <div id="pm-grade-row">
+        <label for="pm-grade">Grade</label>
+        <select id="pm-grade"></select>
+      </div>
+      <div id="pm-major-row">
+        <label for="pm-major">Field of study</label>
+        <input type="text" id="pm-major" placeholder="e.g. Computer Science" autocomplete="off">
+      </div>
+      <button type="submit" id="profile-modal-submit">Save</button>
+      <button type="button" id="profile-modal-skip">Skip for now</button>
+    </form>
+  </div>
+</div>
+
 <div id="assistant-overlay" role="dialog" aria-modal="true" aria-labelledby="assistant-title">
   <div id="assistant-card">
     <div id="assistant-head">
@@ -1484,6 +1561,7 @@ function handleShellCredential(response){
   exchangeCredential(response.credential)
     .then(() => syncNow(true))
     .catch(e => { console.warn('Backend sign-in unavailable, working locally:', (e && e.message) || e); setSyncStatus('sign-in failed — ' + ((e && e.message) || e), true); });
+  try{ maybeOpenOnboarding(); }catch(e){ console.warn(e); }
 }
 
 // Fallback shown if Google's own rendered button fails or vanishes (see
@@ -2000,8 +2078,20 @@ function renderSettingsModal(){
 
   // Left column: ACCOUNT
   const accGroup = mkSettingsGroup('Account');
-  accGroup.card.appendChild(mkSettingsRow({ icon:'👤', label:'Account', sub: shellUser.email || '', chevron:true }));
-  accGroup.card.appendChild(mkSettingsRow({ icon:'🎓', label:'Field of study', sub:'Not set', chevron:true }));
+  accGroup.card.appendChild(mkSettingsRow({
+    icon:'👤', label:'Account', sub: shellUser.email || '', chevron:true,
+    onClick: ()=>{ closeSettingsModal(); openProfileModal(false); }
+  }));
+  accGroup.card.appendChild(mkSettingsRow({
+    icon:'🏫', label:'Education', sub: eduLevelLabel(shellUser) || 'Not set', chevron:true,
+    onClick: ()=>{ closeSettingsModal(); openProfileModal(false); }
+  }));
+  if(shellUser.eduLevel === 'college'){
+    accGroup.card.appendChild(mkSettingsRow({
+      icon:'🎓', label:'Field of study', sub: shellUser.major || 'Not set', chevron:true,
+      onClick: ()=>{ closeSettingsModal(); openProfileModal(false); }
+    }));
+  }
   accGroup.card.appendChild(mkSettingsRow({ icon:'🌐', label:'Language', trail:'English', chevron:true }));
   accGroup.card.appendChild(mkSettingsRow({ icon:'🔔', label:'Notifications', chevron:true }));
   cols.appendChild(accGroup.col);
@@ -2078,6 +2168,102 @@ document.getElementById('settings-modal-overlay').addEventListener('click', (e)=
 document.addEventListener('keydown', (e)=>{
   if(e.key === 'Escape') closeSettingsModal();
 });
+
+// ---- Profile (name / education / field of study) --------------------
+// Collected once, right after a person's very first sign-up (see
+// maybeOpenOnboarding, called from both the Google and email sign-in
+// paths), and editable afterwards from Settings. Lives on shellUser
+// itself — eduLevel/grade/major/name — so it rides along with the
+// existing localStorage persistence and the postMessage broadcast that
+// already sends shellUser to every page/iframe (incl. the tutor, which
+// uses it to greet the student by name — see studentContextLine() there).
+const PROFILE_DONE_PREFIX = 'chalkline_profile_done:';
+const GRADE_OPTIONS = {
+  elementary: ['1st grade','2nd grade','3rd grade','4th grade','5th grade'],
+  middle: ['6th grade','7th grade','8th grade'],
+  high: ['9th grade','10th grade','11th grade','12th grade']
+};
+function eduLevelLabel(u){
+  if(!u || !u.eduLevel) return '';
+  if(u.eduLevel === 'college') return 'College' + (u.major ? ' — ' + u.major : '');
+  if(u.eduLevel === 'other') return 'Adult learner';
+  return u.grade || ({elementary:'Elementary school', middle:'Middle school', high:'High school'})[u.eduLevel] || '';
+}
+function pmSyncConditionalRows(){
+  const level = document.getElementById('pm-level').value;
+  const gradeRow = document.getElementById('pm-grade-row');
+  const majorRow = document.getElementById('pm-major-row');
+  const gradeSel = document.getElementById('pm-grade');
+  const opts = GRADE_OPTIONS[level];
+  if(opts){
+    gradeSel.innerHTML = opts.map(g => `<option value="${g}">${g}</option>`).join('');
+    gradeRow.style.display = 'block';
+  } else {
+    gradeRow.style.display = 'none';
+  }
+  majorRow.style.display = level === 'college' ? 'block' : 'none';
+}
+document.getElementById('pm-level').addEventListener('change', pmSyncConditionalRows);
+
+let profileModalIsOnboarding = false;
+function openProfileModal(isOnboarding){
+  if(!shellUser) return;
+  profileModalIsOnboarding = !!isOnboarding;
+  document.getElementById('profile-modal-title').textContent = isOnboarding ? 'Welcome to Chalkline!' : 'Tell us about you';
+  document.getElementById('profile-modal-sub').textContent = isOnboarding
+    ? "Quick intro so your tutor can teach at the right level and use your name."
+    : "This helps your tutor teach at the right level.";
+  document.getElementById('profile-modal-skip').style.display = isOnboarding ? 'block' : 'none';
+  document.getElementById('pm-name').value = shellUser.name || shellUser.given_name || '';
+  document.getElementById('pm-level').value = shellUser.eduLevel || 'high';
+  document.getElementById('pm-major').value = shellUser.major || '';
+  pmSyncConditionalRows();
+  if(shellUser.grade && GRADE_OPTIONS[shellUser.eduLevel] && GRADE_OPTIONS[shellUser.eduLevel].includes(shellUser.grade)){
+    document.getElementById('pm-grade').value = shellUser.grade;
+  }
+  document.getElementById('profile-modal-overlay').classList.add('open');
+  document.getElementById('pm-name').focus();
+}
+function closeProfileModal(){
+  document.getElementById('profile-modal-overlay').classList.remove('open');
+}
+document.getElementById('profile-modal-close').addEventListener('click', closeProfileModal);
+document.getElementById('profile-modal-overlay').addEventListener('click', (e)=>{
+  if(e.target.id === 'profile-modal-overlay' && !profileModalIsOnboarding) closeProfileModal();
+});
+document.getElementById('profile-modal-skip').addEventListener('click', ()=>{
+  if(shellUser) try{ localStorage.setItem(PROFILE_DONE_PREFIX + shellUser.sub, '1'); }catch(e){}
+  closeProfileModal();
+});
+document.getElementById('profile-modal-form').addEventListener('submit', (e)=>{
+  e.preventDefault();
+  if(!shellUser) return;
+  const name = document.getElementById('pm-name').value.trim();
+  const level = document.getElementById('pm-level').value;
+  shellUser.name = name || shellUser.name;
+  shellUser.given_name = (name || shellUser.name || '').split(' ')[0] || shellUser.given_name;
+  shellUser.eduLevel = level;
+  shellUser.grade = GRADE_OPTIONS[level] ? document.getElementById('pm-grade').value : '';
+  shellUser.major = level === 'college' ? document.getElementById('pm-major').value.trim() : '';
+  try{
+    localStorage.setItem(SHELL_AUTH_STORAGE_KEY, JSON.stringify(shellUser));
+    localStorage.setItem(PROFILE_DONE_PREFIX + shellUser.sub, '1');
+  }catch(err){ console.error('Could not save profile:', err); }
+  showSignedInChip(shellUser);
+  broadcastAuthState();
+  closeProfileModal();
+  const so = document.getElementById('settings-modal-overlay');
+  if(so && so.classList.contains('open')) renderSettingsModal();
+});
+// Opens onboarding once per account, right after sign-in completes — whether
+// this is a brand-new sign-up or a returning person who never finished it.
+function maybeOpenOnboarding(){
+  if(!shellUser) return;
+  try{
+    if(localStorage.getItem(PROFILE_DONE_PREFIX + shellUser.sub)) return;
+  }catch(e){}
+  setTimeout(() => openProfileModal(true), 300); // let the sign-in sheet finish closing first
+}
 
 // Every sign-out request (sidebar account button, tutor page, etc.)
 // lands here first and only proceeds once the person confirms.
@@ -9405,7 +9591,7 @@ async function callGroq(){
         response_format:{ type:"json_object" },
         max_tokens:3600,
         messages: [
-          { role:"system", content: SYSTEM_PROMPT_GROQ },
+          { role:"system", content: SYSTEM_PROMPT_GROQ + studentContextLine() },
           ...recentHistoryForApi(4)
         ]
       })
@@ -9463,7 +9649,7 @@ async function callApinex(){
         response_format:{ type:"json_object" },
         max_tokens:14000,
         messages: [
-          { role:"system", content: SYSTEM_PROMPT },
+          { role:"system", content: SYSTEM_PROMPT + studentContextLine() },
           ...messages
         ]
       })
@@ -9512,7 +9698,7 @@ async function callGemini(){
       method:"POST",
       headers:Object.assign({"Content-Type":"application/json"}, chalklineAuthHeaders()),
       body: JSON.stringify({
-        system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+        system_instruction: { parts: [{ text: SYSTEM_PROMPT + studentContextLine() }] },
         contents: geminiContents,
         generationConfig: {
           response_mime_type: "application/json",
@@ -9837,7 +10023,23 @@ async function loadSessionById(id){
 // null). So this page doesn't call Google's API directly: it asks the
 // shell to sign in/out, and reflects whatever state the shell reports.
 
-let currentUser = null; // {sub, email, name, picture} once signed in
+let currentUser = null; // {sub, email, name, given_name, picture, eduLevel, grade, major} once signed in
+
+// Appended to the system prompt on every call (see callGroq/callApinex/callGemini
+// below) so the tutor knows the student's name and level and can teach and
+// address them accordingly. Empty string (no-op) for a signed-out/nameless student.
+function studentContextLine(){
+  if(!currentUser) return '';
+  const name = currentUser.given_name || (currentUser.name ? String(currentUser.name).split(' ')[0] : '');
+  if(!name) return '';
+  let level = '';
+  if(currentUser.eduLevel === 'college') level = 'a college student' + (currentUser.major ? ' studying ' + currentUser.major : '');
+  else if(currentUser.eduLevel === 'high') level = 'a high school student' + (currentUser.grade ? ' (' + currentUser.grade + ')' : '');
+  else if(currentUser.eduLevel === 'middle') level = 'a middle school student' + (currentUser.grade ? ' (' + currentUser.grade + ')' : '');
+  else if(currentUser.eduLevel === 'elementary') level = 'an elementary school student' + (currentUser.grade ? ' (' + currentUser.grade + ')' : '');
+  else if(currentUser.eduLevel === 'other') level = 'an adult learner';
+  return `\n\nSTUDENT: their name is ${name}${level ? ', ' + level : ''}. Address them by their first name naturally and often while tutoring — in greetings, encouragement (e.g. "Nice work, ${name}!"), and check-ins — but not in every single sentence, which reads as robotic. Calibrate depth, vocabulary and examples to their level without ever talking down to them.`;
+}
 
 // Sessions are namespaced by account so switching browsers/devices
 // still finds the same saved work — PROVIDED persistSession/
@@ -16259,6 +16461,7 @@ setTimeout(()=>{ try{ window.ChalklineTour && window.ChalklineTour.resume(); }ca
     try{ broadcastAuthState(); }catch(e){ console.warn(e); }
     try{ navTo('home'); }catch(e){ console.warn(e); }
     try{ syncNow(true).catch(()=>{}); }catch(e){ console.warn(e); }
+    try{ maybeOpenOnboarding(); }catch(e){ console.warn(e); }
   }
 
   // ---- Google button inside the landing modal (Google sign-in is already
