@@ -567,10 +567,25 @@ body.landing-active #shell-auth{ display:none; }
 #ld-root .ld-hero .ld-cta small{ display:block; margin-top:12px; font-family:'JetBrains Mono', monospace; font-size:12px; color:#8A8267; letter-spacing:.2px; }
 @keyframes ldRiseIn{ to{ opacity:1; transform:translateY(0); } }
 
-#ld-root .ld-stage{ max-width:1020px; margin:56px auto 0; padding:0 28px 40px; opacity:0; transform:translateY(22px); animation:ldRiseIn .8s ease .5s forwards; }
-#ld-root .ld-laptop{ background:#22303D; border-radius:22px; padding:14px; box-shadow:0 40px 80px -30px rgba(42,36,16,0.45); animation:ldFloaty 6s ease-in-out infinite; }
+#ld-root .ld-stage{ max-width:1100px; margin:56px auto 0; padding:0 28px 40px; opacity:0; transform:translateY(22px); animation:ldRiseIn .8s ease .5s forwards; }
+#ld-root .ld-devices{ display:flex; align-items:flex-end; justify-content:center; gap:0; }
+
+/* ---- Laptop chassis: screen + hinge + keyboard deck ---- */
+#ld-root .ld-laptop{ position:relative; width:900px; flex:none; }
+#ld-root .ld-laptop-screen-wrap{ background:linear-gradient(180deg,#2C3B4A,#1B2733); border-radius:18px 18px 6px 6px; padding:16px 16px 20px; box-shadow:0 40px 80px -30px rgba(42,36,16,0.45), inset 0 0 0 1px rgba(255,255,255,0.04); animation:ldFloaty 6s ease-in-out infinite; }
+#ld-root .ld-laptop-cam{ width:6px; height:6px; border-radius:50%; background:#0E1620; margin:0 auto 10px; box-shadow:0 0 0 1px rgba(255,255,255,0.06); }
+#ld-root .ld-screen{ background:#FBF7ED; border-radius:6px; overflow:hidden; position:relative; aspect-ratio:16/10; display:flex; flex-direction:column; }
+#ld-root .ld-laptop-base{ position:relative; height:16px; margin:0 -10px; background:linear-gradient(180deg,#D7DCE1,#B9C0C8); border-radius:0 0 10px 10px; box-shadow:0 10px 18px -8px rgba(42,36,16,0.35); }
+#ld-root .ld-laptop-base::before{ content:''; position:absolute; left:50%; top:0; transform:translateX(-50%); width:110px; height:6px; background:#9BA4AD; border-radius:0 0 8px 8px; }
 @keyframes ldFloaty{ 0%,100%{ transform:translateY(0);} 50%{ transform:translateY(-8px);} }
-#ld-root .ld-screen{ background:#FBF7ED; border-radius:12px; overflow:hidden; position:relative; aspect-ratio:16/10; display:flex; flex-direction:column; }
+
+/* ---- iPad chassis: uniform bezel, portrait, camera dot ---- */
+#ld-root .ld-ipad{ position:relative; width:300px; flex:none; margin-left:-34px; z-index:2; }
+#ld-root .ld-ipad-body{ background:linear-gradient(165deg,#EDEFF1,#C9CDD2); border-radius:34px; padding:16px 12px; box-shadow:0 34px 70px -26px rgba(42,36,16,0.5), inset 0 0 0 1px rgba(255,255,255,0.5); animation:ldFloaty 6.4s ease-in-out .3s infinite; }
+#ld-root .ld-ipad-cam{ width:5px; height:5px; border-radius:50%; background:#586066; margin:0 auto 12px; }
+#ld-root .ld-ipad-screen{ background:#FBF7ED; border-radius:16px; overflow:hidden; position:relative; aspect-ratio:3/4; display:flex; flex-direction:column; box-shadow:inset 0 0 0 1px rgba(42,36,16,0.08); }
+#ld-root .ld-ipad-home{ width:38px; height:4px; border-radius:3px; background:#9BA0A6; margin:12px auto 2px; }
+
 #ld-root .ld-board{ flex:1; position:relative; background:repeating-linear-gradient(180deg, transparent 0 34px, rgba(42,36,16,0.05) 34px 35px); padding:26px 30px; }
 #ld-root .ld-chalk-tag{ position:absolute; font-family:'Caveat',cursive; font-weight:700; color:#4A4020; }
 #ld-root .ld-board svg{ position:absolute; }
@@ -591,6 +606,23 @@ body.landing-active #shell-auth{ display:none; }
 #ld-root .ld-inputbar{ background:#fff; border-top:1px solid #ECE3C8; padding:10px 16px; display:flex; align-items:center; gap:10px; }
 #ld-root .ld-inputbar .ld-pill{ flex:1; background:#FBF7ED; border-radius:999px; padding:9px 16px; font-size:12.5px; color:#8A8267; font-family:'Source Serif 4', serif; }
 #ld-root .ld-inputbar .ld-round{ width:30px; height:30px; border-radius:50%; background:#2A2410; color:#FDFBF6; display:flex; align-items:center; justify-content:center; font-size:13px; }
+
+/* ---- iPad screen content: a compact quiz card scene ---- */
+#ld-root .ld-ipad-content{ flex:1; padding:20px 18px; display:flex; flex-direction:column; gap:12px; }
+#ld-root .ld-ipad-topbar{ display:flex; align-items:center; justify-content:space-between; }
+#ld-root .ld-ipad-topbar b{ font-family:'Fraunces','Source Serif 4',serif; font-size:14px; color:#2A2410; }
+#ld-root .ld-ipad-topbar span{ font-size:10.5px; color:#8A8267; background:#F0E9D2; padding:3px 9px; border-radius:999px; }
+#ld-root .ld-ipad-qcard{ background:#fff; border:1px solid #ECE3C8; border-radius:14px; padding:14px; box-shadow:0 8px 18px rgba(42,36,16,0.06);
+  opacity:0; transform:translateY(10px); animation:ldCardIn .6s ease forwards; }
+#ld-root .ld-ipad-qcard:nth-of-type(1){ animation-delay:1.0s; }
+#ld-root .ld-ipad-qtext{ font-family:'Source Serif 4',serif; font-size:12.5px; color:#2A2410; line-height:1.5; margin-bottom:10px; }
+#ld-root .ld-ipad-opt{ display:flex; align-items:center; gap:8px; font-size:11.5px; color:#4A4020; padding:7px 10px; border:1px solid #ECE3C8; border-radius:9px; margin-bottom:6px; }
+#ld-root .ld-ipad-opt.correct{ border-color:#2FA88A; background:#EAF7F1; color:#1F7A5C; font-weight:600; }
+#ld-root .ld-ipad-opt .ld-dot{ width:14px; height:14px; border-radius:50%; border:1.5px solid #C9BF9A; flex:none; }
+#ld-root .ld-ipad-opt.correct .ld-dot{ border-color:#2FA88A; background:#2FA88A; }
+#ld-root .ld-ipad-streak{ margin-top:auto; display:flex; align-items:center; gap:8px; font-size:11px; color:#8A8267;
+  opacity:0; transform:translateY(10px); animation:ldCardIn .6s ease 1.3s forwards; }
+#ld-root .ld-ipad-streak b{ color:#C98A2B; }
 
 #ld-root .ld-features{ padding:70px 28px 10px; }
 #ld-root .ld-features .ld-grid{ max-width:1020px; margin:0 auto; display:grid; grid-template-columns:repeat(3,1fr); gap:36px; text-align:center; }
@@ -760,10 +792,9 @@ body.landing-active #shell-auth{ display:none; }
 /* ---- Responsive: same look on every device ---- */
 #ld-root{ -webkit-text-size-adjust:100%; }
 #ld-root h1,#ld-root h2,#ld-root h3,#ld-root p,#ld-root span,#ld-root b{ overflow-wrap:break-word; }
-/* The laptop mockup is drawn at a fixed 960px and scaled to fit (see ldFit). */
+/* The device mockups are drawn at a fixed 1160px (laptop+ipad) and scaled to fit (see ldFit). */
 #ld-root .ld-fit{ width:100%; position:relative; }
-#ld-root .ld-scale{ width:960px; transform-origin:top left; }
-#ld-root .ld-laptop{ width:960px; }
+#ld-root .ld-scale{ width:1170px; transform-origin:top left; }
 #ld-modal{ max-height:calc(100vh - 40px); max-height:calc(100dvh - 40px); overflow-y:auto; }
 @media (max-width:700px){
   #ld-root header .ld-bar{ padding:10px 16px; }
@@ -864,7 +895,10 @@ body.landing-active #shell-auth{ display:none; }
 
 <div class="ld-stage">
   <div class="ld-fit"><div class="ld-scale">
+  <div class="ld-devices">
   <div class="ld-laptop">
+  <div class="ld-laptop-screen-wrap">
+    <div class="ld-laptop-cam"></div>
     <div class="ld-screen">
       <div class="ld-board">
         <div class="ld-chalk-tag" style="top:8px;left:0;font-size:15px;">How students actually spend study time</div>
@@ -892,6 +926,28 @@ body.landing-active #shell-auth{ display:none; }
         <div class="ld-round" style="background:#2E7DBE;">🎙</div>
       </div>
     </div>
+  </div>
+  <div class="ld-laptop-base"></div>
+  </div>
+
+  <div class="ld-ipad">
+  <div class="ld-ipad-body">
+    <div class="ld-ipad-cam"></div>
+    <div class="ld-ipad-screen">
+      <div class="ld-ipad-content">
+        <div class="ld-ipad-topbar"><b>Quiz · Cellular respiration</b><span>4/10</span></div>
+        <div class="ld-ipad-qcard">
+          <div class="ld-ipad-qtext">Which stage of respiration produces the most ATP?</div>
+          <div class="ld-ipad-opt"><span class="ld-dot"></span>Glycolysis</div>
+          <div class="ld-ipad-opt correct"><span class="ld-dot"></span>Oxidative phosphorylation</div>
+          <div class="ld-ipad-opt"><span class="ld-dot"></span>Krebs cycle</div>
+        </div>
+        <div class="ld-ipad-streak">🔥 <b>6-day</b> streak — keep it going</div>
+      </div>
+      <div class="ld-ipad-home"></div>
+    </div>
+  </div>
+  </div>
   </div>
   </div></div>
 </div>
@@ -16937,7 +16993,7 @@ setTimeout(()=>{ try{ window.ChalklineTour && window.ChalklineTour.resume(); }ca
       const sc = fit.firstElementChild;
       const w = fit.clientWidth;
       if(!w) return;
-      const s = Math.min(1, w / 960);
+      const s = Math.min(1, w / 1170);
       sc.style.transform = 'scale(' + s + ')';
       fit.style.height = Math.ceil(sc.offsetHeight * s) + 'px';
     });
