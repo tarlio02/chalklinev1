@@ -2258,6 +2258,36 @@ body{
   color:rgba(42,36,16,0.65); font-size:14.5px; line-height:1.6;
 }
 
+/* ---------- PROGRESS PANEL (XP + Weakness Radar) ---------- */
+.progress-panel{
+  max-width:780px; margin:22px 0 34px; padding:20px 22px;
+  border-radius:18px; background:rgba(255,255,255,0.78);
+  border:1px solid rgba(0,0,0,0.06);
+  box-shadow:0 10px 24px -16px rgba(42,36,16,0.25);
+  display:grid; grid-template-columns:auto 1fr; gap:22px; align-items:center;
+}
+@media (max-width:680px){ .progress-panel{ grid-template-columns:1fr; } }
+.progress-xp-badge{
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  width:92px; height:92px; border-radius:50%; flex-shrink:0;
+  background:conic-gradient(var(--ochre) calc(var(--pct,0)*1%), rgba(0,0,0,0.08) 0);
+  position:relative;
+}
+.progress-xp-badge::before{
+  content:''; position:absolute; inset:7px; border-radius:50%; background:#fdfbf6;
+}
+.progress-xp-badge .xp-num{ position:relative; font-family:'Fraunces','Source Serif 4',Georgia,serif; font-size:19px; font-weight:700; color:var(--ink); }
+.progress-xp-badge .xp-lbl{ position:relative; font-size:9.5px; letter-spacing:.04em; text-transform:uppercase; color:rgba(42,36,16,0.55); margin-top:1px; }
+.progress-body h3{ margin:0 0 3px; font-size:13.5px; font-weight:700; color:var(--ink); }
+.progress-level{ font-size:12px; color:rgba(42,36,16,0.6); margin:0 0 10px; }
+.progress-radar-row{ display:flex; align-items:center; gap:10px; margin:6px 0; }
+.progress-radar-row .pr-name{ font-size:12px; color:var(--ink); width:120px; flex-shrink:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.progress-radar-row .pr-bar-track{ flex:1; height:7px; border-radius:99px; background:rgba(0,0,0,0.08); overflow:hidden; }
+.progress-radar-row .pr-bar-fill{ height:100%; border-radius:99px; background:linear-gradient(90deg, var(--brick), var(--gold)); }
+.progress-radar-row.pr-strong .pr-bar-fill{ background:linear-gradient(90deg, var(--sage), var(--emerald)); }
+.progress-radar-row .pr-pct{ font-size:11px; font-weight:600; color:rgba(42,36,16,0.6); width:34px; text-align:right; flex-shrink:0; }
+.progress-empty{ font-size:12.5px; color:rgba(42,36,16,0.55); }
+
 /* ---------- 3D LESSON BUTTONS ---------- */
 .dash-grid{
   display:grid; grid-template-columns:1fr 1fr; gap:24px; max-width:780px;
@@ -2743,6 +2773,7 @@ html,body{ height:100%; overflow:hidden; }
         <p id="dash-welcome-text">Welcome back!</p>
       </div>
 
+      <div id="progress-panel"></div>
 
       <div style="display:flex;justify-content:center;margin:0 0 40px;">
         <button type="button" id="add-course-btn" onclick="handleAddCourseClick();">
@@ -2918,6 +2949,69 @@ html,body{ height:100%; overflow:hidden; }
       subEl.textContent = 'tap to sign in';
     }
     renderDashWelcomeText();
+    renderProgressPanel();
+  }
+  /* ---------------- Progress panel: XP level + Weakness Radar ----------------
+     Reads the same window.storage keys that the tutor and quiz pages write
+     to (progress:xp:<sub>, progress:stats:<sub>) so this card reflects
+     activity from both places without any extra plumbing. */
+  const PG_LEVELS = [
+    { min:0,    label:'Rookie' },
+    { min:100,  label:'Apprentice' },
+    { min:300,  label:'Scholar' },
+    { min:700,  label:'Specialist' },
+    { min:1500, label:'Expert' },
+    { min:3000, label:'Master' }
+  ];
+  async function renderProgressPanel(){
+    const panel = document.getElementById('progress-panel');
+    if(!panel) return;
+    if(!homeShellUser){ panel.innerHTML = ''; return; }
+    const sub = homeShellUser.sub;
+    let xp = 0, stats = {};
+    try{
+      const xpRaw = await window.storage.get('progress:xp:' + sub);
+      if(xpRaw) xp = parseInt(xpRaw.value, 10) || 0;
+    }catch(e){}
+    try{
+      const statsRaw = await window.storage.get('progress:stats:' + sub);
+      if(statsRaw) stats = JSON.parse(statsRaw.value) || {};
+    }catch(e){}
+
+    let curIdx = 0;
+    for(let i=0;i<PG_LEVELS.length;i++){ if(xp >= PG_LEVELS[i].min) curIdx = i; }
+    const cur = PG_LEVELS[curIdx];
+    const next = PG_LEVELS[curIdx+1] || null;
+    const pct = next ? Math.max(0, Math.min(100, Math.round(((xp - cur.min) / (next.min - cur.min)) * 100))) : 100;
+
+    const subjects = Object.keys(stats).filter(s => stats[s] && stats[s].total > 0);
+    let radarHtml;
+    if(!subjects.length){
+      radarHtml = `<p class="progress-empty">Answer a quiz or lesson question to start building your Weakness Radar.</p>`;
+    } else {
+      const rows = subjects.map(s => {
+        const st = stats[s];
+        const p = Math.round((st.correct / st.total) * 100);
+        return { s, p };
+      }).sort((a,b) => a.p - b.p).slice(0, 4);
+      radarHtml = rows.map(r => `
+        <div class="progress-radar-row${r.p >= 80 ? ' pr-strong' : ''}">
+          <div class="pr-name">${escapeHtmlHome(r.s)}</div>
+          <div class="pr-bar-track"><div class="pr-bar-fill" style="width:${r.p}%;"></div></div>
+          <div class="pr-pct">${r.p}%</div>
+        </div>`).join('');
+    }
+
+    panel.innerHTML = `
+      <div class="progress-xp-badge" style="--pct:${pct};">
+        <div class="xp-num">${xp}</div>
+        <div class="xp-lbl">XP</div>
+      </div>
+      <div class="progress-body">
+        <h3>${escapeHtmlHome(cur.label)}${next ? '' : ' — top rank'}</h3>
+        <p class="progress-level">${next ? (next.min - xp) + ' XP to ' + escapeHtmlHome(next.label) : "You've reached the top rank"}</p>
+        ${radarHtml}
+      </div>`;
   }
   // Greets the signed-in person by first name under the Dashboard title;
   // falls back to a generic line when nobody's signed in yet.
@@ -4983,6 +5077,41 @@ if(!window.storage || !window.storage.__isRealBackend){
       return { keys, prefix, shared: false };
     }
   };
+}
+
+/* ---------------------------------------------------------------
+   PROGRESS: XP + Mistake Bank + per-subject mastery stats.
+   Same tiny module lives on the quiz page too (kept duplicated
+   rather than shared, same pattern as the window.storage shim
+   above) so both places feed the Dashboard's progress panel and
+   Weakness Radar through the same window.storage keys.
+   ------------------------------------------------------------- */
+async function pgRecordAnswer(subject, question, correct, meta){
+  if(!currentUser) return; // guests aren't tracked — nothing durable to write to
+  const sub = currentUser.sub;
+  const subj = subject || 'Unsorted';
+  let xp = 0, stats = {};
+  try{ const r = await window.storage.get('progress:xp:' + sub); if(r) xp = parseInt(r.value, 10) || 0; }catch(e){}
+  try{ const r = await window.storage.get('progress:stats:' + sub); if(r) stats = JSON.parse(r.value) || {}; }catch(e){}
+  if(!stats[subj]) stats[subj] = { correct: 0, total: 0 };
+  stats[subj].total++;
+  if(correct){ stats[subj].correct++; xp += 10; }
+  else{ xp += 2; }
+  try{
+    await window.storage.set('progress:xp:' + sub, String(xp), false);
+    await window.storage.set('progress:stats:' + sub, JSON.stringify(stats), false);
+  }catch(e){ console.error('progress save failed:', e); }
+  if(!correct){
+    try{
+      const r = await window.storage.get('progress:mistakes:' + sub);
+      let list = r ? JSON.parse(r.value) : [];
+      if(!Array.isArray(list)) list = [];
+      list.push(Object.assign({ subject: subj, question, ts: Date.now() }, meta || {}));
+      if(list.length > 150) list = list.slice(list.length - 150);
+      await window.storage.set('progress:mistakes:' + sub, JSON.stringify(list), false);
+    }catch(e){ console.error('mistake log failed:', e); }
+  }
+  try{ parent.postMessage({ syncSoon:true }, '*'); }catch(e){}
 }
 
 /* =========================================================
@@ -8641,6 +8770,7 @@ function addQuizCard(quiz){
       // Log to the transcript for history/scroll-back even though the
       // live interaction happens on the board itself.
       addTranscriptMsg('user', `Answered: "${opt}"`);
+      pgRecordAnswer(currentSubject, quiz.question, idx===quiz.correctIndex, { chosen: opt, correctAnswer: quiz.options[quiz.correctIndex] });
       // Leave the answered card showing briefly (highlight + explanation)
       // before clearing it, rather than yanking it away the instant it's
       // tapped — the student should get to actually read the feedback.
@@ -8664,6 +8794,7 @@ function addQuizCard(quiz){
     explainEl.classList.add('show');
     repositionQuizOverlay();
     addTranscriptMsg('user', 'Answered: "I\'m not sure yet"');
+    pgRecordAnswer(currentSubject, quiz.question, false, { chosen: "I'm not sure yet", correctAnswer: quiz.options[quiz.correctIndex], unsure: true });
     setTimeout(()=>{ if(activeQuizCard===card) dismissQuizCard(); }, 3600);
     runTeachingTurn(
       `[Quiz answer] For "${quiz.question}", I said "I'm not sure yet". That is completely fine — do NOT treat it as wrong. Reassure me warmly, then re-explain the underlying idea more simply from a fresh angle or with a quick example (don't just read the answer out), and then continue per the pacing rules.`,
@@ -14715,6 +14846,40 @@ if(!window.storage || !window.storage.__isRealBackend){
   };
 }
 
+/* ---------------------------------------------------------------
+   PROGRESS: XP + Mistake Bank + per-subject mastery stats.
+   Same module as the tutor page — see the note there. Both write
+   to the same window.storage keys so the Dashboard's progress
+   panel reflects lesson quizzes and standalone quizzes alike.
+   ------------------------------------------------------------- */
+async function pgRecordAnswer(subject, question, correct, meta){
+  if(!quizUser) return; // guests aren't tracked — nothing durable to write to
+  const sub = quizUser.sub;
+  const subj = subject || 'Unsorted';
+  let xp = 0, stats = {};
+  try{ const r = await window.storage.get('progress:xp:' + sub); if(r) xp = parseInt(r.value, 10) || 0; }catch(e){}
+  try{ const r = await window.storage.get('progress:stats:' + sub); if(r) stats = JSON.parse(r.value) || {}; }catch(e){}
+  if(!stats[subj]) stats[subj] = { correct: 0, total: 0 };
+  stats[subj].total++;
+  if(correct){ stats[subj].correct++; xp += 10; }
+  else{ xp += 2; }
+  try{
+    await window.storage.set('progress:xp:' + sub, String(xp), false);
+    await window.storage.set('progress:stats:' + sub, JSON.stringify(stats), false);
+  }catch(e){ console.error('progress save failed:', e); }
+  if(!correct){
+    try{
+      const r = await window.storage.get('progress:mistakes:' + sub);
+      let list = r ? JSON.parse(r.value) : [];
+      if(!Array.isArray(list)) list = [];
+      list.push(Object.assign({ subject: subj, question, ts: Date.now() }, meta || {}));
+      if(list.length > 150) list = list.slice(list.length - 150);
+      await window.storage.set('progress:mistakes:' + sub, JSON.stringify(list), false);
+    }catch(e){ console.error('mistake log failed:', e); }
+  }
+  try{ parent.postMessage({ syncSoon:true }, '*'); }catch(e){}
+}
+
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
 function escapeHtmlQZ(str){ const d=document.createElement('div'); d.textContent=str; return d.innerHTML; }
 
@@ -14996,6 +15161,10 @@ function renderQuestion(){
 function selectAnswer(idx){
   if(currentAnswers[currentQIndex] !== null) return;
   currentAnswers[currentQIndex] = idx;
+  const q = currentQuestions[currentQIndex];
+  pgRecordAnswer(currentSubject, q.question, idx === q.correctIndex, {
+    topic: currentTopic || '', chosen: q.options[idx], correctAnswer: q.options[q.correctIndex]
+  });
   renderQuestion();
 }
 function goNextQuestion(){
