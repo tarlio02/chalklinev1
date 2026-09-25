@@ -645,6 +645,85 @@ body.landing-active #shell-auth{ display:none; }
 #ld-root .ld-foot-col a:hover{ color:#2E7DBE; }
 #ld-root .ld-foot-bottom{ max-width:1180px; margin:36px auto 0; padding-top:20px; border-top:1px solid #ECE3C8; font-size:12px; color:#8A8267; display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px; }
 
+/* ---- Decorative language shared with the rest of the app: gradient-rimmed
+   cards, icon badges, corner dot patterns, shimmer underlines ---- */
+#ld-root .ld-eyebrow{
+  display:inline-flex; align-items:center; gap:6px; font-family:'JetBrains Mono',monospace;
+  font-size:11px; font-weight:600; letter-spacing:.5px; text-transform:uppercase;
+  color:#C98A2B; background:#FBEACB; border:1px solid rgba(240,185,77,0.45);
+  padding:6px 14px; border-radius:999px;
+}
+#ld-root .ld-hero .ld-eyebrow{ margin:0 auto 18px; }
+#ld-root .ld-section-head{ text-align:center; margin-bottom:46px; }
+#ld-root .ld-section-head .ld-eyebrow{ margin-bottom:14px; }
+#ld-root .ld-section-head h2{ margin:0; }
+#ld-root .ld-underline{
+  width:56px; height:3px; border-radius:3px; margin:16px auto 0;
+  background:linear-gradient(90deg, #F0B94D, #C98A2B); background-size:200% 100%;
+  animation:ldShimmer 3.5s ease-in-out infinite;
+}
+@keyframes ldShimmer{ 0%{background-position:0% 0;} 50%{background-position:100% 0;} 100%{background-position:0% 0;} }
+
+/* Feature cards: gradient rim, corner dot pattern, icon badge halo */
+#ld-root .ld-features .ld-grid{ align-items:stretch; }
+#ld-root .ld-feature{
+  position:relative; overflow:hidden; background:linear-gradient(160deg, #FFFFFF 0%, #FFF7E0 100%);
+  border:1px solid rgba(0,0,0,0.05); border-radius:22px; padding:32px 26px 28px;
+  box-shadow:0 1px 0 rgba(255,255,255,0.7) inset, 0 18px 34px -20px rgba(120,90,20,0.22);
+  transition:transform .22s cubic-bezier(.2,.8,.3,1.1), box-shadow .22s ease;
+}
+#ld-root .ld-feature::before{
+  content:''; position:absolute; inset:0; border-radius:22px; padding:1.5px;
+  background:linear-gradient(135deg, var(--fa), var(--fb) 60%, transparent 100%);
+  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor; mask-composite:exclude;
+  opacity:0.55; transition:opacity .2s ease; pointer-events:none;
+}
+#ld-root .ld-feature .ld-dots{
+  position:absolute; top:16px; right:16px; width:44px; height:44px; pointer-events:none;
+  background-image:radial-gradient(var(--fb) 1.4px, transparent 1.4px); background-size:8px 8px; opacity:0.16;
+  transition:opacity .2s ease;
+}
+#ld-root .ld-feature:hover{ transform:translateY(-6px); box-shadow:0 1px 0 rgba(255,255,255,0.8) inset, 0 30px 48px -20px rgba(120,90,20,0.28); }
+#ld-root .ld-feature:hover::before{ opacity:0.9; }
+#ld-root .ld-feature:hover .ld-dots{ opacity:0.3; }
+#ld-root .ld-feature .ld-ic{
+  box-shadow:0 6px 14px -6px rgba(120,90,20,0.32), 0 0 0 4px rgba(255,255,255,0.6), 0 0 0 5px var(--fa);
+  transition:transform .22s cubic-bezier(.2,.8,.3,1.1);
+}
+#ld-root .ld-feature:hover .ld-ic{ transform:rotate(-6deg) scale(1.08); }
+
+/* Trust badges: small rimmed cards instead of bare faded icons */
+#ld-root .ld-badge{
+  opacity:1; background:#fff; border:1px solid #ECE3C8; border-radius:16px;
+  padding:16px 20px 14px; box-shadow:0 10px 24px -18px rgba(42,36,16,0.25);
+  transition:transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+}
+#ld-root .ld-badge:hover{ transform:translateY(-3px); box-shadow:0 16px 30px -16px rgba(42,36,16,0.3); border-color:#F0B94D; }
+
+/* Step numbers: halo ring matching the dashboard's icon badges */
+#ld-root .ld-step .ld-num{
+  box-shadow:0 10px 20px rgba(46,125,190,0.22), 0 0 0 4px rgba(255,255,255,0.75), 0 0 0 5px rgba(240,185,77,0.4);
+}
+
+/* Testimonial cards: gradient top ribbon + corner dot pattern */
+#ld-root .ld-say-card{ position:relative; overflow:hidden; padding-top:30px; }
+#ld-root .ld-say-card::before{
+  content:''; position:absolute; top:0; left:18px; right:18px; height:4px; border-radius:0 0 4px 4px;
+  background:linear-gradient(90deg, var(--sa), var(--sb)); box-shadow:0 1px 0 rgba(255,255,255,0.4) inset;
+}
+#ld-root .ld-say-card::after{
+  content:''; position:absolute; top:14px; right:14px; width:36px; height:36px; pointer-events:none;
+  background-image:radial-gradient(var(--sb) 1.2px, transparent 1.2px); background-size:7px 7px; opacity:0.16;
+}
+
+/* Closing banner: faint corner dot pattern, like the dashboard's course cards */
+#ld-root .ld-banner .ld-card{ position:relative; overflow:hidden; }
+#ld-root .ld-card-dots{
+  position:absolute; top:22px; right:26px; width:80px; height:80px; pointer-events:none;
+  background-image:radial-gradient(#C98A2B 1.6px, transparent 1.6px); background-size:11px 11px; opacity:0.14;
+}
+
 #ld-root .ld-reveal{ opacity:0; transform:translateY(20px); transition:opacity .7s ease, transform .7s ease; }
 #ld-root .ld-reveal.ld-in{ opacity:1; transform:translateY(0); }
 @media (prefers-reduced-motion: reduce){
@@ -690,6 +769,8 @@ body.landing-active #shell-auth{ display:none; }
   #ld-root .ld-badges{ gap:22px; }
   #ld-root .ld-how{ padding:64px 18px; }
   #ld-root .ld-how h2{ margin-bottom:38px; }
+  #ld-root .ld-section-head{ margin-bottom:32px; }
+  #ld-root .ld-feature{ padding:26px 20px 22px; }
   #ld-root .ld-say{ padding:20px 18px 64px; }
   #ld-root .ld-banner{ padding:0 18px 64px; }
   #ld-root .ld-banner .ld-card{ padding:44px 20px; }
@@ -743,6 +824,7 @@ body.landing-active #shell-auth{ display:none; }
 </header>
 
 <section class="ld-hero">
+  <div class="ld-eyebrow">✏️ Built like a real tutor's whiteboard</div>
   <h1>Your new favorite <em>tutor</em></h1>
   <p class="ld-sub">Turn any topic into a one-on-one lesson, drawn out live on a whiteboard — as many times as it takes to click.</p>
   <div class="ld-cta">
@@ -786,19 +868,27 @@ body.landing-active #shell-auth{ display:none; }
 </div>
 
 <section class="ld-features" id="ld-features">
+  <div class="ld-section-head">
+    <div class="ld-eyebrow">📘 The product</div>
+    <h2>Everything a great tutor brings</h2>
+    <div class="ld-underline"></div>
+  </div>
   <div class="ld-grid">
-    <div class="ld-feature ld-reveal">
+    <div class="ld-feature ld-reveal" style="--fa:#2E7DBE;--fb:#3D6B93;">
+      <div class="ld-dots"></div>
       <div class="ld-ic">📚</div>
       <h3>Bring any subject</h3>
       <p>From calculus to Chaucer, Chalkline knows the material and meets you exactly where you are.</p>
     </div>
-    <div class="ld-feature ld-reveal">
-      <div class="ld-ic">⏱️</div>
+    <div class="ld-feature ld-reveal" style="--fa:#C98A2B;--fb:#F0B94D;">
+      <div class="ld-dots"></div>
+      <div class="ld-ic" style="background:linear-gradient(150deg,#F0B94D,#C98A2B);">⏱️</div>
       <h3>Unlimited 1:1 time</h3>
       <p>No office hours, no waiting your turn. Chalkline is on whenever you need it, day or night.</p>
     </div>
-    <div class="ld-feature ld-reveal">
-      <div class="ld-ic">🎯</div>
+    <div class="ld-feature ld-reveal" style="--fa:#3E8FA6;--fb:#2FA88A;">
+      <div class="ld-dots"></div>
+      <div class="ld-ic" style="background:linear-gradient(150deg,#3E8FA6,#2FA88A);">🎯</div>
       <h3>Built around you</h3>
       <p>Upload your own materials and Chalkline teaches to your syllabus, your pace, your questions.</p>
     </div>
@@ -806,6 +896,7 @@ body.landing-active #shell-auth{ display:none; }
 </section>
 
 <section class="ld-trust ld-reveal">
+  <div class="ld-eyebrow">🎓 Who's learning</div>
   <h4>Trusted by students everywhere</h4>
   <div class="ld-badges">
     <div class="ld-badge"><svg viewBox="0 0 40 44"><polygon points="20,2 38,10 38,26 20,42 2,26 2,10" fill="none" stroke="#2A2410" stroke-width="2"/><text x="20" y="26" text-anchor="middle" font-family="Fraunces" font-size="13" fill="#2A2410">A</text></svg><span>College</span></div>
@@ -818,7 +909,11 @@ body.landing-active #shell-auth{ display:none; }
 </section>
 
 <section class="ld-how" id="ld-how">
-  <h2 class="ld-reveal">How it works</h2>
+  <div class="ld-section-head">
+    <div class="ld-eyebrow">⚡ The process</div>
+    <h2 class="ld-reveal" style="margin:0;">How it works</h2>
+    <div class="ld-underline"></div>
+  </div>
   <div class="ld-steps">
     <div class="ld-step ld-reveal">
       <div class="ld-num">1</div>
@@ -841,17 +936,21 @@ body.landing-active #shell-auth{ display:none; }
 </section>
 
 <section class="ld-say" id="ld-say">
-  <h2 class="ld-reveal">What students are saying</h2>
+  <div class="ld-section-head">
+    <div class="ld-eyebrow">💬 Reviews</div>
+    <h2 class="ld-reveal" style="margin:0;">What students are saying</h2>
+    <div class="ld-underline"></div>
+  </div>
   <div class="ld-say-row">
-    <div class="ld-say-card ld-reveal">
+    <div class="ld-say-card ld-reveal" style="--sa:#2E7DBE;--sb:#3D6B93;">
       <div class="ld-who"><div class="ld-av" style="background:#2E7DBE;">M</div><div><b>Maya R.</b><span>College sophomore</span></div></div>
       <p>I finally get why my professor's proofs work — Chalkline draws them out until they actually make sense.</p>
     </div>
-    <div class="ld-say-card ld-reveal">
+    <div class="ld-say-card ld-reveal" style="--sa:#C98A2B;--sb:#F0B94D;">
       <div class="ld-who"><div class="ld-av" style="background:#C98A2B;">D</div><div><b>Devon K.</b><span>High school junior</span></div></div>
       <p>It felt like having a tutor who never once got tired of my questions. I asked the same thing four different ways.</p>
     </div>
-    <div class="ld-say-card ld-reveal">
+    <div class="ld-say-card ld-reveal" style="--sa:#3E8FA6;--sb:#2FA88A;">
       <div class="ld-who"><div class="ld-av" style="background:#2E7DBE;">A</div><div><b>Amara O.</b><span>Grad student</span></div></div>
       <p>I uploaded my own reading and it built a whole lesson around it. Didn't expect that to actually work.</p>
     </div>
@@ -860,6 +959,7 @@ body.landing-active #shell-auth{ display:none; }
 
 <section class="ld-banner ld-reveal">
   <div class="ld-card">
+    <div class="ld-card-dots"></div>
     <h2>Stop rereading the same paragraph</h2>
     <p>Chalkline turns hours of confused studying into a lesson that actually sticks.</p>
     <button class="ld-btn ld-btn-outline-lg" id="ld-banner-cta">Get started free</button>
