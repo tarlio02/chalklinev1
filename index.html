@@ -3874,11 +3874,14 @@ html,body{ height:100%; overflow:hidden; }
         avatarEl.textContent = (homeShellUser.given_name || fullName)[0].toUpperCase();
       }
       nameEl.textContent = fullName;
-      subEl.textContent = 'tap to sign out';
+      subEl.textContent = 'signed in';
+      document.getElementById('home-sidebar-account').style.cursor = 'default';
     } else {
       avatarEl.outerHTML = `<span class="avatar" id="home-sidebar-avatar">👤</span>`;
       nameEl.textContent = 'Account';
       subEl.textContent = 'tap to sign in';
+      const accEl = document.getElementById('home-sidebar-account');
+      if(accEl) accEl.style.cursor = 'pointer';
     }
     renderDashTitle();
     renderDashWelcomeText();
@@ -3967,7 +3970,9 @@ html,body{ height:100%; overflow:hidden; }
     }
   }
   function handleHomeSidebarAccountClick(){
-    parent.postMessage(homeShellUser ? { requestSignOut:true } : { navLoginClick:true }, '*');
+    // Signing out now only happens from Settings — the sidebar account
+    // row no longer triggers sign-out on tap, it just shows who's in.
+    if(!homeShellUser) parent.postMessage({ navLoginClick:true }, '*');
   }
   window.handleHomeSidebarAccountClick = handleHomeSidebarAccountClick;
 
