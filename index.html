@@ -1206,6 +1206,7 @@ function restoreShellSession(){
     const raw = localStorage.getItem(SHELL_AUTH_STORAGE_KEY);
     if(!raw) return;
     shellUser = JSON.parse(raw);
+    applyStoredProfileToShellUser();   // pick up any profile saved from another device before this reload
     showSignedInChip(shellUser);
     // Frames haven't loaded yet at this point in the page lifecycle —
     // ensureLoaded() posts the current shellUser to each frame the
@@ -1356,7 +1357,7 @@ async function gunzipFromB64(v){
   return await new Response(ds.readable).text();
 }
 function syncKeyRegex(sub){
-  return new RegExp('^chalkline:(courses|session|summary|quiz|notes|notes-settings|tutorial):' + String(sub).replace(/[^\w]/g,'\\$&') + '(:|$)');
+  return new RegExp('^chalkline:(courses|session|summary|quiz|notes|notes-settings|tutorial|profile):' + String(sub).replace(/[^\w]/g,'\\$&') + '(:|$)');
 }
 function fnv(str){
   let h = 2166136261;
@@ -1369,6 +1370,29 @@ function localSyncKeys(sub){
   const re = syncKeyRegex(sub), out = [];
   for(let i=0;i<localStorage.length;i++){ const k = localStorage.key(i); if(k && re.test(k)) out.push(k); }
   return out;
+}
+// Name/education-level/grade/field-of-study, keyed like every other synced
+// item ("chalkline:profile:<sub>") so pullCloud/pushLocal already carry it
+// to and from the cloud with no extra plumbing — see syncKeyRegex above.
+function profileStorageKey(sub){ return 'chalkline:profile:' + sub; }
+function saveProfileLocal(sub, profile){
+  try{ localStorage.setItem(profileStorageKey(sub), JSON.stringify(profile)); }
+  catch(e){ console.error('Could not save profile locally:', e); }
+}
+// Merges the synced profile record onto shellUser (used after restoring a
+// session and after every pull), so name/eduLevel/grade/major always
+// reflect the newest copy — cloud copy wins here since this IS the pull step.
+function applyStoredProfileToShellUser(){
+  if(!shellUser || !shellUser.sub) return false;
+  let p;
+  try{ const raw = localStorage.getItem(profileStorageKey(shellUser.sub)); if(!raw) return false; p = JSON.parse(raw); }
+  catch(e){ return false; }
+  let changed = false;
+  ['name','given_name','eduLevel','grade','major'].forEach(f => {
+    if(p[f] !== undefined && shellUser[f] !== p[f]){ shellUser[f] = p[f]; changed = true; }
+  });
+  if(changed){ try{ localStorage.setItem(SHELL_AUTH_STORAGE_KEY, JSON.stringify(shellUser)); }catch(e){} }
+  return changed;
 }
 const isCoursesKey = k => k.indexOf('chalkline:courses:') === 0;
 function unionCourses(a, b){
@@ -1503,8 +1527,9 @@ async function syncNow(pullFirst){
     }
     const changed = (pullFirst || firstLoad) ? await pullCloud(sub, firstLoad) : false;
     if(firstLoad) cloudLoadedFor = sub;
+    const profileChanged = applyStoredProfileToShellUser();   // pick up a profile pulled just now (or from another device)
     const pushFailed = await pushLocal(sub);
-    if(changed) broadcastAuthState();   // pages re-read their data now that it changed
+    if(changed || profileChanged) broadcastAuthState();   // pages re-read their data now that it changed
     const i = window.__syncInfo || {};
     if(firstLoad || changed) setSyncStatus('OK — ' + (i.matched || 0) + ' item(s) in cloud for this account (id …' + String(i.sub || '').slice(-4) + ')' + (i.total && !i.matched ? ' — account id mismatch: ' + i.sample + ' vs ' + i.sub : ''), !!(i.total && !i.matched));
     if(pushFailed && pushFailed.length) setSyncStatus(pushFailed.length + ' item(s) could not upload — ' + pushFailed.slice(0,2).join('; '), true);
@@ -1562,8 +1587,8 @@ function handleShellCredential(response){
   // work. If the worker is unreachable the app keeps working locally.
   exchangeCredential(response.credential)
     .then(() => syncNow(true))
-    .catch(e => { console.warn('Backend sign-in unavailable, working locally:', (e && e.message) || e); setSyncStatus('sign-in failed — ' + ((e && e.message) || e), true); });
-  try{ maybeOpenOnboarding(); }catch(e){ console.warn(e); }
+    .catch(e => { console.warn('Backend sign-in unavailable, working locally:', (e && e.message) || e); setSyncStatus('sign-in failed — ' + ((e && e.message) || e), true); })
+    .then(() => { try{ maybeOpenOnboarding(); }catch(e){ console.warn(e); } });
 }
 
 // Fallback shown if Google's own rendered button fails or vanishes (see
@@ -2251,19 +2276,32 @@ document.getElementById('profile-modal-form').addEventListener('submit', (e)=>{
     localStorage.setItem(SHELL_AUTH_STORAGE_KEY, JSON.stringify(shellUser));
     localStorage.setItem(PROFILE_DONE_PREFIX + shellUser.sub, '1');
   }catch(err){ console.error('Could not save profile:', err); }
+  // Also write it under the synced "chalkline:profile:<sub>" key (see syncKeyRegex)
+  // so it's pulled down on any other device/browser this account signs into.
+  saveProfileLocal(shellUser.sub, {
+    name: shellUser.name, given_name: shellUser.given_name,
+    eduLevel: shellUser.eduLevel, grade: shellUser.grade, major: shellUser.major
+  });
   showSignedInChip(shellUser);
   broadcastAuthState();
   closeProfileModal();
   const so = document.getElementById('settings-modal-overlay');
   if(so && so.classList.contains('open')) renderSettingsModal();
+  syncNow(false).catch(e => console.warn('Profile sync to cloud failed (saved locally, will retry):', e));
 });
 // Opens onboarding once per account, right after sign-in completes — whether
 // this is a brand-new sign-up or a returning person who never finished it.
+// Also treats an already-saved profile (e.g. just pulled down from the cloud
+// on a new device) as "done" so a returning person is never asked twice.
 function maybeOpenOnboarding(){
   if(!shellUser) return;
   try{
     if(localStorage.getItem(PROFILE_DONE_PREFIX + shellUser.sub)) return;
   }catch(e){}
+  if(shellUser.eduLevel){
+    try{ localStorage.setItem(PROFILE_DONE_PREFIX + shellUser.sub, '1'); }catch(e){}
+    return;
+  }
   setTimeout(() => openProfileModal(true), 300); // let the sign-in sheet finish closing first
 }
 
@@ -16462,8 +16500,7 @@ setTimeout(()=>{ try{ window.ChalklineTour && window.ChalklineTour.resume(); }ca
     try{ showSignedInChip(shellUser); }catch(e){ console.warn(e); }
     try{ broadcastAuthState(); }catch(e){ console.warn(e); }
     try{ navTo('home'); }catch(e){ console.warn(e); }
-    try{ syncNow(true).catch(()=>{}); }catch(e){ console.warn(e); }
-    try{ maybeOpenOnboarding(); }catch(e){ console.warn(e); }
+    syncNow(true).catch(()=>{}).then(() => { try{ maybeOpenOnboarding(); }catch(e){ console.warn(e); } });
   }
 
   // ---- Google button inside the landing modal (Google sign-in is already
