@@ -226,24 +226,67 @@
   #signout-confirm{ border:1px solid #C0392B; background:#C0392B; color:#fff; }
   #signout-confirm:hover{ background:#a93226; border-color:#a93226; }
 
-  /* Chalkline assistant chat (opened from any page's sidebar). */
-  #assistant-overlay{
-    position:fixed; inset:0; z-index:10001; display:none;
-    align-items:center; justify-content:center; background:rgba(42,36,16,0.38); padding:16px;
-  }
-  #assistant-overlay.open{ display:flex; }
-  #assistant-card{
-    position:relative; width:100%; max-width:520px; height:min(720px, calc(100vh - 32px)); height:min(720px, calc(100dvh - 32px));
-    background:#fff; border:1px solid #ECE3C8; border-radius:20px; overflow:hidden;
-    display:flex; flex-direction:column;
-    box-shadow:0 24px 60px rgba(60,40,5,0.30);
+  /* Chalkline assistant: its own page (reached via the "Chalkline assistant"
+     link in any page's sidebar), with a list of recent chats down the left. */
+  #page-assistant{
+    display:flex; background:#FFFDF6;
     font-family:'Source Serif 4', Georgia, serif; color:#2A2410;
   }
+  #as-side{
+    width:250px; flex-shrink:0; display:flex; flex-direction:column;
+    background:#FFF9E8; border-right:1px solid #ECE3C8; padding:16px 12px;
+    box-sizing:border-box; overflow-y:auto; z-index:2;
+  }
+  #as-side-top{ margin-bottom:14px; display:flex; align-items:center; justify-content:space-between; gap:6px; }
+  #as-brand{ display:flex; align-items:center; gap:9px; text-decoration:none; color:#2A2410; font-weight:700; font-size:16px; padding:4px 6px; min-width:0; }
+  #as-brand img{ width:28px; height:28px; flex-shrink:0; display:block; border-radius:7px; }
+  #as-sidebar-close{
+    display:none; border:none; background:none; cursor:pointer; color:#8A8267; font-size:18px;
+    width:30px; height:30px; border-radius:8px; flex-shrink:0;
+  }
+  #as-new-btn{
+    width:100%; text-align:left; display:flex; align-items:center; gap:8px;
+    font-family:inherit; font-weight:600; font-size:13.5px; color:#2A2410;
+    background:#fff; border:1px solid #ECE3C8; border-radius:10px; padding:10px 12px; cursor:pointer; margin-bottom:16px;
+  }
+  #as-new-btn:hover{ background:#FFF7E0; border-color:#F0B94D; }
+  #as-conv-list-wrap{ flex:1; min-height:0; overflow-y:auto; }
+  #as-conv-list-wrap h4{
+    font-family:'JetBrains Mono', monospace; font-size:10px; letter-spacing:0.06em;
+    color:rgba(42,36,16,0.5); margin:0 0 10px; padding:0 6px; font-weight:600;
+  }
+  .as-conv-row{
+    display:flex; align-items:center; gap:9px; text-decoration:none; color:rgba(42,36,16,0.78);
+    padding:8px 10px; border-radius:9px; font-size:12.5px; transition:background .15s ease; cursor:pointer;
+  }
+  .as-conv-row .ic{ font-size:13px; flex-shrink:0; }
+  .as-conv-row .rw-title{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .as-conv-row:hover{ background:rgba(0,0,0,0.05); color:#2A2410; }
+  .as-conv-row.active{ background:#FFF1CC; color:#2A2410; }
+  .as-rw-empty{ font-size:12.5px; color:rgba(42,36,16,0.45); padding:8px 10px; }
+  #as-side-footer{ border-top:1px solid rgba(0,0,0,0.08); padding-top:12px; margin-top:12px; flex-shrink:0; }
+  #as-side-footer a{
+    display:flex; align-items:center; gap:9px; text-decoration:none; color:rgba(42,36,16,0.78);
+    padding:8px 10px; border-radius:9px; font-size:12.5px;
+  }
+  #as-side-footer a:hover{ background:rgba(0,0,0,0.05); color:#2A2410; }
+  #as-side-footer a .ic{
+    font-size:14px; width:24px; height:24px; line-height:24px; text-align:center; flex-shrink:0;
+    border-radius:7px; background:rgba(120,90,20,0.10);
+  }
+  #as-side-scrim{ display:none; position:fixed; inset:0; background:rgba(42,36,16,0.32); z-index:1; }
+  #as-main{ flex:1; min-width:0; display:flex; flex-direction:column; height:100%; }
+  #as-sidebar-toggle{
+    display:none; border:none; background:none; cursor:pointer; color:#8A8267; font-size:15px;
+    width:32px; height:32px; border-radius:8px; flex-shrink:0; align-items:center; justify-content:center;
+  }
+  #as-sidebar-toggle:hover, #as-sidebar-close:hover{ background:rgba(0,0,0,0.05); color:#2A2410; }
   #assistant-head{
     display:flex; align-items:center; justify-content:space-between; gap:8px; flex-shrink:0;
-    padding:14px 14px 12px 20px; border-bottom:1px solid #ECE3C8;
+    padding:14px 20px; border-bottom:1px solid #ECE3C8;
     background:linear-gradient(165deg, #FFFFFF 0%, #FFF7E0 130%);
   }
+  #assistant-head-left{ display:flex; align-items:center; gap:6px; min-width:0; }
   #assistant-head h2{ margin:0; font-size:18px; font-weight:600; }
   #assistant-head .as-sub{ font-family:'JetBrains Mono', monospace; font-size:10px; color:#8A8267; margin-top:2px; }
   .as-head-btns{ display:flex; align-items:center; gap:4px; }
@@ -294,9 +337,16 @@
     background:#2E7DBE; color:#fff; font-size:18px; line-height:1; display:flex; align-items:center; justify-content:center;
   }
   #assistant-send:disabled{ background:#C9CFD6; cursor:default; }
-  @media (max-width:560px){
-    #assistant-overlay{ padding:0; align-items:stretch; }
-    #assistant-card{ max-width:none; height:100vh; height:100dvh; border-radius:0; border:none; }
+  @media (max-width:760px){
+    #as-sidebar-toggle{ display:flex; }
+    #as-sidebar-close{ display:block; }
+    #as-side{
+      position:fixed; top:0; bottom:0; left:0; width:min(280px, 82vw); z-index:3;
+      transform:translateX(-100%); transition:transform .22s ease; box-shadow:0 0 0 1px rgba(0,0,0,0.03);
+      padding-top:calc(16px + env(safe-area-inset-top, 0px));
+    }
+    #page-assistant.as-sidebar-open #as-side{ transform:translateX(0); }
+    #page-assistant.as-sidebar-open #as-side-scrim{ display:block; }
     #assistant-head{ padding-top:calc(14px + env(safe-area-inset-top, 0px)); }
   }
 
@@ -1439,16 +1489,33 @@ body.landing-active #shell-auth{ display:none; }
   </div>
 </div>
 
-<div id="assistant-overlay" role="dialog" aria-modal="true" aria-labelledby="assistant-title">
-  <div id="assistant-card">
+<div id="page-assistant" class="shell-page" role="main" aria-label="Chalkline assistant">
+  <aside id="as-side">
+    <div id="as-side-top">
+      <a href="#" id="as-brand" onclick="navTo('home', true); return false;"><img data-cl-icon alt="" aria-hidden="true" draggable="false">Chalkline</a>
+      <button type="button" id="as-sidebar-close" aria-label="Close menu">✕</button>
+    </div>
+    <button type="button" id="as-new-btn"><span class="ic">＋</span>New chat</button>
+    <div id="as-conv-list-wrap">
+      <h4>Recent chats</h4>
+      <div id="assistant-conv-list"></div>
+    </div>
+    <div id="as-side-footer">
+      <a href="#" onclick="navTo('home', true); return false;"><span class="ic">🏠</span>Dashboard</a>
+    </div>
+  </aside>
+  <div id="as-side-scrim"></div>
+  <div id="as-main">
     <div id="assistant-head">
-      <div>
-        <h2 id="assistant-title">💬 Chalkline assistant</h2>
-        <div class="as-sub">ask me anything</div>
+      <div id="assistant-head-left">
+        <button type="button" id="as-sidebar-toggle" aria-label="Recent chats" title="Recent chats">☰</button>
+        <div>
+          <h2 id="assistant-title">💬 Chalkline assistant</h2>
+          <div class="as-sub">ask me anything</div>
+        </div>
       </div>
       <div class="as-head-btns">
         <button type="button" class="as-head-btn" id="assistant-new" title="Start a new chat">New chat</button>
-        <button type="button" class="as-head-btn" id="assistant-close" aria-label="Close" style="font-size:16px">✕</button>
       </div>
     </div>
     <div id="assistant-msgs" aria-live="polite"></div>
@@ -2257,15 +2324,43 @@ function appendBgSection(body){
 
 // ---- Chalkline assistant: a general chat with the AI, opened from any page's sidebar ----
 const ASSISTANT_SYSTEM = "You are the Chalkline Assistant, a friendly, knowledgeable study helper inside Chalkline — an AI whiteboard tutoring app (an AI tutor teaches on a handwritten whiteboard; there are saved lessons, summaries, quizzes, notes and a dashboard of courses). Chat naturally: answer any question, explain concepts clearly with university-level accuracy, help plan studying and prepare for exams and assignments, and help the student use Chalkline. Match structure to the question: a quick factual question gets a short plain-text answer, no formatting scaffolding needed. A multi-part answer — a study plan, a comparison, a step-by-step process, a set of options — gets real structure: use '## '/'### ' headers to separate sections (e.g. one per day of a study plan, one per option being compared), numbered lists (1. 2. 3.) for sequential steps, '- ' bullets for a set of unordered points, and **bold** on the key term or number in a line so it's scannable at a glance. Never use headers/lists just to pad a one-idea answer — reserve them for when the content genuinely has multiple parts. Keep it phone-screen sized: short paragraphs and lines, nothing that reads like padding. Ask one brief follow-up question only when it is useful. Use plain text and real Unicode symbols (², √, ≤, ∑, π) — never LaTeX, never $ delimiters. If the student wants a full lesson with diagrams drawn on the whiteboard, tell them to start a new lesson from the Dashboard (you can still explain the idea in chat first). Be warm, patient and encouraging, never robotic. If you are unsure of something, say so instead of guessing.";
-let assistantMsgs = [];
+let assistantConvs = [];        // [{ id, title, msgs:[{role,content}], updated }], newest first
+let assistantActiveId = null;
 let assistantBusy = false;
-function assistantKey(){ return 'chalkline_assistant_chat:' + ((typeof shellUser !== 'undefined' && shellUser && shellUser.sub) || 'guest'); }
-function assistantLoad(){
-  try{ const v = JSON.parse(localStorage.getItem(assistantKey()) || '[]'); assistantMsgs = Array.isArray(v) ? v : []; }
-  catch(e){ assistantMsgs = []; }
+let assistantSidebarOpen = false;
+function assistantUid(){ return (typeof shellUser !== 'undefined' && shellUser && shellUser.sub) || 'guest'; }
+function assistantConvKey(){ return 'chalkline_assistant_convs:' + assistantUid(); }
+function assistantLegacyKey(){ return 'chalkline_assistant_chat:' + assistantUid(); }
+function assistantGenId(){ return 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+function assistantDeriveTitle(msgs){
+  const firstUser = (msgs || []).find(m => m.role === 'user');
+  if(!firstUser || !firstUser.content) return null;
+  const t = firstUser.content.trim().replace(/\s+/g, ' ');
+  return t.length > 42 ? t.slice(0, 42).trim() + '…' : t;
 }
-function assistantSave(){
-  try{ localStorage.setItem(assistantKey(), JSON.stringify(assistantMsgs.slice(-40))); }catch(e){}
+function assistantSortConvs(){ assistantConvs.sort((a, b) => (b.updated || 0) - (a.updated || 0)); }
+function assistantActiveConv(){ return assistantConvs.find(c => c.id === assistantActiveId) || null; }
+// Loads every saved conversation for the signed-in user (or guest). The very first time this runs
+// for someone who chatted before recent chats existed, it migrates their one old chat into the list.
+function assistantLoadConvs(){
+  let convs = [];
+  try{ const v = JSON.parse(localStorage.getItem(assistantConvKey()) || '[]'); if(Array.isArray(v)) convs = v; }
+  catch(e){ convs = []; }
+  if(!convs.length){
+    try{
+      const legacy = JSON.parse(localStorage.getItem(assistantLegacyKey()) || '[]');
+      if(Array.isArray(legacy) && legacy.length){
+        convs = [{ id: assistantGenId(), title: assistantDeriveTitle(legacy), msgs: legacy, updated: Date.now() }];
+      }
+    }catch(e){}
+  }
+  assistantConvs = convs;
+  assistantSortConvs();
+}
+function assistantSaveConvs(){
+  try{ localStorage.setItem(assistantConvKey(), JSON.stringify(assistantConvs.slice(0, 30).map(c => ({
+    id: c.id, title: c.title, updated: c.updated, msgs: (c.msgs || []).slice(-40)
+  })))); }catch(e){}
 }
 function assistantAuthHeaders(){
   try{ const sess = JSON.parse(localStorage.getItem('chalkline_session') || 'null'); return sess && sess.token ? { Authorization: 'Bearer ' + sess.token } : {}; }
@@ -2302,7 +2397,9 @@ function assistantScrollDown(){ const m = document.getElementById('assistant-msg
 function assistantDraw(){
   const box = document.getElementById('assistant-msgs');
   box.textContent = '';
-  if(!assistantMsgs.length){
+  const conv = assistantActiveConv();
+  const msgs = conv ? conv.msgs : [];
+  if(!msgs.length){
     const e = document.createElement('div'); e.id = 'assistant-empty';
     e.innerHTML = '<div class="as-emoji">💬</div><h3>Hi, I\'m your Chalkline assistant</h3><p>Ask me anything — a concept you\'re stuck on, help planning your revision, or how to use Chalkline.</p>';
     const chips = document.createElement('div'); chips.className = 'as-chips';
@@ -2318,13 +2415,63 @@ function assistantDraw(){
     e.appendChild(chips); box.appendChild(e);
     return;
   }
-  assistantMsgs.forEach(m => {
+  msgs.forEach(m => {
     const d = document.createElement('div');
     d.className = 'as-msg ' + (m.role === 'user' ? 'user' : 'bot');
     if(m.role === 'user') d.textContent = m.content; else d.innerHTML = assistantRender(m.content);
     box.appendChild(d);
   });
   assistantScrollDown();
+}
+// Left-hand list of recent chats, newest first, with the open conversation highlighted.
+function assistantRenderConvList(){
+  const list = document.getElementById('assistant-conv-list');
+  if(!list) return;
+  list.textContent = '';
+  if(!assistantConvs.length){
+    const e = document.createElement('div'); e.className = 'as-rw-empty'; e.textContent = 'No chats yet';
+    list.appendChild(e);
+    return;
+  }
+  assistantSortConvs();
+  assistantConvs.forEach(c => {
+    const a = document.createElement('a');
+    a.href = '#';
+    a.className = 'as-conv-row' + (c.id === assistantActiveId ? ' active' : '');
+    const ic = document.createElement('span'); ic.className = 'ic'; ic.textContent = '💬';
+    const title = document.createElement('span'); title.className = 'rw-title'; title.textContent = c.title || 'New chat';
+    a.appendChild(ic); a.appendChild(title);
+    a.addEventListener('click', (e) => { e.preventDefault(); assistantSelectConversation(c.id); });
+    list.appendChild(a);
+  });
+}
+function assistantNewConversation(){
+  if(assistantBusy) return;
+  const conv = { id: assistantGenId(), title: null, msgs: [], updated: Date.now() };
+  assistantConvs.unshift(conv);
+  assistantActiveId = conv.id;
+  assistantSaveConvs();
+  assistantRenderConvList();
+  assistantDraw();
+  assistantCloseSidebarMobile();
+  if(window.matchMedia && window.matchMedia('(pointer:fine)').matches){
+    const inp = document.getElementById('assistant-input'); if(inp) inp.focus();
+  }
+}
+function assistantSelectConversation(id){
+  if(assistantBusy || id === assistantActiveId) { assistantCloseSidebarMobile(); return; }
+  assistantActiveId = id;
+  assistantRenderConvList();
+  assistantDraw();
+  assistantCloseSidebarMobile();
+}
+function assistantSetSidebarOpen(open){
+  assistantSidebarOpen = open;
+  const page = document.getElementById('page-assistant');
+  if(page) page.classList.toggle('as-sidebar-open', open);
+}
+function assistantCloseSidebarMobile(){
+  if(window.matchMedia && window.matchMedia('(max-width:760px)').matches) assistantSetSidebarOpen(false);
 }
 async function assistantAsk(history){
   // Gemini and Groq require the conversation to start with a user turn and end with one.
@@ -2361,19 +2508,26 @@ async function assistantAsk(history){
 async function assistantSend(text){
   text = String(text || '').trim();
   if(!text || assistantBusy) return;
+  let conv = assistantActiveConv();
+  if(!conv){ conv = { id: assistantGenId(), title: null, msgs: [], updated: Date.now() }; assistantConvs.unshift(conv); assistantActiveId = conv.id; }
   assistantBusy = true;
   document.getElementById('assistant-send').disabled = true;
-  assistantMsgs.push({ role: 'user', content: text });
-  assistantSave(); assistantDraw();
+  conv.msgs.push({ role: 'user', content: text });
+  conv.updated = Date.now();
+  if(!conv.title) conv.title = assistantDeriveTitle(conv.msgs);
+  assistantSaveConvs(); assistantRenderConvList(); assistantDraw();
   const inp = document.getElementById('assistant-input'); inp.value = ''; inp.style.height = 'auto';
   const box = document.getElementById('assistant-msgs');
   const typing = document.createElement('div'); typing.className = 'as-msg bot';
   typing.innerHTML = '<span class="as-typing"><i></i><i></i><i></i></span>';
   box.appendChild(typing); assistantScrollDown();
-  const reply = await assistantAsk(assistantMsgs.slice(-20));
+  const reply = await assistantAsk(conv.msgs.slice(-20));
   typing.remove();
-  if(reply){ assistantMsgs.push({ role: 'assistant', content: reply }); assistantSave(); assistantDraw(); }
-  else {
+  if(reply){
+    conv.msgs.push({ role: 'assistant', content: reply });
+    conv.updated = Date.now();
+    assistantSaveConvs(); assistantRenderConvList(); assistantDraw();
+  } else {
     const e = document.createElement('div'); e.className = 'as-msg err';
     e.textContent = "Sorry — I couldn't reach the AI just now. Please try again in a moment.";
     box.appendChild(e); assistantScrollDown();
@@ -2381,21 +2535,34 @@ async function assistantSend(text){
   assistantBusy = false;
   document.getElementById('assistant-send').disabled = false;
 }
-function openAssistant(){
-  assistantLoad(); assistantDraw();
-  document.getElementById('assistant-overlay').classList.add('open');
-  if(window.matchMedia && window.matchMedia('(pointer:fine)').matches) document.getElementById('assistant-input').focus();
+// Called on navigating to the assistant page (its own page, reached from any page's sidebar).
+function openAssistantPage(){
+  assistantLoadConvs();
+  if(!assistantActiveConv()){
+    if(assistantConvs.length) assistantActiveId = assistantConvs[0].id;
+    else {
+      const conv = { id: assistantGenId(), title: null, msgs: [], updated: Date.now() };
+      assistantConvs.unshift(conv);
+      assistantActiveId = conv.id;
+    }
+  }
+  assistantRenderConvList();
+  assistantDraw();
+  assistantSetSidebarOpen(false);
+  if(window.matchMedia && window.matchMedia('(pointer:fine)').matches){
+    const inp = document.getElementById('assistant-input'); if(inp) inp.focus();
+  }
 }
-function closeAssistant(){ document.getElementById('assistant-overlay').classList.remove('open'); }
-document.getElementById('assistant-close').addEventListener('click', closeAssistant);
-document.getElementById('assistant-overlay').addEventListener('click', (e) => { if(e.target.id === 'assistant-overlay') closeAssistant(); });
-document.getElementById('assistant-new').addEventListener('click', () => { if(assistantBusy) return; assistantMsgs = []; assistantSave(); assistantDraw(); });
+document.getElementById('as-new-btn').addEventListener('click', assistantNewConversation);
+document.getElementById('assistant-new').addEventListener('click', assistantNewConversation);
+document.getElementById('as-sidebar-toggle').addEventListener('click', () => assistantSetSidebarOpen(!assistantSidebarOpen));
+document.getElementById('as-sidebar-close').addEventListener('click', () => assistantSetSidebarOpen(false));
+document.getElementById('as-side-scrim').addEventListener('click', () => assistantSetSidebarOpen(false));
 document.getElementById('assistant-send').addEventListener('click', () => assistantSend(document.getElementById('assistant-input').value));
 document.getElementById('assistant-input').addEventListener('keydown', (e) => {
   if(e.key === 'Enter' && !e.shiftKey && window.matchMedia && window.matchMedia('(pointer:fine)').matches){ e.preventDefault(); assistantSend(e.target.value); }
 });
 document.getElementById('assistant-input').addEventListener('input', (e) => { e.target.style.height = 'auto'; e.target.style.height = Math.min(120, e.target.scrollHeight) + 'px'; });
-document.addEventListener('keydown', (e) => { if(e.key === 'Escape' && document.getElementById('assistant-overlay').classList.contains('open')) closeAssistant(); });
 
 // Builds one settings row. `trail` is an optional node/string shown on the right
 // (a value, a badge, a button); pass `chevron:true` to append a ">" after it.
@@ -2756,7 +2923,7 @@ window.addEventListener('message', (e)=>{
     openSignOutConfirm();
   }
   if(d.openSettings){ openSettingsModal(); }
-  if(d.openAssistant){ openAssistant(); }
+  if(d.openAssistant){ navTo('assistant', true); }
   // A page just saved something worth uploading right away (lessons autosave often).
   if(d.syncSoon) scheduleSync(1200);
   if(d.flushSync) syncNow(false);
@@ -16188,8 +16355,13 @@ const FRESH_ON_ENTRY = { tutor:true, summary:true, quiz:true, notes:true };
 // already-loaded frame to drop whichever course it was last scoped to.
 const HISTORY_PAGES = { 'tutor-history':true, 'summary-history':true, 'quiz-history':true };
 
+// The assistant lives in the shell itself (not an iframe — see the
+// #page-assistant markup) so it can use localStorage directly, but it still
+// takes part in navTo/history like every other page.
+const ASSISTANT_PAGE_KEY = 'assistant';
+function assistantPageEl(){ return document.getElementById('page-assistant'); }
 function navTo(page, pushHistory, navPayload, isInitialLoad){
-  if(!frames[page]) page = 'home';
+  if(page !== ASSISTANT_PAGE_KEY && !frames[page]) page = 'home';
   // Coming back to the Dashboard (sidebar/brand click, or "home" with no
   // specific payload) should reset it to the course list, not leave the
   // frame sitting on whatever course detail view it was last showing —
@@ -16214,19 +16386,24 @@ function navTo(page, pushHistory, navPayload, isInitialLoad){
   }
   const wasLoaded = loaded[page];
   const previous = current;
-  ensureLoaded(page);
+  if(page === ASSISTANT_PAGE_KEY) openAssistantPage();
+  else ensureLoaded(page);
 
   // Crossfade: the page we're leaving keeps rendering (at a lower
   // z-index) while it fades out, instead of disappearing the instant
   // the new page appears — that's what made switches feel like a hard
-  // cut rather than a transition.
-  if(previous && previous !== page && frames[previous]){
-    const leavingFrame = frames[previous];
-    leavingFrame.classList.remove('active');
-    leavingFrame.classList.add('leaving');
-    setTimeout(()=>{ leavingFrame.classList.remove('leaving'); }, 240);
+  // cut rather than a transition. Works the same for the assistant's
+  // page div as it does for the iframes.
+  if(previous && previous !== page){
+    const leavingFrame = previous === ASSISTANT_PAGE_KEY ? assistantPageEl() : frames[previous];
+    if(leavingFrame){
+      leavingFrame.classList.remove('active');
+      leavingFrame.classList.add('leaving');
+      setTimeout(()=>{ leavingFrame.classList.remove('leaving'); }, 240);
+    }
   }
   Object.keys(frames).forEach(k => frames[k].classList.toggle('active', k === page));
+  const asEl = assistantPageEl(); if(asEl) asEl.classList.toggle('active', page === ASSISTANT_PAGE_KEY);
   current = page;
   updateAccountChip(page);
   if(pushHistory !== false){
@@ -16236,8 +16413,8 @@ function navTo(page, pushHistory, navPayload, isInitialLoad){
   // into the target frame. A just-created srcdoc iframe needs a beat
   // to parse and attach its own message listener before it can hear
   // this, so give it one on first load; an already-loaded frame can
-  // be told immediately.
-  if(navPayload){
+  // be told immediately. The assistant page has no navPayload use case.
+  if(navPayload && page !== ASSISTANT_PAGE_KEY){
     const send = ()=>{ try{ frames[page].contentWindow.postMessage(navPayload, '*'); }catch(e){} };
     // Delivered once the frame is really listening (queued behind its sign-in message, so the page
     // already knows who is signed in before it looks up a course or saved item); immediately if it already is.
