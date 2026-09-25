@@ -3114,7 +3114,7 @@ html,body{ height:100%; overflow:hidden; }
       <div class="dash-card course-action-card fade-up" style="animation-delay:.06s;--card-a:var(--sage);--card-b:var(--emerald);" onclick="startCourseAction('quiz-history');">
         <span class="card-top-bar"></span><span class="card-dots"></span>
         <span class="icon-badge">🧠</span>
-        <h2>Quizzes</h2>
+        <h2>Tests &amp; Quizzes</h2>
         <p>Your previous quizzes for ${encName}, or start a new one.</p>
         <span class="card-go">→</span>
       </div>
@@ -12055,7 +12055,7 @@ refreshSummaryHistory();
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-<title>Chalkline — Quizzes</title>
+<title>Chalkline — Tests & Quizzes</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&family=Caveat:wght@600;700&display=swap');
 
@@ -12361,7 +12361,7 @@ html,body{ height:100%; overflow:hidden; }
   <div class="page-head">
     <div>
       <a href="#" class="back-link" id="qh-back" style="display:none;" onclick="goBackToCourseQH();return false;">&#8249; <span id="qh-back-name"></span></a>
-      <h1 id="qh-title">🧠 Quizzes</h1>
+      <h1 id="qh-title">🧠 Tests &amp; Quizzes</h1>
       <p id="qh-sub">Every quiz you have taken, across all your courses. 🔥 Keep the streak going.</p>
     </div>
     <button class="btn-primary" id="qh-new-btn" onclick="startNewQH();">Start new quiz</button>
@@ -12434,7 +12434,7 @@ if(!window.storage || !window.storage.__isRealBackend){
 let historySubjectQH = null;
 function applyScopeQH(){
   const scoped = !!historySubjectQH;
-  document.getElementById('qh-title').textContent = scoped ? "Quizzes" : "Quizzes";
+  document.getElementById('qh-title').textContent = scoped ? "Tests & Quizzes" : "Tests & Quizzes";
   document.getElementById('qh-sub').textContent = scoped
     ? "Your previous quizzes for " + historySubjectQH + ". Pick one to review it, or start a new quiz."
     : "Every quiz you have taken, across all your courses.";
@@ -14039,7 +14039,7 @@ loadGlobalSettings().then(refreshNotesList);
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-<title>Chalkline — Quiz</title>
+<title>Chalkline — Tests & Quizzes</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&family=Caveat:wght@600;700&display=swap');
 
@@ -14405,7 +14405,7 @@ html,body{ height:100%; overflow:hidden; }
 
   <a href="#" class="back-link" onclick="goToQuizzes();return false;">
     <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M10 12.5 5 8l5-4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    <span id="qz-back-label">Back to quizzes</span>
+    <span id="qz-back-label">Back to tests & quizzes</span>
   </a>
 
   <div id="qz-setup" class="qz-screen">
@@ -14479,7 +14479,7 @@ html,body{ height:100%; overflow:hidden; }
     <div class="results-actions">
       <button class="btn-primary" id="qz-retake-btn" onclick="retakeQuiz();">🔁 Retake</button>
       <button class="btn-secondary" id="qz-new-btn" onclick="backToSetup();">New quiz</button>
-      <button class="btn-secondary" id="qz-review-back-btn" onclick="goToQuizzes();">Back to quizzes</button>
+      <button class="btn-secondary" id="qz-review-back-btn" onclick="goToQuizzes();">Back to tests & quizzes</button>
     </div>
     <div class="review-list" id="qz-review-list"></div>
   </div>
@@ -14956,7 +14956,7 @@ window.addEventListener('message', (e)=>{
   }
   if(d.presetSubject){
     scopedSubject = d.presetSubject;
-    document.getElementById('qz-back-label').textContent = 'Back to ' + scopedSubject + ' quizzes';
+    document.getElementById('qz-back-label').textContent = 'Back to ' + scopedSubject + ' tests & quizzes';
     populateSetupScreen();
     return;
   }
@@ -15164,7 +15164,7 @@ function navTo(page, pushHistory, navPayload, isInitialLoad){
       title:'🎓 Immersive Classroom',
       body:'Your AI teacher. Ask about any topic and it teaches on a whiteboard while it talks. Your past lessons are saved here too.' },
     { id:'card-quiz', phase:'course', frame:'home', sel:'#course-action-grid .dash-card:nth-child(2)', mode:'next',
-      title:'🧠 Quizzes',
+      title:'🧠 Tests & Quizzes',
       body:'Test yourself on what you have learned. Your previous quizzes show up here, and you can start a new one any time.' },
     { id:'card-summary', phase:'course', frame:'home', sel:'#course-action-grid .dash-card:nth-child(3)', mode:'next',
       title:'📄 Summaries',
@@ -15210,7 +15210,7 @@ function navTo(page, pushHistory, navPayload, isInitialLoad){
     /* ===== PHASE 4: after the completion screen. Remaining tour, back on the dashboard. ===== */
     { id:'after-quiz', phase:'after', frame:'home', sel:'#course-action-grid .dash-card:nth-child(2)', mode:'next', ensureCourseView:true,
       title:'Next: take a quiz',
-      body:'Now that you have learned something, use Quizzes to check it stuck. During lessons the tutor also pops up quick questions. If you are stuck, tap "I’m not sure yet".' },
+      body:'Now that you have learned something, use Tests & Quizzes to check it stuck. During lessons the tutor also pops up quick questions. If you are stuck, tap "I’m not sure yet".' },
     { id:'after-summary', phase:'after', frame:'home', sel:'#course-action-grid .dash-card:nth-child(3)', mode:'next', ensureCourseView:true,
       title:'Summarise a PDF',
       body:'Got lecture slides or a textbook chapter? Import the PDF here for a clean summary.' },
