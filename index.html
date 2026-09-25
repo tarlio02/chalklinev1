@@ -1996,41 +1996,57 @@ function renderSettingsModal(){
   const cols = document.createElement('div');
   cols.className = 'st-cols';
 
-  // Left column: account
+  // Left column: ACCOUNT
   const accGroup = mkSettingsGroup('Account');
-  accGroup.card.appendChild(mkSettingsRow({
-    icon: '👤', label: 'Courses',
-    trail: String(countShellCourses(shellUser.sub))
-  }));
-  const replayBtn = document.createElement('button');
-  replayBtn.type = 'button'; replayBtn.className = 'st-replay'; replayBtn.textContent = '▶ Replay';
-  replayBtn.addEventListener('click', (e)=>{ e.stopPropagation(); replayTutorial(); });
-  accGroup.card.appendChild(mkSettingsRow({
-    icon: '🎓', label: 'Getting-started guide',
-    trail: replayBtn
-  }));
+  accGroup.card.appendChild(mkSettingsRow({ icon:'👤', label:'Account', sub: shellUser.email || '', chevron:true }));
+  accGroup.card.appendChild(mkSettingsRow({ icon:'🎓', label:'Field of study', sub:'Not set', chevron:true }));
+  accGroup.card.appendChild(mkSettingsRow({ icon:'🌐', label:'Language', trail:'English', chevron:true }));
+  accGroup.card.appendChild(mkSettingsRow({ icon:'🔔', label:'Notifications', chevron:true }));
   cols.appendChild(accGroup.col);
 
-  // Right column: appearance (tutor background)
-  if(TUTOR_BGS.length){
-    const bgGroup = mkSettingsGroup('Appearance');
-    appendBgSection(bgGroup.card);
-    cols.appendChild(bgGroup.col);
-  }
-
-  body.appendChild(cols);
-
-  // Sign out, full width beneath the columns
-  const signoutWrap = document.createElement('div');
-  signoutWrap.style.padding = '0 28px 28px';
   const signoutGroup = document.createElement('div');
   signoutGroup.className = 'st-card st-signout-card';
   signoutGroup.appendChild(mkSettingsRow({
-    icon: '↪', label: 'Sign out', chevron: true,
+    icon:'↪', label:'Sign out', chevron:true,
     onClick: ()=>{ closeSettingsModal(); openSignOutConfirm(); }
   }));
-  signoutWrap.appendChild(signoutGroup);
-  body.appendChild(signoutWrap);
+  accGroup.col.appendChild(signoutGroup);
+
+  // Right column: PLAN & USAGE
+  const planGroup = mkSettingsGroup('Plan & usage');
+  planGroup.card.appendChild(mkSettingsRow({
+    icon:'📈', label:'Usage & credits', sub: countShellCourses(shellUser.sub) + ' courses so far', chevron:true
+  }));
+  planGroup.card.appendChild(mkSettingsRow({
+    icon:'⚡', label:'Activity', chevron:true
+  }));
+  planGroup.card.appendChild(mkSettingsRow({
+    icon:'💳', label:'Plan & billing', trail:'Free', chevron:true
+  }));
+  planGroup.card.appendChild(mkSettingsRow({
+    icon:'🔗', label:'Compare plans', chevron:true
+  }));
+  cols.appendChild(planGroup.col);
+
+  if(TUTOR_BGS.length){
+    const bgWrap = document.createElement('div');
+    bgWrap.className = 'st-card';
+    bgWrap.appendChild(mkSettingsRow({ icon:'🖼️', label:'Tutor background', sub:'Pick the wall behind your tutor', chevron:false }));
+    appendBgSection(bgWrap);
+    planGroup.col.appendChild(bgWrap);
+  }
+
+  const replayCard = document.createElement('div');
+  replayCard.className = 'st-card';
+  const replayBtn = document.createElement('button');
+  replayBtn.type = 'button'; replayBtn.className = 'st-replay'; replayBtn.textContent = '▶ Replay';
+  replayBtn.addEventListener('click', (e)=>{ e.stopPropagation(); replayTutorial(); });
+  replayCard.appendChild(mkSettingsRow({
+    icon:'🎬', label:'Getting-started guide', sub:'Replay the guided tour of the app', trail: replayBtn
+  }));
+  planGroup.col.appendChild(replayCard);
+
+  body.appendChild(cols);
 }
 function replayTutorial(){
   if(!shellUser) return;
