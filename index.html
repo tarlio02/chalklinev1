@@ -14297,6 +14297,84 @@ html,body{ height:100%; overflow:hidden; }
 .app-shell .sidebar .sidebar-toggle .arrow{ font-size:15px; }
 .app-shell .sidebar .sidebar-toggle:hover{ transform:translateX(3px); box-shadow:0 1px 0 #fff inset, 3px 0 0 rgba(160,120,40,0.22), 12px 8px 16px -6px rgba(90,65,10,0.45); }
 .app-shell .sidebar .sidebar-toggle:active{ transform:translateX(1px) scale(0.96); }
+
+.back-link{ display:inline-flex; align-items:center; gap:6px; margin:24px 0 4px; font-family:'JetBrains Mono', monospace; font-size:12.5px; color:var(--muted); text-decoration:none; cursor:pointer; }
+.back-link:hover{ color:var(--ink); }
+
+.setup-card{ background:#fff; border:1px solid var(--panel-border); border-radius:14px; padding:26px 26px 22px; max-width:460px; margin:6px auto 60px; }
+.field-row{ margin-bottom:18px; }
+.field-row:last-of-type{ margin-bottom:8px; }
+.field-row label{ display:block; font-family:'JetBrains Mono', monospace; font-size:11.5px; letter-spacing:.03em; color:var(--muted); text-transform:uppercase; margin-bottom:7px; }
+.field-row label .opt-tag{ text-transform:none; font-family:'Source Serif 4', serif; font-size:11.5px; color:#B2A97D; font-style:italic; letter-spacing:0; }
+.field-row select, .field-row input[type=text]{
+  width:100%; font-family:'Source Serif 4', serif; font-size:14.5px; color:var(--ink);
+  border:1px solid var(--panel-border); border-radius:9px; padding:10px 12px; background:#FFFDF6;
+  outline:none; transition:border-color .15s ease;
+}
+.field-row select:focus, .field-row input[type=text]:focus{ border-color:var(--ochre); }
+.count-pills{ display:flex; gap:8px; }
+.count-pill{
+  flex:1; font-family:'JetBrains Mono', monospace; font-size:13px; font-weight:600; color:var(--muted);
+  background:#FFFDF6; border:1px solid var(--panel-border); border-radius:9px; padding:9px 0; cursor:pointer;
+  transition:background .15s ease, color .15s ease, border-color .15s ease;
+}
+.count-pill:hover{ border-color:var(--ochre); }
+.count-pill.active{ background:linear-gradient(140deg, var(--ochre), var(--gold-deep)); color:#fff; border-color:transparent; }
+.setup-note{ font-size:12.5px; color:var(--muted); background:#FBF7E9; border:1px solid var(--panel-border); border-radius:9px; padding:10px 12px; margin-bottom:16px; line-height:1.5; }
+
+.btn-secondary{
+  font-family:'Source Serif 4', serif; font-size:14px; font-weight:600; color:var(--ink);
+  background:#fff; border:1px solid var(--panel-border); border-radius:999px; padding:10px 20px; cursor:pointer;
+  transition:border-color .15s ease, background .15s ease;
+}
+.btn-secondary:hover{ border-color:var(--ochre); background:#FBF7E9; }
+.btn-primary:disabled, .btn-secondary:disabled{ opacity:.5; cursor:default; transform:none !important; }
+
+.quiz-badge.spin{ animation: qzspin 1.6s linear infinite; }
+@keyframes qzspin{ from{transform:rotate(0);} to{transform:rotate(360deg);} }
+
+.qz-play-head{ max-width:640px; margin:26px auto 0; }
+.qz-progress-label{ font-family:'JetBrains Mono', monospace; font-size:11.5px; color:var(--muted); margin-bottom:8px; }
+.qz-progress-bar{ height:5px; border-radius:999px; background:var(--panel-border); overflow:hidden; }
+.qz-progress-fill{ height:100%; background:linear-gradient(90deg, var(--ochre), var(--gold-deep)); border-radius:999px; transition:width .25s ease; }
+
+.quiz-card{ background:#fdfcf7; border:1px solid var(--panel-border); border-radius:14px; padding:26px; margin:20px auto 0; max-width:640px; }
+.quiz-q{ font-size:17px; font-weight:600; margin-bottom:18px; line-height:1.45; }
+.quiz-opt{
+  display:block; width:100%; text-align:left; font-family:'Source Serif 4', serif; font-size:14.5px; color:var(--ink);
+  background:#fff; border:1px solid var(--panel-border); border-radius:10px; padding:12px 14px; margin-bottom:9px; cursor:pointer;
+  transition:border-color .15s ease, background .15s ease;
+}
+.quiz-opt:hover:not(:disabled){ border-color:var(--ochre); }
+.quiz-opt.correct{ background:#eaf1ec; border-color:var(--sage); }
+.quiz-opt.incorrect{ background:#f6e9e5; border-color:#b3452f; }
+.quiz-opt:disabled{ cursor:default; }
+.quiz-explain{ font-size:13.5px; margin-top:14px; padding-top:14px; border-top:1px solid var(--panel-border); color:#514d41; display:none; line-height:1.55; }
+.quiz-explain.show{ display:block; }
+.qz-play-actions{ max-width:640px; margin:18px auto 0; text-align:right; }
+
+.results-head{ display:flex; align-items:center; gap:20px; max-width:640px; margin:30px auto 0; flex-wrap:wrap; }
+.score-ring{
+  width:84px; height:84px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+  font-family:'JetBrains Mono', monospace; font-size:17px; font-weight:700; color:#fff;
+  background:linear-gradient(140deg, var(--ochre), var(--gold-deep)); box-shadow:0 10px 22px -10px rgba(30,43,58,0.35);
+}
+.results-head h1{ font-size:23px; margin:0 0 4px; font-weight:600; }
+.results-head p{ margin:0; font-size:14px; color:var(--muted); }
+.save-note{ font-style:italic; margin-top:5px !important; }
+.results-actions{ max-width:640px; margin:22px auto 0; display:flex; gap:10px; flex-wrap:wrap; }
+.review-list{ max-width:640px; margin:30px auto 70px; display:flex; flex-direction:column; gap:14px; }
+.review-item{ background:#fff; border:1px solid var(--panel-border); border-radius:12px; padding:18px 20px; }
+.review-item .rq{ font-size:14.5px; font-weight:600; margin-bottom:10px; line-height:1.4; }
+.review-item .ro{ font-size:13.5px; padding:8px 10px; border-radius:8px; margin-bottom:5px; border:1px solid transparent; }
+.review-item .ro.correct{ background:#eaf1ec; border-color:var(--sage); }
+.review-item .ro.chosen-wrong{ background:#f6e9e5; border-color:#b3452f; }
+.review-item .rexp{ font-size:12.5px; color:var(--muted); margin-top:8px; line-height:1.5; }
+@media (max-width:520px){
+  .results-head{ gap:14px; }
+  .setup-card{ padding:22px 18px 18px; }
+}
+
 </style>
 </head>
 <body>
@@ -14324,25 +14402,91 @@ html,body{ height:100%; overflow:hidden; }
 
   <div class="main-area">
   <div class="wrap">
-  <div class="quiz-mid">
-    <a href="#" class="icon-link" id="quiz-back-link" onclick="goBackFromQuiz();return false;">
-      <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M10 12.5 5 8l5-4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      Back to dashboard
-    </a>
-    <div class="quiz-badge">🧠⚡</div>
-    <p class="quiz-eyebrow">🔥 Coming soon</p>
-    <h1>Quizzes are warming up</h1>
-    <p id="quiz-course-line">This is where you'll get put on the spot — quick-fire questions pulled straight from what you've studied.</p>
-    <button class="btn-primary" id="quiz-back-btn">✨ Back to Dashboard</button>
-    <div class="quiz-chips">
-      <span class="quiz-chip">🎯 Instant feedback</span>
-      <span class="quiz-chip">📈 Tracks your progress</span>
-      <span class="quiz-chip">🃏 Made from your notes</span>
+
+  <a href="#" class="back-link" onclick="goToQuizzes();return false;">
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M10 12.5 5 8l5-4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <span id="qz-back-label">Back to quizzes</span>
+  </a>
+
+  <div id="qz-setup" class="qz-screen">
+    <div class="quiz-mid" style="min-height:auto;padding:16px 0 6px;">
+      <div class="quiz-badge">🧠⚡</div>
+      <p class="quiz-eyebrow">New quiz</p>
+      <h1 id="qz-setup-title">Let's quiz you</h1>
+      <p id="qz-setup-sub">Pick a course or a topic and I'll put together some questions from what you've studied.</p>
+    </div>
+    <div class="setup-card">
+      <div class="field-row" id="qz-subject-row">
+        <label>Course</label>
+        <select id="qz-subject-select"><option value="">Any topic (no course)</option></select>
+      </div>
+      <div class="field-row">
+        <label>Focus topic <span class="opt-tag">optional</span></label>
+        <input type="text" id="qz-topic-input" placeholder="e.g. price elasticity, cellular respiration…">
+      </div>
+      <div class="field-row">
+        <label>Number of questions</label>
+        <div class="count-pills" id="qz-count-pills">
+          <button type="button" class="count-pill" data-n="5">5</button>
+          <button type="button" class="count-pill active" data-n="8">8</button>
+          <button type="button" class="count-pill" data-n="12">12</button>
+        </div>
+      </div>
+      <div id="qz-setup-note" class="setup-note" style="display:none;"></div>
+      <button class="btn-primary" id="qz-generate-btn" style="width:100%;margin-top:6px;" onclick="startGenerateQuiz();">✨ Generate quiz</button>
     </div>
   </div>
+
+  <div id="qz-loading" class="qz-screen" style="display:none;">
+    <div class="quiz-mid">
+      <div class="quiz-badge spin">🧠</div>
+      <p class="quiz-eyebrow">Working on it</p>
+      <h1 id="qz-loading-line">Writing your questions…</h1>
+      <p>This takes a few seconds.</p>
+    </div>
   </div>
-</div>
-</div>
+
+  <div id="qz-error" class="qz-screen" style="display:none;">
+    <div class="quiz-mid">
+      <div class="quiz-badge" style="background:linear-gradient(140deg,#b3452f,#7a2d1c);">⚠️</div>
+      <p class="quiz-eyebrow">Something went wrong</p>
+      <h1>Couldn't generate that quiz</h1>
+      <p id="qz-error-msg">The AI didn't return a usable quiz. Please try again.</p>
+      <button class="btn-primary" id="qz-error-retry" onclick="startGenerateQuiz();">Try again</button>
+    </div>
+  </div>
+
+  <div id="qz-play" class="qz-screen" style="display:none;">
+    <div class="qz-play-head">
+      <div class="qz-progress-label" id="qz-progress-label">Question 1 of 8</div>
+      <div class="qz-progress-bar"><div class="qz-progress-fill" id="qz-progress-fill" style="width:0%;"></div></div>
+    </div>
+    <div class="quiz-card" id="qz-card"></div>
+    <div class="qz-play-actions">
+      <button class="btn-primary" id="qz-next-btn" style="display:none;" onclick="goNextQuestion();">Next question →</button>
+    </div>
+  </div>
+
+  <div id="qz-results" class="qz-screen" style="display:none;">
+    <div class="results-head">
+      <div class="score-ring" id="qz-score-ring"><span id="qz-score-text">–</span></div>
+      <div>
+        <h1 id="qz-results-title">Quiz complete</h1>
+        <p id="qz-results-sub"></p>
+        <p class="save-note" id="qz-save-note"></p>
+      </div>
+    </div>
+    <div class="results-actions">
+      <button class="btn-primary" id="qz-retake-btn" onclick="retakeQuiz();">🔁 Retake</button>
+      <button class="btn-secondary" id="qz-new-btn" onclick="backToSetup();">New quiz</button>
+      <button class="btn-secondary" id="qz-review-back-btn" onclick="goToQuizzes();">Back to quizzes</button>
+    </div>
+    <div class="review-list" id="qz-review-list"></div>
+  </div>
+
+  </div>
+  </div>
+  </div>
 
 <script>
 (function(){
@@ -14357,26 +14501,474 @@ html,body{ height:100%; overflow:hidden; }
   if (window.innerWidth <= 700) closeSidebar();
 })();
 
-  let quizSubject = null;
-  window.addEventListener('message', (e)=>{
-    const d = e.data;
-    if(d && d.presetSubject){
-      quizSubject = d.presetSubject;
-      document.getElementById('quiz-course-line').textContent =
-        'Quizzes for "' + d.presetSubject + '" will show up here once they\'re ready.';
-      document.getElementById('quiz-back-btn').textContent = '✨ Back to quizzes';
+const WORKER_URL = "https://api.takundamambudzi02.workers.dev";
+function quizAuthHeaders(){
+  try{ const s = JSON.parse(localStorage.getItem('chalkline_session') || 'null'); return s && s.token ? { Authorization:'Bearer ' + s.token } : {}; }
+  catch(e){ return {}; }
+}
+
+/* ---------------------------------------------------------------
+   window.storage shim: the real window.storage API only exists
+   inside the Claude.ai artifact preview sandbox — on a real
+   deployed site (like this one) it doesn't exist at all, so every
+   call used to throw and autosave failed silently. This shim gives
+   the same get/set/list/delete interface, backed by localStorage.
+   ------------------------------------------------------------- */
+if(!window.storage || !window.storage.__isRealBackend){
+  const STORAGE_NS = 'chalkline:';
+  window.storage = {
+    __isRealBackend: false,
+    async get(key){
+      const raw = localStorage.getItem(STORAGE_NS + key);
+      return raw === null ? null : { key, value: raw, shared: false };
+    },
+    async set(key, value){
+      try{ localStorage.setItem(STORAGE_NS + key, value); return { key, value, shared: false }; }
+      catch(e){ console.error('localStorage set failed:', e); return null; }
+    },
+    async delete(key){
+      const existed = localStorage.getItem(STORAGE_NS + key) !== null;
+      localStorage.removeItem(STORAGE_NS + key);
+      return { key, deleted: existed, shared: false };
+    },
+    async list(prefix){
+      const keys = [];
+      const full = STORAGE_NS + (prefix || '');
+      for(let i=0;i<localStorage.length;i++){
+        const k = localStorage.key(i);
+        if(k && k.startsWith(full)) keys.push(k.slice(STORAGE_NS.length));
+      }
+      return { keys, prefix, shared: false };
     }
+  };
+}
+
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+function escapeHtmlQZ(str){ const d=document.createElement('div'); d.textContent=str; return d.innerHTML; }
+
+/* ---------------- state ---------------- */
+let quizUser = null;
+let scopedSubject = null;      // set by presetSubject, if opened from a course card
+let selectedCount = 8;
+let currentSubject = null;     // subject actually used for the quiz just built/loaded
+let currentTopic = '';
+let currentQuestions = [];     // [{question, options:[4], correctIndex, explanation}]
+let currentAnswers = [];       // parallel array of chosen index or null
+let currentQIndex = 0;
+let currentQuizId = null;
+let currentQuizTitle = '';
+let isReviewOfSaved = false;   // true when this results screen came from loadQuizId
+
+function showScreen(name){
+  ['qz-setup','qz-loading','qz-error','qz-play','qz-results'].forEach(id=>{
+    document.getElementById(id).style.display = (id===name) ? '' : 'none';
   });
-  function goBackFromQuiz(){
-    parent.postMessage(quizSubject
-      ? { nav:'quiz-history', presetSubject: quizSubject }
-      : { nav:'home' }, '*');
+}
+
+/* ---------------- course list / setup screen ---------------- */
+async function loadCourseNamesQZ(){
+  if(!quizUser) return [];
+  try{
+    const rec = await window.storage.get('courses:' + quizUser.sub, false);
+    if(!rec) return [];
+    const v = JSON.parse(rec.value);
+    return Array.isArray(v) ? v : [];
+  }catch(e){ return []; }
+}
+async function populateSetupScreen(){
+  const sel = document.getElementById('qz-subject-select');
+  if(scopedSubject){
+    document.getElementById('qz-subject-row').style.display = 'none';
+    document.getElementById('qz-setup-title').textContent = 'New quiz for ' + scopedSubject;
+    document.getElementById('qz-setup-sub').textContent = "I'll pull questions from what you've studied for " + scopedSubject + ' — or add a focus topic below to narrow it down.';
+  } else {
+    document.getElementById('qz-subject-row').style.display = '';
+    document.getElementById('qz-setup-title').textContent = "Let's quiz you";
+    document.getElementById('qz-setup-sub').textContent = "Pick a course or a topic and I'll put together some questions from what you've studied.";
+    sel.innerHTML = '<option value="">Any topic (no course)</option>';
+    const names = await loadCourseNamesQZ();
+    names.forEach(n=>{
+      const o = document.createElement('option'); o.value = n; o.textContent = n; sel.appendChild(o);
+    });
+    if(!quizUser){
+      const note = document.getElementById('qz-setup-note');
+      note.style.display = '';
+      note.textContent = "You're not signed in — this quiz won't be saved when you finish it, and you can still take it right now.";
+    }
   }
-  document.getElementById('quiz-back-btn').addEventListener('click', goBackFromQuiz);
+}
+
+document.querySelectorAll('.count-pill').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.count-pill').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedCount = parseInt(btn.dataset.n, 10) || 8;
+  });
+});
+
+function backToSetup(){
+  showScreen('qz-setup');
+  populateSetupScreen();
+}
+
+/* ---------------- gathering study material ---------------- */
+async function gatherMaterialForSubject(subject){
+  if(!quizUser || !subject) return '';
+  const parts = [];
+  try{
+    const sess = await window.storage.list('session:' + quizUser.sub + ':', false);
+    for(const key of (sess.keys || [])){
+      try{
+        const rec = await window.storage.get(key, false); if(!rec) continue;
+        const item = JSON.parse(rec.value);
+        if((item.subject || 'Unsorted') !== subject) continue;
+        let snippet = (item.title ? item.title + '. ' : '') + (item.currentTopicLabel ? item.currentTopicLabel + '. ' : '');
+        (item.conversationHistory || []).forEach(m=>{
+          if(m.role === 'assistant'){
+            try{ const p = JSON.parse(m.content); if(p && p.speech) snippet += p.speech + ' '; } catch(e){}
+          }
+        });
+        if(snippet.trim()) parts.push(snippet.trim());
+      } catch(e){}
+    }
+  } catch(e){ console.warn('Gathering lessons for quiz failed:', e); }
+  try{
+    const sums = await window.storage.list('summary:' + quizUser.sub + ':', false);
+    for(const key of (sums.keys || [])){
+      try{
+        const rec = await window.storage.get(key, false); if(!rec) continue;
+        const item = JSON.parse(rec.value);
+        if((item.subject || 'Unsorted') !== subject) continue;
+        const div = document.createElement('div'); div.innerHTML = item.html || '';
+        const text = (div.textContent || '').replace(/\s+/g, ' ').trim();
+        if(text) parts.push((item.title ? item.title + '. ' : '') + text);
+      } catch(e){}
+    }
+  } catch(e){ console.warn('Gathering summaries for quiz failed:', e); }
+  let combined = parts.join('\n\n').trim();
+  if(combined.length > 7000) combined = combined.slice(0, 7000);
+  return combined;
+}
+
+/* ---------------- AI generation ---------------- */
+const QUIZ_SYSTEM_PROMPT = `You are Chalkline's quiz generator. Given study material and/or a topic, write a multiple-choice quiz at genuine university level: precise, unambiguous, testing real understanding rather than trivia.
+
+Return ONLY a JSON object, no markdown fences, no prose outside the JSON, in exactly this shape:
+{"questions":[{"question":"...","options":["...","...","...","..."],"correctIndex":0,"explanation":"..."}]}
+
+Rules:
+- Produce exactly {{N}} questions.
+- Each question has exactly 4 options: plausible distractors (not obviously wrong) and one clearly correct answer.
+- Vary correctIndex across questions (0, 1, 2 or 3) — do not put the correct answer in the same position every time.
+- "explanation" is 1-2 sentences: state why the correct answer is right and briefly why the closest distractor is wrong.
+- Base questions on the study material given when material is provided. If only a bare topic is given, draw on solid general knowledge of that subject at course level.
+- Keep each question and option concise — one line each, no run-on sentences.`;
+
+function stripFencesQZ(t){
+  t = String(t || '').trim();
+  t = t.replace(/^```(json)?/i, '').replace(/```$/,'').trim();
+  return t;
+}
+function extractJsonObjectQZ(t){
+  const s = t.indexOf('{'); const e = t.lastIndexOf('}');
+  if(s === -1 || e === -1 || e < s) return null;
+  return t.slice(s, e+1);
+}
+async function callQuizGemini(sys, user){
+  try{
+    const r = await fetch(WORKER_URL + '/gemini', {
+      method:'POST', headers: Object.assign({'Content-Type':'application/json'}, quizAuthHeaders()),
+      body: JSON.stringify({
+        system_instruction:{ parts:[{ text: sys }] },
+        contents:[{ role:'user', parts:[{ text: user }] }],
+        generationConfig:{ maxOutputTokens: 3500, thinkingConfig:{ thinkingLevel:'low' } }
+      })
+    });
+    const data = await r.json();
+    const part = r.ok && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts;
+    const txt = part && part.map(x=>x.text||'').join('').trim();
+    return txt || null;
+  } catch(e){ console.warn('Quiz: Gemini failed', e); return null; }
+}
+async function callQuizGroq(sys, user){
+  try{
+    const r = await fetch(WORKER_URL + '/groq', {
+      method:'POST', headers: Object.assign({'Content-Type':'application/json'}, quizAuthHeaders()),
+      body: JSON.stringify({
+        model:'openai/gpt-oss-120b', response_format:{ type:'json_object' }, max_tokens: 3500,
+        messages:[{ role:'system', content: sys }, { role:'user', content: user }]
+      })
+    });
+    const data = await r.json();
+    const txt = r.ok && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+    return txt ? String(txt).trim() : null;
+  } catch(e){ console.warn('Quiz: Groq failed', e); return null; }
+}
+async function generateQuizQuestions(sys, user){
+  let raw = await callQuizGemini(sys, user);
+  if(!raw) raw = await callQuizGroq(sys, user);
+  if(!raw) return null;
+  const jsonStr = stripFencesQZ(raw);
+  let obj = null;
+  try{ obj = JSON.parse(jsonStr); }
+  catch(e){
+    const extracted = extractJsonObjectQZ(jsonStr);
+    if(extracted){ try{ obj = JSON.parse(extracted); } catch(e2){} }
+  }
+  if(!obj || !Array.isArray(obj.questions)) return null;
+  const qs = obj.questions.filter(q => q && q.question && Array.isArray(q.options) && q.options.length===4 &&
+    typeof q.correctIndex === 'number' && q.correctIndex >= 0 && q.correctIndex < 4);
+  return qs.length ? qs : null;
+}
+function shuffleOptionsQZ(q){
+  const order = q.options.map((_,i)=>i);
+  for(let i=order.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const t=order[i]; order[i]=order[j]; order[j]=t; }
+  return {
+    question: q.question,
+    explanation: q.explanation || '',
+    options: order.map(i=>q.options[i]),
+    correctIndex: order.indexOf(q.correctIndex)
+  };
+}
+
+const LOADING_LINES = ['Writing your questions…','Mixing in some tricky distractors…','Double-checking the answer key…','Almost ready…'];
+let loadingLineTimer = null;
+function startLoadingAnimation(){
+  let i = 0;
+  document.getElementById('qz-loading-line').textContent = LOADING_LINES[0];
+  clearInterval(loadingLineTimer);
+  loadingLineTimer = setInterval(()=>{
+    i = (i+1) % LOADING_LINES.length;
+    document.getElementById('qz-loading-line').textContent = LOADING_LINES[i];
+  }, 1800);
+}
+function stopLoadingAnimation(){ clearInterval(loadingLineTimer); }
+
+let lastGenParams = null; // { subject, topic, count } used by Retake
+async function startGenerateQuiz(){
+  const subject = scopedSubject || (document.getElementById('qz-subject-select').value || null);
+  const topic = document.getElementById('qz-topic-input').value.trim();
+  if(!subject && !topic){
+    const note = document.getElementById('qz-setup-note');
+    note.style.display = '';
+    note.textContent = 'Pick a course or type a topic first — I need at least one to know what to quiz you on.';
+    return;
+  }
+  lastGenParams = { subject, topic, count: selectedCount };
+  await runGeneration(lastGenParams);
+}
+async function retakeQuiz(){
+  if(!lastGenParams) { backToSetup(); return; }
+  await runGeneration(lastGenParams);
+}
+async function runGeneration(params){
+  showScreen('qz-loading');
+  startLoadingAnimation();
+  const material = params.subject ? await gatherMaterialForSubject(params.subject) : '';
+  const sys = QUIZ_SYSTEM_PROMPT.replace('{{N}}', String(params.count));
+  let userMsg;
+  if(material){
+    userMsg = 'Study material for "' + params.subject + '"' + (params.topic ? ' (focus especially on: ' + params.topic + ')' : '') +
+      ':\n\n' + material + '\n\nWrite the quiz from this material.';
+  } else {
+    userMsg = 'Write a quiz on: ' + (params.topic || params.subject) + '.';
+  }
+  const qs = await generateQuizQuestions(sys, userMsg);
+  stopLoadingAnimation();
+  if(!qs){
+    showScreen('qz-error');
+    return;
+  }
+  currentSubject = params.subject || null;
+  currentTopic = params.topic || '';
+  currentQuestions = qs.map(shuffleOptionsQZ);
+  currentAnswers = currentQuestions.map(()=>null);
+  currentQIndex = 0;
+  currentQuizId = uid();
+  currentQuizTitle = params.topic || params.subject || 'Quiz';
+  isReviewOfSaved = false;
+  showScreen('qz-play');
+  renderQuestion();
+}
+
+/* ---------------- quiz-taking ---------------- */
+function renderQuestion(){
+  const total = currentQuestions.length;
+  document.getElementById('qz-progress-label').textContent = 'Question ' + (currentQIndex+1) + ' of ' + total;
+  document.getElementById('qz-progress-fill').style.width = Math.round((currentQIndex/total)*100) + '%';
+  document.getElementById('qz-next-btn').style.display = 'none';
+  const q = currentQuestions[currentQIndex];
+  const card = document.getElementById('qz-card');
+  card.innerHTML = '';
+  const qEl = document.createElement('div'); qEl.className = 'quiz-q'; qEl.textContent = q.question;
+  card.appendChild(qEl);
+  const explainEl = document.createElement('div'); explainEl.className = 'quiz-explain'; explainEl.textContent = q.explanation || '';
+  const already = currentAnswers[currentQIndex];
+  q.options.forEach((opt, idx)=>{
+    const b = document.createElement('button'); b.className = 'quiz-opt'; b.textContent = opt; b.type = 'button';
+    if(already !== null){
+      b.disabled = true;
+      if(idx === q.correctIndex) b.classList.add('correct');
+      else if(idx === already) b.classList.add('incorrect');
+    }
+    b.addEventListener('click', ()=> selectAnswer(idx));
+    card.appendChild(b);
+  });
+  card.appendChild(explainEl);
+  if(already !== null){
+    explainEl.classList.add('show');
+    document.getElementById('qz-next-btn').style.display = '';
+    document.getElementById('qz-next-btn').textContent = (currentQIndex === total-1) ? 'See results →' : 'Next question →';
+  }
+}
+function selectAnswer(idx){
+  if(currentAnswers[currentQIndex] !== null) return;
+  currentAnswers[currentQIndex] = idx;
+  renderQuestion();
+}
+function goNextQuestion(){
+  if(currentQIndex < currentQuestions.length - 1){
+    currentQIndex++;
+    renderQuestion();
+  } else {
+    finishQuiz();
+  }
+}
+
+/* ---------------- results / review ---------------- */
+function scoreFromAnswers(){
+  let score = 0;
+  currentQuestions.forEach((q,i)=>{ if(currentAnswers[i] === q.correctIndex) score++; });
+  return score;
+}
+function resultsMessage(pct){
+  if(pct >= 90) return 'Outstanding — that material has really stuck.';
+  if(pct >= 70) return 'Solid work. A couple of spots to revisit below.';
+  if(pct >= 50) return "Good start — a bit more practice will help this stick.";
+  return "Let's go over this again — review each question below.";
+}
+function renderReviewList(){
+  const list = document.getElementById('qz-review-list');
+  list.innerHTML = '';
+  currentQuestions.forEach((q,i)=>{
+    const chosen = currentAnswers[i];
+    const item = document.createElement('div'); item.className = 'review-item';
+    const rq = document.createElement('div'); rq.className = 'rq'; rq.textContent = (i+1) + '. ' + q.question;
+    item.appendChild(rq);
+    q.options.forEach((opt, idx)=>{
+      const ro = document.createElement('div'); ro.className = 'ro'; ro.textContent = opt;
+      if(idx === q.correctIndex) ro.classList.add('correct');
+      else if(idx === chosen) ro.classList.add('chosen-wrong');
+      item.appendChild(ro);
+    });
+    if(q.explanation){
+      const rexp = document.createElement('div'); rexp.className = 'rexp'; rexp.textContent = q.explanation;
+      item.appendChild(rexp);
+    }
+    list.appendChild(item);
+  });
+}
+async function finishQuiz(){
+  const total = currentQuestions.length;
+  const score = scoreFromAnswers();
+  const pct = total ? Math.round((score/total)*100) : 0;
+  document.getElementById('qz-score-text').textContent = score + '/' + total;
+  document.getElementById('qz-results-title').textContent = currentQuizTitle;
+  document.getElementById('qz-results-sub').textContent = resultsMessage(pct) + (currentSubject ? ' (' + currentSubject + ')' : '');
+  document.getElementById('qz-retake-btn').style.display = '';
+  renderReviewList();
+  showScreen('qz-results');
+  const saveNote = document.getElementById('qz-save-note');
+  if(!quizUser){
+    saveNote.textContent = "Not saved — sign in to keep your quiz history.";
+  } else {
+    const record = {
+      id: currentQuizId,
+      title: currentQuizTitle,
+      subject: currentSubject || 'Unsorted',
+      savedAt: Date.now(),
+      score, total,
+      questions: currentQuestions.map((q,i)=>({
+        question:q.question, options:q.options, correctIndex:q.correctIndex,
+        explanation:q.explanation||'', chosen: currentAnswers[i]
+      }))
+    };
+    try{
+      const saved = await window.storage.set('quiz:' + quizUser.sub + ':' + currentQuizId, JSON.stringify(record), false);
+      saveNote.textContent = saved ? ('Saved' + (currentSubject ? ' to ' + currentSubject : '') + '.') : "Couldn't save this quiz (storage may be full).";
+      if(saved){ try{ parent.postMessage({ syncSoon:true }, '*'); }catch(e){} }
+    } catch(e){
+      console.error('Saving quiz failed:', e);
+      saveNote.textContent = "Couldn't save this quiz.";
+    }
+  }
+}
+
+/* ---------------- loading a saved quiz for review ---------------- */
+async function loadSavedQuiz(id){
+  showScreen('qz-loading');
+  document.getElementById('qz-loading-line').textContent = 'Loading your quiz…';
+  if(!quizUser){ showScreen('qz-setup'); return; }
+  try{
+    const rec = await window.storage.get('quiz:' + quizUser.sub + ':' + id, false);
+    if(!rec) throw new Error('not found');
+    const item = JSON.parse(rec.value);
+    currentQuizId = item.id;
+    currentQuizTitle = item.title || 'Quiz';
+    currentSubject = item.subject && item.subject !== 'Unsorted' ? item.subject : null;
+    currentQuestions = (item.questions||[]).map(q=>({ question:q.question, options:q.options, correctIndex:q.correctIndex, explanation:q.explanation||'' }));
+    currentAnswers = (item.questions||[]).map(q=> (typeof q.chosen === 'number') ? q.chosen : null);
+    lastGenParams = { subject: currentSubject, topic: currentQuizTitle !== currentSubject ? currentQuizTitle : '', count: currentQuestions.length || 8 };
+    isReviewOfSaved = true;
+    const total = currentQuestions.length;
+    const score = (typeof item.score === 'number') ? item.score : scoreFromAnswers();
+    document.getElementById('qz-score-text').textContent = score + '/' + (item.total||total);
+    document.getElementById('qz-results-title').textContent = currentQuizTitle;
+    document.getElementById('qz-results-sub').textContent = 'Taken ' + new Date(item.savedAt).toLocaleDateString() + (currentSubject ? ' · ' + currentSubject : '');
+    document.getElementById('qz-save-note').textContent = 'Reviewing a saved quiz.';
+    document.getElementById('qz-retake-btn').style.display = '';
+    renderReviewList();
+    showScreen('qz-results');
+  } catch(e){
+    console.error('Loading saved quiz failed:', e);
+    showScreen('qz-setup');
+    populateSetupScreen();
+  }
+}
+
+/* ---------------- navigation ---------------- */
+function goToQuizzes(){
+  parent.postMessage(scopedSubject ? { nav:'quiz-history', presetSubject: scopedSubject } : { nav:'quiz-history' }, '*');
+}
+
+/* ---------------- messages from the shell ---------------- */
+window.addEventListener('message', (e)=>{
+  const d = e.data;
+  if(!d) return;
+  if(d.chalklineAuth){
+    quizUser = d.signedIn ? d.user : null;
+    if(!currentQuestions.length) populateSetupScreen();
+    return;
+  }
+  if(d.loadQuizId){
+    loadSavedQuiz(d.loadQuizId);
+    return;
+  }
+  if(d.presetSubject){
+    scopedSubject = d.presetSubject;
+    document.getElementById('qz-back-label').textContent = 'Back to ' + scopedSubject + ' quizzes';
+    populateSetupScreen();
+    return;
+  }
+});
+
+populateSetupScreen();
+
 <\/script>
 </body>
 </html>
 </script>
+
 
 <script>
 
