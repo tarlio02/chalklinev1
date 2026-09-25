@@ -813,6 +813,24 @@ body.landing-active #shell-auth{ display:none; }
 #ld-auth-msg.ld-err{ color:#C0392B; }
 #ld-auth-msg.ld-ok{ color:#1E7A4C; }
 #ld-modal-name-row{ display:none; }
+
+#ld-legal-overlay{ position:fixed; inset:0; z-index:9700; display:none; align-items:center; justify-content:center; background:rgba(42,36,16,0.45); padding:20px; }
+#ld-legal-overlay.open{ display:flex; }
+#ld-legal-modal{ background:#fff; width:100%; max-width:620px; max-height:calc(100vh - 40px); max-height:calc(100dvh - 40px); border-radius:20px; padding:26px 26px 8px; position:relative; display:flex; flex-direction:column; box-shadow:0 20px 60px rgba(42,36,16,0.25); }
+#ld-legal-modal .ld-close{ position:absolute; top:14px; right:16px; border:none; background:none; font-size:16px; color:#8A8267; cursor:pointer; z-index:1; }
+#ld-legal-tabs{ display:flex; gap:8px; margin:6px 0 16px; border-bottom:1px solid #ECE3C8; padding-bottom:0; }
+.ld-legal-tab{ font-family:inherit; font-size:14px; font-weight:600; color:#8A8267; background:none; border:none; padding:8px 4px 12px; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; }
+.ld-legal-tab.active{ color:#2A2410; border-bottom-color:#2E7DBE; }
+#ld-legal-body{ overflow-y:auto; padding-right:6px; padding-bottom:22px; }
+.ld-legal-panel{ display:none; }
+.ld-legal-panel.active{ display:block; }
+.ld-legal-panel h2{ font-family:'Fraunces','Source Serif 4',Georgia,serif; font-size:23px; color:#2A2410; margin-bottom:4px; }
+.ld-legal-panel h3{ font-family:'Fraunces','Source Serif 4',Georgia,serif; font-size:16px; color:#2A2410; margin:20px 0 6px; }
+.ld-legal-updated{ font-size:12.5px; color:#8A8267; margin-bottom:16px; }
+.ld-legal-panel p{ font-size:14px; line-height:1.65; color:#3A3420; margin-bottom:10px; }
+.ld-legal-panel ul{ margin:0 0 12px 20px; padding:0; }
+.ld-legal-panel li{ font-size:14px; line-height:1.6; color:#3A3420; margin-bottom:6px; }
+.ld-legal-panel strong{ color:#2A2410; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 </head>
@@ -1040,8 +1058,8 @@ body.landing-active #shell-auth{ display:none; }
       </div>
       <div class="ld-foot-col">
         <h5>Legal</h5>
-        <a href="#">Privacy</a>
-        <a href="#">Terms</a>
+        <a href="#" id="ld-foot-privacy">Privacy</a>
+        <a href="#" id="ld-foot-terms">Terms</a>
       </div>
     </div>
   </div>
@@ -1071,6 +1089,127 @@ body.landing-active #shell-auth{ display:none; }
     </form>
     <div id="ld-auth-toggle">New here? <a id="ld-toggle-link">Actually, I have an account</a></div>
     <div id="ld-auth-msg"></div>
+  </div>
+</div>
+
+<div id="ld-legal-overlay">
+  <div id="ld-legal-modal">
+    <button class="ld-close" id="ld-legal-close" aria-label="Close">✕</button>
+    <div id="ld-legal-tabs">
+      <button type="button" class="ld-legal-tab" id="ld-legal-tab-privacy">Privacy Policy</button>
+      <button type="button" class="ld-legal-tab" id="ld-legal-tab-terms">Terms of Service</button>
+    </div>
+    <div id="ld-legal-body">
+
+      <div id="ld-legal-privacy" class="ld-legal-panel">
+        <h2>Privacy Policy</h2>
+        <p class="ld-legal-updated">Last updated: 25 September 2026</p>
+
+        <p>This Privacy Policy explains what information Chalkline ("Chalkline", "we", "us") collects when you use the app, why we collect it, and what choices you have. By using Chalkline you agree to the practices described here.</p>
+
+        <h3>1. Information we collect</h3>
+        <p><strong>Account information.</strong> When you sign in with Google, we receive your name, email address and profile picture from Google. We use this only to create and identify your account and to personalise your tutor's greeting — we never receive or store your Google password.</p>
+        <p><strong>Content you create or upload.</strong> This includes topics you type in, notes or chapters you upload, and the lessons, whiteboard sessions, summaries, quizzes and course lists Chalkline generates for you. This content is stored so your work is saved across devices.</p>
+        <p><strong>Usage and device data.</strong> We store app settings and session data locally on your device (using your browser's localStorage) so the app works offline and loads quickly. Signed-in data is synced to our servers so it follows you between devices.</p>
+        <p><strong>Plan and billing information.</strong> If you upgrade to a paid plan, our payment provider processes your payment details directly — Chalkline itself never sees or stores your full card number.</p>
+
+        <h3>2. How we use your information</h3>
+        <ul>
+          <li>To operate your account, sign you in, and sync your lessons, notes, quizzes and settings across devices</li>
+          <li>To generate AI lessons, summaries and quizzes based on the topics and materials you provide</li>
+          <li>To personalise how your tutor addresses you and paces lessons</li>
+          <li>To maintain, secure and improve Chalkline</li>
+          <li>To communicate with you about your account, such as billing or important changes to this policy</li>
+        </ul>
+
+        <h3>3. Who we share it with</h3>
+        <p>We do not sell your personal information. We share data only with the service providers that make Chalkline work:</p>
+        <ul>
+          <li><strong>Google</strong> — for sign-in authentication</li>
+          <li><strong>Supabase</strong> — our authentication and database provider, which stores your account record and synced content</li>
+          <li><strong>Our hosting/AI infrastructure</strong> — to process your lesson requests and generate whiteboard content, summaries and quizzes</li>
+          <li><strong>Our payment provider</strong> — only if and when you subscribe to a paid plan</li>
+        </ul>
+        <p>We may also disclose information if required by law, or to protect the rights, safety and security of Chalkline or its users.</p>
+
+        <h3>4. Where your data lives</h3>
+        <p>Some data (session details, drafts, app settings) is stored locally on your own device. Signed-in account content is stored on our servers so it can sync across your devices. If you sign out or clear your browser storage, locally-stored data is removed from that device, but synced content remains in your account until you delete it.</p>
+
+        <h3>5. Your choices and rights</h3>
+        <ul>
+          <li>You can edit your profile name at any time in Settings</li>
+          <li>You can delete individual lessons, notes, summaries or quizzes from within the app</li>
+          <li>You can request deletion of your entire account and associated data by contacting us (below)</li>
+          <li>You can sign out at any time, which clears locally-stored session data from that device</li>
+        </ul>
+        <p>Depending on where you live, you may have additional rights under laws such as the GDPR, POPIA or the CCPA/CPRA — including the right to access, correct, or export your data. Contact us to exercise these rights.</p>
+
+        <h3>6. Children's privacy</h3>
+        <p>Chalkline is intended for students of secondary-school age and above. We do not knowingly collect personal information from children under 13 (or the minimum age required in your country) without appropriate consent.</p>
+
+        <h3>7. Data retention</h3>
+        <p>We retain your account and content for as long as your account is active. If you delete your account, we delete or anonymise your personal data within a reasonable period, except where we must keep it to comply with legal obligations.</p>
+
+        <h3>8. Changes to this policy</h3>
+        <p>We may update this Privacy Policy from time to time. If we make material changes, we'll let you know in the app or by email before they take effect.</p>
+
+        <h3>9. Contact us</h3>
+        <p>Questions about this policy or your data? Reach out via the contact details in the app's Settings page.</p>
+      </div>
+
+      <div id="ld-legal-terms" class="ld-legal-panel">
+        <h2>Terms of Service</h2>
+        <p class="ld-legal-updated">Last updated: 25 September 2026</p>
+
+        <p>These Terms of Service ("Terms") govern your use of Chalkline. By creating an account or using the app, you agree to these Terms. If you don't agree, please don't use Chalkline.</p>
+
+        <h3>1. Your account</h3>
+        <p>You must sign in to save and sync lessons, notes, summaries and quizzes across devices. You're responsible for keeping your account credentials secure and for all activity under your account. Let us know right away if you suspect unauthorised use.</p>
+
+        <h3>2. AI-generated content</h3>
+        <p>Chalkline uses artificial intelligence to generate lessons, whiteboard diagrams, summaries, quizzes and chat responses based on topics you choose or materials you upload. This content is created automatically and, <strong>while we aim for accuracy, it may contain errors, omissions or oversimplifications.</strong> Chalkline is a study aid, not a substitute for your course materials, textbooks, or instructors. You should independently verify anything important — especially before an exam or assignment — and use your own judgment when relying on AI-generated explanations.</p>
+
+        <h3>3. Acceptable use</h3>
+        <p>You agree not to:</p>
+        <ul>
+          <li>Upload content you don't have the right to share, or that infringes someone else's copyright</li>
+          <li>Use Chalkline to generate or spread illegal, harmful, or academically dishonest content (for example, submitting AI-generated work as your own where your institution's rules prohibit it — you are responsible for complying with your school's academic integrity policies)</li>
+          <li>Attempt to abuse, overload, reverse-engineer, or interfere with Chalkline's systems</li>
+          <li>Use another person's account without permission</li>
+        </ul>
+
+        <h3>4. Your content and our content</h3>
+        <p>You keep ownership of the materials you upload (your notes, chapters, etc.). By uploading them, you give us permission to process and store them solely to provide the Chalkline service to you. Lessons, diagrams, summaries and quizzes generated for you are yours to use for your own studying; Chalkline's underlying software, design, and branding remain our property.</p>
+
+        <h3>5. Plans and billing</h3>
+        <p>Chalkline offers a Free plan and may offer paid plans with additional features. If you subscribe to a paid plan:</p>
+        <ul>
+          <li>Charges are billed in advance on a recurring basis until you cancel</li>
+          <li>You can cancel at any time from Settings → Plan & billing; you'll keep access until the end of the current billing period</li>
+          <li>Fees are generally non-refundable except where required by law</li>
+          <li>We may change our prices, giving you reasonable notice before any change applies to you</li>
+        </ul>
+
+        <h3>6. Termination</h3>
+        <p>You may stop using Chalkline and delete your account at any time. We may suspend or terminate accounts that violate these Terms, misuse the service, or where we're required to do so by law.</p>
+
+        <h3>7. Disclaimers</h3>
+        <p>Chalkline is provided "as is" and "as available." We don't guarantee that the service will be uninterrupted, error-free, or that AI-generated content will always be accurate or suitable for your specific course or exam requirements.</p>
+
+        <h3>8. Limitation of liability</h3>
+        <p>To the maximum extent permitted by law, Chalkline and its team are not liable for indirect, incidental, or consequential damages arising from your use of the app, including academic outcomes, lost data, or reliance on AI-generated content. Our total liability for any claim is limited to the amount you paid us in the 12 months before the claim arose (or a nominal amount if you're on the Free plan).</p>
+
+        <h3>9. Changes to these Terms</h3>
+        <p>We may update these Terms from time to time. Continuing to use Chalkline after changes take effect means you accept the updated Terms.</p>
+
+        <h3>10. Governing law</h3>
+        <p>These Terms are governed by the laws of the jurisdiction in which Chalkline operates, without regard to conflict-of-law principles.</p>
+
+        <h3>11. Contact us</h3>
+        <p>Questions about these Terms? Reach out via the contact details in the app's Settings page.</p>
+      </div>
+
+    </div>
   </div>
 </div>
 
@@ -16770,6 +16909,27 @@ setTimeout(()=>{ try{ window.ChalklineTour && window.ChalklineTour.resume(); }ca
   document.getElementById('ld-foot-go-app').addEventListener('click', (e)=>{ e.preventDefault(); openLdModal(); });
   document.getElementById('ld-modal-close').addEventListener('click', closeLdModal);
   document.getElementById('ld-overlay').addEventListener('click', (e)=>{ if(e.target.id === 'ld-overlay') closeLdModal(); });
+
+  // ---- legal modal (Privacy Policy / Terms of Service) ----
+  function openLdLegal(tab){
+    document.getElementById('ld-legal-overlay').classList.add('open');
+    ldSetLegalTab(tab);
+  }
+  function closeLdLegal(){ document.getElementById('ld-legal-overlay').classList.remove('open'); }
+  function ldSetLegalTab(tab){
+    const isPrivacy = tab === 'privacy';
+    document.getElementById('ld-legal-tab-privacy').classList.toggle('active', isPrivacy);
+    document.getElementById('ld-legal-tab-terms').classList.toggle('active', !isPrivacy);
+    document.getElementById('ld-legal-privacy').classList.toggle('active', isPrivacy);
+    document.getElementById('ld-legal-terms').classList.toggle('active', !isPrivacy);
+    document.getElementById('ld-legal-body').scrollTop = 0;
+  }
+  document.getElementById('ld-foot-privacy').addEventListener('click', (e)=>{ e.preventDefault(); openLdLegal('privacy'); });
+  document.getElementById('ld-foot-terms').addEventListener('click', (e)=>{ e.preventDefault(); openLdLegal('terms'); });
+  document.getElementById('ld-legal-tab-privacy').addEventListener('click', ()=> ldSetLegalTab('privacy'));
+  document.getElementById('ld-legal-tab-terms').addEventListener('click', ()=> ldSetLegalTab('terms'));
+  document.getElementById('ld-legal-close').addEventListener('click', closeLdLegal);
+  document.getElementById('ld-legal-overlay').addEventListener('click', (e)=>{ if(e.target.id === 'ld-legal-overlay') closeLdLegal(); });
 
   // ---- scale the laptop mockup to fit any screen width ----
   function ldFit(){
