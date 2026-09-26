@@ -14431,15 +14431,39 @@ input, textarea, .note-textbox{ -webkit-user-select:text; user-select:text; }
   border:none; background:rgba(0,0,0,0.45); color:#fff; width:22px; height:22px;
   border-radius:6px; cursor:pointer; font-size:11px;
 }
+.nt-box{ position:absolute; }
 .note-textbox{
-  position:absolute; min-width:36px; min-height:22px; font-family:'Source Serif 4',serif;
+  position:relative; width:100%; box-sizing:border-box; min-width:36px; min-height:22px;
+  font-family:'Source Serif 4',serif;
   font-size:16px; line-height:1.4; color:var(--ink); background:transparent; outline:none;
   padding:2px 4px; border:1px dashed transparent; white-space:pre-wrap; word-break:break-word;
   cursor:text;
 }
-.note-textbox:hover{ border-color:rgba(0,0,0,0.08); }
+.nt-box:hover .note-textbox{ border-color:rgba(0,0,0,0.08); }
 .note-textbox:focus{ border-color:var(--accent-soft); background:rgba(255,255,255,0.72); }
 .note-textbox:empty:before{ content:attr(data-placeholder); color:#C9C2AA; }
+
+/* ---------- drag/resize handles for text, image and table boxes ----------
+   Siblings of the box's actual content (never children of a contentEditable
+   div — see attachBoxHandles), shown on hover/focus so an idle page of
+   notes stays clean. */
+.nt-handle{
+  position:absolute; width:18px; height:18px; border-radius:5px;
+  background:var(--accent, #8a6d3b); opacity:0; transition:opacity .12s;
+  touch-action:none; z-index:6;
+}
+.nt-box:hover .nt-handle, .nt-box:focus-within .nt-handle{ opacity:0.82; }
+.nt-handle-move{ top:-9px; left:-9px; cursor:move; }
+.nt-handle-move::before{
+  content:''; position:absolute; inset:5px; background:#fff; opacity:0.9;
+  -webkit-mask:radial-gradient(circle,#000 1.4px,transparent 1.5px) 0 0/6px 6px;
+          mask:radial-gradient(circle,#000 1.4px,transparent 1.5px) 0 0/6px 6px;
+}
+.nt-handle-resize{ bottom:-9px; right:-9px; cursor:nwse-resize; }
+.nt-handle-resize::before{
+  content:''; position:absolute; right:4px; bottom:4px; width:8px; height:8px;
+  border-right:2px solid #fff; border-bottom:2px solid #fff; opacity:0.9;
+}
 
 .ne-add-page-row{ display:flex; justify-content:center; }
 .ne-add-page-btn{
@@ -15272,7 +15296,8 @@ function insertChecklistItem(){
   const tb = { id: uid(), x: 24, y: 24, w: 240, text: '☐ ', fontSize: newTextFontSize };
   ctx.page.textBoxes.push(tb);
   renderTextBoxes(ctx.layer, ctx.page);
-  const el = ctx.layer.lastChild;
+  const box = ctx.layer.lastChild;
+  const el = box && box.querySelector('.note-textbox');
   if(el){
     el.focus();
     const range = document.createRange(), sel = window.getSelection();
@@ -15468,34 +15493,117 @@ function redrawInk(canvas, page){
 /* =================================================================
    TEXT BOXES
    ================================================================= */
+// Adds a drag handle (top-left, moves the box) and/or a resize handle
+// (bottom-right, adjusts its width) to `box` — the absolutely-positioned
+// wrapper around a text/image/table's actual content. The handles live
+// as siblings of that content rather than children of it, specifically
+// so they never end up inside a contentEditable text box: a child living
+// inside a contentEditable div shows up in el.textContent, which would
+// otherwise leak the handle's own markup into the saved note text.
+function attachBoxHandles(box, tb, layerEl, opts){
+  opts = opts || {};
+
+  // Converts a pointer-movement delta from client pixels into the note's
+  // own logical coordinate space (the same space tb.x/y/w are stored in),
+  // using the text layer's on-screen size vs. the page's logical
+  // PAGE_W/PAGE_H — the same scale factor notePointFromEvent() uses for
+  // ink strokes, so a box drags/resizes at the same rate the pointer moves
+  // regardless of the current zoom level.
+  function scaleFactors(){
+    const rect = layerEl.getBoundingClientRect();
+    return { sx: PAGE_W / Math.max(1, rect.width), sy: PAGE_H / Math.max(1, rect.height) };
+  }
+
+  function makeHandle(kind, className){
+    const h = document.createElement('div');
+    h.className = 'nt-handle ' + className;
+    h.contentEditable = 'false';
+    h.setAttribute('aria-hidden', 'true');
+    let active = false, startX = 0, startY = 0, startBoxX = 0, startBoxY = 0, startW = 0;
+    h.addEventListener('pointerdown', (e)=>{
+      // Never let this reach the box's own contentEditable content (which
+      // would move the text cursor) or the ink canvas underneath (which
+      // would start a stroke or place a new text box).
+      e.stopPropagation();
+      e.preventDefault();
+      h.setPointerCapture(e.pointerId);
+      active = true;
+      startX = e.clientX; startY = e.clientY;
+      startBoxX = tb.x; startBoxY = tb.y;
+      startW = tb.w || box.offsetWidth;
+    });
+    h.addEventListener('pointermove', (e)=>{
+      if(!active) return;
+      e.stopPropagation();
+      e.preventDefault();
+      const { sx, sy } = scaleFactors();
+      const dx = (e.clientX - startX) * sx;
+      const dy = (e.clientY - startY) * sy;
+      if(kind === 'move'){
+        tb.x = Math.max(0, startBoxX + dx);
+        tb.y = Math.max(0, startBoxY + dy);
+        box.style.left = tb.x + 'px';
+        box.style.top = tb.y + 'px';
+      } else {
+        tb.w = Math.max(60, startW + dx);
+        box.style.width = tb.w + 'px';
+      }
+    });
+    function end(e){
+      if(!active) return;
+      active = false;
+      try{ h.releasePointerCapture(e.pointerId); }catch(err){}
+      scheduleSave();
+    }
+    h.addEventListener('pointerup', end);
+    h.addEventListener('pointercancel', end);
+    return h;
+  }
+
+  if(opts.move) box.appendChild(makeHandle('move', 'nt-handle-move'));
+  if(opts.resize) box.appendChild(makeHandle('resize', 'nt-handle-resize'));
+}
+
 function renderTextBoxes(layerEl, page){
   layerEl.innerHTML = '';
   page.textBoxes.forEach(tb=>{
-    const el = document.createElement('div');
-    el.style.left = tb.x + 'px';
-    el.style.top = tb.y + 'px';
-    el.style.width = (tb.w || 200) + 'px';
+    // `box` is the absolutely-positioned wrapper carrying tb.x/y/w; the
+    // actual content (text, image, or table) sits inside it at 100% width
+    // so resizing the box resizes the content, and drag/resize handles are
+    // attached to the wrapper, never to the contentEditable content itself.
+    const box = document.createElement('div');
+    box.className = 'nt-box';
+    box.style.left = tb.x + 'px';
+    box.style.top = tb.y + 'px';
+    box.style.width = (tb.w || 200) + 'px';
 
     if(tb.isImage){
+      const el = document.createElement('div');
       el.className = 'note-textbox nt-image';
       el.contentEditable = 'false';
       el.innerHTML = '<img src="' + tb.imgSrc + '" alt="" draggable="false">';
       el.addEventListener('pointerdown', (e)=> e.stopPropagation());
-      layerEl.appendChild(el);
+      box.appendChild(el);
+      attachBoxHandles(box, tb, layerEl, { move:true, resize:true });
+      layerEl.appendChild(box);
       return;
     }
 
     if(tb.isTable){
+      const el = document.createElement('div');
       el.className = 'note-textbox nt-table';
       el.contentEditable = 'false';
       el.innerHTML = tb.html || defaultTableHTML();
       el.querySelectorAll('td').forEach(td=>{ td.contentEditable = 'true'; });
       el.addEventListener('input', ()=>{ tb.html = el.innerHTML; scheduleSave(); });
       el.addEventListener('pointerdown', (e)=> e.stopPropagation());
-      layerEl.appendChild(el);
+      box.appendChild(el);
+      attachBoxHandles(box, tb, layerEl, { move:true, resize:true });
+      layerEl.appendChild(box);
       return;
     }
 
+    const el = document.createElement('div');
     el.className = 'note-textbox';
     el.contentEditable = 'true';
     el.dataset.placeholder = 'Type…';
@@ -15526,10 +15634,12 @@ function renderTextBoxes(layerEl, page){
     el.addEventListener('blur', ()=>{
       if(!el.textContent.trim()){
         page.textBoxes = page.textBoxes.filter(t=>t.id!==tb.id);
-        layerEl.removeChild(el);
+        layerEl.removeChild(box);
       }
     });
-    layerEl.appendChild(el);
+    box.appendChild(el);
+    attachBoxHandles(box, tb, layerEl, { move:true, resize:true });
+    layerEl.appendChild(box);
   });
 }
 
@@ -15537,7 +15647,8 @@ function addTextBoxAt(page, layerEl, xNote, yNote){
   const tb = { id: uid(), x: xNote, y: yNote, w: 220, text: '', fontSize: newTextFontSize };
   page.textBoxes.push(tb);
   renderTextBoxes(layerEl, page);
-  const el = layerEl.lastChild;
+  const box = layerEl.lastChild;
+  const el = box && box.querySelector('.note-textbox');
   if(el){ el.focus(); }
   scheduleSave();
 }
