@@ -3813,6 +3813,47 @@ body{
 }
 .dash-card.course:hover .course-stat-pill{ background:#fff; }
 
+/* ---------- Course detail hero (the open course's name/header) ---------- */
+.course-hero{
+  --card-a:var(--ochre); --card-b:var(--gold-deep);
+  position:relative; display:flex; align-items:center; gap:18px;
+  flex:1; min-width:0; padding:18px 26px;
+  border-radius:20px; overflow:hidden;
+  background:linear-gradient(120deg, color-mix(in srgb, var(--card-a) 14%, #fff), color-mix(in srgb, var(--card-b) 10%, #fff));
+  border:1px solid rgba(0,0,0,0.06);
+  box-shadow:0 10px 26px -16px rgba(60,40,10,0.28);
+}
+.course-hero::before{
+  content:''; position:absolute; inset:0; padding:1.5px; border-radius:inherit;
+  background:linear-gradient(120deg, var(--card-a), var(--card-b));
+  -webkit-mask:linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite:xor; mask-composite:exclude; opacity:0.75; pointer-events:none;
+}
+.course-hero-badge{
+  position:relative; z-index:1; flex-shrink:0; width:56px; height:56px; border-radius:16px;
+  display:flex; align-items:center; justify-content:center; font-size:26px;
+  background:linear-gradient(140deg, var(--card-a), var(--card-b));
+  box-shadow:0 8px 18px -8px rgba(60,40,10,0.4), 0 1px 0 rgba(255,255,255,0.3) inset;
+  transform:rotate(-4deg);
+}
+.course-hero-text{ position:relative; z-index:1; min-width:0; }
+.course-hero-eyebrow{
+  display:block; font-family:'JetBrains Mono', monospace; font-size:11px; font-weight:700;
+  letter-spacing:0.14em; text-transform:uppercase; color:var(--card-b); margin-bottom:3px;
+}
+.course-hero-text h1{
+  margin:0 0 4px; font-family:'Fraunces','Source Serif 4',Georgia,serif;
+  font-size:clamp(24px,4vw,38px); line-height:1.12; font-weight:700;
+  letter-spacing:-0.015em; color:var(--ink);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.course-hero-text #course-detail-sub{ margin:0; font-size:13.5px; color:rgba(42,36,16,0.62); }
+@media (max-width:600px){
+  .course-hero{ padding:14px 16px; gap:12px; border-radius:16px; }
+  .course-hero-badge{ width:44px; height:44px; font-size:20px; border-radius:12px; }
+  .course-hero-text h1{ font-size:clamp(20px,6vw,28px); }
+}
+
 /* ---------- Course info button + info/delete modal ---------- */
 .course-info-btn{
   position:absolute; top:14px; right:14px; z-index:3;
@@ -3999,12 +4040,18 @@ html,body{ height:100%; overflow:hidden; }
 
     <!-- ---------- Course detail view ---------- -->
     <div id="dash-course-view" style="display:none;">
-      <div class="dash-head fade-up" style="display:flex;align-items:center;gap:14px;">
+      <div class="dash-head fade-up" style="display:flex;align-items:center;gap:14px;margin-bottom:30px;max-width:none;">
         <button type="button" id="course-back-btn" title="Back to Dashboard"
           style="border:none;background:rgba(255,255,255,0.75);border:1px solid rgba(0,0,0,0.06);width:38px;height:38px;border-radius:12px;font-size:16px;cursor:pointer;flex-shrink:0;color:var(--ink);">←</button>
-        <h1 style="margin:0;" id="course-detail-title">Course</h1>
+        <div id="course-hero" class="course-hero">
+          <span class="course-hero-badge" aria-hidden="true">📘</span>
+          <div class="course-hero-text">
+            <span class="course-hero-eyebrow">Course</span>
+            <h1 id="course-detail-title">Course</h1>
+            <p id="course-detail-sub"></p>
+          </div>
+        </div>
       </div>
-      <p id="course-detail-sub" style="font-size:14.5px;color:rgba(42,36,16,0.6);margin:-18px 0 30px 52px;"></p>
 
       <div id="progress-panel" style="max-width:780px;"></div>
 
@@ -4654,6 +4701,17 @@ html,body{ height:100%; overflow:hidden; }
   function openCourseDetail(name){
     openCourseName = name;
     document.getElementById('course-detail-title').textContent = name;
+    // Match the color this course already has on its dashboard card, so the hero
+    // reads as "the same course" rather than picking an arbitrary new color.
+    const heroNames = Object.keys(currentCourseStats).sort((a,b)=>{
+      if(a==='Unsorted') return 1;
+      if(b==='Unsorted') return -1;
+      return a.localeCompare(b);
+    });
+    const heroIdx = Math.max(0, heroNames.indexOf(name));
+    const [heroA, heroB] = COURSE_PALETTES[heroIdx % COURSE_PALETTES.length];
+    const heroEl = document.getElementById('course-hero');
+    if(heroEl) heroEl.style.setProperty('--card-a', heroA), heroEl.style.setProperty('--card-b', heroB);
     const c = currentCourseStats[name] || { lessons:0, quizzes:0, summaries:0, notes:0 };
     const lessonWord = c.lessons===1 ? 'lesson' : 'lessons';
     const quizWord = c.quizzes===1 ? 'quiz' : 'quizzes';
