@@ -14431,39 +14431,15 @@ input, textarea, .note-textbox{ -webkit-user-select:text; user-select:text; }
   border:none; background:rgba(0,0,0,0.45); color:#fff; width:22px; height:22px;
   border-radius:6px; cursor:pointer; font-size:11px;
 }
-.nt-box{ position:absolute; }
 .note-textbox{
-  position:relative; width:100%; box-sizing:border-box; min-width:36px; min-height:22px;
-  font-family:'Source Serif 4',serif;
-  font-size:22px; line-height:28px; color:var(--ink); background:transparent; outline:none;
-  padding:0 4px; border:1px dashed transparent; white-space:pre-wrap; word-break:break-word;
+  position:absolute; min-width:36px; min-height:22px; font-family:'Source Serif 4',serif;
+  font-size:16px; line-height:1.4; color:var(--ink); background:transparent; outline:none;
+  padding:2px 4px; border:1px dashed transparent; white-space:pre-wrap; word-break:break-word;
   cursor:text;
 }
-.nt-box:hover .note-textbox{ border-color:rgba(0,0,0,0.08); }
+.note-textbox:hover{ border-color:rgba(0,0,0,0.08); }
 .note-textbox:focus{ border-color:var(--accent-soft); background:rgba(255,255,255,0.72); }
 .note-textbox:empty:before{ content:attr(data-placeholder); color:#C9C2AA; }
-
-/* ---------- drag/resize handles for text, image and table boxes ----------
-   Siblings of the box's actual content (never children of a contentEditable
-   div — see attachBoxHandles), shown on hover/focus so an idle page of
-   notes stays clean. */
-.nt-handle{
-  position:absolute; width:18px; height:18px; border-radius:5px;
-  background:var(--accent, #8a6d3b); opacity:0; transition:opacity .12s;
-  touch-action:none; z-index:6;
-}
-.nt-box:hover .nt-handle, .nt-box:focus-within .nt-handle{ opacity:0.82; }
-.nt-handle-move{ top:-9px; left:-9px; cursor:move; }
-.nt-handle-move::before{
-  content:''; position:absolute; inset:5px; background:#fff; opacity:0.9;
-  -webkit-mask:radial-gradient(circle,#000 1.4px,transparent 1.5px) 0 0/6px 6px;
-          mask:radial-gradient(circle,#000 1.4px,transparent 1.5px) 0 0/6px 6px;
-}
-.nt-handle-resize{ bottom:-9px; right:-9px; cursor:nwse-resize; }
-.nt-handle-resize::before{
-  content:''; position:absolute; right:4px; bottom:4px; width:8px; height:8px;
-  border-right:2px solid #fff; border-bottom:2px solid #fff; opacity:0.9;
-}
 
 .ne-add-page-row{ display:flex; justify-content:center; }
 .ne-add-page-btn{
@@ -14477,9 +14453,15 @@ input, textarea, .note-textbox{ -webkit-user-select:text; user-select:text; }
   display:flex; align-items:center; justify-content:space-between;
   padding:8px calc(18px + var(--safe-right)) 8px calc(18px + var(--safe-left));
   border-bottom:1px solid var(--border); flex-shrink:0;
-  background:#FBF9F3; gap:14px; overflow-x:auto; -webkit-overflow-scrolling:touch;
+  background:#FBF9F3; gap:14px; overflow-x:auto; overflow-y:visible; -webkit-overflow-scrolling:touch;
   position:relative;
 }
+/* overflow-y:visible has to be explicit here: setting overflow-x:auto
+   alone makes the browser compute overflow-y as auto too (per spec, a
+   non-"visible" x paired with a "visible" y becomes "auto"), which turns
+   this bar into a clipping container and hides the markup/pen-tray
+   popover below it, since that popover sits at top:100% and is taller
+   than the bar itself. */
 .an-group{ display:flex; align-items:center; gap:4px; flex-shrink:0; }
 .an-icon-btn{
   border:none; background:transparent; color:var(--accent);
@@ -14655,7 +14637,7 @@ input, textarea, .note-textbox{ -webkit-user-select:text; user-select:text; }
             <div class="ne-tool-sep"></div>
             <div class="ne-tool-group">
               <span class="ne-tool-label">Text size</span>
-              <input type="number" class="ne-num" id="text-font-size" min="10" max="48" step="1" value="22" title="New text box font size (px)">
+              <input type="number" class="ne-num" id="text-font-size" min="10" max="48" step="1" value="16" title="New text box font size (px)">
             </div>
           </div>
         </div>
@@ -14677,9 +14659,9 @@ input, textarea, .note-textbox{ -webkit-user-select:text; user-select:text; }
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 19V7.5L12 6l6 1.5V19"/><path d="M8.5 19v-6h7v6"/></svg>
                 <span class="ne-pen-tool-tag">A</span>
               </button>
-              <button type="button" class="ne-pen-tool-btn active" id="tool-pen" title="Pen" aria-label="Pen">
+              <button type="button" class="ne-pen-tool-btn active" id="tool-pen" title="Pen — tap again to change pen type" aria-label="Pen">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20l1-4.5L15.5 6.5a2.1 2.1 0 013 3L10 18l-4 2z"/><path d="M13.5 8.5l3 3"/></svg>
-                <span class="ne-pen-tool-tag">80</span>
+                <span class="ne-pen-tool-tag" id="tool-pen-tag">Ball</span>
               </button>
               <button type="button" class="ne-pen-tool-btn" id="tool-eraser" title="Eraser" aria-label="Eraser">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13l-7 7H7l-4-4a2 2 0 010-2.8L13 3.2a2 2 0 012.8 0L18 5.4a2 2 0 010 2.8L9.5 17"/></svg>
@@ -14952,6 +14934,18 @@ let currentTool = 'pen';   // 'pen' | 'eraser'
 let penColor = '#2A2410';
 let penSize = 3;
 
+// Pen "type" — like the Ballpoint/Pencil/Marker choices under Apple Notes'
+// pen tool. Each type scales the chosen size and adds its own opacity so
+// the pen tray tag can show which one is active and strokes actually look
+// different on the page, not just differently sized.
+const PEN_TYPES = [
+  { id:'ballpoint', label:'Ballpoint', tag:'Ball',  widthMul:1,   alpha:1 },
+  { id:'pencil',    label:'Pencil',    tag:'Pncl',  widthMul:0.65, alpha:0.8 },
+  { id:'marker',    label:'Marker',    tag:'Mrkr',  widthMul:2.4, alpha:0.35 },
+];
+let penTypeIndex = 0;
+function currentPenType(){ return PEN_TYPES[penTypeIndex]; }
+
 // A4 at 96dpi, so page proportions match a real sheet of paper. Orientation is
 // per-note (note.orientation, 'portrait'|'landscape'); PAGE_W/PAGE_H always
 // reflect whichever note is currently open — see applyOrientation().
@@ -15012,7 +15006,7 @@ function migrateNoteIfNeeded(note){
   note.pages = [blankPage()];
   note.ruledOverride = null;
   if(note.content && note.content.trim()){
-    note.pages[0].textBoxes.push({ id: uid(), x:36, y:36, w:PAGE_W-72, text: note.content, fontSize:DEFAULT_TEXT_FONT_SIZE });
+    note.pages[0].textBoxes.push({ id: uid(), x:36, y:36, w:PAGE_W-72, text: note.content, fontSize:16 });
   }
   delete note.content;
   return note;
@@ -15285,14 +15279,9 @@ function currentPageAndLayer(){
   return { note, page, layer, wrap };
 }
 
-// 22px comfortably fills the default 28px-tall ruled line (the way a
-// person's actual handwriting sits on ruled paper) without crowding the
-// line above or below it — much bigger than the old 16px default, which
-// looked tiny against the rules.
-const DEFAULT_TEXT_FONT_SIZE = 22;
-let newTextFontSize = DEFAULT_TEXT_FONT_SIZE; // set from the Aa popover, used for new text/checklist boxes
+let newTextFontSize = 16; // set from the Aa popover, used for new text/checklist boxes
 document.getElementById('text-font-size').addEventListener('input', (e)=>{
-  newTextFontSize = Math.max(10, Number(e.target.value) || DEFAULT_TEXT_FONT_SIZE);
+  newTextFontSize = Math.max(10, Number(e.target.value) || 16);
 });
 
 function insertChecklistItem(){
@@ -15300,9 +15289,8 @@ function insertChecklistItem(){
   closeAllNotesPopovers();
   const tb = { id: uid(), x: 24, y: 24, w: 240, text: '☐ ', fontSize: newTextFontSize };
   ctx.page.textBoxes.push(tb);
-  renderTextBoxes(ctx.layer, ctx.page, ctx.note);
-  const box = ctx.layer.lastChild;
-  const el = box && box.querySelector('.note-textbox');
+  renderTextBoxes(ctx.layer, ctx.page);
+  const el = ctx.layer.lastChild;
   if(el){
     el.focus();
     const range = document.createRange(), sel = window.getSelection();
@@ -15324,7 +15312,7 @@ function insertTable(){
   closeAllNotesPopovers();
   const tb = { id: uid(), x: 24, y: 24, w: 260, text: '', isTable: true, html: defaultTableHTML() };
   ctx.page.textBoxes.push(tb);
-  renderTextBoxes(ctx.layer, ctx.page, ctx.note);
+  renderTextBoxes(ctx.layer, ctx.page);
   scheduleSave();
 }
 document.getElementById('an-table-btn').addEventListener('click', insertTable);
@@ -15333,7 +15321,7 @@ function insertImage(dataUrl){
   const ctx = currentPageAndLayer(); if(!ctx) return;
   const tb = { id: uid(), x: 24, y: 24, w: 220, text: '', isImage: true, imgSrc: dataUrl };
   ctx.page.textBoxes.push(tb);
-  renderTextBoxes(ctx.layer, ctx.page, ctx.note);
+  renderTextBoxes(ctx.layer, ctx.page);
   scheduleSave();
 }
 document.getElementById('an-attach-btn').addEventListener('click', ()=>{
@@ -15481,151 +15469,59 @@ function redrawInk(canvas, page){
       if(s.points.length === 1){
         ctx.beginPath();
         ctx.fillStyle = s.color;
+        ctx.globalAlpha = s.alpha != null ? s.alpha : 1;
         ctx.arc(s.points[0].x, s.points[0].y, s.size/2, 0, Math.PI*2);
         ctx.fill();
+        ctx.globalAlpha = 1;
       }
       return;
     }
     ctx.strokeStyle = s.color;
     ctx.lineWidth = s.size;
+    ctx.globalAlpha = s.alpha != null ? s.alpha : 1;
     ctx.beginPath();
     ctx.moveTo(s.points[0].x, s.points[0].y);
     for(let i=1;i<s.points.length;i++) ctx.lineTo(s.points[i].x, s.points[i].y);
     ctx.stroke();
+    ctx.globalAlpha = 1;
   });
 }
 
 /* =================================================================
    TEXT BOXES
    ================================================================= */
-// Adds a drag handle (top-left, moves the box) and/or a resize handle
-// (bottom-right, adjusts its width) to `box` — the absolutely-positioned
-// wrapper around a text/image/table's actual content. The handles live
-// as siblings of that content rather than children of it, specifically
-// so they never end up inside a contentEditable text box: a child living
-// inside a contentEditable div shows up in el.textContent, which would
-// otherwise leak the handle's own markup into the saved note text.
-function attachBoxHandles(box, tb, layerEl, opts){
-  opts = opts || {};
-
-  // Converts a pointer-movement delta from client pixels into the note's
-  // own logical coordinate space (the same space tb.x/y/w are stored in),
-  // using the text layer's on-screen size vs. the page's logical
-  // PAGE_W/PAGE_H — the same scale factor notePointFromEvent() uses for
-  // ink strokes, so a box drags/resizes at the same rate the pointer moves
-  // regardless of the current zoom level.
-  function scaleFactors(){
-    const rect = layerEl.getBoundingClientRect();
-    return { sx: PAGE_W / Math.max(1, rect.width), sy: PAGE_H / Math.max(1, rect.height) };
-  }
-
-  function makeHandle(kind, className){
-    const h = document.createElement('div');
-    h.className = 'nt-handle ' + className;
-    h.contentEditable = 'false';
-    h.setAttribute('aria-hidden', 'true');
-    let active = false, startX = 0, startY = 0, startBoxX = 0, startBoxY = 0, startW = 0;
-    h.addEventListener('pointerdown', (e)=>{
-      // Never let this reach the box's own contentEditable content (which
-      // would move the text cursor) or the ink canvas underneath (which
-      // would start a stroke or place a new text box).
-      e.stopPropagation();
-      e.preventDefault();
-      h.setPointerCapture(e.pointerId);
-      active = true;
-      startX = e.clientX; startY = e.clientY;
-      startBoxX = tb.x; startBoxY = tb.y;
-      startW = tb.w || box.offsetWidth;
-    });
-    h.addEventListener('pointermove', (e)=>{
-      if(!active) return;
-      e.stopPropagation();
-      e.preventDefault();
-      const { sx, sy } = scaleFactors();
-      const dx = (e.clientX - startX) * sx;
-      const dy = (e.clientY - startY) * sy;
-      if(kind === 'move'){
-        tb.x = Math.max(0, startBoxX + dx);
-        tb.y = Math.max(0, startBoxY + dy);
-        box.style.left = tb.x + 'px';
-        box.style.top = tb.y + 'px';
-      } else {
-        tb.w = Math.max(60, startW + dx);
-        box.style.width = tb.w + 'px';
-      }
-    });
-    function end(e){
-      if(!active) return;
-      active = false;
-      try{ h.releasePointerCapture(e.pointerId); }catch(err){}
-      scheduleSave();
-    }
-    h.addEventListener('pointerup', end);
-    h.addEventListener('pointercancel', end);
-    return h;
-  }
-
-  if(opts.move) box.appendChild(makeHandle('move', 'nt-handle-move'));
-  if(opts.resize) box.appendChild(makeHandle('resize', 'nt-handle-resize'));
-}
-
-// How tall one ruled line is for this note, in the same logical units as
-// tb.x/y/w — used so a text box's line-height can be locked to the actual
-// rules on the page instead of a generic CSS multiplier, and so typed
-// lines land on (rather than drift away from) each rule as they wrap.
-function ruledSpacingFor(note){
-  const style = note ? effectiveStyle(note) : { spacing: globalSettings.ruledSpacing };
-  return Math.max(10, Number(style && style.spacing) || 28);
-}
-
-function renderTextBoxes(layerEl, page, note){
-  const lineSpacing = ruledSpacingFor(note);
+function renderTextBoxes(layerEl, page){
   layerEl.innerHTML = '';
   page.textBoxes.forEach(tb=>{
-    // `box` is the absolutely-positioned wrapper carrying tb.x/y/w; the
-    // actual content (text, image, or table) sits inside it at 100% width
-    // so resizing the box resizes the content, and drag/resize handles are
-    // attached to the wrapper, never to the contentEditable content itself.
-    const box = document.createElement('div');
-    box.className = 'nt-box';
-    box.style.left = tb.x + 'px';
-    box.style.top = tb.y + 'px';
-    box.style.width = (tb.w || 200) + 'px';
+    const el = document.createElement('div');
+    el.style.left = tb.x + 'px';
+    el.style.top = tb.y + 'px';
+    el.style.width = (tb.w || 200) + 'px';
 
     if(tb.isImage){
-      const el = document.createElement('div');
       el.className = 'note-textbox nt-image';
       el.contentEditable = 'false';
       el.innerHTML = '<img src="' + tb.imgSrc + '" alt="" draggable="false">';
       el.addEventListener('pointerdown', (e)=> e.stopPropagation());
-      box.appendChild(el);
-      attachBoxHandles(box, tb, layerEl, { move:true, resize:true });
-      layerEl.appendChild(box);
+      layerEl.appendChild(el);
       return;
     }
 
     if(tb.isTable){
-      const el = document.createElement('div');
       el.className = 'note-textbox nt-table';
       el.contentEditable = 'false';
       el.innerHTML = tb.html || defaultTableHTML();
       el.querySelectorAll('td').forEach(td=>{ td.contentEditable = 'true'; });
       el.addEventListener('input', ()=>{ tb.html = el.innerHTML; scheduleSave(); });
       el.addEventListener('pointerdown', (e)=> e.stopPropagation());
-      box.appendChild(el);
-      attachBoxHandles(box, tb, layerEl, { move:true, resize:true });
-      layerEl.appendChild(box);
+      layerEl.appendChild(el);
       return;
     }
 
-    const el = document.createElement('div');
     el.className = 'note-textbox';
     el.contentEditable = 'true';
     el.dataset.placeholder = 'Type…';
-    el.style.fontSize = (tb.fontSize || DEFAULT_TEXT_FONT_SIZE) + 'px';
-    // Lock each line to exactly one ruled line on the page, so text sits
-    // on the rules the way real handwriting would, regardless of font size.
-    el.style.lineHeight = lineSpacing + 'px';
+    el.style.fontSize = (tb.fontSize || 16) + 'px';
     el.textContent = tb.text || '';
     el.classList.toggle('nt-done', /^☑/.test(tb.text || ''));
     el.addEventListener('pointerdown', (e)=>{
@@ -15652,21 +15548,18 @@ function renderTextBoxes(layerEl, page, note){
     el.addEventListener('blur', ()=>{
       if(!el.textContent.trim()){
         page.textBoxes = page.textBoxes.filter(t=>t.id!==tb.id);
-        layerEl.removeChild(box);
+        layerEl.removeChild(el);
       }
     });
-    box.appendChild(el);
-    attachBoxHandles(box, tb, layerEl, { move:true, resize:true });
-    layerEl.appendChild(box);
+    layerEl.appendChild(el);
   });
 }
 
-function addTextBoxAt(page, layerEl, xNote, yNote, note){
+function addTextBoxAt(page, layerEl, xNote, yNote){
   const tb = { id: uid(), x: xNote, y: yNote, w: 220, text: '', fontSize: newTextFontSize };
   page.textBoxes.push(tb);
-  renderTextBoxes(layerEl, page, note);
-  const box = layerEl.lastChild;
-  const el = box && box.querySelector('.note-textbox');
+  renderTextBoxes(layerEl, page);
+  const el = layerEl.lastChild;
   if(el){ el.focus(); }
   scheduleSave();
 }
@@ -15793,8 +15686,8 @@ function buildPageEl(note, page, idx){
 
   drawBackground(bg, page, note);
   redrawInk(ink, page);
-  renderTextBoxes(textLayer, page, note);
-  wirePageInput(wrap, ink, textLayer, page, note);
+  renderTextBoxes(textLayer, page);
+  wirePageInput(wrap, ink, textLayer, page);
 
   return wrap;
 }
@@ -15841,7 +15734,7 @@ function isScribbleMotion(pts){
 
 let activePenPointerId = null; // used for palm rejection while pencil is drawing
 
-function wirePageInput(pageWrap, ink, textLayer, page, note){
+function wirePageInput(pageWrap, ink, textLayer, page){
   let drawing = false;
   let stroke = null;
   let scribbleErasing = false;
@@ -15859,25 +15752,6 @@ function wirePageInput(pageWrap, ink, textLayer, page, note){
   }
 
   ink.addEventListener('pointerdown', (e)=>{
-    if(currentTool === 'text'){
-      // Text tool: a tap places a text box and is handled the same way
-      // for every pointer type — mouse click, pencil tap, or bare finger
-      // tap all just mark where the tap started; the actual placement
-      // happens in finishStroke once we know it wasn't a drag/scroll.
-      // This has to be checked before isStylusLike() below, since a
-      // mouse (and a pencil) would otherwise always fall into the pen
-      // drawing branch and a click could never place text.
-      if(activePenPointerId !== null){ e.preventDefault(); return; } // palm during pencil use
-      ink.setPointerCapture(e.pointerId);
-      touchStartPoint = notePointFromEvent(ink, e);
-      touchMoved = false;
-      touchScrollStartY = e.clientY;
-      touchScrollStartTop = scrollParent.scrollTop;
-      drawing = true;
-      e.preventDefault();
-      return;
-    }
-
     if(isStylusLike(e)){
       // Palm rejection: while the pencil is actively drawing, any
       // concurrent touch point is the palm resting on the glass, not
@@ -15887,7 +15761,8 @@ function wirePageInput(pageWrap, ink, textLayer, page, note){
       drawing = true;
       scribbleErasing = (currentTool === 'eraser');
       const p = notePointFromEvent(ink, e);
-      stroke = { color: penColor, size: penSize, points: [p] };
+      const pt = currentTool === 'pen' ? currentPenType() : PEN_TYPES[0];
+      stroke = { color: penColor, size: penSize * pt.widthMul, alpha: pt.alpha, points: [p] };
       if(scribbleErasing){ if(eraseNear(page, p.x, p.y)) redrawInk(ink, page); }
       e.preventDefault();
       return;
@@ -15908,16 +15783,6 @@ function wirePageInput(pageWrap, ink, textLayer, page, note){
   ink.addEventListener('pointermove', (e)=>{
     if(!drawing || e.pointerId !== (stroke && e.pointerId)) { /* fallthrough handled below */ }
     if(!drawing) return;
-
-    if(currentTool === 'text'){
-      // Text tool never draws on drag — same "is this actually a tap or
-      // did the pointer move" tracking the touch-scroll branch below
-      // uses, just without also scrolling the page for a mouse/pencil drag.
-      const dy = e.clientY - touchScrollStartY;
-      touchMoved = touchMoved || Math.abs(dy) > 6;
-      e.preventDefault();
-      return;
-    }
 
     if(isStylusLike(e)){
       // A stylus (and Apple Pencil in particular) samples position at a
@@ -15943,6 +15808,7 @@ function wirePageInput(pageWrap, ink, textLayer, page, note){
         const ctx = ink.getContext('2d');
         ctx.setTransform(RENDER_SCALE,0,0,RENDER_SCALE,0,0);
         ctx.strokeStyle = stroke.color; ctx.lineWidth = stroke.size;
+        ctx.globalAlpha = stroke.alpha != null ? stroke.alpha : 1;
         ctx.lineCap='round'; ctx.lineJoin='round';
         for(const p of pts){
           const prevPoint = stroke.points[stroke.points.length - 1];
@@ -15976,6 +15842,7 @@ function wirePageInput(pageWrap, ink, textLayer, page, note){
           ctx.lineTo(p.x, p.y);
           ctx.stroke();
         }
+        ctx.globalAlpha = 1;
       }
       e.preventDefault();
       return;
@@ -15994,15 +15861,7 @@ function wirePageInput(pageWrap, ink, textLayer, page, note){
   function finishStroke(e){
     if(!drawing) return;
     drawing = false;
-    if(currentTool === 'text'){
-      // Checked first, before isStylusLike(e): a mouse click (and a
-      // pencil tap) report as "stylus-like" too, so this has to take
-      // priority or a mouse could never place a text box. Deliberate
-      // placement only — an actual drag/scroll gesture never drops one.
-      if(!touchMoved && touchStartPoint){
-        addTextBoxAt(page, textLayer, touchStartPoint.x, touchStartPoint.y, note);
-      }
-    } else if(isStylusLike(e)){
+    if(isStylusLike(e)){
       activePenPointerId = null;
       if(stroke && !scribbleErasing && currentTool !== 'eraser' && stroke.points.length){
         page.strokes.push(stroke);
@@ -16010,6 +15869,10 @@ function wirePageInput(pageWrap, ink, textLayer, page, note){
       }
       redrawInk(ink, page);
       scheduleSave();
+    } else if(currentTool === 'text' && !touchMoved && touchStartPoint){
+      // Deliberate placement only: the Text tool has to be selected on
+      // purpose, so an ordinary scrolling tap never drops a text box.
+      addTextBoxAt(page, textLayer, touchStartPoint.x, touchStartPoint.y);
     }
     // touch (finger) otherwise: nothing to do — it was only ever scrolling.
     stroke = null;
@@ -16028,9 +15891,28 @@ function setTool(tool){
   document.getElementById('tool-eraser').classList.toggle('active', tool==='eraser');
   document.getElementById('tool-text').classList.toggle('active', tool==='text');
 }
+function refreshPenTypeTag(){
+  const pt = currentPenType();
+  const tagEl = document.getElementById('tool-pen-tag');
+  const btnEl = document.getElementById('tool-pen');
+  if(tagEl) tagEl.textContent = pt.tag;
+  if(btnEl) btnEl.title = 'Pen: ' + pt.label + ' — tap again to change pen type';
+}
 document.getElementById('tool-text').addEventListener('click', ()=> setTool('text'));
-document.getElementById('tool-pen').addEventListener('click', ()=> setTool('pen'));
+document.getElementById('tool-pen').addEventListener('click', ()=>{
+  // Tapping the pen while it's already the active tool cycles through the
+  // pen types (Ballpoint / Pencil / Marker), same as re-tapping the pen in
+  // Apple Notes reopens its style picker — the tray's tag always reflects
+  // whichever one is currently selected.
+  if(currentTool === 'pen'){
+    penTypeIndex = (penTypeIndex + 1) % PEN_TYPES.length;
+    refreshPenTypeTag();
+  } else {
+    setTool('pen');
+  }
+});
 document.getElementById('tool-eraser').addEventListener('click', ()=> setTool('eraser'));
+refreshPenTypeTag();
 
 // ---------- orientation ----------
 function syncOrientationControl(note){
