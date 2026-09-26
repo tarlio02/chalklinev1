@@ -7134,7 +7134,7 @@ function boardFrameRect(){
   const x = Math.max(4, pageL - pad);
   const right = Math.min(viewW - 4, pageR + pad);
   const y = Math.max(12, Math.round(safeTopPx) + 8);   // below the notch / status bar
-  const bottom = Math.max(y + 140, viewH - PAGE_BOTTOM_GUTTER_PX + 6);   // ends just above the ask/controls dock
+  const bottom = Math.max(y + 140, viewH - 4);   // extends to the bottom of the screen; the bottom-dock controls float on top of it
   const r = { x, y, w: Math.max(80, right - x), h: bottom - y };
   frameLock = { key, w0: Math.round(viewW), r };
   return r;
