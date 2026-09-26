@@ -15947,6 +15947,46 @@ html,body{ height:100%; overflow:hidden; }
 }
 .count-pill:hover{ border-color:var(--ochre); }
 .count-pill.active{ background:linear-gradient(140deg, var(--ochre), var(--gold-deep)); color:#fff; border-color:transparent; }
+.type-pills{ display:flex; gap:8px; flex-wrap:wrap; }
+.type-pill{
+  flex:1; min-width:88px; font-family:'JetBrains Mono', monospace; font-size:12px; font-weight:600; color:var(--muted);
+  background:#FFFDF6; border:1px solid var(--panel-border); border-radius:9px; padding:9px 4px; cursor:pointer; text-align:center;
+  transition:background .15s ease, color .15s ease, border-color .15s ease;
+}
+.type-pill:hover{ border-color:var(--ochre); }
+.type-pill.active{ background:linear-gradient(140deg, var(--ochre), var(--gold-deep)); color:#fff; border-color:transparent; }
+.exam-toggle-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; background:#FFFDF6; border:1px solid var(--panel-border); border-radius:9px; padding:10px 12px; }
+.exam-toggle-row .et-label{ font-family:'Source Serif 4', serif; font-size:14px; color:var(--ink); }
+.exam-toggle-row .et-sub{ font-family:'JetBrains Mono', monospace; font-size:10.5px; color:var(--muted); margin-top:2px; }
+.qz-switch{ position:relative; width:40px; height:22px; flex-shrink:0; }
+.qz-switch input{ opacity:0; width:0; height:0; }
+.qz-switch .slider{ position:absolute; inset:0; background:#e3ddc8; border-radius:999px; cursor:pointer; transition:background .15s ease; }
+.qz-switch .slider:before{ content:''; position:absolute; width:16px; height:16px; left:3px; top:3px; background:#fff; border-radius:50%; transition:transform .15s ease; box-shadow:0 1px 2px rgba(0,0,0,0.25); }
+.qz-switch input:checked + .slider{ background:linear-gradient(140deg, var(--ochre), var(--gold-deep)); }
+.qz-switch input:checked + .slider:before{ transform:translateX(18px); }
+.exam-minutes-row{ margin-top:10px; }
+.exam-minutes-row select{ width:100%; font-family:'Source Serif 4', serif; font-size:14.5px; color:var(--ink); border:1px solid var(--panel-border); border-radius:9px; padding:10px 12px; background:#FFFDF6; }
+.exam-cover{ background:#fff; border:1px solid var(--panel-border); border-radius:14px; padding:30px 28px; max-width:520px; margin:26px auto 60px; text-align:center; }
+.exam-cover h1{ font-size:22px; margin:12px 0 4px; }
+.exam-cover .ec-course{ font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--muted); letter-spacing:.04em; text-transform:uppercase; margin-bottom:18px; }
+.exam-cover .ec-facts{ display:flex; justify-content:center; gap:22px; margin:18px 0 22px; flex-wrap:wrap; }
+.exam-cover .ec-fact{ text-align:center; }
+.exam-cover .ec-fact .n{ font-family:'JetBrains Mono', monospace; font-size:18px; font-weight:700; color:var(--ochre); }
+.exam-cover .ec-fact .l{ font-family:'JetBrains Mono', monospace; font-size:10.5px; color:var(--muted); text-transform:uppercase; }
+.exam-cover .ec-instructions{ text-align:left; background:#FBF7E9; border:1px solid var(--panel-border); border-radius:10px; padding:14px 16px; font-size:13px; color:#514d41; line-height:1.6; margin-bottom:20px; }
+.exam-cover input[type=text]{ width:100%; font-family:'Source Serif 4', serif; font-size:14.5px; border:1px solid var(--panel-border); border-radius:9px; padding:10px 12px; background:#FFFDF6; margin-bottom:18px; outline:none; }
+.qz-timer{ font-family:'JetBrains Mono', monospace; font-size:13px; font-weight:700; color:var(--ink); background:#FBF7E9; border:1px solid var(--panel-border); border-radius:999px; padding:5px 12px; display:inline-flex; align-items:center; gap:6px; float:right; }
+.qz-timer.low{ color:#b3452f; border-color:#b3452f; background:#f6e9e5; }
+.written-answer{ width:100%; min-height:110px; font-family:'Source Serif 4', serif; font-size:14.5px; color:var(--ink); border:1px solid var(--panel-border); border-radius:10px; padding:12px 14px; background:#fff; resize:vertical; outline:none; margin-bottom:12px; box-sizing:border-box; }
+.written-answer:focus{ border-color:var(--ochre); }
+.written-model{ background:#FBF7E9; border:1px solid var(--panel-border); border-radius:10px; padding:12px 14px; font-size:13.5px; line-height:1.55; margin-bottom:12px; display:none; }
+.written-model.show{ display:block; }
+.written-grade-row{ display:flex; gap:10px; }
+.written-grade-row button{ flex:1; }
+.qz-type-tag{ display:inline-block; font-family:'JetBrains Mono', monospace; font-size:10px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); background:#FBF7E9; border:1px solid var(--panel-border); border-radius:999px; padding:2px 9px; margin-bottom:10px; }
+.review-item .rw-you{ font-size:13px; padding:8px 10px; border-radius:8px; background:#FBF7E9; margin-bottom:6px; white-space:pre-wrap; }
+.review-item .rw-tag-correct{ color:var(--sage); }
+.review-item .rw-tag-incorrect{ color:#b3452f; }
 .setup-note{ font-size:12.5px; color:var(--muted); background:#FBF7E9; border:1px solid var(--panel-border); border-radius:9px; padding:10px 12px; margin-bottom:16px; line-height:1.5; }
 
 .btn-secondary{
@@ -16059,6 +16099,36 @@ html,body{ height:100%; overflow:hidden; }
           <button type="button" class="count-pill" data-n="12">12</button>
         </div>
       </div>
+      <div class="field-row">
+        <label>Question type</label>
+        <div class="type-pills" id="qz-type-pills">
+          <button type="button" class="type-pill active" data-t="mc">Multiple choice</button>
+          <button type="button" class="type-pill" data-t="mixed">Mixed</button>
+          <button type="button" class="type-pill" data-t="written">Written</button>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="exam-toggle-row">
+          <div>
+            <div class="et-label">Exam mode</div>
+            <div class="et-sub">Timed, with a cover page</div>
+          </div>
+          <label class="qz-switch">
+            <input type="checkbox" id="qz-exam-toggle">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="exam-minutes-row" id="qz-exam-minutes-row" style="display:none;">
+          <select id="qz-exam-minutes">
+            <option value="10">10 minutes</option>
+            <option value="15">15 minutes</option>
+            <option value="20" selected>20 minutes</option>
+            <option value="30">30 minutes</option>
+            <option value="45">45 minutes</option>
+            <option value="60">60 minutes</option>
+          </select>
+        </div>
+      </div>
       <div id="qz-setup-note" class="setup-note" style="display:none;"></div>
       <button class="btn-primary" id="qz-generate-btn" style="width:100%;margin-top:6px;" onclick="startGenerateQuiz();">✨ Generate quiz</button>
     </div>
@@ -16083,8 +16153,24 @@ html,body{ height:100%; overflow:hidden; }
     </div>
   </div>
 
+  <div id="qz-cover" class="qz-screen" style="display:none;">
+    <div class="exam-cover">
+      <div class="quiz-badge" style="margin:0 auto 10px;">📝</div>
+      <div class="ec-course" id="qz-cover-course">Course</div>
+      <h1 id="qz-cover-title">Exam</h1>
+      <div class="ec-facts">
+        <div class="ec-fact"><div class="n" id="qz-cover-qcount">8</div><div class="l">Questions</div></div>
+        <div class="ec-fact"><div class="n" id="qz-cover-time">20:00</div><div class="l">Time limit</div></div>
+      </div>
+      <input type="text" id="qz-cover-name" placeholder="Your name (optional)">
+      <div class="ec-instructions">Answer every question to the best of your ability. Once you begin, the timer cannot be paused. Multiple-choice answers lock in as soon as you pick them; written answers can be edited until you move on. The exam submits automatically when time runs out.</div>
+      <button class="btn-primary" id="qz-begin-exam-btn" style="width:100%;" onclick="beginExam();">Begin exam →</button>
+    </div>
+  </div>
+
   <div id="qz-play" class="qz-screen" style="display:none;">
     <div class="qz-play-head">
+      <span class="qz-timer" id="qz-timer" style="display:none;">⏱ <span id="qz-timer-text">20:00</span></span>
       <div class="qz-progress-label" id="qz-progress-label">Question 1 of 8</div>
       <div class="qz-progress-bar"><div class="qz-progress-fill" id="qz-progress-fill" style="width:0%;"></div></div>
     </div>
@@ -16219,9 +16305,15 @@ let currentQIndex = 0;
 let currentQuizId = null;
 let currentQuizTitle = '';
 let isReviewOfSaved = false;   // true when this results screen came from loadQuizId
+let selectedQType = 'mc';      // 'mc' | 'mixed' | 'written'
+let examMode = false;
+let examMinutes = 20;
+let examTimerId = null;
+let examEndAt = null;
+let currentWritten = [];       // parallel array: student's typed text per question (written type only)
 
 function showScreen(name){
-  ['qz-setup','qz-loading','qz-error','qz-play','qz-results'].forEach(id=>{
+  ['qz-setup','qz-loading','qz-error','qz-cover','qz-play','qz-results'].forEach(id=>{
     document.getElementById(id).style.display = (id===name) ? '' : 'none';
   });
 }
@@ -16267,7 +16359,24 @@ document.querySelectorAll('.count-pill').forEach(btn=>{
   });
 });
 
+document.querySelectorAll('.type-pill').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.type-pill').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedQType = btn.dataset.t || 'mc';
+  });
+});
+document.getElementById('qz-exam-toggle').addEventListener('change', (e)=>{
+  examMode = e.target.checked;
+  document.getElementById('qz-exam-minutes-row').style.display = examMode ? '' : 'none';
+});
+document.getElementById('qz-exam-minutes').addEventListener('change', (e)=>{
+  examMinutes = parseInt(e.target.value, 10) || 20;
+});
+
 function backToSetup(){
+  stopExamTimer();
+  document.getElementById('qz-timer').style.display = 'none';
   showScreen('qz-setup');
   populateSetupScreen();
 }
@@ -16312,18 +16421,16 @@ async function gatherMaterialForSubject(subject){
 }
 
 /* ---------------- AI generation ---------------- */
-const QUIZ_SYSTEM_PROMPT = `You are Chalkline's quiz generator. Given study material and/or a topic, write a multiple-choice quiz at genuine university level: precise, unambiguous, testing real understanding rather than trivia.
-
-Return ONLY a JSON object, no markdown fences, no prose outside the JSON, in exactly this shape:
-{"questions":[{"question":"...","options":["...","...","...","..."],"correctIndex":0,"explanation":"..."}]}
-
-Rules:
-- Produce exactly {{N}} questions.
-- Each question has exactly 4 options: plausible distractors (not obviously wrong) and one clearly correct answer.
-- Vary correctIndex across questions (0, 1, 2 or 3) — do not put the correct answer in the same position every time.
-- "explanation" is 1-2 sentences: state why the correct answer is right and briefly why the closest distractor is wrong.
-- Base questions on the study material given when material is provided. If only a bare topic is given, draw on solid general knowledge of that subject at course level.
-- Keep each question and option concise — one line each, no run-on sentences.`;
+function buildQuizSystemPrompt(qType, n){
+  const base = `You are Chalkline's quiz generator. Given study material and/or a topic, write a quiz at genuine university level: precise, unambiguous, testing real understanding rather than trivia.\n\nProduce exactly ${n} questions. Base questions on the study material given when material is provided. If only a bare topic is given, draw on solid general knowledge of that subject at course level. Keep each question concise — no run-on sentences.\n\nReturn ONLY a JSON object, no markdown fences, no prose outside the JSON.`;
+  if(qType === 'written'){
+    return base + `\n\nEvery question is short-answer (written), in exactly this shape:\n{"questions":[{"type":"written","question":"...","answer":"...","explanation":"..."}]}\n- "answer" is the model answer a strong student would give: 1-3 sentences.\n- "explanation" adds any extra grading guidance or nuance beyond the model answer (can be brief).`;
+  }
+  if(qType === 'mixed'){
+    return base + `\n\nMix multiple-choice and short-answer (written) questions, roughly half and half (at least 1 of each if ${n} allows). Each question has a "type" field, either "mc" or "written", in exactly this shape:\n{"questions":[{"type":"mc","question":"...","options":["...","...","...","..."],"correctIndex":0,"explanation":"..."},{"type":"written","question":"...","answer":"...","explanation":"..."}]}\n- "mc" questions have exactly 4 options: plausible distractors and one clearly correct answer. Vary correctIndex across questions (0,1,2,3) rather than repeating the same slot.\n- "written" questions have a 1-3 sentence model "answer" instead of options.\n- "explanation" is 1-2 sentences justifying the correct/model answer.`;
+  }
+  return base + `\n\nEvery question is multiple-choice, in exactly this shape:\n{"questions":[{"type":"mc","question":"...","options":["...","...","...","..."],"correctIndex":0,"explanation":"..."}]}\n- Each question has exactly 4 options: plausible distractors (not obviously wrong) and one clearly correct answer.\n- Vary correctIndex across questions (0, 1, 2 or 3) — do not put the correct answer in the same position every time.\n- "explanation" is 1-2 sentences: state why the correct answer is right and briefly why the closest distractor is wrong.`;
+}
 
 function stripFencesQZ(t){
   t = String(t || '').trim();
@@ -16377,14 +16484,22 @@ async function generateQuizQuestions(sys, user){
     if(extracted){ try{ obj = JSON.parse(extracted); } catch(e2){} }
   }
   if(!obj || !Array.isArray(obj.questions)) return null;
-  const qs = obj.questions.filter(q => q && q.question && Array.isArray(q.options) && q.options.length===4 &&
-    typeof q.correctIndex === 'number' && q.correctIndex >= 0 && q.correctIndex < 4);
+  const qs = obj.questions.filter(q => {
+    if(!q || !q.question) return false;
+    if(q.type === 'written') return typeof q.answer === 'string' && q.answer.trim().length > 0;
+    return Array.isArray(q.options) && q.options.length===4 &&
+      typeof q.correctIndex === 'number' && q.correctIndex >= 0 && q.correctIndex < 4;
+  });
   return qs.length ? qs : null;
 }
 function shuffleOptionsQZ(q){
+  if(q.type === 'written'){
+    return { type:'written', question: q.question, answer: q.answer || '', explanation: q.explanation || '' };
+  }
   const order = q.options.map((_,i)=>i);
   for(let i=order.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const t=order[i]; order[i]=order[j]; order[j]=t; }
   return {
+    type: 'mc',
     question: q.question,
     explanation: q.explanation || '',
     options: order.map(i=>q.options[i]),
@@ -16415,7 +16530,7 @@ async function startGenerateQuiz(){
     note.textContent = 'Pick a course or type a topic first — I need at least one to know what to quiz you on.';
     return;
   }
-  lastGenParams = { subject, topic, count: selectedCount };
+  lastGenParams = { subject, topic, count: selectedCount, qType: selectedQType, examMode, examMinutes };
   await runGeneration(lastGenParams);
 }
 async function retakeQuiz(){
@@ -16426,7 +16541,7 @@ async function runGeneration(params){
   showScreen('qz-loading');
   startLoadingAnimation();
   const material = params.subject ? await gatherMaterialForSubject(params.subject) : '';
-  const sys = QUIZ_SYSTEM_PROMPT.replace('{{N}}', String(params.count));
+  const sys = buildQuizSystemPrompt(params.qType || 'mc', params.count);
   let userMsg;
   if(material){
     userMsg = 'Study material for "' + params.subject + '"' + (params.topic ? ' (focus especially on: ' + params.topic + ')' : '') +
@@ -16444,12 +16559,57 @@ async function runGeneration(params){
   currentTopic = params.topic || '';
   currentQuestions = qs.map(shuffleOptionsQZ);
   currentAnswers = currentQuestions.map(()=>null);
+  currentWritten = currentQuestions.map(()=>'');
   currentQIndex = 0;
   currentQuizId = uid();
   currentQuizTitle = params.topic || params.subject || 'Quiz';
   isReviewOfSaved = false;
+  examMode = !!params.examMode;
+  examMinutes = params.examMinutes || 20;
+  if(examMode){
+    document.getElementById('qz-cover-course').textContent = currentSubject || 'Untimed topic';
+    document.getElementById('qz-cover-title').textContent = currentQuizTitle;
+    document.getElementById('qz-cover-qcount').textContent = String(currentQuestions.length);
+    document.getElementById('qz-cover-time').textContent = examMinutes + ':00';
+    document.getElementById('qz-cover-name').value = '';
+    showScreen('qz-cover');
+  } else {
+    showScreen('qz-play');
+    document.getElementById('qz-timer').style.display = 'none';
+    renderQuestion();
+  }
+}
+
+function beginExam(){
+  const nameEl = document.getElementById('qz-cover-name');
+  if(nameEl.value.trim()) currentQuizTitle = currentQuizTitle + ' — ' + nameEl.value.trim();
   showScreen('qz-play');
+  document.getElementById('qz-timer').style.display = '';
+  startExamTimer(examMinutes);
   renderQuestion();
+}
+function formatTimer(totalSeconds){
+  const m = Math.floor(totalSeconds/60), s = totalSeconds%60;
+  return m + ':' + (s<10?'0':'') + s;
+}
+function stopExamTimer(){
+  if(examTimerId){ clearInterval(examTimerId); examTimerId = null; }
+}
+function startExamTimer(minutes){
+  stopExamTimer();
+  examEndAt = Date.now() + minutes*60000;
+  const tick = ()=>{
+    const remaining = Math.max(0, Math.round((examEndAt - Date.now())/1000));
+    const el = document.getElementById('qz-timer');
+    document.getElementById('qz-timer-text').textContent = formatTimer(remaining);
+    el.classList.toggle('low', remaining <= 60);
+    if(remaining <= 0){
+      stopExamTimer();
+      finishQuiz();
+    }
+  };
+  tick();
+  examTimerId = setInterval(tick, 1000);
 }
 
 /* ---------------- quiz-taking ---------------- */
@@ -16461,8 +16621,19 @@ function renderQuestion(){
   const q = currentQuestions[currentQIndex];
   const card = document.getElementById('qz-card');
   card.innerHTML = '';
+  if(selectedQType === 'mixed'){
+    const tag = document.createElement('div'); tag.className = 'qz-type-tag';
+    tag.textContent = q.type === 'written' ? 'Written' : 'Multiple choice';
+    card.appendChild(tag);
+  }
   const qEl = document.createElement('div'); qEl.className = 'quiz-q'; qEl.textContent = q.question;
   card.appendChild(qEl);
+
+  if(q.type === 'written'){
+    renderWrittenQuestion(card, q, total);
+    return;
+  }
+
   const explainEl = document.createElement('div'); explainEl.className = 'quiz-explain'; explainEl.textContent = q.explanation || '';
   const already = currentAnswers[currentQIndex];
   q.options.forEach((opt, idx)=>{
@@ -16491,6 +16662,61 @@ function selectAnswer(idx){
   });
   renderQuestion();
 }
+
+/* ---- written (short-answer) questions: self-graded against a model answer ---- */
+function renderWrittenQuestion(card, q, total){
+  const i = currentQIndex;
+  const graded = currentAnswers[i]; // null | 'correct' | 'incorrect'
+  const ta = document.createElement('textarea');
+  ta.className = 'written-answer';
+  ta.placeholder = 'Type your answer…';
+  ta.value = currentWritten[i] || '';
+  ta.disabled = !!graded;
+  ta.addEventListener('input', ()=>{ currentWritten[i] = ta.value; });
+  card.appendChild(ta);
+
+  const modelEl = document.createElement('div'); modelEl.className = 'written-model';
+  modelEl.innerHTML = '<strong>Model answer:</strong> ' + escapeHtmlQZ(q.answer || '') +
+    (q.explanation ? '<br><br>' + escapeHtmlQZ(q.explanation) : '');
+  card.appendChild(modelEl);
+
+  if(!graded){
+    const showBtn = document.createElement('button');
+    showBtn.type = 'button'; showBtn.className = 'btn-secondary'; showBtn.style.width = '100%'; showBtn.style.marginBottom = '10px';
+    showBtn.textContent = 'Show model answer';
+    showBtn.addEventListener('click', ()=>{
+      modelEl.classList.add('show');
+      showBtn.style.display = 'none';
+      gradeRow.style.display = 'flex';
+    });
+    card.appendChild(showBtn);
+
+    const gradeRow = document.createElement('div'); gradeRow.className = 'written-grade-row'; gradeRow.style.display = 'none';
+    const rightBtn = document.createElement('button'); rightBtn.type='button'; rightBtn.className='btn-primary'; rightBtn.textContent = 'I got this right';
+    rightBtn.addEventListener('click', ()=> gradeWritten(true));
+    const wrongBtn = document.createElement('button'); wrongBtn.type='button'; wrongBtn.className='btn-secondary'; wrongBtn.textContent = 'I got this wrong';
+    wrongBtn.addEventListener('click', ()=> gradeWritten(false));
+    gradeRow.appendChild(rightBtn); gradeRow.appendChild(wrongBtn);
+    card.appendChild(gradeRow);
+  } else {
+    modelEl.classList.add('show');
+    const tagEl = document.createElement('div');
+    tagEl.style.fontWeight = '600'; tagEl.style.marginBottom = '10px';
+    tagEl.style.color = graded === 'correct' ? 'var(--sage)' : '#b3452f';
+    tagEl.textContent = graded === 'correct' ? '✓ Marked correct' : '✗ Marked incorrect';
+    card.insertBefore(tagEl, modelEl);
+    document.getElementById('qz-next-btn').style.display = '';
+    document.getElementById('qz-next-btn').textContent = (currentQIndex === total-1) ? 'See results →' : 'Next question →';
+  }
+}
+function gradeWritten(isCorrect){
+  const q = currentQuestions[currentQIndex];
+  currentAnswers[currentQIndex] = isCorrect ? 'correct' : 'incorrect';
+  pgRecordAnswer(currentSubject, q.question, isCorrect, {
+    topic: currentTopic || '', chosen: currentWritten[currentQIndex] || '', correctAnswer: q.answer || ''
+  });
+  renderQuestion();
+}
 function goNextQuestion(){
   if(currentQIndex < currentQuestions.length - 1){
     currentQIndex++;
@@ -16503,7 +16729,10 @@ function goNextQuestion(){
 /* ---------------- results / review ---------------- */
 function scoreFromAnswers(){
   let score = 0;
-  currentQuestions.forEach((q,i)=>{ if(currentAnswers[i] === q.correctIndex) score++; });
+  currentQuestions.forEach((q,i)=>{
+    if(q.type === 'written'){ if(currentAnswers[i] === 'correct') score++; }
+    else if(currentAnswers[i] === q.correctIndex) score++;
+  });
   return score;
 }
 function resultsMessage(pct){
@@ -16520,12 +16749,26 @@ function renderReviewList(){
     const item = document.createElement('div'); item.className = 'review-item';
     const rq = document.createElement('div'); rq.className = 'rq'; rq.textContent = (i+1) + '. ' + q.question;
     item.appendChild(rq);
-    q.options.forEach((opt, idx)=>{
-      const ro = document.createElement('div'); ro.className = 'ro'; ro.textContent = opt;
-      if(idx === q.correctIndex) ro.classList.add('correct');
-      else if(idx === chosen) ro.classList.add('chosen-wrong');
-      item.appendChild(ro);
-    });
+    if(q.type === 'written'){
+      const you = document.createElement('div'); you.className = 'rw-you';
+      you.textContent = 'Your answer: ' + (currentWritten[i] ? currentWritten[i] : '(left blank)');
+      item.appendChild(you);
+      const tag = document.createElement('div');
+      tag.className = chosen === 'correct' ? 'rw-tag-correct' : 'rw-tag-incorrect';
+      tag.style.fontWeight = '600'; tag.style.marginBottom = '6px';
+      tag.textContent = chosen === 'correct' ? '✓ Marked correct' : (chosen === 'incorrect' ? '✗ Marked incorrect' : '– Not graded');
+      item.appendChild(tag);
+      const model = document.createElement('div'); model.className = 'ro correct';
+      model.textContent = 'Model answer: ' + (q.answer || '');
+      item.appendChild(model);
+    } else {
+      q.options.forEach((opt, idx)=>{
+        const ro = document.createElement('div'); ro.className = 'ro'; ro.textContent = opt;
+        if(idx === q.correctIndex) ro.classList.add('correct');
+        else if(idx === chosen) ro.classList.add('chosen-wrong');
+        item.appendChild(ro);
+      });
+    }
     if(q.explanation){
       const rexp = document.createElement('div'); rexp.className = 'rexp'; rexp.textContent = q.explanation;
       item.appendChild(rexp);
@@ -16534,6 +16777,8 @@ function renderReviewList(){
   });
 }
 async function finishQuiz(){
+  stopExamTimer();
+  document.getElementById('qz-timer').style.display = 'none';
   const total = currentQuestions.length;
   const score = scoreFromAnswers();
   const pct = total ? Math.round((score/total)*100) : 0;
@@ -16553,8 +16798,12 @@ async function finishQuiz(){
       subject: currentSubject || 'Unsorted',
       savedAt: Date.now(),
       score, total,
-      questions: currentQuestions.map((q,i)=>({
-        question:q.question, options:q.options, correctIndex:q.correctIndex,
+      qType: selectedQType,
+      questions: currentQuestions.map((q,i)=> q.type === 'written' ? ({
+        type:'written', question:q.question, answer:q.answer||'', explanation:q.explanation||'',
+        chosen: currentAnswers[i], writtenText: currentWritten[i] || ''
+      }) : ({
+        type:'mc', question:q.question, options:q.options, correctIndex:q.correctIndex,
         explanation:q.explanation||'', chosen: currentAnswers[i]
       }))
     };
@@ -16581,9 +16830,11 @@ async function loadSavedQuiz(id){
     currentQuizId = item.id;
     currentQuizTitle = item.title || 'Quiz';
     currentSubject = item.subject && item.subject !== 'Unsorted' ? item.subject : null;
-    currentQuestions = (item.questions||[]).map(q=>({ question:q.question, options:q.options, correctIndex:q.correctIndex, explanation:q.explanation||'' }));
-    currentAnswers = (item.questions||[]).map(q=> (typeof q.chosen === 'number') ? q.chosen : null);
-    lastGenParams = { subject: currentSubject, topic: currentQuizTitle !== currentSubject ? currentQuizTitle : '', count: currentQuestions.length || 8 };
+    currentQuestions = (item.questions||[]).map(q=> q.type === 'written' ? ({ type:'written', question:q.question, answer:q.answer||'', explanation:q.explanation||'' }) : ({ type:'mc', question:q.question, options:q.options, correctIndex:q.correctIndex, explanation:q.explanation||'' }));
+    currentAnswers = (item.questions||[]).map(q=> (q.type === 'written') ? (q.chosen || null) : ((typeof q.chosen === 'number') ? q.chosen : null));
+    currentWritten = (item.questions||[]).map(q=> q.writtenText || '');
+    selectedQType = item.qType || 'mc';
+    lastGenParams = { subject: currentSubject, topic: currentQuizTitle !== currentSubject ? currentQuizTitle : '', count: currentQuestions.length || 8, qType: selectedQType };
     isReviewOfSaved = true;
     const total = currentQuestions.length;
     const score = (typeof item.score === 'number') ? item.score : scoreFromAnswers();
