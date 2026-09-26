@@ -14370,6 +14370,43 @@ input, textarea, .note-textbox{ -webkit-user-select:text; user-select:text; }
 .ne-num{ width:52px; }
 .ne-tool-label{ color:var(--muted); }
 
+/* ---------- pen tray (Markup popover) ---------- */
+.ne-pen-tray{ display:flex; align-items:center; gap:10px; padding:10px 12px; flex-wrap:nowrap; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+.ne-pen-sep{ width:1px; align-self:stretch; min-height:34px; background:var(--border); flex-shrink:0; }
+.ne-pen-arrows{ display:flex; align-items:center; gap:6px; flex-shrink:0; }
+.ne-pen-arrow-btn{
+  width:32px; height:32px; border-radius:50%; border:none; background:#EDE9DC; color:var(--ink);
+  display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; padding:0;
+}
+.ne-pen-arrow-btn:hover{ background:#E3DDC9; }
+.ne-pen-arrow-btn:disabled{ opacity:.4; cursor:default; }
+.ne-pen-arrow-btn svg{ width:16px; height:16px; }
+.ne-pen-tools{ display:flex; align-items:flex-end; gap:14px; flex-shrink:0; padding:0 2px; }
+.ne-pen-tool-btn{
+  border:none; background:transparent; color:var(--ink); cursor:pointer; padding:2px 2px 6px;
+  display:flex; flex-direction:column; align-items:center; gap:3px; flex-shrink:0; border-bottom:2px solid transparent;
+  font-family:inherit;
+}
+.ne-pen-tool-btn svg{ width:26px; height:30px; }
+.ne-pen-tool-btn.active{ border-bottom-color:var(--accent); }
+.ne-pen-tool-btn .ne-pen-tool-tag{ font-size:9px; color:var(--muted); font-family:'JetBrains Mono',monospace; }
+.ne-pen-size-col{ display:flex; align-items:center; gap:8px; flex-shrink:0; }
+.ne-pen-colors{ display:grid; grid-template-columns:repeat(3,22px); grid-auto-flow:column; gap:8px; flex-shrink:0; }
+.ne-pen-color{
+  width:22px; height:22px; border-radius:50%; cursor:pointer; border:2px solid transparent; padding:0;
+  box-shadow:0 0 0 1px rgba(0,0,0,0.12) inset;
+}
+.ne-pen-color.active{ border-color:#2E6DBE; box-shadow:0 0 0 2px #fff inset, 0 0 0 1px rgba(0,0,0,0.12); }
+.ne-pen-color.ne-pen-color-wheel{
+  background:conic-gradient(red,#f0f,blue,#0ff,lime,yellow,red); box-shadow:none;
+}
+.ne-pen-extra{ display:flex; align-items:center; gap:8px; flex-shrink:0; }
+.ne-pen-round-btn{
+  width:32px; height:32px; border-radius:50%; border:none; background:#EDE9DC; color:var(--ink);
+  display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; padding:0; font-size:15px;
+}
+.ne-pen-round-btn:hover{ background:#E3DDC9; }
+
 .ne-body{ flex:1; overflow-y:auto; overflow-x:auto; background:#DCD6C4; padding:0 0 60px;
   display:flex; flex-direction:column; align-items:center; gap:10px; -webkit-overflow-scrolling:touch; }
 
@@ -14599,28 +14636,51 @@ input, textarea, .note-textbox{ -webkit-user-select:text; user-select:text; }
           </div>
         </div>
 
-        <!-- Markup: pen / eraser / text tool / colors / size / undo -->
+        <!-- Markup: undo/redo / pen / eraser / text tool / size / colors -->
         <div class="an-popover an-markup-popover" id="an-markup-popover">
-          <div class="ne-toolbar" style="position:static;border:none;padding:14px;background:transparent;max-height:none;flex-wrap:wrap;">
-            <div class="ne-tool-group">
-              <button type="button" class="ne-tool-btn active" id="tool-pen" title="Pen">✏️ Pen</button>
-              <button type="button" class="ne-tool-btn" id="tool-eraser" title="Eraser">🧽 Eraser</button>
-              <button type="button" class="ne-tool-btn" id="tool-text" title="Add text box">🔤 Text</button>
+          <div class="ne-pen-tray">
+            <div class="ne-pen-arrows">
+              <button type="button" class="ne-pen-arrow-btn" id="tool-undo" title="Undo" aria-label="Undo">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7L4 12l5 5"/><path d="M4 12h11a5 5 0 010 10h-1"/></svg>
+              </button>
+              <button type="button" class="ne-pen-arrow-btn" id="tool-redo" title="Redo" aria-label="Redo" disabled>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7l5 5-5 5"/><path d="M20 12H9a5 5 0 000 10h1"/></svg>
+              </button>
             </div>
-            <div class="ne-tool-sep"></div>
-            <div class="ne-tool-group ne-color-row" id="ne-color-row">
-              <button type="button" class="ne-color-swatch active" data-color="#2A2410" style="background:#2A2410;"></button>
-              <button type="button" class="ne-color-swatch" data-color="#2E6DBE" style="background:#2E6DBE;"></button>
-              <button type="button" class="ne-color-swatch" data-color="#C0392B" style="background:#C0392B;"></button>
-              <button type="button" class="ne-color-swatch" data-color="#2E8B57" style="background:#2E8B57;"></button>
+            <div class="ne-pen-sep"></div>
+            <div class="ne-pen-tools">
+              <button type="button" class="ne-pen-tool-btn" id="tool-text" title="Add text box" aria-label="Text">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 19V7.5L12 6l6 1.5V19"/><path d="M8.5 19v-6h7v6"/></svg>
+                <span class="ne-pen-tool-tag">A</span>
+              </button>
+              <button type="button" class="ne-pen-tool-btn active" id="tool-pen" title="Pen" aria-label="Pen">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20l1-4.5L15.5 6.5a2.1 2.1 0 013 3L10 18l-4 2z"/><path d="M13.5 8.5l3 3"/></svg>
+                <span class="ne-pen-tool-tag">80</span>
+              </button>
+              <button type="button" class="ne-pen-tool-btn" id="tool-eraser" title="Eraser" aria-label="Eraser">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13l-7 7H7l-4-4a2 2 0 010-2.8L13 3.2a2 2 0 012.8 0L18 5.4a2 2 0 010 2.8L9.5 17"/></svg>
+                <span class="ne-pen-tool-tag">✕</span>
+              </button>
             </div>
-            <div class="ne-tool-group">
+            <div class="ne-pen-sep"></div>
+            <div class="ne-pen-size-col">
               <span class="ne-tool-label">Size</span>
               <input type="range" class="ne-size-slider" id="pen-size" min="1" max="12" value="3">
             </div>
-            <div class="ne-tool-sep"></div>
-            <div class="ne-tool-group">
-              <button type="button" class="ne-tool-btn" id="tool-undo" title="Undo">↺ Undo</button>
+            <div class="ne-pen-sep"></div>
+            <div class="ne-pen-colors" id="ne-color-row">
+              <button type="button" class="ne-pen-color active" data-color="#000000" style="background:#000000;" title="Black"></button>
+              <button type="button" class="ne-pen-color" data-color="#F2C438" style="background:#F2C438;" title="Yellow"></button>
+              <button type="button" class="ne-pen-color" data-color="#2E6DBE" style="background:#2E6DBE;" title="Blue"></button>
+              <button type="button" class="ne-pen-color" data-color="#C0392B" style="background:#C0392B;" title="Red"></button>
+              <button type="button" class="ne-pen-color" data-color="#3CB35A" style="background:#3CB35A;" title="Green"></button>
+              <button type="button" class="ne-pen-color ne-pen-color-wheel" id="ne-color-wheel" title="More colors"></button>
+              <input type="color" id="ne-color-custom" value="#000000" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;">
+            </div>
+            <div class="ne-pen-sep"></div>
+            <div class="ne-pen-extra">
+              <button type="button" class="ne-pen-round-btn" id="ne-color-add" title="Add color">+</button>
+              <button type="button" class="ne-pen-round-btn" id="ne-pen-more" title="More">•••</button>
             </div>
           </div>
         </div>
@@ -15780,6 +15840,7 @@ function wirePageInput(pageWrap, ink, textLayer, page){
       activePenPointerId = null;
       if(stroke && !scribbleErasing && currentTool !== 'eraser' && stroke.points.length){
         page.strokes.push(stroke);
+        if(noteRedoStack.length){ noteRedoStack = []; refreshUndoRedoButtons(); }
       }
       redrawInk(ink, page);
       scheduleSave();
@@ -15844,27 +15905,53 @@ document.getElementById('zoom-out').addEventListener('click', ()=>{
 });
 applyZoom();
 
-document.querySelectorAll('.ne-color-swatch').forEach(sw=>{
-  sw.addEventListener('click', ()=>{
-    penColor = sw.dataset.color;
-    document.querySelectorAll('.ne-color-swatch').forEach(s=>s.classList.remove('active'));
-    sw.classList.add('active');
-    setTool('pen');
-  });
+function selectPenColor(hex){
+  penColor = hex;
+  document.querySelectorAll('.ne-pen-color').forEach(s=>s.classList.remove('active'));
+  const match = document.querySelector('.ne-pen-color[data-color="'+hex+'"]');
+  if(match){ match.classList.add('active'); }
+  else { document.getElementById('ne-color-wheel').style.background = hex; document.getElementById('ne-color-wheel').classList.add('active'); }
+  setTool('pen');
+}
+document.querySelectorAll('.ne-pen-color[data-color]').forEach(sw=>{
+  sw.addEventListener('click', ()=> selectPenColor(sw.dataset.color));
+});
+document.getElementById('ne-color-wheel').addEventListener('click', ()=> document.getElementById('ne-color-custom').click());
+document.getElementById('ne-color-add').addEventListener('click', ()=> document.getElementById('ne-color-custom').click());
+document.getElementById('ne-color-custom').addEventListener('input', (e)=>{
+  document.getElementById('ne-color-wheel').style.background = '';
+  selectPenColor(e.target.value);
 });
 document.getElementById('pen-size').addEventListener('input', (e)=>{ penSize = Number(e.target.value); });
 
+// Simple global undo/redo: pops/pushes the most recent stroke across all
+// pages of the current note, mirroring the pen tray's arrow buttons.
+let noteRedoStack = [];
+function refreshUndoRedoButtons(){
+  document.getElementById('tool-redo').disabled = noteRedoStack.length === 0;
+}
 document.getElementById('tool-undo').addEventListener('click', ()=>{
   const note = currentNote();
   if(!note) return;
-  // Undo the most recent stroke across all pages (simple global undo).
-  let latestPageIdx = -1, latestStrokeIdx = -1, latestTime = -1;
-  note.pages.forEach((p, pi)=>{ if(p.strokes.length){ latestPageIdx = pi; latestStrokeIdx = p.strokes.length-1; } });
+  let latestPageIdx = -1;
+  note.pages.forEach((p, pi)=>{ if(p.strokes.length){ latestPageIdx = pi; } });
   if(latestPageIdx === -1) return;
-  note.pages[latestPageIdx].strokes.pop();
+  const stroke = note.pages[latestPageIdx].strokes.pop();
+  noteRedoStack.push({ pageIdx: latestPageIdx, stroke });
+  refreshUndoRedoButtons();
   renderAllPages(note);
   scheduleSave();
 });
+document.getElementById('tool-redo').addEventListener('click', ()=>{
+  const note = currentNote();
+  if(!note || noteRedoStack.length === 0) return;
+  const { pageIdx, stroke } = noteRedoStack.pop();
+  if(note.pages[pageIdx]){ note.pages[pageIdx].strokes.push(stroke); }
+  refreshUndoRedoButtons();
+  renderAllPages(note);
+  scheduleSave();
+});
+refreshUndoRedoButtons();
 
 document.getElementById('add-page-btn').addEventListener('click', ()=>{
   const note = currentNote();
