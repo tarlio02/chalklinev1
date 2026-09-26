@@ -5421,17 +5421,17 @@ body{
   flex-shrink:0;
   box-shadow:0 3px 10px rgba(108,92,231,0.35), 0 0 0 3px var(--violet-ring);
 }
-.mic-btn.live{ background:#1d4ed8; box-shadow:0 3px 10px rgba(29,78,216,0.55), 0 0 0 4px var(--violet-ring); animation:mic-pulse 1.3s ease-in-out infinite; }
+.mic-btn.live{ background:#e53e3e; box-shadow:0 3px 10px rgba(229,62,62,0.45), 0 0 0 4px var(--violet-ring); animation:mic-pulse 1.3s ease-in-out infinite; }
 .mic-btn.unsupported{background:#c9c4b5;box-shadow:none;cursor:not-allowed;}
-@keyframes mic-pulse{0%,100%{box-shadow:0 0 0 0 rgba(29,78,216,.65), 0 0 0 4px var(--violet-ring);}50%{box-shadow:0 0 0 12px rgba(29,78,216,0), 0 0 0 4px var(--violet-ring);}}
-/* Talk now lives inside the ask box itself (tap-and-hold to talk, right next
-   to Send) instead of its own separate round button beside it. */
-.ask-zone .mic-btn{
-  width:26px;height:26px;
-  box-shadow:none;
-  margin:0 1px;
+@keyframes mic-pulse{0%,100%{box-shadow:0 0 0 0 rgba(229,62,62,.55), 0 0 0 4px var(--violet-ring);}50%{box-shadow:0 0 0 10px rgba(229,62,62,0), 0 0 0 4px var(--violet-ring);}}
+/* Mic now floats on its own, docked to the bottom-right corner of the
+   screen (tap-and-hold to talk) instead of living inside the ask box. */
+.floating-mic-btn{
+  position:fixed;
+  right:calc(var(--safe-right) + 16px);
+  bottom:calc(var(--safe-bottom) + 84px);
+  z-index:25;
 }
-.ask-zone .mic-btn.live{ box-shadow:0 0 0 3px rgba(29,78,216,0.35); }
 
 .ask-zone{
   position:relative;
@@ -6181,7 +6181,6 @@ body:not(.panel-open) .sidebar-toggle{ left:0 !important; }
       <button class="ask-icon-btn" id="btn-attach" title="Attach a file">📎</button>
       <input type="file" id="attach-input" accept="image/*,.pdf,.txt,.md" style="display:none;">
       <input type="text" id="ask-input" placeholder="Ask a follow-up…">
-      <button class="mic-btn ask-mic-btn" id="btn-mic" title="Hold to talk to your tutor">🎙</button>
       <button id="btn-ask" title="Send">➤</button>
     </div>
 
@@ -6191,6 +6190,9 @@ body:not(.panel-open) .sidebar-toggle{ left:0 !important; }
     </div>
   </div>
 </div>
+
+<!-- Mic moved out of the ask box: floats as its own button, bottom-right of the screen. -->
+<button class="mic-btn floating-mic-btn" id="btn-mic" title="Hold to talk to your tutor">🎙</button>
 
 <!-- SIDE PANEL -->
 <div class="overlay" id="overlay"></div>
