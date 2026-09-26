@@ -1499,7 +1499,7 @@ body.landing-active #shell-auth{ display:none; }
 <div id="page-assistant" class="shell-page" role="main" aria-label="Chalkline assistant">
   <aside id="as-side">
     <div id="as-side-top">
-      <a href="#" id="as-brand" onclick="navTo('home', true); return false;"><img data-cl-icon alt="" aria-hidden="true" draggable="false">Chalkline</a>
+      <a href="#" id="as-brand" onclick="navTo('home', true, assistantCourse ? { openCourse: assistantCourse } : null); return false;"><img data-cl-icon alt="" aria-hidden="true" draggable="false">Chalkline</a>
       <button type="button" id="as-sidebar-close" aria-label="Close menu">✕</button>
     </div>
     <button type="button" id="as-new-btn"><span class="ic">＋</span>New chat</button>
@@ -1508,7 +1508,7 @@ body.landing-active #shell-auth{ display:none; }
       <div id="assistant-conv-list"></div>
     </div>
     <div id="as-side-footer">
-      <a href="#" onclick="navTo('home', true); return false;"><span class="ic">🏠</span>Back to Dashboard</a>
+      <a href="#" onclick="navTo('home', true, assistantCourse ? { openCourse: assistantCourse } : null); return false;"><span class="ic">🏠</span>Back to Dashboard</a>
     </div>
   </aside>
   <div id="as-side-scrim"></div>
@@ -2329,14 +2329,25 @@ function appendBgSection(body){
   wrap.appendChild(grid); body.appendChild(wrap);
 }
 
-// ---- Chalkline assistant: a general chat with the AI, opened from any page's sidebar ----
-const ASSISTANT_SYSTEM = "You are the Chalkline Assistant, a friendly, knowledgeable study helper inside Chalkline — an AI whiteboard tutoring app (an AI tutor teaches on a handwritten whiteboard; there are saved lessons, summaries, quizzes, notes and a dashboard of courses). Chat naturally: answer any question, explain concepts clearly with university-level accuracy, help plan studying and prepare for exams and assignments, and help the student use Chalkline. Match structure to the question: a quick factual question gets a short plain-text answer, no formatting scaffolding needed. A multi-part answer — a study plan, a comparison, a step-by-step process, a set of options — gets real structure: use '## '/'### ' headers to separate sections (e.g. one per day of a study plan, one per option being compared), numbered lists (1. 2. 3.) for sequential steps, '- ' bullets for a set of unordered points, and **bold** on the key term or number in a line so it's scannable at a glance. Never use headers/lists just to pad a one-idea answer — reserve them for when the content genuinely has multiple parts. Keep it phone-screen sized: short paragraphs and lines, nothing that reads like padding. Ask one brief follow-up question only when it is useful. Use plain text and real Unicode symbols (², √, ≤, ∑, π) — never LaTeX, never $ delimiters. If the student wants a full lesson with diagrams drawn on the whiteboard, tell them to start a new lesson from the Dashboard (you can still explain the idea in chat first). Be warm, patient and encouraging, never robotic. If you are unsure of something, say so instead of guessing.";
-let assistantConvs = [];        // [{ id, title, msgs:[{role,content}], updated }], newest first
+// ---- Chalkline assistant: opened from any page's sidebar, scoped to whichever
+// course that page was showing — each course keeps its own separate list of
+// conversations, entirely apart from every other course's chats. Opened with
+// no course in context (e.g. the Dashboard course list) falls back to one
+// shared "general" bucket rather than being tied to a course. ----
+const ASSISTANT_SYSTEM_BASE = "You are the Chalkline Assistant, a friendly, knowledgeable study helper inside Chalkline — an AI whiteboard tutoring app (an AI tutor teaches on a handwritten whiteboard; there are saved lessons, summaries, quizzes, notes and a dashboard of courses). Chat naturally: answer any question, explain concepts clearly with university-level accuracy, help plan studying and prepare for exams and assignments, and help the student use Chalkline. Match structure to the question: a quick factual question gets a short plain-text answer, no formatting scaffolding needed. A multi-part answer — a study plan, a comparison, a step-by-step process, a set of options — gets real structure: use '## '/'### ' headers to separate sections (e.g. one per day of a study plan, one per option being compared), numbered lists (1. 2. 3.) for sequential steps, '- ' bullets for a set of unordered points, and **bold** on the key term or number in a line so it's scannable at a glance. Never use headers/lists just to pad a one-idea answer — reserve them for when the content genuinely has multiple parts. Keep it phone-screen sized: short paragraphs and lines, nothing that reads like padding. Ask one brief follow-up question only when it is useful. Use plain text and real Unicode symbols (², √, ≤, ∑, π) — never LaTeX, never $ delimiters. If the student wants a full lesson with diagrams drawn on the whiteboard, tell them to start a new lesson from the Dashboard (you can still explain the idea in chat first). Be warm, patient and encouraging, never robotic. If you are unsure of something, say so instead of guessing.";
+function assistantSystemPrompt(){
+  if(!assistantCourse) return ASSISTANT_SYSTEM_BASE;
+  return ASSISTANT_SYSTEM_BASE + " You are currently opened from inside the course \"" + assistantCourse + "\" — assume the student's questions relate to this course unless they clearly ask about something else, and you can refer to the course by name.";
+}
+let assistantCourse = null;     // course/subject this open chat is scoped to, or null for the general bucket
+let assistantConvs = [];        // [{ id, title, msgs:[{role,content}], updated }], newest first for assistantCourse only
 let assistantActiveId = null;
 let assistantBusy = false;
 let assistantSidebarOpen = false;
 function assistantUid(){ return (typeof shellUser !== 'undefined' && shellUser && shellUser.sub) || 'guest'; }
-function assistantConvKey(){ return 'chalkline_assistant_convs:' + assistantUid(); }
+// Every course gets its own storage bucket so conversations never mix between courses.
+function assistantCourseSlug(){ return assistantCourse ? encodeURIComponent(assistantCourse.trim().toLowerCase()) : '__general__'; }
+function assistantConvKey(){ return 'chalkline_assistant_convs:' + assistantUid() + ':' + assistantCourseSlug(); }
 function assistantLegacyKey(){ return 'chalkline_assistant_chat:' + assistantUid(); }
 function assistantGenId(){ return 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 function assistantDeriveTitle(msgs){
@@ -2353,7 +2364,9 @@ function assistantLoadConvs(){
   let convs = [];
   try{ const v = JSON.parse(localStorage.getItem(assistantConvKey()) || '[]'); if(Array.isArray(v)) convs = v; }
   catch(e){ convs = []; }
-  if(!convs.length){
+  // The old single-chat format predates course scoping, so it only ever
+  // migrates into the general (no-course) bucket — never into a course's own list.
+  if(!convs.length && !assistantCourse){
     try{
       const legacy = JSON.parse(localStorage.getItem(assistantLegacyKey()) || '[]');
       if(Array.isArray(legacy) && legacy.length){
@@ -2408,9 +2421,15 @@ function assistantDraw(){
   const msgs = conv ? conv.msgs : [];
   if(!msgs.length){
     const e = document.createElement('div'); e.id = 'assistant-empty';
-    e.innerHTML = '<div class="as-emoji">💬</div><h3>Hi, I\'m your Chalkline assistant</h3><p>Ask me anything — a concept you\'re stuck on, help planning your revision, or how to use Chalkline.</p>';
+    const introP = assistantCourse
+      ? ('Ask me anything about <strong>' + assistantEsc(assistantCourse) + '</strong> — a concept you\'re stuck on, help planning your revision, or how to use Chalkline.')
+      : 'Ask me anything — a concept you\'re stuck on, help planning your revision, or how to use Chalkline.';
+    e.innerHTML = '<div class="as-emoji">💬</div><h3>Hi, I\'m your Chalkline assistant</h3><p>' + introP + '</p>';
     const chips = document.createElement('div'); chips.className = 'as-chips';
-    ['Explain a concept to me', 'Help me plan my revision', 'How do I use Chalkline?'].forEach(t => {
+    (assistantCourse
+      ? ['Explain a concept to me', 'Help me plan my revision for ' + assistantCourse, 'How do I use Chalkline?']
+      : ['Explain a concept to me', 'Help me plan my revision', 'How do I use Chalkline?']
+    ).forEach(t => {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'as-chip'; b.textContent = t;
       b.addEventListener('click', () => {
         const inp = document.getElementById('assistant-input');
@@ -2488,7 +2507,7 @@ async function assistantAsk(history){
     const r = await fetch(WORKER_URL + '/gemini', {
       method: 'POST', headers,
       body: JSON.stringify({
-        system_instruction: { parts: [{ text: ASSISTANT_SYSTEM }] },
+        system_instruction: { parts: [{ text: assistantSystemPrompt() }] },
         contents: h.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })),
         generationConfig: { maxOutputTokens: 2000, thinkingConfig: { thinkingLevel: 'low' } }
       })
@@ -2503,7 +2522,7 @@ async function assistantAsk(history){
       method: 'POST', headers,
       body: JSON.stringify({
         model: 'openai/gpt-oss-120b', max_tokens: 1500,
-        messages: [{ role: 'system', content: ASSISTANT_SYSTEM }].concat(h.slice(-10).map(m => ({ role: m.role, content: m.content })))
+        messages: [{ role: 'system', content: assistantSystemPrompt() }].concat(h.slice(-10).map(m => ({ role: m.role, content: m.content })))
       })
     });
     const data = await r.json();
@@ -2542,8 +2561,25 @@ async function assistantSend(text){
   assistantBusy = false;
   document.getElementById('assistant-send').disabled = false;
 }
-// Called on navigating to the assistant page (its own page, reached from any page's sidebar).
-function openAssistantPage(){
+// Reflects the current course (or lack of one) in the header, so it's always
+// clear which course's conversations are showing.
+function assistantUpdateHeader(){
+  const title = document.getElementById('assistant-title');
+  const sub = document.querySelector('#assistant-head .as-sub');
+  if(assistantCourse){
+    if(title) title.textContent = '💬 ' + assistantCourse;
+    if(sub) sub.textContent = 'Chalkline assistant for this course';
+  } else {
+    if(title) title.textContent = '💬 Chalkline assistant';
+    if(sub) sub.textContent = 'ask me anything';
+  }
+}
+// Called on navigating to the assistant page (its own page, reached from any page's
+// sidebar). `course` scopes the whole page — conversation list, storage and system
+// prompt — to that course; omit/null for the general, course-less bucket.
+function openAssistantPage(course){
+  assistantCourse = course || null;
+  assistantUpdateHeader();
   assistantLoadConvs();
   if(!assistantActiveConv()){
     if(assistantConvs.length) assistantActiveId = assistantConvs[0].id;
@@ -2933,7 +2969,7 @@ window.addEventListener('message', (e)=>{
     openSignOutConfirm();
   }
   if(d.openSettings){ openSettingsModal(); }
-  if(d.openAssistant){ navTo('assistant', true); }
+  if(d.openAssistant){ navTo('assistant', true, { course: d.course || null }); }
   // A page just saved something worth uploading right away (lessons autosave often).
   if(d.syncSoon) scheduleSync(1200);
   if(d.flushSync) syncNow(false);
@@ -3825,7 +3861,6 @@ html,body{ height:100%; overflow:hidden; }
 
     <nav class="sidebar-nav">
       <a href="#" class="active" onclick="parent.postMessage({nav:'home'},'*');closeSidebar();return false;"><span class="ic">🏠</span>Dashboard</a>
-      <a href="#" onclick="parent.postMessage({openAssistant:true},'*');return false;"><span class="ic">💬</span>Chalkline assistant</a>
     </nav>
 
     <!-- empty spacer: keeps Settings pinned to the bottom of the sidebar (Assistant sits under Dashboard) -->
@@ -5861,14 +5896,6 @@ body.panel-open .side-panel:not(.conv-panel){ box-shadow:
   color:#fff; text-align:center; background:linear-gradient(to top, rgba(0,0,0,0.6), rgba(0,0,0,0));
 }
 .bg-opt.sel{ border-color:var(--ochre); box-shadow:0 0 0 2px rgba(201,138,43,0.35); }
-.assistant-btn{
-  width:100%; text-align:left; cursor:pointer;
-  font-family:'JetBrains Mono', monospace; font-size:12px; font-weight:600; color:var(--ink, #2A2410);
-  padding:11px 13px; border:1px solid rgba(201,138,43,0.55); border-radius:10px;
-  background:linear-gradient(165deg, #FFFFFF 0%, #FFF3D0 140%);
-  box-shadow:0 1px 5px rgba(60,40,5,0.12);
-}
-.assistant-btn:hover{ border-color:var(--ochre); background:#FFF3D0; }
 .board-slider{ width:100%; margin:4px 0 0; accent-color:var(--ochre); cursor:pointer; touch-action:pan-y; }
 .session-toggle{
   display:flex;align-items:center;justify-content:space-between;
@@ -6290,10 +6317,6 @@ body:not(.panel-open) .sidebar-toggle{ left:0 !important; }
         Drop a PDF, or click to import a chapter, slide deck or notes.
         <input type="file" id="pdf-input" accept="application/pdf">
       </div>
-    </div>
-
-    <div class="p-section">
-      <button type="button" class="assistant-btn" id="btn-open-assistant">💬 Chalkline assistant</button>
     </div>
 
     <!-- Background picker + board transparency (visible) -->
@@ -11223,7 +11246,6 @@ function navAwayTo(target){
 }
 document.getElementById('panel-brand-home').addEventListener('click', (e)=>{ e.preventDefault(); navAwayTo('home'); });
 document.getElementById('panel-nav-home').addEventListener('click', (e)=>{ e.preventDefault(); navAwayTo('home'); });
-document.getElementById('btn-open-assistant').addEventListener('click', ()=>{ parent.postMessage({ openAssistant:true }, '*'); });
 document.getElementById('panel-nav-settings').addEventListener('click', (e)=>{ e.preventDefault(); parent.postMessage({ openSettings:true }, '*'); });
 // -----------------------------------------------------------------------
 
@@ -11948,7 +11970,6 @@ html,body{ height:100%; overflow:hidden; }
 
     <nav class="sidebar-nav">
       <a href="#" onclick="parent.postMessage({nav:'home'},'*');return false;"><span class="ic">🏠</span>Dashboard</a>
-      <a href="#" onclick="parent.postMessage({openAssistant:true},'*');return false;"><span class="ic">💬</span>Chalkline assistant</a>
     </nav>
 
     <div class="sidebar-recent" aria-hidden="true"></div>
@@ -12867,7 +12888,6 @@ html,body{ height:100%; overflow:hidden; }
 
     <nav class="sidebar-nav">
       <a href="#" onclick="parent.postMessage({nav:'home'},'*');return false;"><span class="ic">🏠</span>Dashboard</a>
-      <a href="#" onclick="parent.postMessage({openAssistant:true},'*');return false;"><span class="ic">💬</span>Chalkline assistant</a>
     </nav>
 
     <div class="sidebar-recent" aria-hidden="true"></div>
@@ -13490,7 +13510,6 @@ html,body{ height:100%; overflow:hidden; }
 
     <nav class="sidebar-nav">
       <a href="#" onclick="parent.postMessage({nav:'home'},'*');return false;"><span class="ic">🏠</span>Dashboard</a>
-      <a href="#" onclick="parent.postMessage({openAssistant:true},'*');return false;"><span class="ic">💬</span>Chalkline assistant</a>
     </nav>
 
     <div class="sidebar-recent" aria-hidden="true"></div>
@@ -14033,7 +14052,6 @@ html,body{ height:100%; overflow:hidden; }
 
     <nav class="sidebar-nav">
       <a href="#" onclick="parent.postMessage({nav:'home'},'*');return false;"><span class="ic">🏠</span>Dashboard</a>
-      <a href="#" onclick="parent.postMessage({openAssistant:true},'*');return false;"><span class="ic">💬</span>Chalkline assistant</a>
     </nav>
 
     <div class="sidebar-recent" aria-hidden="true"></div>
@@ -16575,7 +16593,6 @@ html,body{ height:100%; overflow:hidden; }
 
     <nav class="sidebar-nav">
       <a href="#" onclick="parent.postMessage({nav:'home'},'*');return false;"><span class="ic">🏠</span>Dashboard</a>
-      <a href="#" onclick="parent.postMessage({openAssistant:true},'*');return false;"><span class="ic">💬</span>Chalkline assistant</a>
     </nav>
 
     <div class="sidebar-recent" aria-hidden="true"></div>
@@ -17531,7 +17548,7 @@ function navTo(page, pushHistory, navPayload, isInitialLoad){
   }
   const wasLoaded = loaded[page];
   const previous = current;
-  if(page === ASSISTANT_PAGE_KEY) openAssistantPage();
+  if(page === ASSISTANT_PAGE_KEY) openAssistantPage(navPayload && navPayload.course);
   else ensureLoaded(page);
 
   // Crossfade: the page we're leaving keeps rendering (at a lower
@@ -17558,7 +17575,8 @@ function navTo(page, pushHistory, navPayload, isInitialLoad){
   // into the target frame. A just-created srcdoc iframe needs a beat
   // to parse and attach its own message listener before it can hear
   // this, so give it one on first load; an already-loaded frame can
-  // be told immediately. The assistant page has no navPayload use case.
+  // be told immediately. The assistant page takes navPayload.course itself
+  // (handled above via openAssistantPage) rather than through this forwarding.
   if(navPayload && page !== ASSISTANT_PAGE_KEY){
     const send = ()=>{ try{ frames[page].contentWindow.postMessage(navPayload, '*'); }catch(e){} };
     // Delivered once the frame is really listening (queued behind its sign-in message, so the page
@@ -17647,7 +17665,7 @@ function navTo(page, pushHistory, navPayload, isInitialLoad){
       body:'Read back everything that has been said in this lesson.' },
     { id:'canvas-menu', phase:'canvas', frame:'tutor', sel:'#btn-menu', mode:'next',
       title:'☰ Menu',
-      body:'Open this for lesson tools such as Export PDF, board backgrounds and the Chalkline assistant.' },
+      body:'Open this for lesson tools such as Export PDF and board backgrounds.' },
     { id:'canvas-exit', phase:'canvas', frame:'tutor', sel:'#btn-exit-lesson', mode:'next', lessonExitHook:true,
       title:'🚪 Exit Lesson',
       body:'When you are done, tap Exit Lesson. Your progress saves automatically. Go ahead and exit now to finish your first lesson.' },
@@ -17662,9 +17680,6 @@ function navTo(page, pushHistory, navPayload, isInitialLoad){
     { id:'after-notes', phase:'after', frame:'home', sel:'#course-action-grid .dash-card:nth-child(4)', mode:'next', ensureCourseView:true,
       title:'Keep notes',
       body:'Jot down anything worth remembering. Notes stay attached to this course.' },
-    { id:'after-assistant', phase:'after', frame:'home', sel:'.sidebar-nav a[onclick*="openAssistant"]', altSel:'#sidebar-toggle', mode:'next', ensureCourseView:true,
-      title:'💬 Chalkline assistant',
-      body:'For quick questions and study help, tap "Chalkline assistant" in the sidebar. On a phone, open the sidebar with ☰ first. It is available on every page.' },
     { id:'finish', phase:'after', frame:null, sel:null, mode:'next', last:true,
       title:'You are all set! 🎉',
       body:'That is the whole tour. You can replay it any time from Settings → Getting-started guide.' }
