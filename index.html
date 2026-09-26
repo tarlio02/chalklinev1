@@ -4966,9 +4966,9 @@ html,body{ height:100%; overflow:hidden; }
   --violet:#D98C2B;
   --violet-deep:#A66A1E;
   --violet-ring:rgba(217,140,43,0.35);
-  --speak-green:#2FA88A;
-  --speak-green-deep:#1E7B4D;
-  --speak-green-rgb:47,168,138;
+  --speak-green:#1657D6;
+  --speak-green-deep:#0B3A9E;
+  --speak-green-rgb:22,87,214;
 
   /* ============================================================
      RESPONSIVE ARCHITECTURE
@@ -5507,7 +5507,7 @@ body{
     #fff;
   box-shadow:
     0 3px 14px rgba(0,0,0,0.08),
-    0 0 calc(10px + var(--voice-amp) * 22px) calc(1px + var(--voice-amp) * 5px) rgba(var(--speak-green-rgb), calc(0.28 + var(--voice-amp) * 0.32));
+    0 0 calc(22px + var(--voice-amp) * 36px) calc(6px + var(--voice-amp) * 10px) rgba(var(--speak-green-rgb), calc(0.4 + var(--voice-amp) * 0.35));
   transition:border-color .25s ease, background .25s ease;
   animation:ask-zone-breathe 1.7s ease-in-out infinite;
 }
@@ -5528,8 +5528,8 @@ body{
   50%{ transform:scale(calc(1.006 + var(--voice-amp) * 0.02)); }
 }
 @keyframes ask-zone-ripple{
-  0%{ transform:scale(0.96); opacity:0.55; }
-  100%{ transform:scale(1.05); opacity:0; }
+  0%{ transform:scale(0.96); opacity:0.6; }
+  100%{ transform:scale(1.12); opacity:0; }
 }
 @media (prefers-reduced-motion:reduce){
   .ask-zone.tutor-speaking{ animation:none; }
