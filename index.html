@@ -14339,7 +14339,13 @@ input, textarea, .note-textbox{ -webkit-user-select:text; user-select:text; }
   display:flex; flex-wrap:wrap; align-items:center; gap:14px;
   padding:9px 26px; border-bottom:1px solid var(--border); flex-shrink:0;
   background:#FBF9F3; font-family:'JetBrains Mono',monospace; font-size:12px;
+  overflow:hidden; transition:padding .28s cubic-bezier(.22,.9,.32,1.1), max-height .28s cubic-bezier(.22,.9,.32,1.1), border-color .28s ease;
+  max-height:200px;
 }
+/* Collapsed: same idea as the note-list collapse — shrink it to nothing
+   so the page tray directly below (#ne-body, flex:1) reflows to take the
+   freed height, giving the page itself more room to write. */
+#notes-editor.toolbar-collapsed .ne-toolbar{ max-height:0; padding-top:0; padding-bottom:0; border-color:transparent; }
 .ne-tool-group{ display:flex; align-items:center; gap:6px; }
 .ne-tool-sep{ width:1px; align-self:stretch; background:var(--border); }
 .ne-tool-btn{
@@ -14459,6 +14465,7 @@ input, textarea, .note-textbox{ -webkit-user-select:text; user-select:text; }
       <div class="ne-topbar">
         <div class="ne-topbar-left">
           <button type="button" class="ne-sidebar-toggle" id="notes-sidebar-toggle" title="Toggle note list" aria-label="Toggle note list">☰</button>
+          <button type="button" class="ne-sidebar-toggle" id="notes-toolbar-toggle" title="Toggle pen toolbar" aria-label="Toggle pen toolbar">✏️</button>
           <input type="text" id="notes-title-input" class="ne-title-input" placeholder="Title">
         </div>
         <span class="ne-status" id="notes-status">Saved</span>
@@ -15023,6 +15030,16 @@ document.getElementById('notes-new-btn').addEventListener('click', createNote);
 // for the page itself when the person just wants room to write.
 document.getElementById('notes-sidebar-toggle').addEventListener('click', ()=>{
   document.getElementById('notes-shell').classList.toggle('list-collapsed');
+});
+// Collapsible pen toolbar, same idea as the note list above: frees up
+// vertical room so the page itself can be shown larger. Unlike the list
+// (a width change the flex row absorbs automatically), this changes
+// #ne-body's HEIGHT, which sizePages() only recomputes on a window
+// 'resize'/orientation event — so re-run it manually once the toolbar's
+// collapse transition has actually finished (matches its CSS duration).
+document.getElementById('notes-toolbar-toggle').addEventListener('click', ()=>{
+  document.getElementById('notes-editor').classList.toggle('toolbar-collapsed');
+  setTimeout(sizePages, 300);
 });
 document.getElementById('notes-title-input').addEventListener('input', scheduleSave);
 document.getElementById('notes-search').addEventListener('input', renderNotesList);
