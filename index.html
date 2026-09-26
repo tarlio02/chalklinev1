@@ -14411,6 +14411,89 @@ input, textarea, .note-textbox{ -webkit-user-select:text; user-select:text; }
 }
 .ne-add-page-btn:hover{ background:rgba(0,0,0,0.03); color:var(--ink); }
 
+/* ---------- Apple-Notes-style icon toolbar + popovers ---------- */
+.an-toolbar{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:8px calc(18px + var(--safe-right)) 8px calc(18px + var(--safe-left));
+  border-bottom:1px solid var(--border); flex-shrink:0;
+  background:#FBF9F3; gap:14px; overflow-x:auto; -webkit-overflow-scrolling:touch;
+  position:relative;
+}
+.an-group{ display:flex; align-items:center; gap:4px; flex-shrink:0; }
+.an-icon-btn{
+  border:none; background:transparent; color:var(--accent);
+  width:34px; height:34px; border-radius:9px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  font-family:'Fraunces','Source Serif 4',serif; font-weight:600; font-size:16px;
+  padding:0;
+}
+.an-icon-btn svg{ width:19px; height:19px; }
+.an-icon-btn:hover{ background:rgba(201,138,43,0.1); }
+.an-icon-btn.active{ background:var(--accent); color:#fff; }
+.an-markup-icon{ border-radius:50%; border:1.5px solid var(--accent); }
+
+/* Popovers float above the page tray, anchored under the icon row */
+.an-popover{
+  display:none; position:absolute; top:100%; margin-top:6px; z-index:20;
+  background:#fff; border:1px solid var(--border); border-radius:14px;
+  box-shadow:0 10px 30px rgba(0,0,0,0.18); max-width:calc(100vw - 24px);
+  overflow:auto;
+}
+.an-popover.open{ display:block; }
+#an-aa-popover{ left:calc(18px + var(--safe-left)); }
+#an-markup-popover{ left:calc(18px + var(--safe-left)); right:calc(18px + var(--safe-right)); }
+#an-more-popover{ right:calc(18px + var(--safe-right)); min-width:220px; }
+
+.an-menu{ display:flex; flex-direction:column; padding:6px; gap:2px; }
+.an-menu-item{
+  border:none; background:none; text-align:left; padding:11px 12px; border-radius:9px;
+  cursor:pointer; font-family:'Source Serif 4',serif; font-size:14.5px; color:var(--ink);
+  display:flex; align-items:center; gap:8px; width:100%;
+}
+.an-menu-item:hover{ background:rgba(0,0,0,0.05); }
+.an-menu-item.an-menu-danger{ color:var(--danger); }
+.an-menu-row{
+  display:flex; align-items:center; gap:8px; padding:8px 12px;
+  font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--muted);
+}
+
+/* Checklist boxes */
+.note-textbox.nt-done{ color:var(--muted); text-decoration:line-through; }
+
+/* Tables dropped onto a page */
+.note-textbox.nt-table{ padding:0; border:none; cursor:default; background:rgba(255,255,255,0.85); }
+.note-textbox.nt-table:hover{ border:none; }
+.nt-table-el{ border-collapse:collapse; width:100%; }
+.nt-table-el td{
+  border:1px solid var(--border); min-width:56px; height:30px; padding:4px 6px;
+  font-family:'Source Serif 4',serif; font-size:14px; color:var(--ink); outline:none;
+}
+
+/* Images dropped onto a page */
+.note-textbox.nt-image{ padding:0; border:none; cursor:default; }
+.note-textbox.nt-image:hover{ border:none; }
+.note-textbox.nt-image img{ max-width:100%; display:block; border-radius:4px; pointer-events:none; }
+
+/* Search bar mic button */
+.nl-mic-btn{
+  position:absolute; right:6px; top:50%; transform:translateY(-50%);
+  border:none; background:none; color:var(--muted); width:24px; height:24px;
+  border-radius:6px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+}
+.nl-mic-btn.active{ color:var(--accent); }
+.nl-mic-btn svg{ width:15px; height:15px; }
+
+/* Mobile-only "back to list" control (opposite of the desktop collapse toggle) */
+.an-back-btn{
+  display:none; border:none; background:none; color:var(--accent); cursor:pointer;
+  font-family:'Source Serif 4',serif; font-weight:600; font-size:15px; padding:4px 2px; margin:0 2px 0 0;
+  flex-shrink:0; align-items:center; gap:2px;
+}
+@media (max-width:760px){
+  .an-back-btn{ display:flex; }
+  .an-popover{ position:fixed; left:10px !important; right:10px !important; top:auto !important; bottom:calc(10px + var(--safe-bottom)); max-width:none; margin-top:0; }
+}
+
 .ne-empty-state{
   flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
   color:var(--muted); gap:10px;
@@ -14452,6 +14535,7 @@ input, textarea, .note-textbox{ -webkit-user-select:text; user-select:text; }
     </div>
     <div class="nl-search">
       <input type="text" id="notes-search" placeholder="Search notes">
+      <button type="button" class="nl-mic-btn" id="notes-mic-btn" title="Dictate search" aria-label="Dictate search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15a3 3 0 003-3V6a3 3 0 00-6 0v6a3 3 0 003 3z"/><path d="M19 11a7 7 0 01-14 0"/><line x1="12" y1="18" x2="12" y2="22"/></svg></button>
     </div>
     <button type="button" class="nl-new-btn" id="notes-new-btn">+ New Note</button>
     <div class="nl-items" id="notes-items"></div>
@@ -14465,67 +14549,96 @@ input, textarea, .note-textbox{ -webkit-user-select:text; user-select:text; }
       <button type="button" onclick="createNote();">+ New Note</button>
     </div>
 
-    <div id="notes-editor" class="toolbar-collapsed" style="display:none; flex-direction:column; height:100%;">
+    <div id="notes-editor" style="display:none; flex-direction:column; height:100%;">
       <div class="ne-topbar">
         <div class="ne-topbar-left">
+          <button type="button" class="an-back-btn" id="an-back-btn" title="Notes list" aria-label="Notes list">‹ Notes</button>
           <button type="button" class="ne-sidebar-toggle" id="notes-sidebar-toggle" title="Toggle note list" aria-label="Toggle note list">☰</button>
-          <button type="button" class="ne-sidebar-toggle" id="notes-toolbar-toggle" title="Toggle pen toolbar" aria-label="Toggle pen toolbar">✏️</button>
           <input type="text" id="notes-title-input" class="ne-title-input" placeholder="Title">
         </div>
         <span class="ne-status" id="notes-status">Saved</span>
-        <button type="button" class="ne-delete-btn" id="notes-delete-btn">Delete</button>
       </div>
 
-      <div class="ne-toolbar">
-        <div class="ne-tool-group">
-          <button type="button" class="ne-tool-btn active" id="tool-pen" title="Pen">✏️ Pen</button>
-          <button type="button" class="ne-tool-btn" id="tool-eraser" title="Eraser">🧽 Eraser</button>
-          <button type="button" class="ne-tool-btn" id="tool-text" title="Add text box">🔤 Text</button>
+      <!-- Apple-Notes-style icon row: Aa / checklist / table / attach  —  markup / share / more -->
+      <div class="an-toolbar" id="an-toolbar">
+        <div class="an-group">
+          <button type="button" class="an-icon-btn" id="an-aa-btn" title="Format" aria-label="Format">Aa</button>
+          <button type="button" class="an-icon-btn" id="an-checklist-btn" title="Checklist" aria-label="Checklist"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l1.6 1.6L8.4 5"/><line x1="11.5" y1="6" x2="20.5" y2="6"/><path d="M4 12l1.6 1.6L8.4 11"/><line x1="11.5" y1="12" x2="20.5" y2="12"/><path d="M4 18l1.6 1.6L8.4 17"/><line x1="11.5" y1="18" x2="20.5" y2="18"/></svg></button>
+          <button type="button" class="an-icon-btn" id="an-table-btn" title="Insert table" aria-label="Insert table"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="1.5"/><line x1="3.5" y1="10" x2="20.5" y2="10"/><line x1="3.5" y1="15" x2="20.5" y2="15"/><line x1="9.5" y1="4.5" x2="9.5" y2="19.5"/><line x1="14.5" y1="4.5" x2="14.5" y2="19.5"/></svg></button>
+          <button type="button" class="an-icon-btn" id="an-attach-btn" title="Add photo" aria-label="Add photo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10.5l-9.19 9.19a5 5 0 01-7.07-7.07l8.49-8.49a3.5 3.5 0 014.95 4.95l-8.49 8.49a2 2 0 01-2.83-2.83l7.78-7.78"/></svg></button>
+          <input type="file" id="an-attach-input" accept="image/*" style="display:none;">
         </div>
-        <div class="ne-tool-sep"></div>
-        <div class="ne-tool-group ne-color-row" id="ne-color-row">
-          <button type="button" class="ne-color-swatch active" data-color="#2A2410" style="background:#2A2410;"></button>
-          <button type="button" class="ne-color-swatch" data-color="#2E6DBE" style="background:#2E6DBE;"></button>
-          <button type="button" class="ne-color-swatch" data-color="#C0392B" style="background:#C0392B;"></button>
-          <button type="button" class="ne-color-swatch" data-color="#2E8B57" style="background:#2E8B57;"></button>
+        <div class="an-group">
+          <button type="button" class="an-icon-btn an-markup-icon" id="an-markup-btn" title="Markup" aria-label="Markup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z"/></svg></button>
+          <button type="button" class="an-icon-btn" id="an-share-btn" title="Share" aria-label="Share"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 8l5-5 5 5"/><path d="M5 13v6a2 2 0 002 2h10a2 2 0 002-2v-6"/></svg></button>
+          <button type="button" class="an-icon-btn" id="an-more-btn" title="More" aria-label="More" style="font-size:20px;letter-spacing:1px;">•••</button>
         </div>
-        <div class="ne-tool-group">
-          <span class="ne-tool-label">Size</span>
-          <input type="range" class="ne-size-slider" id="pen-size" min="1" max="12" value="3">
+
+        <!-- Aa: page style + text size -->
+        <div class="an-popover" id="an-aa-popover">
+          <div class="ne-toolbar" style="position:static;border:none;padding:14px;background:transparent;max-height:none;">
+            <div class="ne-tool-group">
+              <span class="ne-tool-label">Page</span>
+              <select class="ne-select" id="style-scope">
+                <option value="default">App default</option>
+                <option value="override">This note</option>
+              </select>
+              <select class="ne-select" id="style-type">
+                <option value="ruled">Lined</option>
+                <option value="grid">Grid</option>
+                <option value="dotted">Dotted</option>
+                <option value="blank">Blank</option>
+              </select>
+              <input type="number" class="ne-num" id="style-spacing" min="10" max="90" step="1" title="Line spacing (px)">
+            </div>
+            <div class="ne-tool-sep"></div>
+            <div class="ne-tool-group">
+              <span class="ne-tool-label">Text size</span>
+              <input type="number" class="ne-num" id="text-font-size" min="10" max="48" step="1" value="16" title="New text box font size (px)">
+            </div>
+          </div>
         </div>
-        <div class="ne-tool-sep"></div>
-        <div class="ne-tool-group">
-          <button type="button" class="ne-tool-btn" id="tool-undo" title="Undo">↺ Undo</button>
+
+        <!-- Markup: pen / eraser / text tool / colors / size / undo -->
+        <div class="an-popover an-markup-popover" id="an-markup-popover">
+          <div class="ne-toolbar" style="position:static;border:none;padding:14px;background:transparent;max-height:none;flex-wrap:wrap;">
+            <div class="ne-tool-group">
+              <button type="button" class="ne-tool-btn active" id="tool-pen" title="Pen">✏️ Pen</button>
+              <button type="button" class="ne-tool-btn" id="tool-eraser" title="Eraser">🧽 Eraser</button>
+              <button type="button" class="ne-tool-btn" id="tool-text" title="Add text box">🔤 Text</button>
+            </div>
+            <div class="ne-tool-sep"></div>
+            <div class="ne-tool-group ne-color-row" id="ne-color-row">
+              <button type="button" class="ne-color-swatch active" data-color="#2A2410" style="background:#2A2410;"></button>
+              <button type="button" class="ne-color-swatch" data-color="#2E6DBE" style="background:#2E6DBE;"></button>
+              <button type="button" class="ne-color-swatch" data-color="#C0392B" style="background:#C0392B;"></button>
+              <button type="button" class="ne-color-swatch" data-color="#2E8B57" style="background:#2E8B57;"></button>
+            </div>
+            <div class="ne-tool-group">
+              <span class="ne-tool-label">Size</span>
+              <input type="range" class="ne-size-slider" id="pen-size" min="1" max="12" value="3">
+            </div>
+            <div class="ne-tool-sep"></div>
+            <div class="ne-tool-group">
+              <button type="button" class="ne-tool-btn" id="tool-undo" title="Undo">↺ Undo</button>
+            </div>
+          </div>
         </div>
-        <div class="ne-tool-sep"></div>
-        <div class="ne-tool-group">
-          <span class="ne-tool-label">Style</span>
-          <select class="ne-select" id="style-scope">
-            <option value="default">App default</option>
-            <option value="override">This note</option>
-          </select>
-          <select class="ne-select" id="style-type">
-            <option value="ruled">Lined</option>
-            <option value="grid">Grid</option>
-            <option value="dotted">Dotted</option>
-            <option value="blank">Blank</option>
-          </select>
-          <input type="number" class="ne-num" id="style-spacing" min="10" max="90" step="1" title="Line spacing (px)">
-        </div>
-        <div class="ne-tool-sep"></div>
-        <div class="ne-tool-group">
-          <button type="button" class="ne-tool-btn" id="tool-orientation" title="Switch page orientation">📄 Portrait</button>
-        </div>
-        <div class="ne-tool-sep"></div>
-        <div class="ne-tool-group">
-          <button type="button" class="ne-tool-btn" id="zoom-out" title="Zoom out">−</button>
-          <span class="ne-tool-label" id="zoom-level">100%</span>
-          <button type="button" class="ne-tool-btn" id="zoom-in" title="Zoom in">+</button>
-        </div>
-        <div class="ne-tool-sep"></div>
-        <div class="ne-tool-group">
-          <button type="button" class="ne-tool-btn" id="tool-import-pdf" title="Import PDF">📄 Import PDF</button>
-          <input type="file" id="pdf-file-input" accept="application/pdf" style="display:none;">
+
+        <!-- More: orientation, zoom, PDF import, delete -->
+        <div class="an-popover an-more-popover" id="an-more-popover">
+          <div class="an-menu">
+            <button type="button" class="an-menu-item" id="tool-orientation" title="Switch page orientation">📄 Portrait</button>
+            <div class="an-menu-row">
+              <span>Zoom</span>
+              <button type="button" class="ne-tool-btn" id="zoom-out" title="Zoom out">−</button>
+              <span class="ne-tool-label" id="zoom-level">100%</span>
+              <button type="button" class="ne-tool-btn" id="zoom-in" title="Zoom in">+</button>
+            </div>
+            <button type="button" class="an-menu-item" id="tool-import-pdf">📄 Import PDF</button>
+            <input type="file" id="pdf-file-input" accept="application/pdf" style="display:none;">
+            <button type="button" class="an-menu-item an-menu-danger" id="notes-delete-btn">🗑 Delete Note</button>
+          </div>
         </div>
       </div>
 
@@ -15035,16 +15148,166 @@ document.getElementById('notes-new-btn').addEventListener('click', createNote);
 document.getElementById('notes-sidebar-toggle').addEventListener('click', ()=>{
   document.getElementById('notes-shell').classList.toggle('list-collapsed');
 });
-// Collapsible pen toolbar, same idea as the note list above: frees up
-// vertical room so the page itself can be shown larger. Unlike the list
-// (a width change the flex row absorbs automatically), this changes
-// #ne-body's HEIGHT, which sizePages() only recomputes on a window
-// 'resize'/orientation event — so re-run it manually once the toolbar's
-// collapse transition has actually finished (matches its CSS duration).
-document.getElementById('notes-toolbar-toggle').addEventListener('click', ()=>{
-  document.getElementById('notes-editor').classList.toggle('toolbar-collapsed');
-  setTimeout(sizePages, 300);
+// Mobile "‹ Notes" back control: the desktop sidebar-toggle above is
+// hidden on narrow screens (there the list and editor are separate
+// full-screen panes), so this is how a phone gets back to the list.
+document.getElementById('an-back-btn').addEventListener('click', ()=>{
+  document.getElementById('notes-shell').classList.remove('editing');
+  renderNotesList();
 });
+
+/* -----------------------------------------------------------------
+   Apple-Notes-style icon row: Aa / Markup / More open small floating
+   popovers instead of a single always-on toolbar. Only one is open
+   at a time, and tapping anywhere outside closes whichever is open.
+   ----------------------------------------------------------------- */
+function closeAllNotesPopovers(){
+  document.querySelectorAll('#an-toolbar .an-popover').forEach(p=> p.classList.remove('open'));
+  document.querySelectorAll('#an-toolbar .an-icon-btn').forEach(b=> b.classList.remove('active'));
+}
+function toggleNotesPopover(popoverId, btnId){
+  const pop = document.getElementById(popoverId);
+  const btn = document.getElementById(btnId);
+  const willOpen = !pop.classList.contains('open');
+  closeAllNotesPopovers();
+  if(willOpen){
+    pop.classList.add('open');
+    btn.classList.add('active');
+    // Reopening the pen toolbar can change #ne-body's height on mobile
+    // (it's fixed to the bottom there) — keep the page fitted to it.
+    setTimeout(sizePages, 260);
+  } else {
+    setTimeout(sizePages, 260);
+  }
+}
+document.getElementById('an-aa-btn').addEventListener('click', (e)=>{ e.stopPropagation(); toggleNotesPopover('an-aa-popover','an-aa-btn'); });
+document.getElementById('an-markup-btn').addEventListener('click', (e)=>{ e.stopPropagation(); toggleNotesPopover('an-markup-popover','an-markup-btn'); });
+document.getElementById('an-more-btn').addEventListener('click', (e)=>{ e.stopPropagation(); toggleNotesPopover('an-more-popover','an-more-btn'); });
+document.addEventListener('pointerdown', (e)=>{
+  if(!e.target.closest('.an-popover') && !e.target.closest('.an-icon-btn')) closeAllNotesPopovers();
+});
+
+// Grabs the page + text layer a toolbar button should drop new content
+// onto: whichever page is currently last, matching where a person
+// naturally keeps writing.
+function currentPageAndLayer(){
+  const note = currentNote();
+  if(!note) return null;
+  const container = document.getElementById('ne-pages-container');
+  const wrap = container.lastElementChild;
+  if(!wrap) return null;
+  const page = note.pages[note.pages.length - 1];
+  const layer = wrap.querySelector('.np-text-layer');
+  return { note, page, layer, wrap };
+}
+
+let newTextFontSize = 16; // set from the Aa popover, used for new text/checklist boxes
+document.getElementById('text-font-size').addEventListener('input', (e)=>{
+  newTextFontSize = Math.max(10, Number(e.target.value) || 16);
+});
+
+function insertChecklistItem(){
+  const ctx = currentPageAndLayer(); if(!ctx) return;
+  closeAllNotesPopovers();
+  const tb = { id: uid(), x: 24, y: 24, w: 240, text: '☐ ', fontSize: newTextFontSize };
+  ctx.page.textBoxes.push(tb);
+  renderTextBoxes(ctx.layer, ctx.page);
+  const el = ctx.layer.lastChild;
+  if(el){
+    el.focus();
+    const range = document.createRange(), sel = window.getSelection();
+    range.selectNodeContents(el); range.collapse(false);
+    sel.removeAllRanges(); sel.addRange(range);
+  }
+  scheduleSave();
+}
+document.getElementById('an-checklist-btn').addEventListener('click', insertChecklistItem);
+
+function defaultTableHTML(){
+  return '<table class="nt-table-el"><tbody>'
+    + '<tr><td></td><td></td></tr>'
+    + '<tr><td></td><td></td></tr>'
+    + '</tbody></table>';
+}
+function insertTable(){
+  const ctx = currentPageAndLayer(); if(!ctx) return;
+  closeAllNotesPopovers();
+  const tb = { id: uid(), x: 24, y: 24, w: 260, text: '', isTable: true, html: defaultTableHTML() };
+  ctx.page.textBoxes.push(tb);
+  renderTextBoxes(ctx.layer, ctx.page);
+  scheduleSave();
+}
+document.getElementById('an-table-btn').addEventListener('click', insertTable);
+
+function insertImage(dataUrl){
+  const ctx = currentPageAndLayer(); if(!ctx) return;
+  const tb = { id: uid(), x: 24, y: 24, w: 220, text: '', isImage: true, imgSrc: dataUrl };
+  ctx.page.textBoxes.push(tb);
+  renderTextBoxes(ctx.layer, ctx.page);
+  scheduleSave();
+}
+document.getElementById('an-attach-btn').addEventListener('click', ()=>{
+  if(!currentNote()) return;
+  closeAllNotesPopovers();
+  document.getElementById('an-attach-input').click();
+});
+document.getElementById('an-attach-input').addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  e.target.value = '';
+  if(!file || !currentNote()) return;
+  const reader = new FileReader();
+  reader.onload = ()=> insertImage(reader.result);
+  reader.readAsDataURL(file);
+});
+
+function shareCurrentNote(){
+  const note = currentNote(); if(!note) return;
+  const title = note.title || 'Untitled Note';
+  const text = note.pages
+    .map(p => p.textBoxes.filter(t=>!t.isTable && !t.isImage).map(t=>t.text).filter(Boolean).join('\n'))
+    .filter(Boolean).join('\n\n');
+  if(navigator.share){
+    navigator.share({ title, text }).catch(()=>{});
+  } else if(navigator.clipboard){
+    navigator.clipboard.writeText(title + (text ? '\n\n' + text : '')).then(()=>{
+      const status = document.getElementById('notes-status');
+      const prev = status.textContent;
+      status.textContent = 'Copied to clipboard';
+      setTimeout(()=>{ if(!notesDirty) status.textContent = prev; }, 1600);
+    }).catch(()=>{});
+  } else {
+    alert('Sharing is not supported in this browser.');
+  }
+}
+document.getElementById('an-share-btn').addEventListener('click', ()=>{ closeAllNotesPopovers(); shareCurrentNote(); });
+
+// Dictation for the notes search field (mic icon in the search bar).
+// Falls back silently (button stays put, does nothing) on browsers
+// without SpeechRecognition rather than breaking the page.
+(function setupSearchMic(){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const micBtn = document.getElementById('notes-mic-btn');
+  if(!SR){ micBtn.style.opacity = '0.35'; micBtn.title = 'Voice search not supported in this browser'; return; }
+  let recognition = null, listening = false;
+  micBtn.addEventListener('click', ()=>{
+    if(listening){ recognition && recognition.stop(); return; }
+    recognition = new SR();
+    recognition.lang = 'en-US';
+    recognition.interimResults = false;
+    recognition.onresult = (e)=>{
+      let text = '';
+      for(let i=e.resultIndex;i<e.results.length;i++) text += e.results[i][0].transcript;
+      const input = document.getElementById('notes-search');
+      input.value = text;
+      renderNotesList();
+    };
+    recognition.onend = ()=>{ listening = false; micBtn.classList.remove('active'); };
+    recognition.onerror = ()=>{ listening = false; micBtn.classList.remove('active'); };
+    try{ recognition.start(); listening = true; micBtn.classList.add('active'); }
+    catch(err){ console.error('Voice search failed to start:', err); }
+  });
+})();
+
 document.getElementById('notes-title-input').addEventListener('input', scheduleSave);
 document.getElementById('notes-search').addEventListener('input', renderNotesList);
 document.getElementById('notes-delete-btn').addEventListener('click', ()=>{
@@ -15149,19 +15412,57 @@ function renderTextBoxes(layerEl, page){
   layerEl.innerHTML = '';
   page.textBoxes.forEach(tb=>{
     const el = document.createElement('div');
-    el.className = 'note-textbox';
-    el.contentEditable = 'true';
-    el.dataset.placeholder = 'Type…';
     el.style.left = tb.x + 'px';
     el.style.top = tb.y + 'px';
     el.style.width = (tb.w || 200) + 'px';
+
+    if(tb.isImage){
+      el.className = 'note-textbox nt-image';
+      el.contentEditable = 'false';
+      el.innerHTML = '<img src="' + tb.imgSrc + '" alt="" draggable="false">';
+      el.addEventListener('pointerdown', (e)=> e.stopPropagation());
+      layerEl.appendChild(el);
+      return;
+    }
+
+    if(tb.isTable){
+      el.className = 'note-textbox nt-table';
+      el.contentEditable = 'false';
+      el.innerHTML = tb.html || defaultTableHTML();
+      el.querySelectorAll('td').forEach(td=>{ td.contentEditable = 'true'; });
+      el.addEventListener('input', ()=>{ tb.html = el.innerHTML; scheduleSave(); });
+      el.addEventListener('pointerdown', (e)=> e.stopPropagation());
+      layerEl.appendChild(el);
+      return;
+    }
+
+    el.className = 'note-textbox';
+    el.contentEditable = 'true';
+    el.dataset.placeholder = 'Type…';
     el.style.fontSize = (tb.fontSize || 16) + 'px';
     el.textContent = tb.text || '';
+    el.classList.toggle('nt-done', /^☑/.test(tb.text || ''));
+    el.addEventListener('pointerdown', (e)=>{
+      e.stopPropagation();
+      // A checklist line starts with ☐/☑ — tapping directly on that
+      // glyph toggles it done instead of placing the text cursor there
+      // (this is a plain contentEditable div, not a real checkbox input).
+      if(/^[☐☑]/.test(tb.text || '')){
+        const rect = el.getBoundingClientRect();
+        if(e.clientX - rect.left < 22){
+          e.preventDefault();
+          tb.text = tb.text.replace(/^[☐☑]/, m => m === '☐' ? '☑' : '☐');
+          el.textContent = tb.text;
+          el.classList.toggle('nt-done', tb.text.startsWith('☑'));
+          scheduleSave();
+        }
+      }
+    });
     el.addEventListener('input', ()=>{
       tb.text = el.textContent;
+      el.classList.toggle('nt-done', /^☑/.test(tb.text));
       scheduleSave();
     });
-    el.addEventListener('pointerdown', (e)=> e.stopPropagation());
     el.addEventListener('blur', ()=>{
       if(!el.textContent.trim()){
         page.textBoxes = page.textBoxes.filter(t=>t.id!==tb.id);
@@ -15173,7 +15474,7 @@ function renderTextBoxes(layerEl, page){
 }
 
 function addTextBoxAt(page, layerEl, xNote, yNote){
-  const tb = { id: uid(), x: xNote, y: yNote, w: 220, text: '', fontSize: 16 };
+  const tb = { id: uid(), x: xNote, y: yNote, w: 220, text: '', fontSize: newTextFontSize };
   page.textBoxes.push(tb);
   renderTextBoxes(layerEl, page);
   const el = layerEl.lastChild;
