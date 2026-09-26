@@ -14435,8 +14435,8 @@ input, textarea, .note-textbox{ -webkit-user-select:text; user-select:text; }
 .note-textbox{
   position:relative; width:100%; box-sizing:border-box; min-width:36px; min-height:22px;
   font-family:'Source Serif 4',serif;
-  font-size:16px; line-height:1.4; color:var(--ink); background:transparent; outline:none;
-  padding:2px 4px; border:1px dashed transparent; white-space:pre-wrap; word-break:break-word;
+  font-size:22px; line-height:28px; color:var(--ink); background:transparent; outline:none;
+  padding:0 4px; border:1px dashed transparent; white-space:pre-wrap; word-break:break-word;
   cursor:text;
 }
 .nt-box:hover .note-textbox{ border-color:rgba(0,0,0,0.08); }
@@ -14655,7 +14655,7 @@ input, textarea, .note-textbox{ -webkit-user-select:text; user-select:text; }
             <div class="ne-tool-sep"></div>
             <div class="ne-tool-group">
               <span class="ne-tool-label">Text size</span>
-              <input type="number" class="ne-num" id="text-font-size" min="10" max="48" step="1" value="16" title="New text box font size (px)">
+              <input type="number" class="ne-num" id="text-font-size" min="10" max="48" step="1" value="22" title="New text box font size (px)">
             </div>
           </div>
         </div>
@@ -15012,7 +15012,7 @@ function migrateNoteIfNeeded(note){
   note.pages = [blankPage()];
   note.ruledOverride = null;
   if(note.content && note.content.trim()){
-    note.pages[0].textBoxes.push({ id: uid(), x:36, y:36, w:PAGE_W-72, text: note.content, fontSize:16 });
+    note.pages[0].textBoxes.push({ id: uid(), x:36, y:36, w:PAGE_W-72, text: note.content, fontSize:DEFAULT_TEXT_FONT_SIZE });
   }
   delete note.content;
   return note;
@@ -15285,9 +15285,14 @@ function currentPageAndLayer(){
   return { note, page, layer, wrap };
 }
 
-let newTextFontSize = 16; // set from the Aa popover, used for new text/checklist boxes
+// 22px comfortably fills the default 28px-tall ruled line (the way a
+// person's actual handwriting sits on ruled paper) without crowding the
+// line above or below it — much bigger than the old 16px default, which
+// looked tiny against the rules.
+const DEFAULT_TEXT_FONT_SIZE = 22;
+let newTextFontSize = DEFAULT_TEXT_FONT_SIZE; // set from the Aa popover, used for new text/checklist boxes
 document.getElementById('text-font-size').addEventListener('input', (e)=>{
-  newTextFontSize = Math.max(10, Number(e.target.value) || 16);
+  newTextFontSize = Math.max(10, Number(e.target.value) || DEFAULT_TEXT_FONT_SIZE);
 });
 
 function insertChecklistItem(){
@@ -15295,7 +15300,7 @@ function insertChecklistItem(){
   closeAllNotesPopovers();
   const tb = { id: uid(), x: 24, y: 24, w: 240, text: '☐ ', fontSize: newTextFontSize };
   ctx.page.textBoxes.push(tb);
-  renderTextBoxes(ctx.layer, ctx.page);
+  renderTextBoxes(ctx.layer, ctx.page, ctx.note);
   const box = ctx.layer.lastChild;
   const el = box && box.querySelector('.note-textbox');
   if(el){
@@ -15319,7 +15324,7 @@ function insertTable(){
   closeAllNotesPopovers();
   const tb = { id: uid(), x: 24, y: 24, w: 260, text: '', isTable: true, html: defaultTableHTML() };
   ctx.page.textBoxes.push(tb);
-  renderTextBoxes(ctx.layer, ctx.page);
+  renderTextBoxes(ctx.layer, ctx.page, ctx.note);
   scheduleSave();
 }
 document.getElementById('an-table-btn').addEventListener('click', insertTable);
@@ -15328,7 +15333,7 @@ function insertImage(dataUrl){
   const ctx = currentPageAndLayer(); if(!ctx) return;
   const tb = { id: uid(), x: 24, y: 24, w: 220, text: '', isImage: true, imgSrc: dataUrl };
   ctx.page.textBoxes.push(tb);
-  renderTextBoxes(ctx.layer, ctx.page);
+  renderTextBoxes(ctx.layer, ctx.page, ctx.note);
   scheduleSave();
 }
 document.getElementById('an-attach-btn').addEventListener('click', ()=>{
@@ -15564,7 +15569,17 @@ function attachBoxHandles(box, tb, layerEl, opts){
   if(opts.resize) box.appendChild(makeHandle('resize', 'nt-handle-resize'));
 }
 
-function renderTextBoxes(layerEl, page){
+// How tall one ruled line is for this note, in the same logical units as
+// tb.x/y/w — used so a text box's line-height can be locked to the actual
+// rules on the page instead of a generic CSS multiplier, and so typed
+// lines land on (rather than drift away from) each rule as they wrap.
+function ruledSpacingFor(note){
+  const style = note ? effectiveStyle(note) : { spacing: globalSettings.ruledSpacing };
+  return Math.max(10, Number(style && style.spacing) || 28);
+}
+
+function renderTextBoxes(layerEl, page, note){
+  const lineSpacing = ruledSpacingFor(note);
   layerEl.innerHTML = '';
   page.textBoxes.forEach(tb=>{
     // `box` is the absolutely-positioned wrapper carrying tb.x/y/w; the
@@ -15607,7 +15622,10 @@ function renderTextBoxes(layerEl, page){
     el.className = 'note-textbox';
     el.contentEditable = 'true';
     el.dataset.placeholder = 'Type…';
-    el.style.fontSize = (tb.fontSize || 16) + 'px';
+    el.style.fontSize = (tb.fontSize || DEFAULT_TEXT_FONT_SIZE) + 'px';
+    // Lock each line to exactly one ruled line on the page, so text sits
+    // on the rules the way real handwriting would, regardless of font size.
+    el.style.lineHeight = lineSpacing + 'px';
     el.textContent = tb.text || '';
     el.classList.toggle('nt-done', /^☑/.test(tb.text || ''));
     el.addEventListener('pointerdown', (e)=>{
@@ -15643,10 +15661,10 @@ function renderTextBoxes(layerEl, page){
   });
 }
 
-function addTextBoxAt(page, layerEl, xNote, yNote){
+function addTextBoxAt(page, layerEl, xNote, yNote, note){
   const tb = { id: uid(), x: xNote, y: yNote, w: 220, text: '', fontSize: newTextFontSize };
   page.textBoxes.push(tb);
-  renderTextBoxes(layerEl, page);
+  renderTextBoxes(layerEl, page, note);
   const box = layerEl.lastChild;
   const el = box && box.querySelector('.note-textbox');
   if(el){ el.focus(); }
@@ -15775,8 +15793,8 @@ function buildPageEl(note, page, idx){
 
   drawBackground(bg, page, note);
   redrawInk(ink, page);
-  renderTextBoxes(textLayer, page);
-  wirePageInput(wrap, ink, textLayer, page);
+  renderTextBoxes(textLayer, page, note);
+  wirePageInput(wrap, ink, textLayer, page, note);
 
   return wrap;
 }
@@ -15823,7 +15841,7 @@ function isScribbleMotion(pts){
 
 let activePenPointerId = null; // used for palm rejection while pencil is drawing
 
-function wirePageInput(pageWrap, ink, textLayer, page){
+function wirePageInput(pageWrap, ink, textLayer, page, note){
   let drawing = false;
   let stroke = null;
   let scribbleErasing = false;
@@ -15982,7 +16000,7 @@ function wirePageInput(pageWrap, ink, textLayer, page){
       // priority or a mouse could never place a text box. Deliberate
       // placement only — an actual drag/scroll gesture never drops one.
       if(!touchMoved && touchStartPoint){
-        addTextBoxAt(page, textLayer, touchStartPoint.x, touchStartPoint.y);
+        addTextBoxAt(page, textLayer, touchStartPoint.x, touchStartPoint.y, note);
       }
     } else if(isStylusLike(e)){
       activePenPointerId = null;
