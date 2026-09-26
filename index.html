@@ -3845,8 +3845,6 @@ html,body{ height:100%; overflow:hidden; }
         <p id="dash-welcome-text">Welcome back!</p>
       </div>
 
-      <div id="progress-panel"></div>
-
       <div style="display:flex;justify-content:center;margin:0 0 40px;">
         <button type="button" id="add-course-btn" onclick="handleAddCourseClick();">
           <span style="font-size:16px;line-height:1;">✨＋</span> Add new course
@@ -3868,6 +3866,8 @@ html,body{ height:100%; overflow:hidden; }
         <h1 style="margin:0;" id="course-detail-title">Course</h1>
       </div>
       <p id="course-detail-sub" style="font-size:14.5px;color:rgba(42,36,16,0.6);margin:-18px 0 30px 52px;"></p>
+
+      <div id="progress-panel" style="max-width:780px;"></div>
 
       <div class="dash-grid" id="course-action-grid" style="max-width:780px;"></div>
 
@@ -4050,7 +4050,6 @@ html,body{ height:100%; overflow:hidden; }
     }
     renderDashTitle();
     renderDashWelcomeText();
-    renderProgressPanel();
   }
   /* ---------------- Progress panel: XP level + Weakness Radar ----------------
      Reads the same window.storage keys that the tutor and quiz pages write
@@ -4254,10 +4253,14 @@ html,body{ height:100%; overflow:hidden; }
     if(name) openCourseDetail(name);
   });
 
-  async function renderProgressPanel(){
+  // Renders the XP badge + Weakness Radar + Concept progress for a single
+  // course. Lives on the course detail page (not the dashboard) so each
+  // course shows its own stats; courseName scopes the radar/concept rows
+  // to that course's subject stats (XP itself is tracked account-wide).
+  async function renderProgressPanel(courseName){
     const panel = document.getElementById('progress-panel');
     if(!panel) return;
-    if(!homeShellUser){ panel.innerHTML = ''; return; }
+    if(!homeShellUser || !courseName){ panel.innerHTML = ''; return; }
     const sub = homeShellUser.sub;
     let xp = 0, stats = {};
     try{
@@ -4275,13 +4278,17 @@ html,body{ height:100%; overflow:hidden; }
     const next = PG_LEVELS[curIdx+1] || null;
     const pct = next ? Math.max(0, Math.min(100, Math.round(((xp - cur.min) / (next.min - cur.min)) * 100))) : 100;
 
-    const subjects = Object.keys(stats).filter(s => stats[s] && stats[s].total > 0);
+    // Scope to this course only: the course-detail page shows one
+    // course's radar/concept row, not the whole account's.
+    const courseStats = stats[courseName] && stats[courseName].total > 0
+      ? { [courseName]: stats[courseName] } : {};
+    const subjects = Object.keys(courseStats);
     let radarHtml;
     if(!subjects.length){
-      radarHtml = `<p class="progress-empty">Answer a quiz or lesson question to start building your Weakness Radar.</p>`;
+      radarHtml = `<p class="progress-empty">Answer a quiz or lesson question in this course to start building your Weakness Radar.</p>`;
     } else {
       const rows = subjects.map(s => {
-        const st = stats[s];
+        const st = courseStats[s];
         const p = Math.round((st.correct / st.total) * 100);
         return { s, p };
       }).sort((a,b) => a.p - b.p).slice(0, 4);
@@ -4293,7 +4300,7 @@ html,body{ height:100%; overflow:hidden; }
         </div>`).join('');
     }
 
-    const { rows: conceptRows, celebrations } = await processConcepts(sub, stats);
+    const { rows: conceptRows, celebrations } = await processConcepts(sub, courseStats);
 
     panel.innerHTML = `
       <div class="progress-xp-badge" style="--pct:${pct};">
@@ -4515,6 +4522,7 @@ html,body{ height:100%; overflow:hidden; }
     const noteWord = c.notes===1 ? 'note' : 'notes';
     document.getElementById('course-detail-sub').textContent =
       `${c.lessons} ${lessonWord} · ${c.quizzes} ${quizWord} · ${c.summaries} ${summaryWord} · ${c.notes||0} ${noteWord}`;
+    renderProgressPanel(name);
 
     const actionGrid = document.getElementById('course-action-grid');
     const encName = escapeHtmlHome(name);
