@@ -14427,6 +14427,10 @@ input, textarea, .note-textbox{ -webkit-user-select:text; user-select:text; }
   .notes-editor-pane{ width:100%; }
   .notes-shell.editing .notes-list-pane{ display:none; }
   .notes-shell:not(.editing) .notes-editor-pane{ display:none; }
+  /* No toggle button is shown on mobile (.ne-sidebar-toggle is hidden
+     below), so the toolbar must not start collapsed here — there'd be no
+     way to bring it back. Desktop/tablet default it collapsed instead. */
+  #notes-editor.toolbar-collapsed .ne-toolbar{ max-height:200px; padding-top:9px; padding-bottom:9px; }
   .ne-toolbar{ padding:8px calc(12px + var(--safe-right)) 8px calc(12px + var(--safe-left)); gap:10px; }
   .ne-topbar{ padding:calc(10px + var(--safe-top)) calc(12px + var(--safe-right)) 10px calc(12px + var(--safe-left)); }
   /* Touch targets: bump tappable controls toward the 44px guideline on
@@ -14440,7 +14444,7 @@ input, textarea, .note-textbox{ -webkit-user-select:text; user-select:text; }
 </head>
 <body>
 
-<div class="notes-shell" id="notes-shell">
+<div class="notes-shell list-collapsed" id="notes-shell">
   <div class="notes-list-pane">
     <div class="nl-topbar">
       <button type="button" class="nl-back" title="Back to Dashboard" onclick="parent.postMessage({nav:'home'},'*');">←</button>
@@ -14461,7 +14465,7 @@ input, textarea, .note-textbox{ -webkit-user-select:text; user-select:text; }
       <button type="button" onclick="createNote();">+ New Note</button>
     </div>
 
-    <div id="notes-editor" style="display:none; flex-direction:column; height:100%;">
+    <div id="notes-editor" class="toolbar-collapsed" style="display:none; flex-direction:column; height:100%;">
       <div class="ne-topbar">
         <div class="ne-topbar-left">
           <button type="button" class="ne-sidebar-toggle" id="notes-sidebar-toggle" title="Toggle note list" aria-label="Toggle note list">☰</button>
