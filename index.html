@@ -2337,9 +2337,91 @@ function appendBgSection(body){
 const ASSISTANT_SYSTEM_BASE = "You are the Chalkline Assistant, a friendly, knowledgeable study helper inside Chalkline — an AI whiteboard tutoring app (an AI tutor teaches on a handwritten whiteboard; there are saved lessons, summaries, quizzes, notes and a dashboard of courses). Chat naturally: answer any question, explain concepts clearly with university-level accuracy, help plan studying and prepare for exams and assignments, and help the student use Chalkline. Match structure to the question: a quick factual question gets a short plain-text answer, no formatting scaffolding needed. A multi-part answer — a study plan, a comparison, a step-by-step process, a set of options — gets real structure: use '## '/'### ' headers to separate sections (e.g. one per day of a study plan, one per option being compared), numbered lists (1. 2. 3.) for sequential steps, '- ' bullets for a set of unordered points, and **bold** on the key term or number in a line so it's scannable at a glance. Never use headers/lists just to pad a one-idea answer — reserve them for when the content genuinely has multiple parts. Keep it phone-screen sized: short paragraphs and lines, nothing that reads like padding. Ask one brief follow-up question only when it is useful. Use plain text and real Unicode symbols (², √, ≤, ∑, π) — never LaTeX, never $ delimiters. If the student wants a full lesson with diagrams drawn on the whiteboard, tell them to start a new lesson from the Dashboard (you can still explain the idea in chat first). Be warm, patient and encouraging, never robotic. If you are unsure of something, say so instead of guessing.";
 function assistantSystemPrompt(){
   if(!assistantCourse) return ASSISTANT_SYSTEM_BASE;
-  return ASSISTANT_SYSTEM_BASE + " You are currently opened from inside the course \"" + assistantCourse + "\" — assume the student's questions relate to this course unless they clearly ask about something else, and you can refer to the course by name.";
+  let p = ASSISTANT_SYSTEM_BASE + " You are currently opened from inside the course \"" + assistantCourse + "\" — assume the student's questions relate to this course unless they clearly ask about something else, and you can refer to the course by name.";
+  if(assistantCourseContextFor === assistantCourse && assistantCourseContext){
+    p += "\n\nHere is what the student has already covered in this course, gathered from their saved lessons, summaries, notes and quizzes (may be partial or slightly out of date):\n---\n" + assistantCourseContext + "\n---\nUse this to know what they've already learned: don't re-teach it from scratch, build on it, and reference specific topics/lessons by name when it helps. If a question falls outside this material, just answer it normally.";
+  }
+  return p;
 }
 let assistantCourse = null;     // course/subject this open chat is scoped to, or null for the general bucket
+let assistantCourseContext = '';      // cached digest of what's been covered in assistantCourse, for the system prompt
+let assistantCourseContextFor = null; // which course assistantCourseContext was built for (avoids using stale/mismatched context)
+// Pulls together everything saved for this course — lesson transcripts, summaries, notes, quiz titles —
+// into one text blob the assistant's system prompt can use, mirroring the quiz generator's gatherMaterialForSubject().
+async function assistantGatherCourseContext(course){
+  if(!course) return '';
+  const uid = assistantUid();
+  if(!uid || uid === 'guest' || !window.storage) return '';
+  const parts = [];
+  try{
+    const sess = await window.storage.list('session:' + uid + ':', false);
+    for(const key of (sess.keys || [])){
+      try{
+        const rec = await window.storage.get(key, false); if(!rec) continue;
+        const item = JSON.parse(rec.value);
+        if((item.subject || 'Unsorted') !== course) continue;
+        let snippet = (item.title ? item.title + '. ' : '') + (item.currentTopicLabel ? item.currentTopicLabel + '. ' : '');
+        (item.conversationHistory || []).forEach(m=>{
+          if(m.role === 'assistant'){
+            try{ const p = JSON.parse(m.content); if(p && p.speech) snippet += p.speech + ' '; } catch(e){}
+          }
+        });
+        if(snippet.trim()) parts.push('[Lesson] ' + snippet.trim());
+      } catch(e){}
+    }
+  } catch(e){ console.warn('Assistant: gathering lessons failed', e); }
+  try{
+    const sums = await window.storage.list('summary:' + uid + ':', false);
+    for(const key of (sums.keys || [])){
+      try{
+        const rec = await window.storage.get(key, false); if(!rec) continue;
+        const item = JSON.parse(rec.value);
+        if((item.subject || 'Unsorted') !== course) continue;
+        const div = document.createElement('div'); div.innerHTML = item.html || '';
+        const text = (div.textContent || '').replace(/\s+/g, ' ').trim();
+        if(text) parts.push('[Summary] ' + (item.title ? item.title + '. ' : '') + text);
+      } catch(e){}
+    }
+  } catch(e){ console.warn('Assistant: gathering summaries failed', e); }
+  try{
+    const notes = await window.storage.list('notes:' + uid + ':', false);
+    for(const key of (notes.keys || [])){
+      try{
+        const rec = await window.storage.get(key, false); if(!rec) continue;
+        const item = JSON.parse(rec.value);
+        if((item.subject || 'Unsorted') !== course) continue;
+        const div = document.createElement('div'); div.innerHTML = item.html || item.content || '';
+        const text = (div.textContent || '').replace(/\s+/g, ' ').trim();
+        if(text) parts.push('[Notes] ' + (item.title ? item.title + '. ' : '') + text);
+      } catch(e){}
+    }
+  } catch(e){ console.warn('Assistant: gathering notes failed', e); }
+  try{
+    const quiz = await window.storage.list('quiz:' + uid + ':', false);
+    for(const key of (quiz.keys || [])){
+      try{
+        const rec = await window.storage.get(key, false); if(!rec) continue;
+        const item = JSON.parse(rec.value);
+        if((item.subject || 'Unsorted') !== course) continue;
+        if(item.title) parts.push('[Quiz taken] ' + item.title);
+      } catch(e){}
+    }
+  } catch(e){ console.warn('Assistant: gathering quizzes failed', e); }
+  let combined = parts.join('\n\n').trim();
+  if(combined.length > 6000) combined = combined.slice(0, 6000);
+  return combined;
+}
+// Refetches assistantCourseContext for the currently-open course. Fire-and-forget: called when the
+// assistant page opens (and whenever the course changes) so it's ready by the time the student sends
+// their first message; assistantSend doesn't block on it.
+async function assistantRefreshCourseContext(){
+  const course = assistantCourse;
+  if(!course){ assistantCourseContext = ''; assistantCourseContextFor = null; return; }
+  try{
+    const ctx = await assistantGatherCourseContext(course);
+    if(assistantCourse === course){ assistantCourseContext = ctx; assistantCourseContextFor = course; }
+  } catch(e){ console.warn('Assistant: refreshing course context failed', e); }
+}
 let assistantConvs = [];        // [{ id, title, msgs:[{role,content}], updated }], newest first for assistantCourse only
 let assistantActiveId = null;
 let assistantBusy = false;
@@ -2598,6 +2680,9 @@ function openAssistantPage(course){
   if(window.matchMedia && window.matchMedia('(pointer:fine)').matches){
     const inp = document.getElementById('assistant-input'); if(inp) inp.focus();
   }
+  // Fire-and-forget: fetches in the background so it's ready before the student's first message,
+  // without delaying the page from opening.
+  assistantRefreshCourseContext();
 }
 document.getElementById('as-new-btn').addEventListener('click', assistantNewConversation);
 document.getElementById('assistant-new').addEventListener('click', assistantNewConversation);
