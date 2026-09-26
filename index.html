@@ -15730,6 +15730,25 @@ function wirePageInput(pageWrap, ink, textLayer, page){
   }
 
   ink.addEventListener('pointerdown', (e)=>{
+    if(currentTool === 'text'){
+      // Text tool: a tap places a text box and is handled the same way
+      // for every pointer type — mouse click, pencil tap, or bare finger
+      // tap all just mark where the tap started; the actual placement
+      // happens in finishStroke once we know it wasn't a drag/scroll.
+      // This has to be checked before isStylusLike() below, since a
+      // mouse (and a pencil) would otherwise always fall into the pen
+      // drawing branch and a click could never place text.
+      if(activePenPointerId !== null){ e.preventDefault(); return; } // palm during pencil use
+      ink.setPointerCapture(e.pointerId);
+      touchStartPoint = notePointFromEvent(ink, e);
+      touchMoved = false;
+      touchScrollStartY = e.clientY;
+      touchScrollStartTop = scrollParent.scrollTop;
+      drawing = true;
+      e.preventDefault();
+      return;
+    }
+
     if(isStylusLike(e)){
       // Palm rejection: while the pencil is actively drawing, any
       // concurrent touch point is the palm resting on the glass, not
@@ -15760,6 +15779,16 @@ function wirePageInput(pageWrap, ink, textLayer, page){
   ink.addEventListener('pointermove', (e)=>{
     if(!drawing || e.pointerId !== (stroke && e.pointerId)) { /* fallthrough handled below */ }
     if(!drawing) return;
+
+    if(currentTool === 'text'){
+      // Text tool never draws on drag — same "is this actually a tap or
+      // did the pointer move" tracking the touch-scroll branch below
+      // uses, just without also scrolling the page for a mouse/pencil drag.
+      const dy = e.clientY - touchScrollStartY;
+      touchMoved = touchMoved || Math.abs(dy) > 6;
+      e.preventDefault();
+      return;
+    }
 
     if(isStylusLike(e)){
       // A stylus (and Apple Pencil in particular) samples position at a
@@ -15836,7 +15865,15 @@ function wirePageInput(pageWrap, ink, textLayer, page){
   function finishStroke(e){
     if(!drawing) return;
     drawing = false;
-    if(isStylusLike(e)){
+    if(currentTool === 'text'){
+      // Checked first, before isStylusLike(e): a mouse click (and a
+      // pencil tap) report as "stylus-like" too, so this has to take
+      // priority or a mouse could never place a text box. Deliberate
+      // placement only — an actual drag/scroll gesture never drops one.
+      if(!touchMoved && touchStartPoint){
+        addTextBoxAt(page, textLayer, touchStartPoint.x, touchStartPoint.y);
+      }
+    } else if(isStylusLike(e)){
       activePenPointerId = null;
       if(stroke && !scribbleErasing && currentTool !== 'eraser' && stroke.points.length){
         page.strokes.push(stroke);
@@ -15844,10 +15881,6 @@ function wirePageInput(pageWrap, ink, textLayer, page){
       }
       redrawInk(ink, page);
       scheduleSave();
-    } else if(currentTool === 'text' && !touchMoved && touchStartPoint){
-      // Deliberate placement only: the Text tool has to be selected on
-      // purpose, so an ordinary scrolling tap never drops a text box.
-      addTextBoxAt(page, textLayer, touchStartPoint.x, touchStartPoint.y);
     }
     // touch (finger) otherwise: nothing to do — it was only ever scrolling.
     stroke = null;
