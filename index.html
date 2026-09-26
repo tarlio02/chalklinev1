@@ -4627,6 +4627,13 @@ html,body{ height:100%; overflow:hidden; }
         <h2>Notes</h2>
         <p>Open notes saved under ${encName}.</p>
         <span class="card-go">→</span>
+      </div>
+      <div class="dash-card course-action-card fade-up" style="animation-delay:.24s;--card-a:#6C5CE7;--card-b:#4834B0;" onclick="startCourseAssistant();">
+        <span class="card-top-bar"></span><span class="card-dots"></span>
+        <span class="icon-badge">💬</span>
+        <h2>Chalkline assistant</h2>
+        <p>Ask questions and get study help for ${encName}.</p>
+        <span class="card-go">→</span>
       </div>`;
 
     dashListView.style.display = 'none';
@@ -4756,6 +4763,13 @@ html,body{ height:100%; overflow:hidden; }
     parent.postMessage({ nav: page, presetSubject: openCourseName }, '*');
   }
   window.startCourseAction = startCourseAction;
+
+  // Opens the Chalkline assistant scoped to whichever course card this was clicked from —
+  // its conversations stay separate from every other course's.
+  function startCourseAssistant(){
+    parent.postMessage({ openAssistant:true, course: openCourseName }, '*');
+  }
+  window.startCourseAssistant = startCourseAssistant;
 
   function backToCourseList(){
     dashCourseView.style.display = 'none';
