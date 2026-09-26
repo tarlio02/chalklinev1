@@ -1843,7 +1843,7 @@ async function gunzipFromB64(v){
   return await new Response(ds.readable).text();
 }
 function syncKeyRegex(sub){
-  return new RegExp('^chalkline:(courses|session|summary|quiz|notes|notes-settings|tutorial|profile):' + String(sub).replace(/[^\w]/g,'\\$&') + '(:|$)');
+  return new RegExp('^chalkline:(courses|session|summary|quiz|notes|notes-settings|tutorial|profile|assistant):' + String(sub).replace(/[^\w]/g,'\\$&') + '(:|$)');
 }
 function fnv(str){
   let h = 2166136261;
@@ -2429,7 +2429,10 @@ let assistantSidebarOpen = false;
 function assistantUid(){ return (typeof shellUser !== 'undefined' && shellUser && shellUser.sub) || 'guest'; }
 // Every course gets its own storage bucket so conversations never mix between courses.
 function assistantCourseSlug(){ return assistantCourse ? encodeURIComponent(assistantCourse.trim().toLowerCase()) : '__general__'; }
-function assistantConvKey(){ return 'chalkline_assistant_convs:' + assistantUid() + ':' + assistantCourseSlug(); }
+// "chalkline:assistant:<sub>:<course>" — same namespace pattern as every other saved item (courses,
+// lessons, summaries, etc.), so the cloud sync above (syncKeyRegex) picks conversations up automatically
+// and they follow the student to their other devices instead of staying stuck in this one browser.
+function assistantConvKey(){ return 'chalkline:assistant:' + assistantUid() + ':' + assistantCourseSlug(); }
 function assistantLegacyKey(){ return 'chalkline_assistant_chat:' + assistantUid(); }
 function assistantGenId(){ return 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 function assistantDeriveTitle(msgs){
@@ -2440,12 +2443,24 @@ function assistantDeriveTitle(msgs){
 }
 function assistantSortConvs(){ assistantConvs.sort((a, b) => (b.updated || 0) - (a.updated || 0)); }
 function assistantActiveConv(){ return assistantConvs.find(c => c.id === assistantActiveId) || null; }
+// Pre-cloud-sync key format ("chalkline_assistant_convs:<sub>:<course>") — never matched syncKeyRegex,
+// so anyone who chatted before this moved into the "chalkline:" namespace would otherwise see their
+// history vanish. Read once per key on migration below, then the new key takes over.
+function assistantOldConvKey(){ return 'chalkline_assistant_convs:' + assistantUid() + ':' + assistantCourseSlug(); }
 // Loads every saved conversation for the signed-in user (or guest). The very first time this runs
-// for someone who chatted before recent chats existed, it migrates their one old chat into the list.
+// for someone who chatted before recent chats existed, it migrates their one old chat into the list;
+// likewise for anyone whose conversations still sit under the pre-sync key format.
 function assistantLoadConvs(){
   let convs = [];
   try{ const v = JSON.parse(localStorage.getItem(assistantConvKey()) || '[]'); if(Array.isArray(v)) convs = v; }
   catch(e){ convs = []; }
+  let migrated = false;
+  if(!convs.length){
+    try{
+      const old = JSON.parse(localStorage.getItem(assistantOldConvKey()) || '[]');
+      if(Array.isArray(old) && old.length){ convs = old; migrated = true; }
+    }catch(e){}
+  }
   // The old single-chat format predates course scoping, so it only ever
   // migrates into the general (no-course) bucket — never into a course's own list.
   if(!convs.length && !assistantCourse){
@@ -2453,11 +2468,15 @@ function assistantLoadConvs(){
       const legacy = JSON.parse(localStorage.getItem(assistantLegacyKey()) || '[]');
       if(Array.isArray(legacy) && legacy.length){
         convs = [{ id: assistantGenId(), title: assistantDeriveTitle(legacy), msgs: legacy, updated: Date.now() }];
+        migrated = true;
       }
     }catch(e){}
   }
   assistantConvs = convs;
   assistantSortConvs();
+  // Write migrated history straight into the new, synced key so it uploads on the next sync pass
+  // instead of staying stranded under the old local-only key.
+  if(migrated) assistantSaveConvs();
 }
 function assistantSaveConvs(){
   try{ localStorage.setItem(assistantConvKey(), JSON.stringify(assistantConvs.slice(0, 30).map(c => ({
