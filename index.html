@@ -14872,45 +14872,27 @@ input, textarea, .note-textbox{ -webkit-user-select:text; user-select:text; }
           <button type="button" class="an-icon-btn" id="an-more-btn" title="More" aria-label="More" style="font-size:20px;letter-spacing:1px;">•••</button>
         </div>
 
-        <!-- Aa: page style + text formatting -->
+        <!-- Aa: page style + text size -->
         <div class="an-popover" id="an-aa-popover">
-          <div class="ne-toolbar" style="position:static;border:none;padding:14px;background:transparent;max-height:none;flex-direction:column;gap:12px;">
-            <div style="border-bottom:1px solid var(--border);padding-bottom:12px;">
-              <div class="ne-tool-group" style="margin-bottom:10px;">
-                <span class="ne-tool-label">Page</span>
-                <select class="ne-select" id="style-scope">
-                  <option value="default">App default</option>
-                  <option value="override">This note</option>
-                </select>
-                <select class="ne-select" id="style-type">
-                  <option value="ruled">Lined</option>
-                  <option value="grid">Grid</option>
-                  <option value="dotted">Dotted</option>
-                  <option value="blank">Blank</option>
-                </select>
-                <input type="number" class="ne-num" id="style-spacing" min="10" max="90" step="1" title="Line spacing (px)">
-              </div>
-              <div class="ne-tool-group">
-                <span class="ne-tool-label">Text size</span>
-                <input type="number" class="ne-num" id="text-font-size" min="10" max="48" step="1" value="16" title="New text box font size (px)">
-              </div>
+          <div class="ne-toolbar" style="position:static;border:none;padding:14px;background:transparent;max-height:none;">
+            <div class="ne-tool-group">
+              <span class="ne-tool-label">Page</span>
+              <select class="ne-select" id="style-scope">
+                <option value="default">App default</option>
+                <option value="override">This note</option>
+              </select>
+              <select class="ne-select" id="style-type">
+                <option value="ruled">Lined</option>
+                <option value="grid">Grid</option>
+                <option value="dotted">Dotted</option>
+                <option value="blank">Blank</option>
+              </select>
+              <input type="number" class="ne-num" id="style-spacing" min="10" max="90" step="1" title="Line spacing (px)">
             </div>
-            <div>
-              <div class="ne-tool-label" style="margin-bottom:8px;">Text formatting</div>
-              <div class="ne-tool-group" style="flex-wrap:wrap;gap:6px;">
-                <button type="button" class="ne-tool-btn" id="text-bold-btn" title="Bold">B</button>
-                <button type="button" class="ne-tool-btn" id="text-italic-btn" title="Italic"><i>I</i></button>
-                <button type="button" class="ne-tool-btn" id="text-underline-btn" title="Underline"><u>U</u></button>
-              </div>
-              <div class="ne-tool-group" style="margin-top:8px;gap:6px;flex-wrap:wrap;">
-                <select class="ne-select" id="text-font-family" style="flex:1;min-width:120px;">
-                  <option value="Source Serif 4, serif">Serif</option>
-                  <option value="JetBrains Mono, monospace">Mono</option>
-                  <option value="Caveat, cursive">Handwriting</option>
-                  <option value="system-ui, sans-serif">Sans-serif</option>
-                </select>
-                <input type="color" id="text-color-picker" value="#000000" title="Text color" style="width:40px;height:34px;border:1px solid var(--border);border-radius:7px;cursor:pointer;padding:2px;">
-              </div>
+            <div class="ne-tool-sep"></div>
+            <div class="ne-tool-group">
+              <span class="ne-tool-label">Text size</span>
+              <input type="number" class="ne-num" id="text-font-size" min="10" max="48" step="1" value="16" title="New text box font size (px)">
             </div>
           </div>
         </div>
@@ -14964,7 +14946,7 @@ input, textarea, .note-textbox{ -webkit-user-select:text; user-select:text; }
           </div>
         </div>
 
-        <!-- More: orientation, zoom, PDF import, paper styles, delete -->
+        <!-- More: orientation, zoom, PDF import, delete -->
         <div class="an-popover an-more-popover" id="an-more-popover">
           <div class="an-menu">
             <button type="button" class="an-menu-item" id="tool-orientation" title="Switch page orientation">📄 Portrait</button>
@@ -14973,15 +14955,6 @@ input, textarea, .note-textbox{ -webkit-user-select:text; user-select:text; }
               <button type="button" class="ne-tool-btn" id="zoom-out" title="Zoom out">−</button>
               <span class="ne-tool-label" id="zoom-level">100%</span>
               <button type="button" class="ne-tool-btn" id="zoom-in" title="Zoom in">+</button>
-            </div>
-            <div class="an-menu-row" style="flex-direction:column;align-items:flex-start;">
-              <span>Paper style</span>
-              <select class="ne-select" id="style-type-menu" style="margin-top:6px;width:100%;">
-                <option value="ruled">Lined</option>
-                <option value="grid">Boxed</option>
-                <option value="dotted">Dotted</option>
-                <option value="blank">Blank</option>
-              </select>
             </div>
             <button type="button" class="an-menu-item" id="tool-import-pdf">📄 Import PDF</button>
             <input type="file" id="pdf-file-input" accept="application/pdf" style="display:none;">
@@ -15804,11 +15777,6 @@ function renderTextBoxes(layerEl, page){
     el.contentEditable = 'true';
     el.dataset.placeholder = 'Type…';
     el.style.fontSize = (tb.fontSize || 16) + 'px';
-    el.style.fontFamily = tb.fontFamily || 'Source Serif 4, serif';
-    el.style.color = tb.textColor || '#000000';
-    if(tb.bold) el.style.fontWeight = 'bold';
-    if(tb.italic) el.style.fontStyle = 'italic';
-    if(tb.underline) el.style.textDecoration = 'underline';
     el.textContent = tb.text || '';
     el.classList.toggle('nt-done', /^☑/.test(tb.text || ''));
     el.addEventListener('pointerdown', (e)=>{
@@ -16396,93 +16364,6 @@ document.getElementById('pdf-file-input').addEventListener('change', async (e)=>
 });
 
 loadGlobalSettings().then(refreshNotesList);
-
-// ---------- text formatting controls ----------
-let selectedTextBox = null;
-document.getElementById('text-bold-btn').addEventListener('click', ()=>{
-  const ctx = currentPageAndLayer();
-  const el = document.activeElement;
-  if(ctx && el && el.classList.contains('note-textbox')){
-    const tb = ctx.page.textBoxes.find(t => t.text || !t.isImage && !t.isTable);
-    if(tb){
-      selectedTextBox = tb;
-      selectedTextBox.bold = !selectedTextBox.bold;
-      el.style.fontWeight = selectedTextBox.bold ? 'bold' : 'normal';
-      document.getElementById('text-bold-btn').classList.toggle('active', selectedTextBox.bold);
-      scheduleSave();
-    }
-  }
-});
-document.getElementById('text-italic-btn').addEventListener('click', ()=>{
-  const ctx = currentPageAndLayer();
-  const el = document.activeElement;
-  if(ctx && el && el.classList.contains('note-textbox')){
-    const tb = ctx.page.textBoxes.find(t => t.text || !t.isImage && !t.isTable);
-    if(tb){
-      selectedTextBox = tb;
-      selectedTextBox.italic = !selectedTextBox.italic;
-      el.style.fontStyle = selectedTextBox.italic ? 'italic' : 'normal';
-      document.getElementById('text-italic-btn').classList.toggle('active', selectedTextBox.italic);
-      scheduleSave();
-    }
-  }
-});
-document.getElementById('text-underline-btn').addEventListener('click', ()=>{
-  const ctx = currentPageAndLayer();
-  const el = document.activeElement;
-  if(ctx && el && el.classList.contains('note-textbox')){
-    const tb = ctx.page.textBoxes.find(t => t.text || !t.isImage && !t.isTable);
-    if(tb){
-      selectedTextBox = tb;
-      selectedTextBox.underline = !selectedTextBox.underline;
-      el.style.textDecoration = selectedTextBox.underline ? 'underline' : 'none';
-      document.getElementById('text-underline-btn').classList.toggle('active', selectedTextBox.underline);
-      scheduleSave();
-    }
-  }
-});
-document.getElementById('text-font-family').addEventListener('change', ()=>{
-  const ctx = currentPageAndLayer();
-  const el = document.activeElement;
-  if(ctx && el && el.classList.contains('note-textbox')){
-    const tb = ctx.page.textBoxes.find(t => t.text || !t.isImage && !t.isTable);
-    if(tb){
-      selectedTextBox = tb;
-      selectedTextBox.fontFamily = document.getElementById('text-font-family').value;
-      el.style.fontFamily = selectedTextBox.fontFamily;
-      scheduleSave();
-    }
-  }
-});
-document.getElementById('text-color-picker').addEventListener('input', ()=>{
-  const ctx = currentPageAndLayer();
-  const el = document.activeElement;
-  if(ctx && el && el.classList.contains('note-textbox')){
-    const tb = ctx.page.textBoxes.find(t => t.text || !t.isImage && !t.isTable);
-    if(tb){
-      selectedTextBox = tb;
-      selectedTextBox.textColor = document.getElementById('text-color-picker').value;
-      el.style.color = selectedTextBox.textColor;
-      scheduleSave();
-    }
-  }
-});
-
-document.addEventListener('focusin', (e)=>{
-  if(e.target && e.target.classList.contains('note-textbox')){
-    const ctx = currentPageAndLayer();
-    if(ctx){
-      selectedTextBox = ctx.page.textBoxes.find(tb => !tb.isImage && !tb.isTable);
-      if(selectedTextBox){
-        document.getElementById('text-bold-btn').classList.toggle('active', selectedTextBox.bold);
-        document.getElementById('text-italic-btn').classList.toggle('active', selectedTextBox.italic);
-        document.getElementById('text-underline-btn').classList.toggle('active', selectedTextBox.underline);
-        document.getElementById('text-font-family').value = selectedTextBox.fontFamily || 'Source Serif 4, serif';
-        document.getElementById('text-color-picker').value = selectedTextBox.textColor || '#000000';
-      }
-    }
-  }
-});
 <\/script>
 
 </body>
