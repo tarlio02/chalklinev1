@@ -14732,12 +14732,19 @@ input, textarea, .note-textbox{ -webkit-user-select:text; user-select:text; }
 
 /* Popovers float above the page tray, anchored under the icon row */
 .an-popover{
-  display:none; position:absolute; top:100%; margin-top:6px; z-index:20;
+  display:none; position:absolute; top:100%; margin-top:6px; z-index:9999;
   background:#fff; border:1px solid var(--border); border-radius:14px;
   box-shadow:0 10px 30px rgba(0,0,0,0.18); max-width:calc(100vw - 24px);
-  overflow:auto;
+  overflow:auto; isolation:isolate;
 }
 .an-popover.open{ display:block; }
+/* Belt-and-braces: while any pen-tray/format popover is open, stop the
+   note canvases from being able to paint or receive input above it,
+   whatever stacking quirk a given browser/device applies. */
+#notes-editor:has(.an-popover.open) .note-page{ z-index:0; }
+#notes-editor.popover-open .note-page{ z-index:0; }
+#notes-editor.popover-open .ne-body{ pointer-events:none; }
+#notes-editor.popover-open .an-toolbar{ pointer-events:auto; }
 #an-aa-popover{ left:calc(18px + var(--safe-left)); }
 #an-markup-popover{ left:calc(18px + var(--safe-left)); right:calc(18px + var(--safe-right)); }
 #an-more-popover{ right:calc(18px + var(--safe-right)); min-width:220px; }
@@ -14892,7 +14899,15 @@ input, textarea, .note-textbox{ -webkit-user-select:text; user-select:text; }
             <div class="ne-tool-sep"></div>
             <div class="ne-tool-group">
               <span class="ne-tool-label">Text size</span>
-              <input type="number" class="ne-num" id="text-font-size" min="10" max="48" step="1" value="16" title="New text box font size (px)">
+              <input type="number" class="ne-num" id="text-font-size" min="10" max="48" step="1" value="16" title="Font size — applies to selected text, or sets the size for new text boxes">
+            </div>
+            <div class="ne-tool-sep"></div>
+            <div class="ne-tool-group">
+              <span class="ne-tool-label">Style</span>
+              <button type="button" class="ne-tool-btn" id="text-bold-btn" title="Bold selected text" aria-label="Bold" style="font-weight:700;">B</button>
+              <button type="button" class="ne-tool-btn" id="text-underline-btn" title="Underline selected text" aria-label="Underline" style="text-decoration:underline;">U</button>
+              <span class="ne-tool-label" style="margin-left:6px;">Color</span>
+              <input type="color" id="text-color-input" value="#2B2B2B" title="Text color for selected text" style="width:28px; height:26px; border:1px solid var(--border); border-radius:6px; padding:0; cursor:pointer; background:none;">
             </div>
           </div>
         </div>
@@ -15497,19 +15512,24 @@ document.getElementById('an-back-btn').addEventListener('click', ()=>{
 function closeAllNotesPopovers(){
   document.querySelectorAll('#an-toolbar .an-popover').forEach(p=> p.classList.remove('open'));
   document.querySelectorAll('#an-toolbar .an-icon-btn').forEach(b=> b.classList.remove('active'));
+  const editorEl = document.getElementById('notes-editor');
+  if(editorEl) editorEl.classList.remove('popover-open');
 }
 function toggleNotesPopover(popoverId, btnId){
   const pop = document.getElementById(popoverId);
   const btn = document.getElementById(btnId);
   const willOpen = !pop.classList.contains('open');
   closeAllNotesPopovers();
+  const editorEl = document.getElementById('notes-editor');
   if(willOpen){
     pop.classList.add('open');
     btn.classList.add('active');
+    if(editorEl) editorEl.classList.add('popover-open');
     // Reopening the pen toolbar can change #ne-body's height on mobile
     // (it's fixed to the bottom there) — keep the page fitted to it.
     setTimeout(sizePages, 260);
   } else {
+    if(editorEl) editorEl.classList.remove('popover-open');
     setTimeout(sizePages, 260);
   }
 }
@@ -15535,8 +15555,74 @@ function currentPageAndLayer(){
 }
 
 let newTextFontSize = 16; // set from the Aa popover, used for new text/checklist boxes
+
+// Text formatting (bold / underline / color / size) applies to the current
+// selection when the caret is inside a note-textbox. Clicking any of the
+// format controls below moves focus away from the textbox and collapses
+// the browser's live selection, so we snapshot the Range on pointerdown
+// (before focus moves) and restore it right before running the command.
+let savedTextSelection = null; // { tb, range } captured just before a format control steals focus
+function captureTextSelectionForFormatting(){
+  const sel = window.getSelection();
+  if(!sel || sel.rangeCount === 0 || sel.isCollapsed){ savedTextSelection = null; return; }
+  const range = sel.getRangeAt(0);
+  const el = (range.commonAncestorContainer.nodeType === 1
+    ? range.commonAncestorContainer
+    : range.commonAncestorContainer.parentElement);
+  const tb = el ? el.closest('.note-textbox[contenteditable="true"]') : null;
+  savedTextSelection = tb ? { tb, range: range.cloneRange() } : null;
+}
+function restoreSavedTextSelection(){
+  if(!savedTextSelection) return null;
+  const { tb, range } = savedTextSelection;
+  tb.focus();
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+  return tb;
+}
+// Any pointerdown inside the toolbar/popovers snapshots the current
+// selection first, so the format buttons work no matter which one is used.
+document.getElementById('an-toolbar').addEventListener('pointerdown', captureTextSelectionForFormatting, true);
+
+function applyTextCommand(cmd, value){
+  const tb = restoreSavedTextSelection();
+  if(!tb) return false; // nothing was selected in a text box
+  document.execCommand(cmd, false, value === undefined ? null : value);
+  savedTextSelection = null;
+  scheduleSave();
+  return true;
+}
+function applySelectionFontSize(px){
+  const tb = restoreSavedTextSelection();
+  if(!tb) return false;
+  // execCommand('fontSize') only supports the 7 legacy HTML sizes, so we
+  // use size=7 as a marker, then rewrite the <font> tags it creates to a
+  // real pixel value via CSS instead.
+  document.execCommand('fontSize', false, '7');
+  const layer = tb.closest('.np-text-layer') || tb;
+  layer.querySelectorAll('font[size="7"]').forEach(f=>{
+    f.removeAttribute('size');
+    f.style.fontSize = px + 'px';
+  });
+  savedTextSelection = null;
+  scheduleSave();
+  return true;
+}
 document.getElementById('text-font-size').addEventListener('input', (e)=>{
   newTextFontSize = Math.max(10, Number(e.target.value) || 16);
+  applySelectionFontSize(newTextFontSize);
+});
+document.getElementById('text-bold-btn').addEventListener('click', (e)=>{
+  e.preventDefault();
+  applyTextCommand('bold');
+});
+document.getElementById('text-underline-btn').addEventListener('click', (e)=>{
+  e.preventDefault();
+  applyTextCommand('underline');
+});
+document.getElementById('text-color-input').addEventListener('input', (e)=>{
+  applyTextCommand('foreColor', e.target.value);
 });
 
 function insertChecklistItem(){
