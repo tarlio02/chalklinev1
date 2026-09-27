@@ -14436,2047 +14436,522 @@ refreshQuizHistory();
 </html>
 </script>
 
-<script type="text/plain" id="src-notes"><html lang="en">
+<script type="text/plain" id="src-notes"><!DOCTYPE html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-<title>Notes — Chalkline</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"><\/script>
+<title>Chalkline — Notes</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&family=Caveat:wght@600;700&display=swap');
 
 :root{
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
-  --safe-left: env(safe-area-inset-left, 0px);
-  --safe-right: env(safe-area-inset-right, 0px);
-  --paper:#FDFBF6;
-  --list-bg:#F4F1E9;
-  --border:#E4DECE;
   --ink:#2A2410;
+  --ochre:#2E7DBE;
+  --gold:#F0B94D;
+  --gold-deep:#C98A2B;
+  --sage:#3E8FA6;
+  --brick:#3D6B93;
+  --panel-border:#ECE3C8;
   --muted:#8A8267;
-  --accent:#C98A2B;
-  --accent-soft:#F0DFB8;
-  --danger:#C0392B;
+  --rule:#E7DEC0;
 }
 *{box-sizing:border-box;}
-html,body{margin:0;padding:0;height:100%;}
+html,body{ margin:0; padding:0; height:100%; }
 body{
-  font-family:'Source Serif 4', Georgia, serif;
-  color:var(--ink);
-  background:url(data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAASABIAAD/4QScRXhpZgAATU0AKgAAAAgABgESAAMAAAABAAEAAAEaAAUAAAABAAAAVgEbAAUAAAABAAAAXgEoAAMAAAABAAIAAAITAAMAAAABAAEAAIdpAAQAAAABAAAAZgAAAMAAAABIAAAAAQAAAEgAAAABAAeQAAAHAAAABDAyMjGRAQAHAAAABAECAwCgAAAHAAAABDAxMDCgAQADAAAAAf//AACgAgAEAAAAAQAAAdqgAwAEAAAAAQAAA0qkBgADAAAAAQAAAAAAAAAAAAYBAwADAAAAAQAGAAABGgAFAAAAAQAAAQ4BGwAFAAAAAQAAARYBKAADAAAAAQACAAACAQAEAAAAAQAAAR4CAgAEAAAAAQAAA3QAAAAAAAAASAAAAAEAAABIAAAAAf/Y/9sAhAABAQEBAQECAQECAwICAgMEAwMDAwQFBAQEBAQFBgUFBQUFBQYGBgYGBgYGBwcHBwcHCAgICAgJCQkJCQkJCQkJAQEBAQICAgQCAgQJBgUGCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQn/3QAEAAb/wAARCACgAFoDASIAAhEBAxEB/8QBogAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoLEAACAQMDAgQDBQUEBAAAAX0BAgMABBEFEiExQQYTUWEHInEUMoGRoQgjQrHBFVLR8CQzYnKCCQoWFxgZGiUmJygpKjQ1Njc4OTpDREVGR0hJSlNUVVZXWFlaY2RlZmdoaWpzdHV2d3h5eoOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4eLj5OXm5+jp6vHy8/T19vf4+foBAAMBAQEBAQEBAQEAAAAAAAABAgMEBQYHCAkKCxEAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD+/iiiigAooooAKKKKACiiigAooooAKKKKAP/Q/v4ooooAKKKKACiiigAooooAKKKKACiiigD/0f7+KKKKACiiigAooooAKKKKACiiigAooooA/9L+/iiiigAooooAKKKKACiiigAooooAKKKKAP/T/v4ooooAKKKKACiiigAooooAKKKKACiiigD/1P7+KKKKACiiigAooooAKKKKACiiigAooooA/9X+/iiiigAooooAKKKKACiiigAooooAKKKKAP/W/v4ooooAKKKKACiiigAooooAKKKKACiiigD/1/7+KKKKACiiigAooooAKKSloAKKKKACiiigD//Q/v4ooooAKKKKACiiigCNkJYNnp2qSiigSQUUUUDCiiigD//ZAAD/4gIoSUNDX1BST0ZJTEUAAQEAAAIYAAAAAAIQAABtbnRyUkdCIFhZWiAAAAAAAAAAAAAAAABhY3NwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA9tYAAQAAAADTLQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlkZXNjAAAA8AAAAHRyWFlaAAABZAAAABRnWFlaAAABeAAAABRiWFlaAAABjAAAABRyVFJDAAABoAAAAChnVFJDAAABoAAAAChiVFJDAAABoAAAACh3dHB0AAAByAAAABRjcHJ0AAAB3AAAADxtbHVjAAAAAAAAAAEAAAAMZW5VUwAAAFgAAAAcAHMAUgBHAEIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFhZWiAAAAAAAABvogAAOPUAAAOQWFlaIAAAAAAAAGKZAAC3hQAAGNpYWVogAAAAAAAAJKAAAA+EAAC2z3BhcmEAAAAAAAQAAAACZmYAAPKnAAANWQAAE9AAAApbAAAAAAAAAABYWVogAAAAAAAA9tYAAQAAAADTLW1sdWMAAAAAAAAAAQAAAAxlblVTAAAAIAAAABwARwBvAG8AZwBsAGUAIABJAG4AYwAuACAAMgAwADEANv/tADhQaG90b3Nob3AgMy4wADhCSU0EBAAAAAAAADhCSU0EJQAAAAAAENQdjNmPALIE6YAJmOz4Qn7/wAARCANKAdoDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9sAQwACAgICAgIDAgIDBQMDAwUGBQUFBQYIBgYGBgYICggICAgICAoKCgoKCgoKDAwMDAwMDg4ODg4PDw8PDw8PDw8P/9sAQwECAwMEBAQHBAQHEAsJCxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ/90ABAAe/9oADAMBAAIRAxEAPwD9/KKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooA//Q/fyiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/0f38ooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD/9L9/KKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooA//T/fyiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/1P38ooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD/9X9/KKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooA//W/fyiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/1/38ooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD/9D9/KKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooA//R/fyiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/0v38ooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD/9P9/KKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooA//U/fyiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/1f38ooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD/9b9/KKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooA//X/fyiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/0P38ooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD/9H9/KKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooA//S/fyiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/0/38ooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD/9T9/KKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooA//V/fyiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/1v38ooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD/9f9/KKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooA//Q/fyiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/0f38ooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD/9L9/KKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooA//T/fyiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/1P38ooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD/9X9/KKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooA//W/fyiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/1/38ooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD/9D9/KKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooA//R/fyiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/0v38ooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD/9P9/KKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooA//U/fyiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/1f38ooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD/9b9/KKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooA//X/fyiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/0P38ooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD/9H9/KKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooA//S/fyiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/0/38ooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD/9T9/KKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooA//V/fyiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/1v38ooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAE2ijaKhZqSgz5ixRRRQaBRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAf/X/fyiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAqNm21JRQBnqtWVip9SUGEaXKFFFFBuFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQB//Q/fyiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/0f38ooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD/9L9/KKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooA//T/fyiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/2Q==), var(--paper);
-  background-size:100% 100%;
-  background-position:center;
-  background-repeat:no-repeat;
-  height:100vh;
-  height:100dvh;
-  overflow:hidden;
-  /* Dragging the mouse to draw (mouse is treated as a pen — see
-     isStylusLike in the page script) is otherwise indistinguishable
-     from a text-selection drag to the browser, which would paint its
-     native blue selection highlight across the whole page as the
-     person writes. Turning selection off page-wide, then explicitly
-     re-enabling it just for the controls people actually type into,
-     avoids that without breaking normal text editing. */
-  -webkit-user-select:none; user-select:none;
+  font-family:'Source Serif 4', Georgia, serif; color:var(--ink);
+  background:
+    radial-gradient(ellipse 900px 500px at 15% -10%, rgba(240,185,77,0.20), transparent 60%),
+    radial-gradient(ellipse 900px 600px at 100% 0%, rgba(46,125,190,0.09), transparent 60%),
+    linear-gradient(165deg, #FFFDF6 0%, #FFF7E0 55%, #FBEFD0 130%);
+  min-height:100vh; min-height:100dvh;
+  padding-top:var(--safe-top); padding-bottom:var(--safe-bottom);
 }
-input, textarea, .note-textbox{ -webkit-user-select:text; user-select:text; }
-.notes-shell{ display:flex; height:100vh; height:100dvh; }
+h1,h2,h3{ font-family:'Fraunces','Source Serif 4',Georgia,serif; margin:0; color:var(--ink); font-weight:600; }
+.wrap{ max-width:760px; margin:0 auto; padding:0 22px 60px; }
 
-/* ---------- LEFT: note list ---------- */
-.notes-list-pane{
-  width:280px; flex-shrink:0; height:100vh; height:100dvh;
-  background:var(--list-bg); border-right:1px solid var(--border);
-  display:flex; flex-direction:column; overflow:hidden;
-  transition:width .32s cubic-bezier(.22,.9,.32,1.1), border-color .32s ease;
+.page-head{
+  padding:26px 24px 24px; margin:20px 0 22px; display:flex; align-items:flex-start; justify-content:space-between;
+  gap:18px; flex-wrap:wrap; border-radius:20px;
+  background:linear-gradient(160deg, #FFFFFF 0%, #FFF7E0 100%);
+  border:1px solid rgba(0,0,0,0.05);
+  box-shadow:0 1px 0 rgba(255,255,255,0.7) inset, 0 14px 26px -16px rgba(120,90,20,0.18);
 }
-/* Collapsed: same trick as the dashboard sidebar — the pane's own width
-   goes to 0 (clipping its fixed-width contents via overflow:hidden above)
-   so the editor pane, right next to it in the flex row, immediately
-   reflows to fill the freed space and the page gets more room to write. */
-.notes-shell.list-collapsed .notes-list-pane{ width:0; border-right-color:transparent; }
-.nl-topbar{
-  display:flex; align-items:center; gap:8px;
-  padding:calc(14px + var(--safe-top)) 14px 10px calc(14px + var(--safe-left));
+.page-head h1{ font-size:28px; margin:0 0 8px; }
+.page-head p{ font-size:15px; color:#5c5847; margin:0; max-width:440px; line-height:1.5; }
+.back-link{
+  display:inline-flex; align-items:center; gap:6px; margin-bottom:12px;
+  font-family:'JetBrains Mono', monospace; font-size:12.5px; color:var(--muted);
+  text-decoration:none; cursor:pointer; border:none; background:none; padding:0;
 }
-.nl-back{
-  border:none; background:rgba(0,0,0,0.05); color:var(--ink);
-  width:30px; height:30px; border-radius:8px; cursor:pointer; font-size:15px;
-  display:flex; align-items:center; justify-content:center; flex-shrink:0;
+.back-link:hover{ color:var(--ink); }
+.btn-primary{
+  font-family:'Source Serif 4', serif; font-size:14.5px; font-weight:600;
+  background:linear-gradient(140deg, var(--gold-deep), var(--gold)); color:#fff; border:none; border-radius:999px;
+  padding:11px 22px; cursor:pointer; white-space:nowrap;
+  box-shadow:0 6px 14px -6px rgba(120,90,20,0.35), 0 1px 0 rgba(255,255,255,0.25) inset;
+  transition:transform .18s ease;
 }
-.nl-back:hover{ background:rgba(0,0,0,0.1); }
-.nl-title{ font-family:'Fraunces','Source Serif 4',serif; font-weight:700; font-size:19px; }
+.btn-primary:hover{ transform:translateY(-2px); }
+.btn-secondary{
+  font-family:'JetBrains Mono', monospace; font-size:12.5px; font-weight:600;
+  background:#fff; color:var(--ink); border:1px solid var(--panel-border); border-radius:999px;
+  padding:9px 16px; cursor:pointer;
+}
+.btn-secondary:hover{ background:#FFF7E0; border-color:var(--gold); }
+.btn-danger{ color:#a5372c; }
+.btn-danger:hover{ background:#FDECEA; border-color:#F3C4BE; }
 
-/* Sidebar collapse toggle: lives in the editor topbar (not the pane
-   itself) so it stays put and clickable whether the list is open or
-   collapsed, same idea as the dashboard's sidebar-toggle. */
-.ne-sidebar-toggle{
-  border:none; background:rgba(0,0,0,0.05); color:var(--ink);
-  width:30px; height:30px; border-radius:8px; cursor:pointer; font-size:14px;
-  display:flex; align-items:center; justify-content:center; flex-shrink:0;
+.signin-note, .empty-state{
+  background:#fff; border:1px solid var(--panel-border); border-radius:14px;
+  padding:34px 26px; font-size:14.5px; color:var(--muted); text-align:center;
 }
-.ne-sidebar-toggle:hover{ background:rgba(0,0,0,0.1); }
-@media (max-width:760px){
-  /* Mobile already shows the list and editor as separate full-screen
-     panes toggled by .editing / the back button, so this extra desktop
-     collapse control would be redundant there. */
-  .ne-sidebar-toggle{ display:none; }
-}
+.empty-state::before{ content:'🗒️'; display:block; font-size:24px; margin-bottom:8px; }
 
-.nl-search{
-  margin:0 14px 10px; position:relative;
+.list{
+  background:linear-gradient(160deg, #FFFFFF 0%, #FFFCF3 100%);
+  border:1px solid rgba(0,0,0,0.05); border-radius:16px; overflow:hidden; position:relative;
+  box-shadow:0 1px 0 rgba(255,255,255,0.7) inset, 0 10px 22px -14px rgba(120,90,20,0.20);
 }
-.nl-search input{
-  width:100%; border:1px solid var(--border); border-radius:9px;
-  padding:8px 10px 8px 30px; font-size:13px; font-family:inherit;
-  background:#fff; color:var(--ink);
+.list::before{ content:''; position:absolute; left:0; top:0; bottom:0; width:4px; background:linear-gradient(180deg, var(--brick), var(--gold-deep)); }
+.note-row{
+  display:flex; align-items:center; gap:14px; padding:16px 20px; cursor:pointer;
+  border-bottom:1px solid var(--panel-border); transition:background .15s ease;
 }
-.nl-search input:focus{ outline:2px solid var(--accent-soft); }
-.nl-search::before{
-  content:'⌕'; position:absolute; left:10px; top:50%; transform:translateY(-50%);
-  color:var(--muted); font-size:14px; pointer-events:none;
+.note-row:last-child{ border-bottom:none; }
+.note-row:hover{ background:linear-gradient(90deg, rgba(240,185,77,0.10), transparent); }
+.note-row .r-icon{
+  width:36px; height:36px; border-radius:10px; flex-shrink:0;
+  background:linear-gradient(140deg, var(--brick), var(--gold-deep));
+  display:flex; align-items:center; justify-content:center; font-size:15px;
+  box-shadow:0 6px 14px -6px rgba(120,90,20,0.35);
 }
+.note-row .r-title{ font-size:14.5px; font-weight:600; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.note-row .r-preview{ display:none; }
+.note-row .r-date{
+  font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--muted); flex-shrink:0;
+  background:rgba(240,185,77,0.16); padding:3px 9px; border-radius:999px;
+}
+.note-row .r-delete{
+  border:none; background:none; color:var(--muted); font-size:15px; cursor:pointer; flex-shrink:0;
+  width:28px; height:28px; border-radius:8px;
+}
+.note-row .r-delete:hover{ background:#FDECEA; color:#a5372c; }
 
-.nl-new-btn{
-  margin:0 14px 12px; padding:9px; border-radius:9px; border:none; cursor:pointer;
-  background:var(--accent); color:#fff; font-weight:600; font-size:13px;
-  font-family:'JetBrains Mono',monospace; display:flex; align-items:center; justify-content:center; gap:6px;
+/* ---- editor ---- */
+#editor-view{ display:none; }
+.editor-bar{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:10px; }
+#note-status{
+  font-family:'JetBrains Mono', monospace; font-size:10.5px; letter-spacing:.05em; color:var(--muted);
 }
-.nl-new-btn:hover{ filter:brightness(1.06); }
+#note-status.saved::before{ content:'●'; color:#6E9F5E; margin-right:5px; font-size:8px; }
+#note-status.editing::before{ content:'●'; color:var(--gold); margin-right:5px; font-size:8px; }
 
-.nl-items{ flex:1; overflow-y:auto; padding:0 8px 14px; }
-.nl-item{
-  padding:10px 10px; border-radius:10px; cursor:pointer; margin-bottom:3px;
-  border:1px solid transparent;
-  transition:background .12s ease;
-  position:relative;
+/* ---- input-mode toolbar ---- */
+.mode-toolbar{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
+.seg{ display:inline-flex; background:#fff; border:1px solid var(--panel-border); border-radius:999px; padding:3px; gap:2px; }
+.seg-btn{
+  border:none; background:none; font-family:'JetBrains Mono', monospace; font-size:12px; font-weight:600;
+  color:var(--muted); padding:7px 14px; border-radius:999px; cursor:pointer;
 }
-.nl-item:hover{ background:rgba(0,0,0,0.045); }
-.nl-item.active{ background:var(--accent-soft); border-color:rgba(201,138,43,0.35); }
-.nl-item .ni-title{
-  font-weight:600; font-size:14px; color:var(--ink);
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:3px;
-}
-.nl-item .ni-meta{ font-size:11.5px; color:var(--muted); display:flex; gap:6px; }
-.nl-item .ni-preview{ display:none; }
-.nl-item .ni-delete{
-  position:absolute; top:8px; right:8px; display:none;
-  border:none; background:rgba(0,0,0,0.08); color:var(--danger);
-  width:22px; height:22px; border-radius:6px; cursor:pointer; font-size:12px;
-  align-items:center; justify-content:center;
-}
-.nl-item:hover .ni-delete{ display:flex; }
-.nl-empty-hint{ padding:24px 14px; color:var(--muted); font-size:13px; line-height:1.5; text-align:center; }
+.seg-btn.active{ background:linear-gradient(140deg, var(--brick), var(--gold-deep)); color:#fff; }
+.draw-tools{ display:none; align-items:center; gap:8px; }
+.draw-tools.show{ display:flex; }
+.swatch{ width:25px; height:25px; border-radius:50%; border:2px solid #fff; box-shadow:0 0 0 1px var(--panel-border); cursor:pointer; padding:0; }
+.swatch.active{ box-shadow:0 0 0 2px var(--ink); }
+#eraser-btn.active{ background:#FFF1CC; border-color:var(--gold); color:var(--ink); }
 
-/* ---------- RIGHT: editor ---------- */
-.notes-editor-pane{ flex:1; display:flex; flex-direction:column; height:100vh; height:100dvh; min-width:0; }
-.ne-topbar{
-  display:flex; align-items:center; justify-content:space-between;
-  padding:calc(12px + var(--safe-top)) calc(26px + var(--safe-right)) 12px calc(26px + var(--safe-left));
-  border-bottom:1px solid var(--border); flex-shrink:0; gap:10px;
+#note-title{
+  width:100%; border:none; outline:none; background:transparent;
+  font-family:'Fraunces','Source Serif 4',Georgia,serif; font-weight:600;
+  font-size:24px; color:var(--ink); padding:0 4px 10px; margin-bottom:4px;
 }
-.ne-topbar-left{ display:flex; align-items:center; gap:10px; min-width:0; flex:1; }
-.ne-title-input{
-  border:none; outline:none; background:transparent;
-  font-family:'Fraunces','Source Serif 4',serif; font-weight:700; font-size:19px;
-  color:var(--ink); padding:0; min-width:0; flex:1;
-}
-.ne-title-input::placeholder{ color:#C9C2AA; }
-.ne-status{ font-size:11.5px; color:var(--muted); font-family:'JetBrains Mono',monospace; flex-shrink:0; }
-.ne-delete-btn{
-  border:none; background:none; color:var(--danger); cursor:pointer; font-size:13px;
-  font-family:'JetBrains Mono',monospace; padding:6px 10px; border-radius:7px; flex-shrink:0;
-}
-.ne-delete-btn:hover{ background:rgba(192,57,43,0.08); }
+#note-title::placeholder{ color:#C9B98A; }
 
-/* ---------- toolbar ---------- */
-.ne-toolbar{
-  display:flex; flex-wrap:wrap; align-items:center; gap:14px;
-  padding:9px 26px; border-bottom:1px solid var(--border); flex-shrink:0;
-  background:#FBF9F3; font-family:'JetBrains Mono',monospace; font-size:12px;
-  overflow:hidden; transition:padding .28s cubic-bezier(.22,.9,.32,1.1), max-height .28s cubic-bezier(.22,.9,.32,1.1), border-color .28s ease;
-  max-height:200px;
+.sheet{
+  position:relative; height:560px; overflow:hidden; border-radius:18px; border:1px solid var(--panel-border);
+  background:
+    linear-gradient(#FFFDF6, #FFFDF6) padding-box,
+    repeating-linear-gradient(to bottom, #FFFDF6 0px, #FFFDF6 33px, var(--rule) 33px, var(--rule) 34px);
+  background-size: 100% 100%, 100% 34px;
+  background-position: 0 0, 0 4px;
+  background-repeat: no-repeat, repeat-y;
+  box-shadow:0 2px 10px rgba(60,40,5,0.06);
 }
-/* Collapsed: same idea as the note-list collapse — shrink it to nothing
-   so the page tray directly below (#ne-body, flex:1) reflows to take the
-   freed height, giving the page itself more room to write. */
-#notes-editor.toolbar-collapsed .ne-toolbar{ max-height:0; padding-top:0; padding-bottom:0; border-color:transparent; }
-.ne-tool-group{ display:flex; align-items:center; gap:6px; }
-.ne-tool-sep{ width:1px; align-self:stretch; background:var(--border); }
-.ne-tool-btn{
-  border:1px solid var(--border); background:#fff; color:var(--ink);
-  padding:6px 10px; border-radius:8px; cursor:pointer; font-size:12px;
-  font-family:inherit; display:flex; align-items:center; gap:5px;
+.sheet-margin{ position:absolute; top:0; bottom:0; left:44px; width:1px; background:#F0C7C0; pointer-events:none; z-index:1; }
+#note-body{
+  position:absolute; inset:0; width:100%; height:100%; resize:none; border:none; outline:none; background:transparent;
+  font-family:'Source Serif 4', Georgia, serif; font-size:16px; line-height:34px; overflow-y:auto;
+  color:var(--ink); padding:6px 18px 30px 58px; caret-color:var(--ochre); z-index:2;
 }
-.ne-tool-btn:hover{ background:#F3EFE3; }
-.ne-tool-btn.active{ background:var(--accent); color:#fff; border-color:var(--accent); }
-.ne-color-row{ display:flex; align-items:center; gap:5px; }
-.ne-color-swatch{
-  width:19px; height:19px; border-radius:50%; cursor:pointer;
-  border:2px solid transparent; box-shadow:0 0 0 1px rgba(0,0,0,0.15) inset;
-  padding:0;
+#note-body::placeholder{ color:#C9B98A; font-style:italic; }
+#note-canvas{
+  position:absolute; inset:0; width:100%; height:100%; z-index:3;
+  touch-action:none; pointer-events:none;
 }
-.ne-color-swatch.active{ border-color:#333; }
-.ne-size-slider{ width:70px; }
-.ne-select, .ne-num{
-  border:1px solid var(--border); background:#fff; color:var(--ink);
-  padding:5px 7px; border-radius:7px; font-family:inherit; font-size:12px;
-}
-.ne-num{ width:52px; }
-.ne-tool-label{ color:var(--muted); }
-
-/* ---------- pen tray (Markup popover) ---------- */
-.ne-pen-tray{ display:flex; align-items:center; gap:10px; padding:10px 12px; flex-wrap:nowrap; overflow-x:auto; -webkit-overflow-scrolling:touch; }
-.ne-pen-sep{ width:1px; align-self:stretch; min-height:34px; background:var(--border); flex-shrink:0; }
-.ne-pen-arrows{ display:flex; align-items:center; gap:6px; flex-shrink:0; }
-.ne-pen-arrow-btn{
-  width:32px; height:32px; border-radius:50%; border:none; background:#EDE9DC; color:var(--ink);
-  display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; padding:0;
-}
-.ne-pen-arrow-btn:hover{ background:#E3DDC9; }
-.ne-pen-arrow-btn:disabled{ opacity:.4; cursor:default; }
-.ne-pen-arrow-btn svg{ width:16px; height:16px; }
-.ne-pen-tools{ display:flex; align-items:flex-end; gap:14px; flex-shrink:0; padding:0 2px; }
-.ne-pen-tool-btn{
-  border:none; background:transparent; color:var(--ink); cursor:pointer; padding:2px 2px 6px;
-  display:flex; flex-direction:column; align-items:center; gap:3px; flex-shrink:0; border-bottom:2px solid transparent;
-  font-family:inherit;
-}
-.ne-pen-tool-btn svg{ width:26px; height:30px; }
-.ne-pen-tool-btn.active{ border-bottom-color:var(--accent); }
-.ne-pen-tool-btn .ne-pen-tool-tag{ font-size:9px; color:var(--muted); font-family:'JetBrains Mono',monospace; }
-.ne-pen-size-col{ display:flex; align-items:center; gap:8px; flex-shrink:0; }
-.ne-pen-colors{ display:grid; grid-template-columns:repeat(3,22px); grid-auto-flow:column; gap:8px; flex-shrink:0; }
-.ne-pen-color{
-  width:22px; height:22px; border-radius:50%; cursor:pointer; border:2px solid transparent; padding:0;
-  box-shadow:0 0 0 1px rgba(0,0,0,0.12) inset;
-}
-.ne-pen-color.active{ border-color:#2E6DBE; box-shadow:0 0 0 2px #fff inset, 0 0 0 1px rgba(0,0,0,0.12); }
-.ne-pen-color.ne-pen-color-wheel{
-  background:conic-gradient(red,#f0f,blue,#0ff,lime,yellow,red); box-shadow:none;
-}
-.ne-pen-extra{ display:flex; align-items:center; gap:8px; flex-shrink:0; }
-.ne-pen-round-btn{
-  width:32px; height:32px; border-radius:50%; border:none; background:#EDE9DC; color:var(--ink);
-  display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; padding:0; font-size:15px;
-}
-.ne-pen-round-btn:hover{ background:#E3DDC9; }
-
-.ne-body{ flex:1; overflow-y:auto; overflow-x:auto; background:#DCD6C4; padding:0 0 60px;
-  display:flex; flex-direction:column; align-items:center; gap:10px; -webkit-overflow-scrolling:touch; }
-
-/* Width is set inline per page by sizePages() (JS) instead of a fixed CSS
-   value, since the right size depends on the current note's orientation
-   (landscape should use the room a portrait page doesn't need) and the
-   available container size — not just viewport width. */
-.note-page{
-  position:relative;
-  background:#fff; box-shadow:0 3px 14px rgba(0,0,0,0.18); border-radius:3px; flex-shrink:0;
-}
-.note-page canvas{ position:absolute; top:0; left:0; width:100%; height:100%; display:block; }
-.note-page .np-bg{ z-index:1; }
-.note-page .np-ink{ z-index:2; touch-action:none; }
-.note-page .np-text-layer{ position:absolute; inset:0; z-index:3; pointer-events:none; }
-.note-page .np-text-layer > *{ pointer-events:auto; }
-.note-page .np-page-tools{
-  position:absolute; top:6px; right:6px; z-index:4; display:none; gap:4px;
-}
-.note-page:hover .np-page-tools{ display:flex; }
-.np-page-tools button{
-  border:none; background:rgba(0,0,0,0.45); color:#fff; width:22px; height:22px;
-  border-radius:6px; cursor:pointer; font-size:11px;
-}
-.note-textbox{
-  position:absolute; min-width:36px; min-height:22px; font-family:'Source Serif 4',serif;
-  font-size:16px; line-height:1.4; color:var(--ink); background:transparent; outline:none;
-  padding:2px 4px; border:1px dashed transparent; white-space:pre-wrap; word-break:break-word;
-  cursor:text;
-}
-.note-textbox:hover{ border-color:rgba(0,0,0,0.08); }
-.note-textbox:focus{ border-color:var(--accent-soft); background:rgba(255,255,255,0.72); }
-.note-textbox:empty:before{ content:attr(data-placeholder); color:#C9C2AA; }
-
-.ne-add-page-row{ display:flex; justify-content:center; }
-.ne-add-page-btn{
-  border:1px dashed var(--border); background:transparent; color:var(--muted);
-  padding:10px 18px; border-radius:10px; cursor:pointer; font-family:'JetBrains Mono',monospace; font-size:12px;
-}
-.ne-add-page-btn:hover{ background:rgba(0,0,0,0.03); color:var(--ink); }
-
-/* ---------- Apple-Notes-style icon toolbar + popovers ---------- */
-.an-toolbar{
-  display:flex; align-items:center; justify-content:space-between;
-  padding:8px calc(18px + var(--safe-right)) 8px calc(18px + var(--safe-left));
-  border-bottom:1px solid var(--border); flex-shrink:0;
-  background:#FBF9F3; gap:14px; overflow-x:auto; overflow-y:visible; -webkit-overflow-scrolling:touch;
-  position:relative;
-}
-/* overflow-y:visible has to be explicit here: setting overflow-x:auto
-   alone makes the browser compute overflow-y as auto too (per spec, a
-   non-"visible" x paired with a "visible" y becomes "auto"), which turns
-   this bar into a clipping container and hides the markup/pen-tray
-   popover below it, since that popover sits at top:100% and is taller
-   than the bar itself. */
-.an-group{ display:flex; align-items:center; gap:4px; flex-shrink:0; }
-.an-icon-btn{
-  border:none; background:transparent; color:var(--accent);
-  width:34px; height:34px; border-radius:9px; cursor:pointer;
-  display:flex; align-items:center; justify-content:center; flex-shrink:0;
-  font-family:'Fraunces','Source Serif 4',serif; font-weight:600; font-size:16px;
-  padding:0;
-}
-.an-icon-btn svg{ width:19px; height:19px; }
-.an-icon-btn:hover{ background:rgba(201,138,43,0.1); }
-.an-icon-btn.active{ background:var(--accent); color:#fff; }
-.an-markup-icon{ border-radius:50%; border:1.5px solid var(--accent); touch-action:manipulation; }
-
-/* Popovers float above the page tray, anchored under the icon row */
-.an-popover{
-  display:none; position:absolute; top:100%; margin-top:6px; z-index:9999;
-  background:#fff; border:1px solid var(--border); border-radius:14px;
-  box-shadow:0 10px 30px rgba(0,0,0,0.18); max-width:calc(100vw - 24px);
-  overflow:auto; isolation:isolate;
-}
-.an-popover.open{ display:block; }
-/* Belt-and-braces: while any pen-tray/format popover is open, stop the
-   note canvases from being able to paint or receive input above it,
-   whatever stacking quirk a given browser/device applies. */
-#notes-editor:has(.an-popover.open) .note-page{ z-index:0; }
-#notes-editor.popover-open .note-page{ z-index:0; }
-#notes-editor.popover-open .ne-body{ pointer-events:none; }
-#notes-editor.popover-open .an-toolbar{ pointer-events:auto; }
-#an-aa-popover{ left:calc(18px + var(--safe-left)); }
-#an-markup-popover{ left:calc(18px + var(--safe-left)); right:calc(18px + var(--safe-right)); }
-#an-more-popover{ right:calc(18px + var(--safe-right)); min-width:220px; }
-
-.an-menu{ display:flex; flex-direction:column; padding:6px; gap:2px; }
-.an-menu-item{
-  border:none; background:none; text-align:left; padding:11px 12px; border-radius:9px;
-  cursor:pointer; font-family:'Source Serif 4',serif; font-size:14.5px; color:var(--ink);
-  display:flex; align-items:center; gap:8px; width:100%;
-}
-.an-menu-item:hover{ background:rgba(0,0,0,0.05); }
-.an-menu-item.an-menu-danger{ color:var(--danger); }
-.an-menu-row{
-  display:flex; align-items:center; gap:8px; padding:8px 12px;
-  font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--muted);
-}
-
-/* Checklist boxes */
-.note-textbox.nt-done{ color:var(--muted); text-decoration:line-through; }
-
-/* Tables dropped onto a page */
-.note-textbox.nt-table{ padding:0; border:none; cursor:default; background:rgba(255,255,255,0.85); }
-.note-textbox.nt-table:hover{ border:none; }
-.nt-table-el{ border-collapse:collapse; width:100%; }
-.nt-table-el td{
-  border:1px solid var(--border); min-width:56px; height:30px; padding:4px 6px;
-  font-family:'Source Serif 4',serif; font-size:14px; color:var(--ink); outline:none;
-}
-
-/* Images dropped onto a page */
-.note-textbox.nt-image{ padding:0; border:none; cursor:default; }
-.note-textbox.nt-image:hover{ border:none; }
-.note-textbox.nt-image img{ max-width:100%; display:block; border-radius:4px; pointer-events:none; }
-
-/* Search bar mic button */
-.nl-mic-btn{
-  position:absolute; right:6px; top:50%; transform:translateY(-50%);
-  border:none; background:none; color:var(--muted); width:24px; height:24px;
-  border-radius:6px; cursor:pointer; display:flex; align-items:center; justify-content:center;
-}
-.nl-mic-btn.active{ color:var(--accent); }
-.nl-mic-btn svg{ width:15px; height:15px; }
-
-/* Mobile-only "back to list" control (opposite of the desktop collapse toggle) */
-.an-back-btn{
-  display:none; border:none; background:none; color:var(--accent); cursor:pointer;
-  font-family:'Source Serif 4',serif; font-weight:600; font-size:15px; padding:4px 2px; margin:0 2px 0 0;
-  flex-shrink:0; align-items:center; gap:2px;
-}
-@media (max-width:760px){
-  .an-back-btn{ display:flex; }
-  .an-popover{ position:fixed; left:10px !important; right:10px !important; top:auto !important; bottom:calc(10px + var(--safe-bottom)); max-width:none; margin-top:0; }
-}
-
-.ne-empty-state{
-  flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
-  color:var(--muted); gap:10px;
-}
-.ne-empty-state .es-ic{ font-size:38px; opacity:.55; }
-.ne-empty-state p{ font-size:13.5px; margin:0; }
-.ne-empty-state button{
-  margin-top:6px; padding:9px 18px; border-radius:999px; border:none; cursor:pointer;
-  background:var(--accent); color:#fff; font-weight:600; font-size:13px; font-family:'JetBrains Mono',monospace;
-}
-
-@media (max-width:760px){
-  .notes-list-pane{ width:100%; position:fixed; inset:0; z-index:5; }
-  .notes-editor-pane{ width:100%; }
-  .notes-shell.editing .notes-list-pane{ display:none; }
-  .notes-shell:not(.editing) .notes-editor-pane{ display:none; }
-  /* No toggle button is shown on mobile (.ne-sidebar-toggle is hidden
-     below), so the toolbar must not start collapsed here — there'd be no
-     way to bring it back. Desktop/tablet default it collapsed instead. */
-  #notes-editor.toolbar-collapsed .ne-toolbar{ max-height:200px; padding-top:9px; padding-bottom:9px; }
-  .ne-toolbar{ padding:8px calc(12px + var(--safe-right)) 8px calc(12px + var(--safe-left)); gap:10px; }
-  .ne-topbar{ padding:calc(10px + var(--safe-top)) calc(12px + var(--safe-right)) 10px calc(12px + var(--safe-left)); }
-  /* Touch targets: bump tappable controls toward the 44px guideline on
-     phones without changing their visual size/appearance on desktop,
-     where a mouse pointer doesn't need the extra hit area. */
-  .nl-back{ width:40px; height:40px; }
-  .ne-tool-btn{ min-height:36px; }
-  .ne-delete-btn{ padding:8px 6px; }
-}
+.sheet.drawing #note-canvas{ pointer-events:auto; cursor:crosshair; }
+.sheet.drawing #note-body{ pointer-events:none; }
 </style>
 </head>
 <body>
+<div class="wrap">
 
-<div class="notes-shell list-collapsed" id="notes-shell">
-  <div class="notes-list-pane">
-    <div class="nl-topbar">
-      <button type="button" class="nl-back" title="Back to Dashboard" onclick="parent.postMessage({nav:'home'},'*');">←</button>
-      <span class="nl-title" id="nl-title">🗒️ Notes</span>
+  <!-- ===== LIST VIEW ===== -->
+  <div id="list-view">
+    <div class="page-head">
+      <div>
+        <a href="#" class="back-link" id="n-back" onclick="goBackToCourseN();return false;">&#8249; <span id="n-back-name"></span></a>
+        <h1 id="n-title">🗒️ Notes</h1>
+        <p id="n-sub">Your notes.</p>
+      </div>
+      <button type="button" class="btn-primary" id="n-new-btn" onclick="startNewNoteN();">✎ New note</button>
     </div>
-    <div class="nl-search">
-      <input type="text" id="notes-search" placeholder="Search notes">
-      <button type="button" class="nl-mic-btn" id="notes-mic-btn" title="Dictate search" aria-label="Dictate search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15a3 3 0 003-3V6a3 3 0 00-6 0v6a3 3 0 003 3z"/><path d="M19 11a7 7 0 01-14 0"/><line x1="12" y1="18" x2="12" y2="22"/></svg></button>
-    </div>
-    <button type="button" class="nl-new-btn" id="notes-new-btn">+ New Note</button>
-    <div class="nl-items" id="notes-items"></div>
+    <div id="n-content">Loading…</div>
   </div>
 
-  <div class="notes-editor-pane" id="notes-editor-pane">
-    <div class="ne-empty-state" id="notes-empty-state">
-      <span class="es-ic">🗒️</span>
-      <p>Select a note, or create a new one.</p>
-      <p style="font-family:'Source Serif 4', Georgia, serif; font-size:13px; color:var(--muted); max-width:280px; margin:-6px auto 10px; line-height:1.5;">A ruled page, a pen, and nothing else — write it the way you would on paper.</p>
-      <button type="button" onclick="createNote();">+ New Note</button>
+  <!-- ===== EDITOR VIEW ===== -->
+  <div id="editor-view">
+    <div class="editor-bar">
+      <a href="#" class="back-link" onclick="closeEditorN();return false;" style="margin-bottom:0;">&#8249; Notes</a>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span id="note-status" class="saved">saved</span>
+        <button type="button" class="btn-secondary btn-danger" id="note-delete-btn" onclick="deleteCurrentNoteN();">Delete</button>
+      </div>
     </div>
-
-    <div id="notes-editor" style="display:none; flex-direction:column; height:100%;">
-      <div class="ne-topbar">
-        <div class="ne-topbar-left">
-          <button type="button" class="an-back-btn" id="an-back-btn" title="Notes list" aria-label="Notes list">‹ Notes</button>
-          <button type="button" class="ne-sidebar-toggle" id="notes-sidebar-toggle" title="Toggle note list" aria-label="Toggle note list">☰</button>
-          <input type="text" id="notes-title-input" class="ne-title-input" placeholder="Title">
-        </div>
-        <span class="ne-status" id="notes-status">Saved</span>
+    <div class="mode-toolbar">
+      <div class="seg" role="tablist">
+        <button type="button" class="seg-btn active" id="mode-type-btn" onclick="setModeN('type')">⌨️ Type</button>
+        <button type="button" class="seg-btn" id="mode-draw-btn" onclick="setModeN('draw')">✎ Draw</button>
       </div>
-
-      <!-- Apple-Notes-style icon row: Aa / checklist / table / attach  —  markup / share / more -->
-      <div class="an-toolbar" id="an-toolbar">
-        <div class="an-group">
-          <button type="button" class="an-icon-btn" id="an-aa-btn" title="Format" aria-label="Format">Aa</button>
-          <button type="button" class="an-icon-btn" id="an-checklist-btn" title="Checklist" aria-label="Checklist"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l1.6 1.6L8.4 5"/><line x1="11.5" y1="6" x2="20.5" y2="6"/><path d="M4 12l1.6 1.6L8.4 11"/><line x1="11.5" y1="12" x2="20.5" y2="12"/><path d="M4 18l1.6 1.6L8.4 17"/><line x1="11.5" y1="18" x2="20.5" y2="18"/></svg></button>
-          <button type="button" class="an-icon-btn" id="an-table-btn" title="Insert table" aria-label="Insert table"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="1.5"/><line x1="3.5" y1="10" x2="20.5" y2="10"/><line x1="3.5" y1="15" x2="20.5" y2="15"/><line x1="9.5" y1="4.5" x2="9.5" y2="19.5"/><line x1="14.5" y1="4.5" x2="14.5" y2="19.5"/></svg></button>
-          <button type="button" class="an-icon-btn" id="an-attach-btn" title="Add photo" aria-label="Add photo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10.5l-9.19 9.19a5 5 0 01-7.07-7.07l8.49-8.49a3.5 3.5 0 014.95 4.95l-8.49 8.49a2 2 0 01-2.83-2.83l7.78-7.78"/></svg></button>
-          <input type="file" id="an-attach-input" accept="image/*" style="display:none;">
-        </div>
-        <div class="an-group">
-          <button type="button" class="an-icon-btn an-markup-icon" id="an-markup-btn" title="Markup" aria-label="Markup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z"/></svg></button>
-          <button type="button" class="an-icon-btn" id="an-share-btn" title="Share" aria-label="Share"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 8l5-5 5 5"/><path d="M5 13v6a2 2 0 002 2h10a2 2 0 002-2v-6"/></svg></button>
-          <button type="button" class="an-icon-btn" id="an-more-btn" title="More" aria-label="More" style="font-size:20px;letter-spacing:1px;">•••</button>
-        </div>
-
-        <!-- Aa: page style + text size -->
-        <div class="an-popover" id="an-aa-popover">
-          <div class="ne-toolbar" style="position:static;border:none;padding:14px;background:transparent;max-height:none;">
-            <div class="ne-tool-group">
-              <span class="ne-tool-label">Page</span>
-              <select class="ne-select" id="style-scope">
-                <option value="default">App default</option>
-                <option value="override">This note</option>
-              </select>
-              <select class="ne-select" id="style-type">
-                <option value="ruled">Lined</option>
-                <option value="grid">Grid</option>
-                <option value="dotted">Dotted</option>
-                <option value="blank">Blank</option>
-              </select>
-              <input type="number" class="ne-num" id="style-spacing" min="10" max="90" step="1" title="Line spacing (px)">
-            </div>
-            <div class="ne-tool-sep"></div>
-            <div class="ne-tool-group">
-              <span class="ne-tool-label">Text size</span>
-              <input type="number" class="ne-num" id="text-font-size" min="10" max="48" step="1" value="16" title="Font size — applies to selected text, or sets the size for new text boxes">
-            </div>
-            <div class="ne-tool-sep"></div>
-            <div class="ne-tool-group">
-              <span class="ne-tool-label">Style</span>
-              <button type="button" class="ne-tool-btn" id="text-bold-btn" title="Bold selected text" aria-label="Bold" style="font-weight:700;">B</button>
-              <button type="button" class="ne-tool-btn" id="text-underline-btn" title="Underline selected text" aria-label="Underline" style="text-decoration:underline;">U</button>
-              <span class="ne-tool-label" style="margin-left:6px;">Color</span>
-              <input type="color" id="text-color-input" value="#2B2B2B" title="Text color for selected text" style="width:28px; height:26px; border:1px solid var(--border); border-radius:6px; padding:0; cursor:pointer; background:none;">
-            </div>
-          </div>
-        </div>
-
-        <!-- Markup: undo/redo / pen / eraser / text tool / size / colors -->
-        <div class="an-popover an-markup-popover" id="an-markup-popover">
-          <div class="ne-pen-tray">
-            <div class="ne-pen-arrows">
-              <button type="button" class="ne-pen-arrow-btn" id="tool-undo" title="Undo" aria-label="Undo">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7L4 12l5 5"/><path d="M4 12h11a5 5 0 010 10h-1"/></svg>
-              </button>
-              <button type="button" class="ne-pen-arrow-btn" id="tool-redo" title="Redo" aria-label="Redo" disabled>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7l5 5-5 5"/><path d="M20 12H9a5 5 0 000 10h1"/></svg>
-              </button>
-            </div>
-            <div class="ne-pen-sep"></div>
-            <div class="ne-pen-tools">
-              <button type="button" class="ne-pen-tool-btn" id="tool-text" title="Add text box" aria-label="Text">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 19V7.5L12 6l6 1.5V19"/><path d="M8.5 19v-6h7v6"/></svg>
-                <span class="ne-pen-tool-tag">A</span>
-              </button>
-              <button type="button" class="ne-pen-tool-btn active" id="tool-pen-v2" title="Pen" aria-label="Pen">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20l1-4.5L15.5 6.5a2.1 2.1 0 013 3L10 18l-4 2z"/><path d="M13.5 8.5l3 3"/></svg>
-                <span class="ne-pen-tool-tag" id="tool-pen-v2-tag">Ball</span>
-              </button>
-              <button type="button" class="ne-pen-tool-btn" id="tool-eraser" title="Eraser" aria-label="Eraser">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13l-7 7H7l-4-4a2 2 0 010-2.8L13 3.2a2 2 0 012.8 0L18 5.4a2 2 0 010 2.8L9.5 17"/></svg>
-                <span class="ne-pen-tool-tag">✕</span>
-              </button>
-            </div>
-            <div class="ne-pen-sep"></div>
-            <div class="ne-pen-size-col">
-              <span class="ne-tool-label">Size</span>
-              <input type="range" class="ne-size-slider" id="pen-size" min="1" max="12" value="3">
-            </div>
-            <div class="ne-pen-sep"></div>
-            <div class="ne-pen-colors" id="ne-color-row">
-              <button type="button" class="ne-pen-color active" data-color="#000000" style="background:#000000;" title="Black"></button>
-              <button type="button" class="ne-pen-color" data-color="#F2C438" style="background:#F2C438;" title="Yellow"></button>
-              <button type="button" class="ne-pen-color" data-color="#2E6DBE" style="background:#2E6DBE;" title="Blue"></button>
-              <button type="button" class="ne-pen-color" data-color="#C0392B" style="background:#C0392B;" title="Red"></button>
-              <button type="button" class="ne-pen-color" data-color="#3CB35A" style="background:#3CB35A;" title="Green"></button>
-              <button type="button" class="ne-pen-color ne-pen-color-wheel" id="ne-color-wheel" title="More colors"></button>
-              <input type="color" id="ne-color-custom" value="#000000" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;">
-            </div>
-            <div class="ne-pen-sep"></div>
-            <div class="ne-pen-extra">
-              <button type="button" class="ne-pen-round-btn" id="ne-color-add" title="Add color">+</button>
-              <button type="button" class="ne-pen-round-btn" id="ne-pen-more" title="More">•••</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- More: orientation, zoom, PDF import, delete -->
-        <div class="an-popover an-more-popover" id="an-more-popover">
-          <div class="an-menu">
-            <button type="button" class="an-menu-item" id="tool-orientation" title="Switch page orientation">📄 Portrait</button>
-            <div class="an-menu-row">
-              <span>Zoom</span>
-              <button type="button" class="ne-tool-btn" id="zoom-out" title="Zoom out">−</button>
-              <span class="ne-tool-label" id="zoom-level">100%</span>
-              <button type="button" class="ne-tool-btn" id="zoom-in" title="Zoom in">+</button>
-            </div>
-            <button type="button" class="an-menu-item" id="tool-import-pdf">📄 Import PDF</button>
-            <input type="file" id="pdf-file-input" accept="application/pdf" style="display:none;">
-            <button type="button" class="an-menu-item an-menu-danger" id="notes-delete-btn">🗑 Delete Note</button>
-          </div>
-        </div>
+      <div class="draw-tools" id="draw-tools">
+        <button type="button" class="swatch active" data-color="#2A2410" style="background:#2A2410" onclick="setPenColorN('#2A2410',this)" title="Ink"></button>
+        <button type="button" class="swatch" data-color="#2E7DBE" style="background:#2E7DBE" onclick="setPenColorN('#2E7DBE',this)" title="Blue"></button>
+        <button type="button" class="swatch" data-color="#C0392B" style="background:#C0392B" onclick="setPenColorN('#C0392B',this)" title="Red"></button>
+        <button type="button" class="btn-secondary" id="eraser-btn" onclick="toggleEraserN()">🧽</button>
+        <button type="button" class="btn-secondary btn-danger" onclick="clearDrawingN()">Clear</button>
       </div>
-
-      <div class="ne-body" id="ne-body">
-        <div id="ne-pages-container" style="display:contents;"></div>
-        <div class="ne-add-page-row">
-          <button type="button" class="ne-add-page-btn" id="add-page-btn">+ Add blank page</button>
-        </div>
-      </div>
+    </div>
+    <input id="note-title" type="text" placeholder="Untitled note" autocomplete="off">
+    <div class="sheet" id="note-sheet">
+      <div class="sheet-margin"></div>
+      <textarea id="note-body" placeholder="Start writing, or switch to Draw to use Apple Pencil…"></textarea>
+      <canvas id="note-canvas"></canvas>
     </div>
   </div>
+
 </div>
 
 <script>
 /* ---------------------------------------------------------------
-   window.storage shim: real backend inside the Claude.ai artifact
-   preview; once deployed on GitHub Pages, backed by IndexedDB.
-   (The other Chalkline pages — tutor/summary/etc. — still use a
-   simpler localStorage-backed fallback, which is fine for the small
-   values they save. This page specifically needs the non-blocking
-   version: `localStorage.setItem` runs synchronously no matter that
-   it's called from inside an `async` function — `async` only wraps
-   the return value in a Promise, it doesn't defer the work inside —
-   and on iOS Safari in particular that write is backed by synchronous
-   disk I/O that gets slower as the value grows. Every save here writes
-   the *entire* note — every stroke, every point — so on a note with a
-   fair amount of ink on it, that write can block the main thread for
-   a real, perceptible stretch. If that happens to land right as the
-   next stroke starts — which normal writing cadence makes likely —
-   the pointer events for that stroke's opening get stalled behind it,
-   which is exactly the skip landing right when it says "Saving…".
-   IndexedDB does the same job without blocking the main thread.)
+   window.storage shim: the real window.storage API only exists
+   inside the Claude.ai artifact preview sandbox — on a real
+   deployed site it doesn't exist at all, so calls would otherwise
+   throw and autosave would fail silently. This shim gives the same
+   get/set/list/delete interface, backed by localStorage.
    ------------------------------------------------------------- */
 if(!window.storage || !window.storage.__isRealBackend){
   const STORAGE_NS = 'chalkline:';
-
-  if(window.indexedDB){
-    const DB_NAME = 'chalkline-kv';
-    const STORE = 'kv';
-    let dbPromise = null;
-    function openDb(){
-      if(!dbPromise){
-        dbPromise = new Promise((resolve, reject)=>{
-          const req = indexedDB.open(DB_NAME, 1);
-          req.onupgradeneeded = ()=>{ req.result.createObjectStore(STORE); };
-          req.onsuccess = ()=> resolve(req.result);
-          req.onerror = ()=> reject(req.error);
-        });
+  window.storage = {
+    __isRealBackend: false,
+    async get(key){
+      const raw = localStorage.getItem(STORAGE_NS + key);
+      return raw === null ? null : { key, value: raw, shared: false };
+    },
+    async set(key, value){
+      try{ localStorage.setItem(STORAGE_NS + key, value); return { key, value, shared: false }; }
+      catch(e){ console.error('localStorage set failed:', e); return null; }
+    },
+    async delete(key){
+      const existed = localStorage.getItem(STORAGE_NS + key) !== null;
+      localStorage.removeItem(STORAGE_NS + key);
+      return { key, deleted: existed, shared: false };
+    },
+    async list(prefix){
+      const keys = [];
+      const full = STORAGE_NS + (prefix || '');
+      for(let i=0;i<localStorage.length;i++){
+        const k = localStorage.key(i);
+        if(k && k.startsWith(full)) keys.push(k.slice(STORAGE_NS.length));
       }
-      return dbPromise;
+      return { keys, prefix, shared: false };
     }
-    function idbGet(key){
-      return openDb().then(db => new Promise((resolve, reject)=>{
-        const req = db.transaction(STORE, 'readonly').objectStore(STORE).get(key);
-        req.onsuccess = ()=> resolve(req.result === undefined ? null : req.result);
-        req.onerror = ()=> reject(req.error);
-      }));
-    }
-    function idbSet(key, value){
-      return openDb().then(db => new Promise((resolve, reject)=>{
-        const tx = db.transaction(STORE, 'readwrite');
-        tx.objectStore(STORE).put(value, key);
-        tx.oncomplete = ()=> resolve();
-        tx.onerror = ()=> reject(tx.error);
-      }));
-    }
-    function idbDelete(key){
-      return openDb().then(db => new Promise((resolve, reject)=>{
-        const tx = db.transaction(STORE, 'readwrite');
-        tx.objectStore(STORE).delete(key);
-        tx.oncomplete = ()=> resolve();
-        tx.onerror = ()=> reject(tx.error);
-      }));
-    }
-    function idbAllKeys(){
-      return openDb().then(db => new Promise((resolve, reject)=>{
-        const store = db.transaction(STORE, 'readonly').objectStore(STORE);
-        if(store.getAllKeys){
-          const req = store.getAllKeys();
-          req.onsuccess = ()=> resolve(req.result);
-          req.onerror = ()=> reject(req.error);
-        } else {
-          const keys = [];
-          const req = store.openCursor();
-          req.onsuccess = (e)=>{
-            const cur = e.target.result;
-            if(cur){ keys.push(cur.key); cur.continue(); } else resolve(keys);
-          };
-          req.onerror = ()=> reject(req.error);
-        }
-      }));
-    }
-
-    // One-time migration so notes already saved under the old
-    // localStorage shim (before this page switched to IndexedDB)
-    // aren't orphaned — move them over, then clear the old copies.
-    let migratePromise = null;
-    function migrateFromLocalStorageOnce(){
-      if(!migratePromise){
-        migratePromise = (async ()=>{
-          try{
-            const toMove = [];
-            const notesPrefix = STORAGE_NS + notesKeyPrefix();          // 'chalkline:notes:<sub>:'
-            const notesSettingsPrefix = STORAGE_NS + 'notes-settings:'; // 'chalkline:notes-settings:'
-            for(let i=0;i<localStorage.length;i++){
-              const k = localStorage.key(i);
-              if(k && (k.startsWith(notesPrefix) || k.startsWith(notesSettingsPrefix))) toMove.push(k);
-            }
-            for(const k of toMove){
-              const v = localStorage.getItem(k);
-              if(v !== null) await idbSet(k.slice(STORAGE_NS.length), v);
-              localStorage.removeItem(k);
-            }
-          }catch(e){ console.error('Migrating old notes storage failed:', e); }
-        })();
-      }
-      return migratePromise;
-    }
-
-    window.storage = {
-      __isRealBackend: false,
-      async get(key){
-        await migrateFromLocalStorageOnce();
-        const value = await idbGet(key);
-        return value === null ? null : { key, value, shared: false };
-      },
-      async set(key, value){
-        await migrateFromLocalStorageOnce();
-        try{ await idbSet(key, value); return { key, value, shared: false }; }
-        catch(e){ console.error('Saving note failed:', e); return null; }
-      },
-      async delete(key){
-        await migrateFromLocalStorageOnce();
-        const prior = await idbGet(key);
-        await idbDelete(key);
-        return { key, deleted: prior !== null, shared: false };
-      },
-      async list(prefix){
-        await migrateFromLocalStorageOnce();
-        const allKeys = await idbAllKeys();
-        const full = prefix || '';
-        const keys = allKeys.filter(k => typeof k === 'string' && k.startsWith(full));
-        return { keys, prefix, shared: false };
-      }
-    };
-  } else {
-    // IndexedDB unavailable (rare — some locked-down browsing modes):
-    // fall back to the old synchronous, localStorage-backed shim so the
-    // page still works, just without the non-blocking benefit.
-    window.storage = {
-      __isRealBackend: false,
-      async get(key){
-        const raw = localStorage.getItem(STORAGE_NS + key);
-        return raw === null ? null : { key, value: raw, shared: false };
-      },
-      async set(key, value){
-        try{ localStorage.setItem(STORAGE_NS + key, value); return { key, value, shared: false }; }
-        catch(e){ console.error('localStorage set failed:', e); return null; }
-      },
-      async delete(key){
-        const existed = localStorage.getItem(STORAGE_NS + key) !== null;
-        localStorage.removeItem(STORAGE_NS + key);
-        return { key, deleted: existed, shared: false };
-      },
-      async list(prefix){
-        const keys = [];
-        const full = STORAGE_NS + (prefix || '');
-        for(let i=0;i<localStorage.length;i++){
-          const k = localStorage.key(i);
-          if(k && k.startsWith(full)) keys.push(k.slice(STORAGE_NS.length));
-        }
-        return { keys, prefix, shared: false };
-      }
-    };
-  }
+  };
 }
 
-// ---------- auth (mirrors the pattern used on tutor/summary pages):
-// notes are namespaced per signed-in user (by Google "sub"), falling
-// back to a shared "guest" bucket when not signed in, so one device's
-// localStorage doesn't mix notes across different signed-in accounts.
-let notesShellUser = null;
-// When arrived at from a course's detail page, notes are scoped to that
-// course: the list only shows notes tagged with it, new notes are
-// tagged with it automatically, and the header shows the course name
-// instead of the generic "Notes" title.
-let currentNotesSubject = null;
-function notesKeyPrefix(){
-  const sub = notesShellUser ? notesShellUser.sub : 'guest';
-  return 'notes:' + sub + ':';
+function escapeHtmlN(s){ const d=document.createElement('div'); d.textContent = s||''; return d.innerHTML; }
+
+/* ---------------- Course scoping ----------------
+   Opened from a course card on the Dashboard, the shell sends
+   presetSubject and this page shows only that course's notes. */
+let notesSubject = null;
+let shUserN = null;
+
+function applyScopeN(){
+  document.getElementById('n-back-name').textContent = notesSubject || 'Dashboard';
+  document.getElementById('n-title').textContent = notesSubject ? ('🗒️ Notes — ' + notesSubject) : '🗒️ Notes';
+  document.getElementById('n-sub').textContent = notesSubject
+    ? ('Your notes for ' + notesSubject + '.')
+    : 'Everything you\u2019ve written down.';
 }
-function settingsKey(){
-  const sub = notesShellUser ? notesShellUser.sub : 'guest';
-  return 'notes-settings:' + sub;
+function goBackToCourseN(){
+  parent.postMessage(notesSubject ? { nav:'home', openCourse: notesSubject } : { nav:'home' }, '*');
 }
+
+function notesKeyPrefixN(){ return 'notes:' + shUserN.sub + ':'; }
+
 window.addEventListener('message', (e)=>{
   const d = e.data;
-  if(d && d.presetSubject){
-    currentNotesSubject = d.presetSubject;
-    document.getElementById('nl-title').textContent = d.presetSubject;
-    // The course scope and the sign-in status arrive as two separate
-    // messages, in no guaranteed order. refreshNotesList() (triggered
-    // below once sign-in is known) re-renders using whatever
-    // currentNotesSubject is set at that moment — so if this message
-    // lands AFTER that render already ran, the list would be left
-    // showing every note, unscoped, until something else happened to
-    // re-render it. Re-render right here too so the course filter
-    // always takes effect as soon as it's known, regardless of order.
-    renderNotesList();
-    // Tell the shell which course this page is scoped to, so a real
-    // browser refresh — which re-creates this iframe from scratch and
-    // would otherwise land back on the unscoped "every note" view — can
-    // restore the same course filter instead of silently dropping it.
-    try{ parent.postMessage({ chalklineHistoryFilter:true, page:'notes', subject: currentNotesSubject || null }, '*'); }catch(e){}
+  if(!d) return;
+  if(d.chalklineAuth){
+    shUserN = d.signedIn ? d.user : null;
+    refreshNotesListN();
+    return;
   }
-  if(!d || !d.chalklineAuth) return;
-  notesShellUser = d.signedIn ? d.user : null;
-  refreshNotesList();
+  if(d.presetSubject){ notesSubject = d.presetSubject; }
+  else if(d.chalklineClearSubject){ notesSubject = null; }
+  else if(d.loadNoteId){ openNoteN(d.loadNoteId); return; }
+  else return;
+  applyScopeN();
+  closeEditorN();
+  refreshNotesListN();
+  // Lets the shell restore this course filter if the page is reloaded directly on #notes.
+  try{ parent.postMessage({ chalklineHistoryFilter:true, page:'notes', subject: notesSubject || null }, '*'); }catch(e){}
 });
 
-// ---------- state ----------
-let notesCache = [];       // [{id, title, updatedAt, ruledOverride, pages:[...]}]
-let currentNoteId = null;
-let saveTimer = null;
-let globalSettings = { ruledType:'ruled', ruledSpacing:28 };
-let currentTool = 'pen';   // 'pen' | 'eraser'
-let penColor = '#2A2410';
-let penSize = 3;
-
-// Pen "type" — like the Ballpoint/Pencil/Marker choices under Apple Notes'
-// pen tool. Each type scales the chosen size and adds its own opacity so
-// the pen tray tag can show which one is active and strokes actually look
-// different on the page, not just differently sized.
-const PEN_TYPES = [
-  { id:'ballpoint', label:'Ballpoint', tag:'Ball',  widthMul:1,   alpha:1 },
-  { id:'pencil',    label:'Pencil',    tag:'Pncl',  widthMul:0.65, alpha:0.8 },
-  { id:'marker',    label:'Marker',    tag:'Mrkr',  widthMul:2.4, alpha:0.35 },
-];
-let penTypeIndex = 0;
-function currentPenType(){ return PEN_TYPES[penTypeIndex]; }
-
-// A4 at 96dpi, so page proportions match a real sheet of paper. Orientation is
-// per-note (note.orientation, 'portrait'|'landscape'); PAGE_W/PAGE_H always
-// reflect whichever note is currently open — see applyOrientation().
-const PAGE_W_A4 = 794, PAGE_H_A4 = 1123;
-let PAGE_W = PAGE_W_A4, PAGE_H = PAGE_H_A4;
-function applyOrientation(note){
-  if(note.orientation === 'landscape'){ PAGE_W = PAGE_H_A4; PAGE_H = PAGE_W_A4; }
-  else { PAGE_W = PAGE_W_A4; PAGE_H = PAGE_H_A4; }
-}
-// Rotates a note's existing ink/text 90° in place when its orientation is
-// flipped, so a diagram drawn in portrait doesn't just get stretched/cropped
-// when the page becomes landscape (or vice versa) — it's carried over the
-// way turning a physical sheet of paper would.
-function rotateNoteContent90(note, oldW, oldH){
-  note.pages.forEach(page=>{
-    (page.strokes||[]).forEach(s=>{
-      s.points = s.points.map(p=> ({ x: oldH - p.y, y: p.x }));
-    });
-    (page.textBoxes||[]).forEach(t=>{
-      const nx = oldH - t.y, ny = t.x;
-      t.x = nx; t.y = ny;
-    });
-  });
-}
-const RENDER_SCALE = 2;              // canvas backing-store multiplier for crisp pencil strokes
-
-function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
-
-function formatTimestamp(ms){
-  const d = new Date(ms);
-  return d.toLocaleDateString(undefined,{month:'short',day:'numeric'}) + ' · ' +
-         d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
-}
-
-async function loadGlobalSettings(){
-  try{
-    const rec = await window.storage.get(settingsKey(), false);
-    if(rec) globalSettings = Object.assign(globalSettings, JSON.parse(rec.value));
-  } catch(e){ /* use defaults */ }
-}
-async function saveGlobalSettings(){
-  try{ await window.storage.set(settingsKey(), JSON.stringify(globalSettings), false); }
-  catch(e){ console.error('Saving global style settings failed:', e); }
-}
-
-function blankPage(){
-  return { id: uid(), pdfImage: null, strokes: [], textBoxes: [] };
-}
-
-// Older notes only had a plain-text `content` field with no drawing
-// canvas at all. Migrate them the first time they're opened so nothing
-// the user already wrote is lost: their text becomes a text box on a
-// single new page.
-function migrateNoteIfNeeded(note){
-  if(!note.subject) note.subject = 'Unsorted';
-  if(!note.orientation) note.orientation = 'portrait';
-  if(note.pages) return note;
-  note.pages = [blankPage()];
-  note.ruledOverride = null;
-  if(note.content && note.content.trim()){
-    note.pages[0].textBoxes.push({ id: uid(), x:36, y:36, w:PAGE_W-72, text: note.content, fontSize:16 });
+/* ---------------- List ---------------- */
+let notesReqN = 0;
+async function refreshNotesListN(){
+  const myReq = ++notesReqN;
+  const content = document.getElementById('n-content');
+  if(!shUserN){
+    content.innerHTML = '<div class="signin-note">Sign in to save notes to your account and see them here.</div>';
+    return;
   }
-  delete note.content;
-  return note;
-}
-
-async function loadAllNotes(){
   try{
-    const result = await window.storage.list(notesKeyPrefix(), false);
+    const result = await window.storage.list(notesKeyPrefixN(), false);
+    if(myReq !== notesReqN) return;
+    const keys = (result && result.keys) ? result.keys : [];
     const items = [];
-    for(const key of (result.keys || [])){
-      try{
-        const rec = await window.storage.get(key, false);
-        if(rec) items.push(migrateNoteIfNeeded(JSON.parse(rec.value)));
-      } catch(e){ /* skip corrupt entry */ }
+    for(const key of keys){
+      try{ const rec = await window.storage.get(key, false); if(rec) items.push(JSON.parse(rec.value)); } catch(e){}
     }
-    items.sort((a,b)=> b.updatedAt - a.updatedAt);
-    return items;
+    if(myReq !== notesReqN) return;
+    items.sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
+    const visible = notesSubject ? items.filter(i => (i.subject || 'Unsorted') === notesSubject) : items;
+    if(visible.length === 0){
+      content.innerHTML = '<div class="empty-state">No notes yet' + (notesSubject ? (' for ' + escapeHtmlN(notesSubject)) : '') + ' — start a new one and it will show up here.</div>';
+      return;
+    }
+    const list = document.createElement('div');
+    list.className = 'list';
+    visible.forEach(item=>{
+      const row = document.createElement('div');
+      row.className = 'note-row';
+      const date = new Date(item.updatedAt || item.createdAt || Date.now());
+      row.innerHTML = `
+        <div class="r-icon">🗒️</div>
+        <span class="r-title">${escapeHtmlN(item.title || 'Untitled note')}</span>
+        <span class="r-date">${date.toLocaleDateString()}</span>
+        <button type="button" class="r-delete" title="Delete">✕</button>
+      `;
+      row.addEventListener('click', ()=> openNoteN(item.id));
+      row.querySelector('.r-delete').addEventListener('click', async (ev)=>{
+        ev.stopPropagation();
+        if(!confirm('Delete this note? This can\u2019t be undone.')) return;
+        try{ await window.storage.delete(notesKeyPrefixN() + item.id, false); refreshNotesListN(); }
+        catch(e){ console.error('Delete note failed:', e); }
+      });
+      list.appendChild(row);
+    });
+    content.innerHTML = '';
+    content.appendChild(list);
   } catch(err){
     console.error('Loading notes failed:', err);
-    return [];
+    content.innerHTML = '<div class="empty-state">Could not load your notes.</div>';
   }
 }
 
-async function refreshNotesList(){
-  notesCache = await loadAllNotes();
-  renderNotesList();
-  if(currentNoteId && !notesCache.find(n=>n.id===currentNoteId)){
-    currentNoteId = null;
-    showEmptyState();
-  }
-}
+/* ---------------- Editor ---------------- */
+let currentNoteIdN = null;
+let saveTimerN = null;
+const titleEl = document.getElementById('note-title');
+const bodyEl = document.getElementById('note-body');
+const statusEl = document.getElementById('note-status');
+const sheetEl = document.getElementById('note-sheet');
+const canvasEl = document.getElementById('note-canvas');
+const canvasCtx = canvasEl.getContext('2d');
 
-function textPreview(note){
-  const tb = (note.pages && note.pages[0] && note.pages[0].textBoxes) || [];
-  return tb.map(t=>t.text).join(' ');
-}
+/* ---- Type / Draw (Apple Pencil, finger or mouse) ---- */
+let inputModeN = 'type';
+let penColorN = '#2A2410';
+let erasingN = false;
+let drawingActiveN = false;
 
-function renderNotesList(){
-  const container = document.getElementById('notes-items');
-  const query = (document.getElementById('notes-search').value || '').toLowerCase().trim();
-  const scoped = currentNotesSubject
-    ? notesCache.filter(n => n.subject === currentNotesSubject)
-    : notesCache;
-  const filtered = query
-    ? scoped.filter(n => (n.title||'').toLowerCase().includes(query) || textPreview(n).toLowerCase().includes(query))
-    : scoped;
-
-  if(filtered.length === 0){
-    container.innerHTML = `<div class="nl-empty-hint">${query ? 'No notes match your search.' : 'No notes yet — start one and it\'ll be right here next time.'}</div>`;
-    return;
-  }
-
-  container.innerHTML = '';
-  filtered.forEach(note=>{
-    const row = document.createElement('div');
-    row.className = 'nl-item' + (note.id === currentNoteId ? ' active' : '');
-    const titleText = note.title && note.title.trim() ? note.title : 'Untitled Note';
-    row.innerHTML = `
-      <div class="ni-title">${escapeHtml(titleText)}</div>
-      <div class="ni-meta">${formatTimestamp(note.updatedAt)}</div>
-      <button type="button" class="ni-delete" title="Delete">✕</button>
-    `;
-    row.addEventListener('click', ()=> openNote(note.id));
-    row.querySelector('.ni-delete').addEventListener('click', async (ev)=>{
-      ev.stopPropagation();
-      if(!confirm('Delete this note? This can\'t be undone.')) return;
-      await deleteNote(note.id);
-    });
-    container.appendChild(row);
-  });
-}
-
-function escapeHtml(s){
-  const div = document.createElement('div');
-  div.textContent = s;
-  return div.innerHTML;
-}
-
-function showEmptyState(){
-  document.getElementById('notes-empty-state').style.display = 'flex';
-  document.getElementById('notes-editor').style.display = 'none';
-  document.getElementById('notes-shell').classList.remove('editing');
-  renderNotesList();
-}
-
-function showEditor(){
-  document.getElementById('notes-empty-state').style.display = 'none';
-  document.getElementById('notes-editor').style.display = 'flex';
-  document.getElementById('notes-shell').classList.add('editing');
-}
-
-async function openNote(id){
-  const note = notesCache.find(n=>n.id===id);
-  if(!note) return;
-  if(notesDirty && currentNoteId && currentNoteId !== id) await persistCurrentNote();
-  currentNoteId = id;
-  showEditor();
-  document.getElementById('notes-title-input').value = note.title || '';
-  document.getElementById('notes-status').textContent = 'Saved';
-  syncStyleControlsFromNote(note);
-  applyOrientation(note);
-  syncOrientationControl(note);
-  renderAllPages(note);
-  renderNotesList();
-}
-
-async function createNote(){
-  if(notesDirty && currentNoteId) await persistCurrentNote();
-  const note = { id: uid(), title:'', updatedAt: Date.now(), ruledOverride:null, orientation:'portrait', pages:[blankPage()], subject: currentNotesSubject || 'Unsorted' };
-  notesCache.unshift(note);
-  currentNoteId = note.id;
-  showEditor();
-  document.getElementById('notes-title-input').value = '';
-  document.getElementById('notes-status').textContent = 'Saved';
-  syncStyleControlsFromNote(note);
-  applyOrientation(note);
-  syncOrientationControl(note);
-  renderAllPages(note);
-  renderNotesList();
-  persistCurrentNote();
-  setTimeout(()=> document.getElementById('notes-title-input').focus(), 50);
-}
-
-function currentNote(){ return notesCache.find(n=>n.id===currentNoteId); }
-
-// requestIdleCallback polyfill: Safari has never shipped requestIdleCallback
-// by default (it's behind a hidden experimental flag almost nobody enables),
-// and since every browser on iOS is WebKit under the hood, that means
-// window.requestIdleCallback is undefined on iPad/iPhone -- exactly the
-// devices this page is built for (Apple Pencil). Without this polyfill,
-// both call sites below silently fell through to their "else" branch and
-// ran persistCurrentNote() immediately/on a flat timer, which reintroduces
-// the very stall (a synchronous JSON.stringify + storage write landing on
-// top of a fresh stroke) that the idle-callback deferral exists to avoid.
-// A double requestAnimationFrame is a reasonable proxy for "the browser
-// just finished its current work and painted" on platforms without a real
-// idle scheduler, so the save is far less likely to land on the opening of
-// a new stroke than a bare setTimeout would be.
-const runIdle = window.requestIdleCallback
-  ? (cb, opts) => window.requestIdleCallback(cb, opts)
-  : (cb) => {
-      requestAnimationFrame(()=>{
-        requestAnimationFrame(()=>{
-          const start = Date.now();
-          cb({ didTimeout: false, timeRemaining: ()=> Math.max(0, 50 - (Date.now() - start)) });
-        });
-      });
-    };
-
-async function persistCurrentNote(){
-  const note = currentNote();
-  if(!note) return;
-  note.title = document.getElementById('notes-title-input').value;
-  note.updatedAt = Date.now();
-  try{
-    await window.storage.set(notesKeyPrefix() + note.id, JSON.stringify(note), false);
-    notesDirty = false;
-    document.getElementById('notes-status').textContent = 'Saved';
-    renderNotesList();
-  } catch(e){
-    console.error('Saving note failed:', e);
-    document.getElementById('notes-status').textContent = 'Save failed';
-  }
-}
-
-// Every attempt to save mid-stroke — debounced off the end of a stroke,
-// deferred to idle time, deferred again while the pen was still down —
-// still ran into the same problem: JSON.stringify of the whole note plus
-// the storage write is main-thread work, and on a note with a fair
-// amount of ink, that's enough work that it can still land on top of the
-// next stroke and drop pointer events, however cleverly it's scheduled.
-// The only way to guarantee writing never interrupts drawing is to not
-// write while the person is actively using the page at all: scheduleSave
-// now just marks the note dirty, and the actual save happens off a plain
-// 4-minute interval (well clear of any single stroke) or when the person
-// actually leaves — see autosaveNotes/flushNotesSaveOnExit below. Nothing
-// is lost either way, since both paths still write the latest in-memory
-// note.
-let notesDirty = false;
-function scheduleSave(){
-  notesDirty = true;
-  document.getElementById('notes-status').textContent = 'Unsaved changes';
-}
-
-setInterval(()=>{
-  if(notesDirty && currentNoteId){
-    persistCurrentNote().catch(e=>console.error('Autosave failed:', e));
-  }
-}, 4 * 60 * 1000);
-
-function flushNotesSaveOnExit(){
-  if(notesDirty && currentNoteId){
-    persistCurrentNote().catch(e=>console.error('Exit-time save failed:', e));
-  }
-}
-document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState === 'hidden') flushNotesSaveOnExit(); });
-window.addEventListener('pagehide', flushNotesSaveOnExit);
-window.addEventListener('beforeunload', flushNotesSaveOnExit);
-
-async function deleteNote(id){
-  try{
-    await window.storage.delete(notesKeyPrefix() + id, false);
-    notesCache = notesCache.filter(n=>n.id!==id);
-    if(currentNoteId === id){
-      currentNoteId = null;
-      showEmptyState();
-    } else {
-      renderNotesList();
-    }
-  } catch(e){ console.error('Delete note failed:', e); }
-}
-
-document.getElementById('notes-new-btn').addEventListener('click', createNote);
-
-// Collapsible note list, mirroring the dashboard sidebar: frees up width
-// for the page itself when the person just wants room to write.
-document.getElementById('notes-sidebar-toggle').addEventListener('click', ()=>{
-  document.getElementById('notes-shell').classList.toggle('list-collapsed');
-});
-// Mobile "‹ Notes" back control: the desktop sidebar-toggle above is
-// hidden on narrow screens (there the list and editor are separate
-// full-screen panes), so this is how a phone gets back to the list.
-document.getElementById('an-back-btn').addEventListener('click', ()=>{
-  document.getElementById('notes-shell').classList.remove('editing');
-  renderNotesList();
-});
-
-/* -----------------------------------------------------------------
-   Apple-Notes-style icon row: Aa / Markup / More open small floating
-   popovers instead of a single always-on toolbar. Only one is open
-   at a time, and tapping anywhere outside closes whichever is open.
-   ----------------------------------------------------------------- */
-function closeAllNotesPopovers(){
-  document.querySelectorAll('#an-toolbar .an-popover').forEach(p=> p.classList.remove('open'));
-  document.querySelectorAll('#an-toolbar .an-icon-btn').forEach(b=> b.classList.remove('active'));
-  const editorEl = document.getElementById('notes-editor');
-  if(editorEl) editorEl.classList.remove('popover-open');
-}
-function toggleNotesPopover(popoverId, btnId){
-  const pop = document.getElementById(popoverId);
-  const btn = document.getElementById(btnId);
-  const willOpen = !pop.classList.contains('open');
-  closeAllNotesPopovers();
-  const editorEl = document.getElementById('notes-editor');
-  if(willOpen){
-    pop.classList.add('open');
-    btn.classList.add('active');
-    if(editorEl) editorEl.classList.add('popover-open');
-    // Reopening the pen toolbar can change #ne-body's height on mobile
-    // (it's fixed to the bottom there) — keep the page fitted to it.
-    setTimeout(sizePages, 260);
-  } else {
-    if(editorEl) editorEl.classList.remove('popover-open');
-    setTimeout(sizePages, 260);
-  }
-}
-document.getElementById('an-aa-btn').addEventListener('click', (e)=>{ e.stopPropagation(); toggleNotesPopover('an-aa-popover','an-aa-btn'); });
-// Primary handler: pointerup fires reliably on touch even when some
-// ancestor's touchstart/pointerdown handler elsewhere in the page called
-// preventDefault() and suppressed the synthetic 'click' that would
-// normally follow — which is the standard reason a button "looks tappable
-// but nothing happens" on a touchscreen. 'click' stays wired too, as a
-// fallback for mouse/keyboard activation and to avoid double-firing when
-// both do land (toggleNotesPopover is idempotent-safe to call twice since
-// it just flips .open, so a double-call at worst reopens instantly).
-let markupBtnHandledAt = 0;
-function handleMarkupBtnActivate(e){
-  const now = Date.now();
-  if(now - markupBtnHandledAt < 350) return; // debounce pointerup+click double-fire
-  markupBtnHandledAt = now;
-  e.stopPropagation();
-  toggleNotesPopover('an-markup-popover','an-markup-btn');
-}
-document.getElementById('an-markup-btn').addEventListener('pointerup', handleMarkupBtnActivate);
-document.getElementById('an-markup-btn').addEventListener('click', handleMarkupBtnActivate);
-document.getElementById('an-more-btn').addEventListener('click', (e)=>{ e.stopPropagation(); toggleNotesPopover('an-more-popover','an-more-btn'); });
-document.addEventListener('pointerdown', (e)=>{
-  if(!e.target.closest('.an-popover') && !e.target.closest('.an-icon-btn')) closeAllNotesPopovers();
-});
-
-// Grabs the page + text layer a toolbar button should drop new content
-// onto: whichever page is currently last, matching where a person
-// naturally keeps writing.
-function currentPageAndLayer(){
-  const note = currentNote();
-  if(!note) return null;
-  const container = document.getElementById('ne-pages-container');
-  const wrap = container.lastElementChild;
-  if(!wrap) return null;
-  const page = note.pages[note.pages.length - 1];
-  const layer = wrap.querySelector('.np-text-layer');
-  return { note, page, layer, wrap };
-}
-
-let newTextFontSize = 16; // set from the Aa popover, used for new text/checklist boxes
-
-// Text formatting (bold / underline / color / size) applies to the current
-// selection when the caret is inside a note-textbox. Clicking any of the
-// format controls below moves focus away from the textbox and collapses
-// the browser's live selection, so we snapshot the Range on pointerdown
-// (before focus moves) and restore it right before running the command.
-let savedTextSelection = null; // { tb, range } captured just before a format control steals focus
-function captureTextSelectionForFormatting(){
-  const sel = window.getSelection();
-  if(!sel || sel.rangeCount === 0 || sel.isCollapsed){ savedTextSelection = null; return; }
-  const range = sel.getRangeAt(0);
-  const el = (range.commonAncestorContainer.nodeType === 1
-    ? range.commonAncestorContainer
-    : range.commonAncestorContainer.parentElement);
-  const tb = el ? el.closest('.note-textbox[contenteditable="true"]') : null;
-  savedTextSelection = tb ? { tb, range: range.cloneRange() } : null;
-}
-function restoreSavedTextSelection(){
-  if(!savedTextSelection) return null;
-  const { tb, range } = savedTextSelection;
-  tb.focus();
-  const sel = window.getSelection();
-  sel.removeAllRanges();
-  sel.addRange(range);
-  return tb;
-}
-// Any pointerdown inside the toolbar/popovers snapshots the current
-// selection first, so the format buttons work no matter which one is used.
-document.getElementById('an-toolbar').addEventListener('pointerdown', captureTextSelectionForFormatting, true);
-
-function applyTextCommand(cmd, value){
-  const tb = restoreSavedTextSelection();
-  if(!tb) return false; // nothing was selected in a text box
-  document.execCommand(cmd, false, value === undefined ? null : value);
-  savedTextSelection = null;
-  scheduleSave();
-  return true;
-}
-function applySelectionFontSize(px){
-  const tb = restoreSavedTextSelection();
-  if(!tb) return false;
-  // execCommand('fontSize') only supports the 7 legacy HTML sizes, so we
-  // use size=7 as a marker, then rewrite the <font> tags it creates to a
-  // real pixel value via CSS instead.
-  document.execCommand('fontSize', false, '7');
-  const layer = tb.closest('.np-text-layer') || tb;
-  layer.querySelectorAll('font[size="7"]').forEach(f=>{
-    f.removeAttribute('size');
-    f.style.fontSize = px + 'px';
-  });
-  savedTextSelection = null;
-  scheduleSave();
-  return true;
-}
-document.getElementById('text-font-size').addEventListener('input', (e)=>{
-  newTextFontSize = Math.max(10, Number(e.target.value) || 16);
-  applySelectionFontSize(newTextFontSize);
-});
-document.getElementById('text-bold-btn').addEventListener('click', (e)=>{
-  e.preventDefault();
-  applyTextCommand('bold');
-});
-document.getElementById('text-underline-btn').addEventListener('click', (e)=>{
-  e.preventDefault();
-  applyTextCommand('underline');
-});
-document.getElementById('text-color-input').addEventListener('input', (e)=>{
-  applyTextCommand('foreColor', e.target.value);
-});
-
-function insertChecklistItem(){
-  const ctx = currentPageAndLayer(); if(!ctx) return;
-  closeAllNotesPopovers();
-  const tb = { id: uid(), x: 24, y: 24, w: 240, text: '☐ ', fontSize: newTextFontSize };
-  ctx.page.textBoxes.push(tb);
-  renderTextBoxes(ctx.layer, ctx.page);
-  const el = ctx.layer.lastChild;
-  if(el){
-    el.focus();
-    const range = document.createRange(), sel = window.getSelection();
-    range.selectNodeContents(el); range.collapse(false);
-    sel.removeAllRanges(); sel.addRange(range);
-  }
-  scheduleSave();
-}
-document.getElementById('an-checklist-btn').addEventListener('click', insertChecklistItem);
-
-function defaultTableHTML(){
-  return '<table class="nt-table-el"><tbody>'
-    + '<tr><td></td><td></td></tr>'
-    + '<tr><td></td><td></td></tr>'
-    + '</tbody></table>';
-}
-function insertTable(){
-  const ctx = currentPageAndLayer(); if(!ctx) return;
-  closeAllNotesPopovers();
-  const tb = { id: uid(), x: 24, y: 24, w: 260, text: '', isTable: true, html: defaultTableHTML() };
-  ctx.page.textBoxes.push(tb);
-  renderTextBoxes(ctx.layer, ctx.page);
-  scheduleSave();
-}
-document.getElementById('an-table-btn').addEventListener('click', insertTable);
-
-function insertImage(dataUrl){
-  const ctx = currentPageAndLayer(); if(!ctx) return;
-  const tb = { id: uid(), x: 24, y: 24, w: 220, text: '', isImage: true, imgSrc: dataUrl };
-  ctx.page.textBoxes.push(tb);
-  renderTextBoxes(ctx.layer, ctx.page);
-  scheduleSave();
-}
-document.getElementById('an-attach-btn').addEventListener('click', ()=>{
-  if(!currentNote()) return;
-  closeAllNotesPopovers();
-  document.getElementById('an-attach-input').click();
-});
-document.getElementById('an-attach-input').addEventListener('change', (e)=>{
-  const file = e.target.files[0];
-  e.target.value = '';
-  if(!file || !currentNote()) return;
-  const reader = new FileReader();
-  reader.onload = ()=> insertImage(reader.result);
-  reader.readAsDataURL(file);
-});
-
-function shareCurrentNote(){
-  const note = currentNote(); if(!note) return;
-  const title = note.title || 'Untitled Note';
-  const text = note.pages
-    .map(p => p.textBoxes.filter(t=>!t.isTable && !t.isImage).map(t=>t.text).filter(Boolean).join('\n'))
-    .filter(Boolean).join('\n\n');
-  if(navigator.share){
-    navigator.share({ title, text }).catch(()=>{});
-  } else if(navigator.clipboard){
-    navigator.clipboard.writeText(title + (text ? '\n\n' + text : '')).then(()=>{
-      const status = document.getElementById('notes-status');
-      const prev = status.textContent;
-      status.textContent = 'Copied to clipboard';
-      setTimeout(()=>{ if(!notesDirty) status.textContent = prev; }, 1600);
-    }).catch(()=>{});
-  } else {
-    alert('Sharing is not supported in this browser.');
-  }
-}
-document.getElementById('an-share-btn').addEventListener('click', ()=>{ closeAllNotesPopovers(); shareCurrentNote(); });
-
-// Dictation for the notes search field (mic icon in the search bar).
-// Falls back silently (button stays put, does nothing) on browsers
-// without SpeechRecognition rather than breaking the page.
-(function setupSearchMic(){
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  const micBtn = document.getElementById('notes-mic-btn');
-  if(!SR){ micBtn.style.opacity = '0.35'; micBtn.title = 'Voice search not supported in this browser'; return; }
-  let recognition = null, listening = false;
-  micBtn.addEventListener('click', ()=>{
-    if(listening){ recognition && recognition.stop(); return; }
-    recognition = new SR();
-    recognition.lang = 'en-US';
-    recognition.interimResults = false;
-    recognition.onresult = (e)=>{
-      let text = '';
-      for(let i=e.resultIndex;i<e.results.length;i++) text += e.results[i][0].transcript;
-      const input = document.getElementById('notes-search');
-      input.value = text;
-      renderNotesList();
-    };
-    recognition.onend = ()=>{ listening = false; micBtn.classList.remove('active'); };
-    recognition.onerror = ()=>{ listening = false; micBtn.classList.remove('active'); };
-    try{ recognition.start(); listening = true; micBtn.classList.add('active'); }
-    catch(err){ console.error('Voice search failed to start:', err); }
-  });
-})();
-
-document.getElementById('notes-title-input').addEventListener('input', scheduleSave);
-document.getElementById('notes-search').addEventListener('input', renderNotesList);
-document.getElementById('notes-delete-btn').addEventListener('click', ()=>{
-  if(!currentNoteId) return;
-  if(!confirm('Delete this note? This can\'t be undone.')) return;
-  deleteNote(currentNoteId);
-});
-
-/* =================================================================
-   PAGE BACKGROUND (ruled / grid / dotted / blank, or an imported
-   PDF page rendered as an image).
-   ================================================================= */
-function effectiveStyle(note){
-  return note.ruledOverride || { type: globalSettings.ruledType, spacing: globalSettings.ruledSpacing };
-}
-
-function drawBackground(canvas, page, note){
-  const ctx = canvas.getContext('2d');
-  canvas.width = PAGE_W * RENDER_SCALE;
-  canvas.height = PAGE_H * RENDER_SCALE;
-  ctx.setTransform(RENDER_SCALE,0,0,RENDER_SCALE,0,0);
-  ctx.clearRect(0,0,PAGE_W,PAGE_H);
-  ctx.fillStyle = '#FFFFFF';
-  ctx.fillRect(0,0,PAGE_W,PAGE_H);
-
-  if(page.pdfImage){
+function resizeCanvasN(){
+  const dpr = window.devicePixelRatio || 1;
+  const w = sheetEl.clientWidth, h = sheetEl.clientHeight;
+  if(!w || !h) return;
+  // Preserve whatever is already drawn across a resize instead of wiping it.
+  let snapshot = null;
+  if(canvasEl.width && canvasEl.height){ try{ snapshot = canvasEl.toDataURL('image/png'); }catch(e){} }
+  canvasEl.width = Math.round(w * dpr);
+  canvasEl.height = Math.round(h * dpr);
+  if(snapshot){
     const img = new Image();
-    img.onload = ()=>{ ctx.drawImage(img,0,0,PAGE_W,PAGE_H); };
-    img.src = page.pdfImage;
-    return;
+    img.onload = ()=> canvasCtx.drawImage(img, 0, 0, canvasEl.width, canvasEl.height);
+    img.src = snapshot;
   }
-
-  const style = effectiveStyle(note);
-  const spacing = Math.max(10, Number(style.spacing) || 28);
-  ctx.strokeStyle = 'rgba(46,80,120,0.18)';
-  ctx.fillStyle = 'rgba(46,80,120,0.28)';
-  ctx.lineWidth = 1;
-
-  if(style.type === 'ruled'){
-    for(let y = spacing; y < PAGE_H; y += spacing){
-      ctx.beginPath(); ctx.moveTo(0,y+0.5); ctx.lineTo(PAGE_W,y+0.5); ctx.stroke();
-    }
-  } else if(style.type === 'grid'){
-    for(let y = spacing; y < PAGE_H; y += spacing){
-      ctx.beginPath(); ctx.moveTo(0,y+0.5); ctx.lineTo(PAGE_W,y+0.5); ctx.stroke();
-    }
-    for(let x = spacing; x < PAGE_W; x += spacing){
-      ctx.beginPath(); ctx.moveTo(x+0.5,0); ctx.lineTo(x+0.5,PAGE_H); ctx.stroke();
-    }
-  } else if(style.type === 'dotted'){
-    for(let y = spacing; y < PAGE_H; y += spacing){
-      for(let x = spacing; x < PAGE_W; x += spacing){
-        ctx.beginPath(); ctx.arc(x,y,1.2,0,Math.PI*2); ctx.fill();
-      }
-    }
-  }
-  // 'blank' -> nothing further to draw
 }
+window.addEventListener('resize', ()=>{ if(document.getElementById('editor-view').style.display !== 'none') resizeCanvasN(); });
 
-function redrawInk(canvas, page){
-  const ctx = canvas.getContext('2d');
-  // Resizing a canvas's backing store — even by re-assigning the same
-  // width/height it already has — wipes it and is a comparatively costly
-  // operation. This function used to do that unconditionally on every
-  // call, including from the pointermove hot path while actively
-  // drawing, which added real overhead to every single stroke redraw for
-  // no benefit once the canvas is already the right size. Only resize
-  // when the size has actually changed (a fresh canvas, or a genuine
-  // page-dimension change).
-  const w = PAGE_W * RENDER_SCALE, h = PAGE_H * RENDER_SCALE;
-  if(canvas.width !== w || canvas.height !== h){
-    canvas.width = w;
-    canvas.height = h;
-  }
-  ctx.setTransform(RENDER_SCALE,0,0,RENDER_SCALE,0,0);
-  ctx.clearRect(0,0,PAGE_W,PAGE_H);
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  page.strokes.forEach(s=>{
-    if(s.points.length < 2){
-      if(s.points.length === 1){
-        ctx.beginPath();
-        ctx.fillStyle = s.color;
-        ctx.globalAlpha = s.alpha != null ? s.alpha : 1;
-        ctx.arc(s.points[0].x, s.points[0].y, s.size/2, 0, Math.PI*2);
-        ctx.fill();
-        ctx.globalAlpha = 1;
-      }
-      return;
-    }
-    ctx.strokeStyle = s.color;
-    ctx.lineWidth = s.size;
-    ctx.globalAlpha = s.alpha != null ? s.alpha : 1;
-    ctx.beginPath();
-    ctx.moveTo(s.points[0].x, s.points[0].y);
-    for(let i=1;i<s.points.length;i++) ctx.lineTo(s.points[i].x, s.points[i].y);
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-  });
+function setModeN(mode){
+  inputModeN = mode;
+  sheetEl.classList.toggle('drawing', mode === 'draw');
+  document.getElementById('mode-type-btn').classList.toggle('active', mode === 'type');
+  document.getElementById('mode-draw-btn').classList.toggle('active', mode === 'draw');
+  document.getElementById('draw-tools').classList.toggle('show', mode === 'draw');
 }
-
-/* =================================================================
-   TEXT BOXES
-   ================================================================= */
-function renderTextBoxes(layerEl, page){
-  layerEl.innerHTML = '';
-  page.textBoxes.forEach(tb=>{
-    const el = document.createElement('div');
-    el.style.left = tb.x + 'px';
-    el.style.top = tb.y + 'px';
-    el.style.width = (tb.w || 200) + 'px';
-
-    if(tb.isImage){
-      el.className = 'note-textbox nt-image';
-      el.contentEditable = 'false';
-      el.innerHTML = '<img src="' + tb.imgSrc + '" alt="" draggable="false">';
-      el.addEventListener('pointerdown', (e)=> e.stopPropagation());
-      layerEl.appendChild(el);
-      return;
-    }
-
-    if(tb.isTable){
-      el.className = 'note-textbox nt-table';
-      el.contentEditable = 'false';
-      el.innerHTML = tb.html || defaultTableHTML();
-      el.querySelectorAll('td').forEach(td=>{ td.contentEditable = 'true'; });
-      el.addEventListener('input', ()=>{ tb.html = el.innerHTML; scheduleSave(); });
-      el.addEventListener('pointerdown', (e)=> e.stopPropagation());
-      layerEl.appendChild(el);
-      return;
-    }
-
-    el.className = 'note-textbox';
-    el.contentEditable = 'true';
-    el.dataset.placeholder = 'Type…';
-    el.style.fontSize = (tb.fontSize || 16) + 'px';
-    el.textContent = tb.text || '';
-    el.classList.toggle('nt-done', /^☑/.test(tb.text || ''));
-    el.addEventListener('pointerdown', (e)=>{
-      e.stopPropagation();
-      // A checklist line starts with ☐/☑ — tapping directly on that
-      // glyph toggles it done instead of placing the text cursor there
-      // (this is a plain contentEditable div, not a real checkbox input).
-      if(/^[☐☑]/.test(tb.text || '')){
-        const rect = el.getBoundingClientRect();
-        if(e.clientX - rect.left < 22){
-          e.preventDefault();
-          tb.text = tb.text.replace(/^[☐☑]/, m => m === '☐' ? '☑' : '☐');
-          el.textContent = tb.text;
-          el.classList.toggle('nt-done', tb.text.startsWith('☑'));
-          scheduleSave();
-        }
-      }
-    });
-    el.addEventListener('input', ()=>{
-      tb.text = el.textContent;
-      el.classList.toggle('nt-done', /^☑/.test(tb.text));
-      scheduleSave();
-    });
-    el.addEventListener('blur', ()=>{
-      if(!el.textContent.trim()){
-        page.textBoxes = page.textBoxes.filter(t=>t.id!==tb.id);
-        layerEl.removeChild(el);
-      }
-    });
-    layerEl.appendChild(el);
-  });
+function setPenColorN(color, btn){
+  penColorN = color; erasingN = false;
+  document.querySelectorAll('.swatch').forEach(el => el.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  document.getElementById('eraser-btn').classList.remove('active');
 }
-
-function addTextBoxAt(page, layerEl, xNote, yNote){
-  const tb = { id: uid(), x: xNote, y: yNote, w: 220, text: '', fontSize: newTextFontSize };
-  page.textBoxes.push(tb);
-  renderTextBoxes(layerEl, page);
-  const el = layerEl.lastChild;
-  if(el){ el.focus(); }
-  scheduleSave();
+function toggleEraserN(){
+  erasingN = !erasingN;
+  document.getElementById('eraser-btn').classList.toggle('active', erasingN);
 }
-
-/* =================================================================
-   PAGE RENDERING / EVENT WIRING
-   ================================================================= */
-function renderAllPages(note){
-  const container = document.getElementById('ne-pages-container');
-  container.innerHTML = '';
-  note.pages.forEach((page, idx)=> container.appendChild(buildPageEl(note, page, idx)));
-  // Size immediately so the page never flashes at its unstyled native
-  // size, then re-measure for a moment afterward: opening a note is
-  // usually the very first thing that happens on this page, and at that
-  // instant the webfonts (which change how the toolbar wraps, and so how
-  // much height #ne-body actually has) and the safe-area insets haven't
-  // always finished resolving yet. Without the follow-up pass, a note can
-  // open pinned to that too-small first measurement — small page, big
-  // empty margins — instead of the full space it actually has.
-  sizePages();
-  sizePagesWhenStable(600);
+function clearDrawingN(){
+  canvasCtx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+  saveCurrentNoteN();
 }
-
-// Fits every page to the available room in #ne-body — using BOTH its width
-// and height as the constraint, not width alone — so a landscape page
-// actually spreads out to fill the wide-but-short space it has, instead of
-// being capped at the same width a portrait page would use. Multiplied by
-// the zoom level on top of that fit.
-function sizePages(){
-  const body = document.getElementById('ne-body');
-  if(!body) return;
-  const rect = body.getBoundingClientRect();
-  if(rect.width <= 0 || rect.height <= 0) return;
-  // The page always spans the full width of the writing area — no side
-  // gutters, so it reads as covering the whole screen like a real sheet
-  // of paper would, the same way the reference app never leaves a
-  // visible margin around the page. Height then follows the note's own
-  // aspect ratio automatically (via the aspect-ratio set on .note-page)
-  // and simply scrolls if a page runs taller than what's visible, which
-  // is normal for a page of notes rather than something to squeeze in.
-  const w = Math.max(100, rect.width) * notesZoom;
-  document.querySelectorAll('.note-page').forEach(el=>{ el.style.width = w + 'px'; });
+function drawPosN(e){
+  const r = canvasEl.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  return { x: (e.clientX - r.left) * dpr, y: (e.clientY - r.top) * dpr };
 }
-window.addEventListener('resize', sizePages);
-
-// A plain 'resize' listener is enough for desktop window drags, but a
-// phone/tablet rotation is a different animal: mobile Safari (and other
-// mobile browsers) can take noticeably longer than one frame to finish
-// reflowing after the device turns — the address bar/chrome animates in
-// or out, dvh units settle late, and #ne-body's getBoundingClientRect()
-// can keep reporting the pre-rotation size for a little while. So on top
-// of the immediate 'resize' call above, we also listen for the rotation
-// itself (orientationchange / screen.orientation, for browsers that
-// support them) and visualViewport's own resize event, which fires as
-// the real viewport actually settles rather than on a guessed timer —
-// then poll briefly until the reported size stops changing before we
-// stop resizing the pages. Same approach the tutor whiteboard page uses
-// for its canvas.
-function sizePagesWhenStable(maxWaitMs){
-  const body = document.getElementById('ne-body');
-  if(!body) return;
-  const deadline = performance.now() + maxWaitMs;
-  let lastW = -1, lastH = -1, stableFrames = 0;
-  function tick(){
-    const rect = body.getBoundingClientRect();
-    if (Math.abs(rect.width-lastW) < 0.5 && Math.abs(rect.height-lastH) < 0.5) {
-      stableFrames++;
-    } else {
-      stableFrames = 0;
-      lastW = rect.width; lastH = rect.height;
-    }
-    sizePages();
-    if (stableFrames >= 3 || performance.now() > deadline) return;
-    requestAnimationFrame(tick);
-  }
-  requestAnimationFrame(tick);
-}
-window.addEventListener('orientationchange', () => sizePagesWhenStable(1000));
-if (screen.orientation && screen.orientation.addEventListener) {
-  screen.orientation.addEventListener('change', () => sizePagesWhenStable(1000));
-}
-if (window.visualViewport) {
-  window.visualViewport.addEventListener('resize', () => sizePagesWhenStable(1000));
-}
-// Belt-and-suspenders for the same "opened before layout finished
-// settling" case: if a note happened to render before the window's
-// load event (webfonts, etc.), re-measure once everything has finished.
-window.addEventListener('load', () => sizePagesWhenStable(1000));
-
-// The 600ms settle window above is a guess, not a guarantee: on a real
-// (especially mobile) connection, the @import'd Google Fonts (Caveat,
-// Source Serif 4, JetBrains Mono) can easily take longer than that to
-// actually arrive -- particularly on a cold cache. When they do, the
-// toolbar re-wraps to its final layout *after* sizePagesWhenStable has
-// already declared things stable and stopped watching, leaving the page
-// sized for the wrong (usually taller/more-wrapped) toolbar. Nothing
-// else ever re-measures after that, so the page stays too small until
-// something else happens to call sizePages() -- like pressing zoom.
-// document.fonts.ready resolves exactly when webfonts are actually done,
-// however long that took, so re-measuring off of it closes that gap.
-if(document.fonts && document.fonts.ready){
-  document.fonts.ready.then(() => sizePagesWhenStable(600));
-}
-
-function buildPageEl(note, page, idx){
-  const wrap = document.createElement('div');
-  wrap.className = 'note-page';
-  wrap.style.aspectRatio = PAGE_W + ' / ' + PAGE_H;
-
-  const bg = document.createElement('canvas'); bg.className = 'np-bg';
-  const ink = document.createElement('canvas'); ink.className = 'np-ink';
-  const textLayer = document.createElement('div'); textLayer.className = 'np-text-layer';
-  const tools = document.createElement('div'); tools.className = 'np-page-tools';
-  tools.innerHTML = '<button type="button" title="Delete page">✕</button>';
-  tools.querySelector('button').addEventListener('click', ()=>{
-    if(note.pages.length <= 1){ alert('A note needs at least one page.'); return; }
-    if(!confirm('Delete this page?')) return;
-    note.pages.splice(idx,1);
-    renderAllPages(note);
-    scheduleSave();
-  });
-
-  wrap.appendChild(bg); wrap.appendChild(ink); wrap.appendChild(textLayer); wrap.appendChild(tools);
-
-  drawBackground(bg, page, note);
-  redrawInk(ink, page);
-  renderTextBoxes(textLayer, page);
-  wirePageInput(wrap, ink, textLayer, page);
-
-  return wrap;
-}
-
-function notePointFromEvent(ink, e){
-  const rect = ink.getBoundingClientRect();
-  const scaleX = PAGE_W / rect.width;
-  const scaleY = PAGE_H / rect.height;
-  return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
-}
-
-const ERASE_RADIUS = 14;
-
-function eraseNear(page, x, y){
-  let changed = false;
-  page.strokes = page.strokes.filter(s=>{
-    const hit = s.points.some(p => Math.hypot(p.x-x, p.y-y) < ERASE_RADIUS + s.size/2);
-    if(hit) changed = true;
-    return !hit;
-  });
-  return changed;
-}
-
-// Detects a small back-and-forth "scribbling" motion (as opposed to a
-// normal, mostly-one-direction pen stroke or a swipe-to-scroll), so a
-// scribble over existing ink erases it even when the Eraser tool isn't
-// explicitly toggled on.
-function isScribbleMotion(pts){
-  if(pts.length < 6) return false;
-  const recent = pts.slice(-10);
-  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
-  recent.forEach(p=>{ minX=Math.min(minX,p.x); maxX=Math.max(maxX,p.x); minY=Math.min(minY,p.y); maxY=Math.max(maxY,p.y); });
-  const bboxDiag = Math.hypot(maxX-minX, maxY-minY);
-  if(bboxDiag > 46) return false; // too spread out to be a small scrub
-  let reversals = 0;
-  for(let i=2;i<recent.length;i++){
-    const v1x = recent[i-1].x-recent[i-2].x, v1y = recent[i-1].y-recent[i-2].y;
-    const v2x = recent[i].x-recent[i-1].x, v2y = recent[i].y-recent[i-1].y;
-    const dot = v1x*v2x + v1y*v2y;
-    if(dot < 0) reversals++;
-  }
-  return reversals >= 3;
-}
-
-let activePenPointerId = null; // used for palm rejection while pencil is drawing
-
-function wirePageInput(pageWrap, ink, textLayer, page){
-  let drawing = false;
-  let stroke = null;
-  let scribbleErasing = false;
-  let touchScrollStartY = 0;
-  let touchScrollStartTop = 0;
-  let touchStartPoint = null;
-  let touchMoved = false;
-  const scrollParent = document.getElementById('ne-body');
-
-  function isStylusLike(e){
-    // Apple Pencil reports as 'pen'. Mouse is treated the same way so the
-    // app is still usable/testable on a laptop trackpad — only a bare
-    // finger ('touch') is limited to navigation + placing text.
-    return e.pointerType === 'pen' || e.pointerType === 'mouse';
-  }
-
-  ink.addEventListener('pointerdown', (e)=>{
-    if(isStylusLike(e)){
-      // Palm rejection: while the pencil is actively drawing, any
-      // concurrent touch point is the palm resting on the glass, not
-      // an intentional finger gesture — ignored entirely below.
-      activePenPointerId = e.pointerId;
-      ink.setPointerCapture(e.pointerId);
-      drawing = true;
-      scribbleErasing = (currentTool === 'eraser');
-      const p = notePointFromEvent(ink, e);
-      const pt = currentTool === 'pen' ? currentPenType() : PEN_TYPES[0];
-      stroke = { color: penColor, size: penSize * pt.widthMul, alpha: pt.alpha, points: [p] };
-      if(scribbleErasing){ if(eraseNear(page, p.x, p.y)) redrawInk(ink, page); }
-      e.preventDefault();
-      return;
-    }
-
-    // touch (finger): scrolling only — see the pointermove/finishStroke
-    // touch branches below for why nothing else happens on a bare finger.
-    if(activePenPointerId !== null){ e.preventDefault(); return; } // palm during pencil use
-    ink.setPointerCapture(e.pointerId);
-    touchStartPoint = notePointFromEvent(ink, e);
-    touchMoved = false;
-    touchScrollStartY = e.clientY;
-    touchScrollStartTop = scrollParent.scrollTop;
-    drawing = true;
-    e.preventDefault();
-  });
-
-  ink.addEventListener('pointermove', (e)=>{
-    if(!drawing || e.pointerId !== (stroke && e.pointerId)) { /* fallthrough handled below */ }
-    if(!drawing) return;
-
-    if(isStylusLike(e)){
-      // A stylus (and Apple Pencil in particular) samples position at a
-      // much higher rate than the browser actually dispatches pointermove
-      // events at — the extra in-between samples get coalesced into the
-      // next event instead of firing their own. Using only e.clientX/Y
-      // means fast strokes only get the sparser, once-per-dispatched-event
-      // points, which is exactly what shows up as visible skips/facets in
-      // quick handwriting even though nothing was ever dropped. Reading
-      // getCoalescedEvents() recovers every real sample so the line drawn
-      // matches the actual pen path instead of a coarser approximation of it.
-      const events = (typeof e.getCoalescedEvents === 'function' && e.getCoalescedEvents().length)
-        ? e.getCoalescedEvents() : [e];
-      const pts = events.map(ev => notePointFromEvent(ink, ev));
-
-      if(currentTool === 'eraser' || scribbleErasing){
-        // Only worth a full redraw when a stroke actually got erased —
-        // most of a drag across empty page hits nothing.
-        let erased = false;
-        pts.forEach(p => { if(eraseNear(page, p.x, p.y)) erased = true; });
-        if(erased) redrawInk(ink, page);
-      } else {
-        const ctx = ink.getContext('2d');
-        ctx.setTransform(RENDER_SCALE,0,0,RENDER_SCALE,0,0);
-        ctx.strokeStyle = stroke.color; ctx.lineWidth = stroke.size;
-        ctx.globalAlpha = stroke.alpha != null ? stroke.alpha : 1;
-        ctx.lineCap='round'; ctx.lineJoin='round';
-        for(const p of pts){
-          const prevPoint = stroke.points[stroke.points.length - 1];
-          stroke.points.push(p);
-          if(isScribbleMotion(stroke.points)){
-            // Mid-stroke scribble detected: treat the rest of this
-            // gesture as erasing rather than inking, and discard the
-            // ink drawn so far for this stroke. A full redraw is the
-            // simplest correct way to wipe ink that was drawn live but
-            // never got committed to page.strokes — this path is rare,
-            // so its cost doesn't matter the way the plain-inking path
-            // below does.
-            scribbleErasing = true;
-            stroke = null;
-            eraseNear(page, p.x, p.y);
-            redrawInk(ink, page);
-            break;
-          }
-          // Draw only the newest segment on top of what's already on
-          // the canvas, instead of clearing the page and re-stroking
-          // every committed stroke *plus* retracing this whole stroke
-          // from its first point — on every single pointermove. That
-          // full redraw is fine for a page with a little ink on it, but
-          // it gets slower as a note fills up, and re-tracing an
-          // in-progress stroke from scratch each move makes one long or
-          // fast stroke cost quadratically more work as it goes. On a
-          // real device that main-thread cost is exactly what shows up
-          // as dropped pointer events — visible skips in the ink.
-          ctx.beginPath();
-          ctx.moveTo(prevPoint.x, prevPoint.y);
-          ctx.lineTo(p.x, p.y);
-          ctx.stroke();
-        }
-        ctx.globalAlpha = 1;
-      }
-      e.preventDefault();
-      return;
-    }
-
-    // touch (finger): scrolling only. A bare finger never draws, erases,
-    // or places anything — the hand is purely for moving the page around;
-    // only the pencil (or a mouse, for testing on a laptop) marks the page.
-    if(activePenPointerId !== null){ e.preventDefault(); return; }
-    const dy = e.clientY - touchScrollStartY;
-    scrollParent.scrollTop = touchScrollStartTop - dy;
-    touchMoved = touchMoved || Math.abs(dy) > 6;
-    e.preventDefault();
-  });
-
-  function finishStroke(e){
-    if(!drawing) return;
-    drawing = false;
-    if(isStylusLike(e)){
-      activePenPointerId = null;
-      if(stroke && !scribbleErasing && currentTool !== 'eraser' && stroke.points.length){
-        page.strokes.push(stroke);
-        if(noteRedoStack.length){ noteRedoStack = []; refreshUndoRedoButtons(); }
-      }
-      redrawInk(ink, page);
-      scheduleSave();
-    } else if(currentTool === 'text' && !touchMoved && touchStartPoint){
-      // Deliberate placement only: the Text tool has to be selected on
-      // purpose, so an ordinary scrolling tap never drops a text box.
-      addTextBoxAt(page, textLayer, touchStartPoint.x, touchStartPoint.y);
-    }
-    // touch (finger) otherwise: nothing to do — it was only ever scrolling.
-    stroke = null;
-    touchStartPoint = null;
-  }
-  ink.addEventListener('pointerup', finishStroke);
-  ink.addEventListener('pointercancel', finishStroke);
-}
-
-/* =================================================================
-   TOOLBAR WIRING
-   ================================================================= */
-function setTool(tool){
-  currentTool = tool;
-  document.getElementById('tool-pen-v2').classList.toggle('active', tool==='pen');
-  document.getElementById('tool-eraser').classList.toggle('active', tool==='eraser');
-  document.getElementById('tool-text').classList.toggle('active', tool==='text');
-}
-function refreshPenTypeTag(){
-  const pt = currentPenType();
-  const tagEl = document.getElementById('tool-pen-v2-tag');
-  const btnEl = document.getElementById('tool-pen-v2');
-  if(tagEl) tagEl.textContent = pt.tag;
-  if(btnEl) btnEl.title = 'Pen: ' + pt.label + ' — tap again to change pen type';
-}
-document.getElementById('tool-text').addEventListener('click', ()=> setTool('text'));
-document.getElementById('tool-pen-v2').addEventListener('click', ()=>{
-  // Tapping the pen while it's already the active tool cycles through the
-  // pen types (Ballpoint / Pencil / Marker), same as re-tapping the pen in
-  // Apple Notes reopens its style picker — the tray's tag always reflects
-  // whichever one is currently selected.
-  if(currentTool === 'pen'){
-    penTypeIndex = (penTypeIndex + 1) % PEN_TYPES.length;
-    refreshPenTypeTag();
+canvasEl.addEventListener('pointerdown', (e)=>{
+  if(inputModeN !== 'draw') return;
+  drawingActiveN = true;
+  try{ canvasEl.setPointerCapture(e.pointerId); }catch(err){}
+  const p = drawPosN(e);
+  canvasCtx.beginPath();
+  canvasCtx.moveTo(p.x, p.y);
+  e.preventDefault();
+});
+canvasEl.addEventListener('pointermove', (e)=>{
+  if(!drawingActiveN) return;
+  const p = drawPosN(e);
+  const dpr = window.devicePixelRatio || 1;
+  canvasCtx.lineCap = 'round'; canvasCtx.lineJoin = 'round';
+  if(erasingN){
+    canvasCtx.globalCompositeOperation = 'destination-out';
+    canvasCtx.lineWidth = 20 * dpr;
   } else {
-    setTool('pen');
+    canvasCtx.globalCompositeOperation = 'source-over';
+    canvasCtx.strokeStyle = penColorN;
+    // Apple Pencil reports pressure via PointerEvent.pressure — use it for a natural line weight.
+    const pressure = (e.pressure && e.pressure > 0) ? e.pressure : 0.5;
+    canvasCtx.lineWidth = (1.5 + pressure * 2.5) * dpr;
   }
+  canvasCtx.lineTo(p.x, p.y);
+  canvasCtx.stroke();
+  e.preventDefault();
 });
-document.getElementById('tool-eraser').addEventListener('click', ()=> setTool('eraser'));
-refreshPenTypeTag();
-
-// ---------- orientation ----------
-function syncOrientationControl(note){
-  const btn = document.getElementById('tool-orientation');
-  const landscape = note && note.orientation === 'landscape';
-  btn.textContent = landscape ? '📄 Landscape' : '📄 Portrait';
+function endDrawN(e){
+  if(!drawingActiveN) return;
+  drawingActiveN = false;
+  saveCurrentNoteN();
 }
-document.getElementById('tool-orientation').addEventListener('click', ()=>{
-  const note = currentNote();
-  if(!note) return;
-  const oldW = PAGE_W, oldH = PAGE_H;
-  note.orientation = note.orientation === 'landscape' ? 'portrait' : 'landscape';
-  rotateNoteContent90(note, oldW, oldH);
-  applyOrientation(note);
-  syncOrientationControl(note);
-  renderAllPages(note);
-  scheduleSave();
-});
+canvasEl.addEventListener('pointerup', endDrawN);
+canvasEl.addEventListener('pointercancel', endDrawN);
+window.addEventListener('pointerup', endDrawN);
 
-// ---------- zoom ----------
-let notesZoom = 1;
-const ZOOM_MIN = 0.5, ZOOM_MAX = 2;
-function applyZoom(){
-  document.getElementById('zoom-level').textContent = Math.round(notesZoom * 100) + '%';
-  sizePages();
+function showEditorN(){
+  document.getElementById('list-view').style.display = 'none';
+  document.getElementById('editor-view').style.display = 'block';
+  setModeN('type');
+  setTimeout(resizeCanvasN, 30);
 }
-document.getElementById('zoom-in').addEventListener('click', ()=>{
-  notesZoom = Math.min(ZOOM_MAX, Math.round((notesZoom + 0.1) * 10) / 10);
-  applyZoom();
-});
-document.getElementById('zoom-out').addEventListener('click', ()=>{
-  notesZoom = Math.max(ZOOM_MIN, Math.round((notesZoom - 0.1) * 10) / 10);
-  applyZoom();
-});
-applyZoom();
-
-function selectPenColor(hex){
-  penColor = hex;
-  document.querySelectorAll('.ne-pen-color').forEach(s=>s.classList.remove('active'));
-  const match = document.querySelector('.ne-pen-color[data-color="'+hex+'"]');
-  if(match){ match.classList.add('active'); }
-  else { document.getElementById('ne-color-wheel').style.background = hex; document.getElementById('ne-color-wheel').classList.add('active'); }
-  setTool('pen');
+function closeEditorN(){
+  document.getElementById('editor-view').style.display = 'none';
+  document.getElementById('list-view').style.display = 'block';
+  currentNoteIdN = null;
+  refreshNotesListN();
 }
-document.querySelectorAll('.ne-pen-color[data-color]').forEach(sw=>{
-  sw.addEventListener('click', ()=> selectPenColor(sw.dataset.color));
-});
-document.getElementById('ne-color-wheel').addEventListener('click', ()=> document.getElementById('ne-color-custom').click());
-document.getElementById('ne-color-add').addEventListener('click', ()=> document.getElementById('ne-color-custom').click());
-document.getElementById('ne-color-custom').addEventListener('input', (e)=>{
-  document.getElementById('ne-color-wheel').style.background = '';
-  selectPenColor(e.target.value);
-});
-document.getElementById('pen-size').addEventListener('input', (e)=>{ penSize = Number(e.target.value); });
-
-// Simple global undo/redo: pops/pushes the most recent stroke across all
-// pages of the current note, mirroring the pen tray's arrow buttons.
-let noteRedoStack = [];
-function refreshUndoRedoButtons(){
-  document.getElementById('tool-redo').disabled = noteRedoStack.length === 0;
+function startNewNoteN(){
+  if(!shUserN){ alert('Sign in to save notes to your account.'); return; }
+  currentNoteIdN = 'n_' + Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+  titleEl.value = '';
+  bodyEl.value = '';
+  statusEl.className = 'saved'; statusEl.textContent = 'new';
+  document.getElementById('note-delete-btn').style.display = 'none';
+  showEditorN();
+  canvasCtx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+  titleEl.focus();
 }
-document.getElementById('tool-undo').addEventListener('click', ()=>{
-  const note = currentNote();
-  if(!note) return;
-  let latestPageIdx = -1;
-  note.pages.forEach((p, pi)=>{ if(p.strokes.length){ latestPageIdx = pi; } });
-  if(latestPageIdx === -1) return;
-  const stroke = note.pages[latestPageIdx].strokes.pop();
-  noteRedoStack.push({ pageIdx: latestPageIdx, stroke });
-  refreshUndoRedoButtons();
-  renderAllPages(note);
-  scheduleSave();
-});
-document.getElementById('tool-redo').addEventListener('click', ()=>{
-  const note = currentNote();
-  if(!note || noteRedoStack.length === 0) return;
-  const { pageIdx, stroke } = noteRedoStack.pop();
-  if(note.pages[pageIdx]){ note.pages[pageIdx].strokes.push(stroke); }
-  refreshUndoRedoButtons();
-  renderAllPages(note);
-  scheduleSave();
-});
-refreshUndoRedoButtons();
-
-document.getElementById('add-page-btn').addEventListener('click', ()=>{
-  const note = currentNote();
-  if(!note) return;
-  note.pages.push(blankPage());
-  renderAllPages(note);
-  scheduleSave();
-});
-
-function syncStyleControlsFromNote(note){
-  const isOverride = !!note.ruledOverride;
-  document.getElementById('style-scope').value = isOverride ? 'override' : 'default';
-  const active = note.ruledOverride || { type: globalSettings.ruledType, spacing: globalSettings.ruledSpacing };
-  document.getElementById('style-type').value = active.type;
-  document.getElementById('style-spacing').value = active.spacing;
-}
-
-function applyStyleChange(){
-  const note = currentNote();
-  if(!note) return;
-  const scope = document.getElementById('style-scope').value;
-  const type = document.getElementById('style-type').value;
-  const spacing = Math.max(10, Number(document.getElementById('style-spacing').value) || 28);
-  if(scope === 'default'){
-    globalSettings.ruledType = type;
-    globalSettings.ruledSpacing = spacing;
-    note.ruledOverride = null;
-    saveGlobalSettings();
-  } else {
-    note.ruledOverride = { type, spacing };
-  }
-  renderAllPages(note);
-  scheduleSave();
-}
-document.getElementById('style-scope').addEventListener('change', ()=>{
-  const note = currentNote();
-  if(note){
-    // switching the scope selector alone (before touching type/spacing)
-    // shouldn't blow away an existing override or default silently —
-    // re-sync the shown values for the newly selected scope first.
-    if(document.getElementById('style-scope').value === 'override' && !note.ruledOverride){
-      note.ruledOverride = { type: globalSettings.ruledType, spacing: globalSettings.ruledSpacing };
-    } else if(document.getElementById('style-scope').value === 'default'){
-      note.ruledOverride = null;
-    }
-    syncStyleControlsFromNote(note);
-    renderAllPages(note);
-    scheduleSave();
-  }
-});
-document.getElementById('style-type').addEventListener('change', applyStyleChange);
-document.getElementById('style-spacing').addEventListener('change', applyStyleChange);
-
-/* =================================================================
-   PDF IMPORT — rendered pages become part of the note canvas itself
-   (ink/text can be added directly on top of them), not a separate
-   attachment viewer.
-   ================================================================= */
-if(window['pdfjsLib']){
-  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-}
-
-document.getElementById('tool-import-pdf').addEventListener('click', ()=>{
-  if(!currentNote()) return;
-  document.getElementById('pdf-file-input').click();
-});
-
-document.getElementById('pdf-file-input').addEventListener('change', async (e)=>{
-  const file = e.target.files[0];
-  e.target.value = '';
-  const note = currentNote();
-  if(!file || !note) return;
-  if(!window['pdfjsLib']){ alert('PDF support failed to load — check your connection and try again.'); return; }
-
-  document.getElementById('notes-status').textContent = 'Importing PDF…';
+async function openNoteN(id){
+  if(!shUserN) return;
   try{
-    const buf = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
-    const newPages = [];
-    for(let i=1;i<=pdf.numPages;i++){
-      const pdfPage = await pdf.getPage(i);
-      const viewport = pdfPage.getViewport({ scale: 1 });
-      const scale = Math.min(PAGE_W / viewport.width, PAGE_H / viewport.height) * RENDER_SCALE;
-      const scaledViewport = pdfPage.getViewport({ scale });
-      const canvas = document.createElement('canvas');
-      canvas.width = PAGE_W * RENDER_SCALE;
-      canvas.height = PAGE_H * RENDER_SCALE;
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#fff'; ctx.fillRect(0,0,canvas.width,canvas.height);
-      const offsetX = (canvas.width - scaledViewport.width)/2;
-      const offsetY = (canvas.height - scaledViewport.height)/2;
-      ctx.translate(offsetX, offsetY);
-      await pdfPage.render({ canvasContext: ctx, viewport: scaledViewport }).promise;
-      const page = blankPage();
-      page.pdfImage = canvas.toDataURL('image/png');
-      newPages.push(page);
-    }
-    // If the note is currently just a single empty page, replace it;
-    // otherwise append the imported pages after existing content.
-    const onlyPage = note.pages.length === 1 && note.pages[0].strokes.length===0 &&
-                      note.pages[0].textBoxes.length===0 && !note.pages[0].pdfImage;
-    note.pages = onlyPage ? newPages : note.pages.concat(newPages);
-    renderAllPages(note);
-    document.getElementById('notes-status').textContent = 'Saving…';
-    await persistCurrentNote();
-  } catch(err){
-    console.error('PDF import failed:', err);
-    alert('Could not import that PDF.');
-    document.getElementById('notes-status').textContent = 'Saved';
-  }
-});
+    const rec = await window.storage.get(notesKeyPrefixN() + id, false);
+    if(!rec) return;
+    const item = JSON.parse(rec.value);
+    currentNoteIdN = id;
+    titleEl.value = item.title || '';
+    bodyEl.value = item.body || '';
+    statusEl.className = 'saved'; statusEl.textContent = 'saved';
+    document.getElementById('note-delete-btn').style.display = '';
+    showEditorN();
+    setTimeout(()=>{
+      canvasCtx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+      if(item.drawing){
+        const img = new Image();
+        img.onload = ()=> canvasCtx.drawImage(img, 0, 0, canvasEl.width, canvasEl.height);
+        img.src = item.drawing;
+      }
+    }, 40);
+  } catch(e){ console.error('Open note failed:', e); }
+}
+function saveCurrentNoteN(){
+  if(!currentNoteIdN || !shUserN) return;
+  statusEl.className = 'editing'; statusEl.textContent = 'editing…';
+  clearTimeout(saveTimerN);
+  saveTimerN = setTimeout(async ()=>{
+    try{
+      const now = Date.now();
+      const existingRaw = await window.storage.get(notesKeyPrefixN() + currentNoteIdN, false).catch(()=>null);
+      const createdAt = existingRaw ? (JSON.parse(existingRaw.value).createdAt || now) : now;
+      let drawing = '';
+      try{ if(canvasEl.width && canvasEl.height) drawing = canvasEl.toDataURL('image/png'); }catch(e){}
+      const payload = {
+        id: currentNoteIdN, subject: notesSubject || 'Unsorted',
+        title: titleEl.value, body: bodyEl.value, drawing,
+        createdAt, updatedAt: now
+      };
+      await window.storage.set(notesKeyPrefixN() + currentNoteIdN, JSON.stringify(payload), false);
+      statusEl.className = 'saved'; statusEl.textContent = 'saved';
+      document.getElementById('note-delete-btn').style.display = '';
+    } catch(e){ console.error('Save note failed:', e); statusEl.textContent = 'save failed'; }
+  }, 500);
+}
+async function deleteCurrentNoteN(){
+  if(!currentNoteIdN) return;
+  if(!confirm('Delete this note? This can\u2019t be undone.')) return;
+  try{ await window.storage.delete(notesKeyPrefixN() + currentNoteIdN, false); } catch(e){}
+  closeEditorN();
+}
+titleEl.addEventListener('input', saveCurrentNoteN);
+bodyEl.addEventListener('input', saveCurrentNoteN);
 
-loadGlobalSettings().then(refreshNotesList);
-<\/script>
-
-</body>
-</html>
+applyScopeN();
+refreshNotesListN();
 <\/script>
 
 </body>
 </html>
 </script>
-
 <script type="text/plain" id="src-quiz"><!DOCTYPE html>
 <html lang="en">
 <head>
