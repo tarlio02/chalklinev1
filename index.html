@@ -14728,7 +14728,7 @@ input, textarea, .note-textbox{ -webkit-user-select:text; user-select:text; }
 .an-icon-btn svg{ width:19px; height:19px; }
 .an-icon-btn:hover{ background:rgba(201,138,43,0.1); }
 .an-icon-btn.active{ background:var(--accent); color:#fff; }
-.an-markup-icon{ border-radius:50%; border:1.5px solid var(--accent); }
+.an-markup-icon{ border-radius:50%; border:1.5px solid var(--accent); touch-action:manipulation; }
 
 /* Popovers float above the page tray, anchored under the icon row */
 .an-popover{
@@ -15534,7 +15534,24 @@ function toggleNotesPopover(popoverId, btnId){
   }
 }
 document.getElementById('an-aa-btn').addEventListener('click', (e)=>{ e.stopPropagation(); toggleNotesPopover('an-aa-popover','an-aa-btn'); });
-document.getElementById('an-markup-btn').addEventListener('click', (e)=>{ e.stopPropagation(); toggleNotesPopover('an-markup-popover','an-markup-btn'); });
+// Primary handler: pointerup fires reliably on touch even when some
+// ancestor's touchstart/pointerdown handler elsewhere in the page called
+// preventDefault() and suppressed the synthetic 'click' that would
+// normally follow — which is the standard reason a button "looks tappable
+// but nothing happens" on a touchscreen. 'click' stays wired too, as a
+// fallback for mouse/keyboard activation and to avoid double-firing when
+// both do land (toggleNotesPopover is idempotent-safe to call twice since
+// it just flips .open, so a double-call at worst reopens instantly).
+let markupBtnHandledAt = 0;
+function handleMarkupBtnActivate(e){
+  const now = Date.now();
+  if(now - markupBtnHandledAt < 350) return; // debounce pointerup+click double-fire
+  markupBtnHandledAt = now;
+  e.stopPropagation();
+  toggleNotesPopover('an-markup-popover','an-markup-btn');
+}
+document.getElementById('an-markup-btn').addEventListener('pointerup', handleMarkupBtnActivate);
+document.getElementById('an-markup-btn').addEventListener('click', handleMarkupBtnActivate);
 document.getElementById('an-more-btn').addEventListener('click', (e)=>{ e.stopPropagation(); toggleNotesPopover('an-more-popover','an-more-btn'); });
 document.addEventListener('pointerdown', (e)=>{
   if(!e.target.closest('.an-popover') && !e.target.closest('.an-icon-btn')) closeAllNotesPopovers();
