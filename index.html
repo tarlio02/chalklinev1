@@ -15,6 +15,12 @@
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Source+Serif+4:wght@400;600&family=JetBrains+Mono:wght@500;600&display=swap');
   html,body{ margin:0; padding:0; height:100%; overflow:hidden; background:#FFFFFF; font-family:-apple-system,Segoe UI,sans-serif; }
+  /* The notes app lives in an iframe (.shell-page below); a fast drag on its
+     drawing canvas can spill over into this top-level shell page (nav, tab
+     labels, etc), which never got the iframe's own selection-block rule.
+     Same class/purpose, toggled from inside the iframe via window.parent
+     since the iframe is same-origin (srcdoc, not sandboxed). */
+  body.no-select-while-drawing{ user-select:none; -webkit-user-select:none; }
   /* Scoped to .shell-page specifically (not a bare "iframe" tag selector):
      a bare tag selector here would also catch any other <iframe> that
      ends up on the page — e.g. the one Google's Sign-In script injects
@@ -14857,6 +14863,11 @@ canvasEl.addEventListener('pointerdown', (e)=>{
   activePointerIdN = e.pointerId;
   activePointerTypeN = e.pointerType;
   document.body.classList.add('no-select-while-drawing');
+  // This app runs in a same-origin srcdoc iframe (see the top-level shell's
+  // frame-notes) — a fast drag can spill over the iframe's edge onto the
+  // shell page around it (nav, tab labels), which never sees this iframe's
+  // own selectstart/user-select guards unless we also toggle them there.
+  try{ window.parent.document.body.classList.add('no-select-while-drawing'); }catch(err){}
   try{ canvasEl.setPointerCapture(e.pointerId); }catch(err){}
   const p = drawPosN(e);
   canvasCtx.beginPath();
@@ -14867,6 +14878,7 @@ canvasEl.addEventListener('pointerdown', (e)=>{
 // a fast drag even with user-select:none and preventDefault() on the pointer
 // events, so also explicitly block the selectstart it would fire from.
 document.addEventListener('selectstart', (e)=>{ if(drawingActiveN) e.preventDefault(); });
+try{ window.parent.document.addEventListener('selectstart', (e)=>{ if(drawingActiveN) e.preventDefault(); }); }catch(err){}
 canvasEl.addEventListener('pointermove', (e)=>{
   if(!drawingActiveN || e.pointerId !== activePointerIdN) return;
   const dpr = window.devicePixelRatio || 1;
@@ -14904,6 +14916,7 @@ function endDrawN(e){
   activePointerIdN = null;
   activePointerTypeN = null;
   document.body.classList.remove('no-select-while-drawing');
+  try{ window.parent.document.body.classList.remove('no-select-while-drawing'); }catch(err){}
   saveCurrentNoteN();
 }
 canvasEl.addEventListener('pointerup', endDrawN);
