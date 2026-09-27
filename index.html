@@ -14593,6 +14593,12 @@ h1,h2,h3{ font-family:'Fraunces','Source Serif 4',Georgia,serif; margin:0; color
 }
 .sheet.drawing #note-canvas{ pointer-events:auto; cursor:crosshair; }
 .sheet.drawing #note-body{ pointer-events:none; }
+/* A fast stylus/mouse drag across the canvas can still trigger the browser's
+   native text-selection gesture on surrounding page text (title, toolbar
+   labels, etc) — preventDefault() on the pointer events doesn't reliably
+   suppress that in every browser. Killing user-select on the whole page for
+   the duration of an active stroke stops that "select everything" effect. */
+body.no-select-while-drawing{ user-select:none; -webkit-user-select:none; }
 </style>
 </head>
 <body>
@@ -14850,12 +14856,17 @@ canvasEl.addEventListener('pointerdown', (e)=>{
   drawingActiveN = true;
   activePointerIdN = e.pointerId;
   activePointerTypeN = e.pointerType;
+  document.body.classList.add('no-select-while-drawing');
   try{ canvasEl.setPointerCapture(e.pointerId); }catch(err){}
   const p = drawPosN(e);
   canvasCtx.beginPath();
   canvasCtx.moveTo(p.x, p.y);
   e.preventDefault();
 });
+// Belt-and-suspenders: some browsers can still start a text selection from
+// a fast drag even with user-select:none and preventDefault() on the pointer
+// events, so also explicitly block the selectstart it would fire from.
+document.addEventListener('selectstart', (e)=>{ if(drawingActiveN) e.preventDefault(); });
 canvasEl.addEventListener('pointermove', (e)=>{
   if(!drawingActiveN || e.pointerId !== activePointerIdN) return;
   const dpr = window.devicePixelRatio || 1;
@@ -14892,6 +14903,7 @@ function endDrawN(e){
   drawingActiveN = false;
   activePointerIdN = null;
   activePointerTypeN = null;
+  document.body.classList.remove('no-select-while-drawing');
   saveCurrentNoteN();
 }
 canvasEl.addEventListener('pointerup', endDrawN);
