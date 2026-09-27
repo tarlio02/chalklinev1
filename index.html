@@ -14943,6 +14943,25 @@ async function openNoteN(id){
     }, 40);
   } catch(e){ console.error('Open note failed:', e); }
 }
+function canvasToDataURLAsync(canvas){
+  // toDataURL() encodes the whole canvas synchronously on the main thread —
+  // for a full-resolution canvas that can take long enough to visibly stall
+  // whatever the stylus is doing at that exact moment (this is what caused
+  // fast strokes to "skip" right as an autosave landed). toBlob() runs the
+  // encoding without blocking the thread the same way; wrap it in a promise
+  // and read it back out as a data URL string for storage.
+  return new Promise((resolve, reject)=>{
+    try{
+      canvas.toBlob((blob)=>{
+        if(!blob){ resolve(''); return; }
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(blob);
+      }, 'image/png');
+    } catch(e){ reject(e); }
+  });
+}
 function saveCurrentNoteN(){
   if(!currentNoteIdN || !shUserN) return;
   statusEl.className = 'editing'; statusEl.textContent = 'editing…';
@@ -14953,7 +14972,7 @@ function saveCurrentNoteN(){
       const existingRaw = await window.storage.get(notesKeyPrefixN() + currentNoteIdN, false).catch(()=>null);
       const createdAt = existingRaw ? (JSON.parse(existingRaw.value).createdAt || now) : now;
       let drawing = '';
-      try{ if(canvasEl.width && canvasEl.height) drawing = canvasEl.toDataURL('image/png'); }catch(e){}
+      try{ if(canvasEl.width && canvasEl.height) drawing = await canvasToDataURLAsync(canvasEl); }catch(e){}
       const payload = {
         id: currentNoteIdN, subject: notesSubject || 'Unsorted',
         title: titleEl.value, body: bodyEl.value, drawing,
