@@ -14833,15 +14833,23 @@ function drawPosN(e){
   return { x: (e.clientX - r.left) * dpr, y: (e.clientY - r.top) * dpr };
 }
 let activePointerIdN = null;
+let activePointerTypeN = null;
 canvasEl.addEventListener('pointerdown', (e)=>{
   if(inputModeN !== 'draw') return;
-  // Ignore a second simultaneous pointer (e.g. a resting palm, or a second
-  // finger) while a stroke is already in progress — otherwise its moves
-  // get drawn into the same path as the first pointer's, making the line
-  // jump back and forth between two different touch points.
-  if(drawingActiveN) return;
+  // Palm rejection only applies to the specific case it's for: a resting
+  // palm (pointerType 'touch') landing while an actual pen stroke is in
+  // progress. A fresh 'pen' contact always takes over and resets the path,
+  // even if the previous pen stroke's pointerup hasn't been processed yet —
+  // writing fast, lifting the pencil, and touching down again quickly can
+  // outrun the browser's event delivery, so the new stroke's pointerdown
+  // can arrive before the old one's pointerup. Treating a stale
+  // drawingActiveN flag as still-authoritative in that case left the old
+  // stroke's path lingering, so the new stroke's first move drew a stray
+  // line back to wherever the old one had ended, instead of starting clean.
+  if(drawingActiveN && e.pointerType === 'touch' && activePointerTypeN === 'pen') return;
   drawingActiveN = true;
   activePointerIdN = e.pointerId;
+  activePointerTypeN = e.pointerType;
   try{ canvasEl.setPointerCapture(e.pointerId); }catch(err){}
   const p = drawPosN(e);
   canvasCtx.beginPath();
@@ -14883,6 +14891,7 @@ function endDrawN(e){
   if(e && e.pointerId != null && e.pointerId !== activePointerIdN) return;
   drawingActiveN = false;
   activePointerIdN = null;
+  activePointerTypeN = null;
   saveCurrentNoteN();
 }
 canvasEl.addEventListener('pointerup', endDrawN);
