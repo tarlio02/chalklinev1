@@ -14850,7 +14850,6 @@ canvasEl.addEventListener('pointerdown', (e)=>{
 });
 canvasEl.addEventListener('pointermove', (e)=>{
   if(!drawingActiveN || e.pointerId !== activePointerIdN) return;
-  const p = drawPosN(e);
   const dpr = window.devicePixelRatio || 1;
   canvasCtx.lineCap = 'round'; canvasCtx.lineJoin = 'round';
   if(erasingN){
@@ -14863,7 +14862,19 @@ canvasEl.addEventListener('pointermove', (e)=>{
     const pressure = (e.pressure && e.pressure > 0) ? e.pressure : 0.5;
     canvasCtx.lineWidth = (1.5 + pressure * 2.5) * dpr;
   }
-  canvasCtx.lineTo(p.x, p.y);
+  // A fast stroke can move several pixels between the pointermove events the
+  // browser actually dispatches (they're capped to the display's refresh
+  // rate), so drawing only to the latest event's position turns a fast
+  // stroke into short, gappy-looking segments. getCoalescedEvents() exposes
+  // every raw sample the OS captured in between (this is what lets an Apple
+  // Pencil's much higher sampling rate come through at all) — draw a line
+  // through each of those points instead of skipping straight to the last one.
+  const events = (typeof e.getCoalescedEvents === 'function') ? e.getCoalescedEvents() : [];
+  const points = events.length ? events : [e];
+  for(const ev of points){
+    const p = drawPosN(ev);
+    canvasCtx.lineTo(p.x, p.y);
+  }
   canvasCtx.stroke();
   e.preventDefault();
 });
