@@ -14832,9 +14832,16 @@ function drawPosN(e){
   const dpr = window.devicePixelRatio || 1;
   return { x: (e.clientX - r.left) * dpr, y: (e.clientY - r.top) * dpr };
 }
+let activePointerIdN = null;
 canvasEl.addEventListener('pointerdown', (e)=>{
   if(inputModeN !== 'draw') return;
+  // Ignore a second simultaneous pointer (e.g. a resting palm, or a second
+  // finger) while a stroke is already in progress — otherwise its moves
+  // get drawn into the same path as the first pointer's, making the line
+  // jump back and forth between two different touch points.
+  if(drawingActiveN) return;
   drawingActiveN = true;
+  activePointerIdN = e.pointerId;
   try{ canvasEl.setPointerCapture(e.pointerId); }catch(err){}
   const p = drawPosN(e);
   canvasCtx.beginPath();
@@ -14842,7 +14849,7 @@ canvasEl.addEventListener('pointerdown', (e)=>{
   e.preventDefault();
 });
 canvasEl.addEventListener('pointermove', (e)=>{
-  if(!drawingActiveN) return;
+  if(!drawingActiveN || e.pointerId !== activePointerIdN) return;
   const p = drawPosN(e);
   const dpr = window.devicePixelRatio || 1;
   canvasCtx.lineCap = 'round'; canvasCtx.lineJoin = 'round';
@@ -14862,7 +14869,9 @@ canvasEl.addEventListener('pointermove', (e)=>{
 });
 function endDrawN(e){
   if(!drawingActiveN) return;
+  if(e && e.pointerId != null && e.pointerId !== activePointerIdN) return;
   drawingActiveN = false;
+  activePointerIdN = null;
   saveCurrentNoteN();
 }
 canvasEl.addEventListener('pointerup', endDrawN);
