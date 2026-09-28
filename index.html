@@ -14839,10 +14839,57 @@ function clearDrawingN(){
   canvasCtx.clearRect(0, 0, canvasEl.width, canvasEl.height);
   saveCurrentNoteN();
 }
-function drawPosN(e){
-  const r = canvasEl.getBoundingClientRect();
+/* ---- Ink engine ----
+   Input phase (pointer handlers): read coordinates, queue points. No drawing.
+   Render phase (rAF flush): draw queued segments. No DOM reads.
+   Each segment is its own beginPath/moveTo/lineTo/stroke, so cost per point
+   is constant no matter how long the stroke is (the old code re-stroked the
+   whole accumulated path on every event, which is what made ink lag). */
+let lastPtN = null;        // last point actually drawn for the active stroke
+let pendingPointsN = [];   // queued points awaiting the next animation frame
+let rafScheduledN = false;
+function queuePointN(ev, r, dpr){
+  // Canvas-space coords: viewport-relative clientX/Y minus the canvas's
+  // viewport-relative rect handles page scroll and pinch-zoom; dpr maps
+  // CSS pixels to the canvas's internal pixel buffer.
+  pendingPointsN.push({
+    x: (ev.clientX - r.left) * dpr,
+    y: (ev.clientY - r.top) * dpr,
+    pressure: (ev.pressure && ev.pressure > 0) ? ev.pressure : 0.5,
+    erase: erasingN
+  });
+}
+function scheduleDrawFlushN(){
+  if(rafScheduledN) return;
+  rafScheduledN = true;
+  requestAnimationFrame(flushDrawQueueN);
+}
+function flushDrawQueueN(){
+  rafScheduledN = false;
+  if(!pendingPointsN.length) return;
   const dpr = window.devicePixelRatio || 1;
-  return { x: (e.clientX - r.left) * dpr, y: (e.clientY - r.top) * dpr };
+  const pts = pendingPointsN; pendingPointsN = [];
+  canvasCtx.lineCap = 'round'; canvasCtx.lineJoin = 'round';
+  let prevPressure = null;
+  for(const pt of pts){
+    if(!lastPtN){ lastPtN = pt; continue; }
+    // Smooth the pressure so width changes gradually instead of stepping.
+    const pr = prevPressure == null ? pt.pressure : prevPressure * 0.5 + pt.pressure * 0.5;
+    prevPressure = pr;
+    canvasCtx.beginPath();
+    canvasCtx.moveTo(lastPtN.x, lastPtN.y);
+    canvasCtx.lineTo(pt.x, pt.y);
+    if(pt.erase){
+      canvasCtx.globalCompositeOperation = 'destination-out';
+      canvasCtx.lineWidth = 20 * dpr;
+    } else {
+      canvasCtx.globalCompositeOperation = 'source-over';
+      canvasCtx.strokeStyle = penColorN;
+      canvasCtx.lineWidth = (1.5 + pr * 2.5) * dpr;
+    }
+    canvasCtx.stroke();
+    lastPtN = pt;
+  }
 }
 let activePointerIdN = null;
 let activePointerTypeN = null;
@@ -14869,9 +14916,20 @@ canvasEl.addEventListener('pointerdown', (e)=>{
   // own selectstart/user-select guards unless we also toggle them there.
   try{ window.parent.document.body.classList.add('no-select-while-drawing'); }catch(err){}
   try{ canvasEl.setPointerCapture(e.pointerId); }catch(err){}
-  const p = drawPosN(e);
-  canvasCtx.beginPath();
-  canvasCtx.moveTo(p.x, p.y);
+  lastPtN = null;
+  pendingPointsN = [];
+  queuePointN(e, canvasEl.getBoundingClientRect(), window.devicePixelRatio || 1);
+  flushDrawQueueN(); // seeds lastPtN from the pointerdown position
+  if(lastPtN){
+    // A tap with no movement should still leave a dot.
+    const dpr = window.devicePixelRatio || 1;
+    const rad = (erasingN ? 10 : (1.5 + lastPtN.pressure * 2.5) / 2) * dpr;
+    canvasCtx.globalCompositeOperation = erasingN ? 'destination-out' : 'source-over';
+    canvasCtx.fillStyle = erasingN ? '#000' : penColorN;
+    canvasCtx.beginPath();
+    canvasCtx.arc(lastPtN.x, lastPtN.y, rad, 0, Math.PI * 2);
+    canvasCtx.fill();
+  }
   e.preventDefault();
 });
 // Belt-and-suspenders: some browsers can still start a text selection from
@@ -14881,37 +14939,28 @@ document.addEventListener('selectstart', (e)=>{ if(drawingActiveN) e.preventDefa
 try{ window.parent.document.addEventListener('selectstart', (e)=>{ if(drawingActiveN) e.preventDefault(); }); }catch(err){}
 canvasEl.addEventListener('pointermove', (e)=>{
   if(!drawingActiveN || e.pointerId !== activePointerIdN) return;
+  // Input phase only: one rect read per event, every coalesced sample queued
+  // (nothing throttled or discarded), drawing deferred to the rAF flush.
+  const r = canvasEl.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
-  canvasCtx.lineCap = 'round'; canvasCtx.lineJoin = 'round';
-  if(erasingN){
-    canvasCtx.globalCompositeOperation = 'destination-out';
-    canvasCtx.lineWidth = 20 * dpr;
-  } else {
-    canvasCtx.globalCompositeOperation = 'source-over';
-    canvasCtx.strokeStyle = penColorN;
-    // Apple Pencil reports pressure via PointerEvent.pressure — use it for a natural line weight.
-    const pressure = (e.pressure && e.pressure > 0) ? e.pressure : 0.5;
-    canvasCtx.lineWidth = (1.5 + pressure * 2.5) * dpr;
-  }
-  // A fast stroke can move several pixels between the pointermove events the
-  // browser actually dispatches (they're capped to the display's refresh
-  // rate), so drawing only to the latest event's position turns a fast
-  // stroke into short, gappy-looking segments. getCoalescedEvents() exposes
-  // every raw sample the OS captured in between (this is what lets an Apple
-  // Pencil's much higher sampling rate come through at all) — draw a line
-  // through each of those points instead of skipping straight to the last one.
-  const events = (typeof e.getCoalescedEvents === 'function') ? e.getCoalescedEvents() : [];
-  const points = events.length ? events : [e];
-  for(const ev of points){
-    const p = drawPosN(ev);
-    canvasCtx.lineTo(p.x, p.y);
-  }
-  canvasCtx.stroke();
+  const coalesced = (typeof e.getCoalescedEvents === 'function') ? e.getCoalescedEvents() : [];
+  const samples = coalesced.length ? coalesced : [e];
+  for(const ev of samples) queuePointN(ev, r, dpr);
+  scheduleDrawFlushN();
   e.preventDefault();
 });
 function endDrawN(e){
   if(!drawingActiveN) return;
   if(e && e.pointerId != null && e.pointerId !== activePointerIdN) return;
+  const pid = activePointerIdN;
+  // No more input is coming: land the final segment (including the pointerup's
+  // own position) now rather than waiting for the next frame.
+  if(e && e.type === 'pointerup' && e.clientX != null){
+    queuePointN(e, canvasEl.getBoundingClientRect(), window.devicePixelRatio || 1);
+  }
+  flushDrawQueueN();
+  lastPtN = null;
+  try{ if(pid != null) canvasEl.releasePointerCapture(pid); }catch(err){}
   drawingActiveN = false;
   activePointerIdN = null;
   activePointerTypeN = null;
