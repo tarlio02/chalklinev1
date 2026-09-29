@@ -14600,6 +14600,8 @@ h1,h2,h3{ font-family:'Fraunces','Source Serif 4',Georgia,serif; margin:0; color
   padding:8px 2px 6px; font:600 10px 'JetBrains Mono',monospace; color:var(--muted); cursor:pointer; }
 .tool-opt.active{ background:#FFF1CC; color:var(--ink); }
 .color-row{ display:flex; gap:11px; flex-wrap:wrap; justify-content:center; }
+.mode-row{ display:none; justify-content:center; gap:4px; }
+#pen-tray.eraser .mode-row{ display:flex; }
 .size-row{ display:flex; gap:8px; justify-content:center; }
 .pager{ position:absolute; z-index:20; left:50%; transform:translateX(-50%); bottom:calc(var(--safe-bottom) + 18px);
   display:flex; align-items:center; gap:2px; height:46px; padding:0 6px; border-radius:999px; }
@@ -14951,12 +14953,21 @@ const ICONS = {
 const PALETTE = ['#2A2410','#2E7DBE','#C0392B','#2F9E5B','#F0862A','#7B4FB3','#FFD84A','#FF8FB8'];
 const toolColorN = { pen:'#2A2410', pencil:'#2A2410', marker:'#2E7DBE', brush:'#2A2410', highlighter:'#FFD84A' };
 let toolN = 'pen', inkToolN = 'pen';
+let eraseModeN = 'pixel';      // 'pixel' rubs ink out; 'object' removes whole strokes
+let strokeRecN = null;         // the stroke being recorded (kept as vector data so it can be erased as an object)
+function objEraseActive(){ return erasingN && eraseModeN === 'object'; }
+function setEraseModeN(m){
+  eraseModeN = m;
+  document.querySelectorAll('#pen-tray [data-em]').forEach(el => el.classList.toggle('active', el.dataset.em === m));
+  try{ localStorage.setItem('chalkline:notes-erase-mode', m); }catch(e){}
+}
 function iconN(t){ return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + ICONS[t] + '</svg>'; }
 function setToolN(t){
   toolN = t; erasingN = (t === 'eraser');
   if(!erasingN){ inkToolN = t; penColorN = toolColorN[t]; }
   document.querySelectorAll('.tool-opt').forEach(el => el.classList.toggle('active', el.dataset.tool === t));
   document.querySelectorAll('#pen-tray .swatch').forEach(el => el.classList.toggle('active', !erasingN && el.dataset.color === penColorN));
+  document.getElementById('pen-tray').classList.toggle('eraser', erasingN);
   document.getElementById('tray-icon').innerHTML = iconN(t);
   const d = document.getElementById('tray-dot');
   d.style.background = penColorN; d.style.display = erasingN ? 'none' : 'block';
@@ -14971,16 +14982,19 @@ function toggleTrayN(force){
   t.innerHTML =
     '<div class="tool-row">' + Object.keys(TOOLS).map(k => '<button type="button" class="tool-opt" data-tool="' + k + '" onclick="setToolN(\'' + k + '\')">' + iconN(k) + TOOLS[k].label + '</button>').join('') + '</div>' +
     '<div class="color-row">' + PALETTE.map(c => '<button type="button" class="swatch" data-color="' + c + '" style="background:' + c + '" onclick="setPenColorN(\'' + c + '\')"></button>').join('') + '</div>' +
-    '<div class="size-row">' + [[0.55,3],[1,6],[1.7,10],[2.6,15]].map(a => '<button type="button" class="size-btn" data-size="' + a[0] + '" onclick="setPenSizeN(' + a[0] + ',this)"><i style="width:' + a[1] + 'px;height:' + a[1] + 'px"></i></button>').join('') + '</div>';
+    '<div class="mode-row"><button type="button" class="seg-btn" data-em="pixel" onclick="setEraseModeN(\'pixel\')">Pixel</button><button type="button" class="seg-btn" data-em="object" onclick="setEraseModeN(\'object\')">Object</button></div>' + '<div class="size-row">' + [[0.55,3],[1,6],[1.7,10],[2.6,15]].map(a => '<button type="button" class="size-btn" data-size="' + a[0] + '" onclick="setPenSizeN(' + a[0] + ',this)"><i style="width:' + a[1] + 'px;height:' + a[1] + 'px"></i></button>').join('') + '</div>';
   let v = 1; try{ v = parseFloat(localStorage.getItem('chalkline:notes-pen-size')) || 1; }catch(e){}
   const b = t.querySelector('.size-btn[data-size="' + v + '"]') || t.querySelector('.size-btn[data-size="1"]');
   penSizeN = parseFloat(b.dataset.size); b.classList.add('active');
+  let em = 'pixel'; try{ em = localStorage.getItem('chalkline:notes-erase-mode') || 'pixel'; }catch(e){}
+  setEraseModeN(em === 'object' ? 'object' : 'pixel');
   setToolN('pen');
   document.getElementById('editor-view').addEventListener('pointerdown', (e)=>{
     if(t.classList.contains('open') && !e.target.closest('#pen-tray') && !e.target.closest('#tray-btn')) toggleTrayN(false);
   }, true);
 })();
 function clearDrawingN(){
+  const pg = pagesN[curPageN]; if(pg){ pg.base = ''; pg.strokes = []; }
   canvasCtx.clearRect(0, 0, canvasEl.width, canvasEl.height);
   saveCurrentNoteN();
 }
@@ -15001,6 +15015,7 @@ function queuePointN(ev, r, dpr){
     pressure: (ev.pressure && ev.pressure > 0) ? ev.pressure : 0.5,
     erase: erasingN, tool: toolN
   });
+  if(strokeRecN){ const q = pendingPointsN[pendingPointsN.length - 1]; strokeRecN.pts.push(+(q.x / dpr).toFixed(1), +(q.y / dpr).toFixed(1), +q.pressure.toFixed(2)); }
 }
 function scheduleDrawFlushN(){
   if(rafScheduledN) return;
@@ -15032,6 +15047,69 @@ function paintLayerN(st){
   c.globalCompositeOperation = 'copy'; c.drawImage(st.base, 0, 0);
   c.globalCompositeOperation = 'source-over'; c.globalAlpha = st.T.a; c.strokeStyle = st.color;
   c.lineWidth = st.lw; c.lineCap = 'round'; c.lineJoin = 'round'; c.stroke(st.path); c.globalAlpha = 1;
+}
+function commitStrokeN(){
+  const rec = strokeRecN; strokeRecN = null;
+  const pg = pagesN[curPageN];
+  if(!rec || !rec.pts.length || !pg) return;
+  (pg.strokes = pg.strokes || []).push(rec);
+}
+// Re-draws a saved stroke by feeding its raw points back through the live smoothing engine.
+function replayStrokeN(rec){
+  const dpr = window.devicePixelRatio || 1, q = rec.pts, keep = [penColorN, penSizeN];
+  penColorN = rec.color; penSizeN = rec.size;
+  for(let i = 0; i < q.length; i += 3) pendingPointsN.push({ x:q[i] * dpr, y:q[i+1] * dpr, pressure:q[i+2], erase:rec.erase, tool:rec.tn });
+  strokeN = null; flushDrawQueueN(); finishStrokeN();
+  const tap = q.length <= 6 && Math.hypot(q[0] - q[q.length-3], q[1] - q[q.length-2]) < 0.5;
+  if(tap && !TOOLS[rec.tn].layer){   // a tap with no movement leaves a dot
+    const c = canvasCtx;
+    c.globalCompositeOperation = rec.erase ? 'destination-out' : 'source-over';
+    c.globalAlpha = rec.erase ? 1 : TOOLS[rec.tn].a; c.fillStyle = rec.erase ? '#000' : rec.color;
+    c.beginPath(); c.arc(q[0] * dpr, q[1] * dpr, (rec.erase ? eraserWidthN(dpr) : strokeWidthN(q[2], dpr, rec.tn)) / 2, 0, Math.PI * 2); c.fill(); c.globalAlpha = 1;
+  }
+  penColorN = keep[0]; penSizeN = keep[1];
+}
+const imgCacheN = new WeakMap();
+function renderPageN(){
+  const pg = pagesN[curPageN]; if(!pg) return;
+  const c = canvasCtx;
+  c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1; c.clearRect(0, 0, canvasEl.width, canvasEl.height);
+  const go = ()=>{ (pg.strokes || []).forEach(replayStrokeN); };
+  if(!pg.base){ go(); return; }
+  let img = imgCacheN.get(pg);
+  if(img && img.complete){ c.drawImage(img, 0, 0); go(); return; }
+  img = new Image();
+  img.onload = ()=>{ imgCacheN.set(pg, img); if(pagesN[curPageN] === pg) renderPageN(); };
+  img.src = pg.base;
+}
+let renderQueuedN = false;
+function scheduleRenderN(){
+  if(renderQueuedN) return; renderQueuedN = true;
+  requestAnimationFrame(()=>{ renderQueuedN = false; renderPageN(); });
+}
+function distSegN(px, py, ax, ay, bx, by){
+  const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+  const t = l2 ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l2)) : 0;
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+}
+function strokeHitN(rec, x, y, r){
+  const q = rec.pts, w = r + TOOLS[rec.tn].w(1) * rec.size / 2;
+  if(!rec.bb){
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    for(let i = 0; i < q.length; i += 3){ x0 = Math.min(x0, q[i]); x1 = Math.max(x1, q[i]); y0 = Math.min(y0, q[i+1]); y1 = Math.max(y1, q[i+1]); }
+    rec.bb = [x0, y0, x1, y1];
+  }
+  if(x < rec.bb[0] - w || x > rec.bb[2] + w || y < rec.bb[1] - w || y > rec.bb[3] + w) return false;
+  if(q.length < 6) return Math.hypot(x - q[0], y - q[1]) <= w;
+  for(let i = 0; i + 5 < q.length; i += 3) if(distSegN(x, y, q[i], q[i+1], q[i+3], q[i+4]) <= w) return true;
+  return false;
+}
+// Object eraser: touching any part of a stroke removes that whole stroke.
+function objEraseAtN(x, y){
+  const pg = pagesN[curPageN]; if(!pg || !pg.strokes) return;
+  const r = eraserWidthN(1) / 2;
+  const kept = pg.strokes.filter(rec => rec.erase || !strokeHitN(rec, x, y, r));
+  if(kept.length !== pg.strokes.length){ pg.strokes = kept; scheduleRenderN(); }
 }
 function flushDrawQueueN(){
   rafScheduledN = false;
@@ -15116,7 +15194,13 @@ canvasEl.addEventListener('pointerdown', (e)=>{
   // own selectstart/user-select guards unless we also toggle them there.
   try{ window.parent.document.body.classList.add('no-select-while-drawing'); }catch(err){}
   try{ canvasEl.setPointerCapture(e.pointerId); }catch(err){}
-  lastPtN = null; strokeN = null;
+  lastPtN = null; strokeN = null; strokeRecN = null;
+  if(objEraseActive()){
+    const r0 = canvasEl.getBoundingClientRect();
+    objEraseAtN(e.clientX - r0.left, e.clientY - r0.top);
+    e.preventDefault(); return;
+  }
+  strokeRecN = { tn: erasingN ? 'eraser' : toolN, erase: erasingN, color: penColorN, size: penSizeN, pts: [] };
   pendingPointsN = [];
   queuePointN(e, canvasEl.getBoundingClientRect(), window.devicePixelRatio || 1);
   flushDrawQueueN(); // seeds the stroke from the pointerdown position
@@ -15150,6 +15234,7 @@ canvasEl.addEventListener('pointermove', (e)=>{
   const dpr = window.devicePixelRatio || 1;
   const coalesced = (typeof e.getCoalescedEvents === 'function') ? e.getCoalescedEvents() : [];
   const samples = coalesced.length ? coalesced : [e];
+  if(objEraseActive()){ for(const ev of samples) objEraseAtN(ev.clientX - r.left, ev.clientY - r.top); e.preventDefault(); return; }
   for(const ev of samples) queuePointN(ev, r, dpr);
   scheduleDrawFlushN();
   e.preventDefault();
@@ -15165,6 +15250,7 @@ function endDrawN(e){
   }
   flushDrawQueueN();
   finishStrokeN();
+  commitStrokeN();
   lastPtN = null;
   try{ if(pid != null) canvasEl.releasePointerCapture(pid); }catch(err){}
   drawingActiveN = false;
@@ -15183,12 +15269,11 @@ canvasEl.addEventListener('pointercancel', endDrawN);
 window.addEventListener('pointerup', endDrawN);
 
 /* ---- Pages: each page has its own text, drawing and paper style ---- */
-let pagesN = [{ body:'', drawing:'', paper:'ruled' }];
+let pagesN = [{ body:'', base:'', strokes:[], paper:'ruled' }];
 let curPageN = 0;
 function syncPageN(){
   const p = pagesN[curPageN]; if(!p) return;
   p.body = bodyEl.value; p.paper = paperN;
-  try{ p.drawing = canvasEl.toDataURL('image/png'); }catch(e){}
 }
 function updatePagerN(){
   document.getElementById('pg-label').textContent = (curPageN + 1) + ' / ' + pagesN.length;
@@ -15204,17 +15289,14 @@ function loadPageN(delay){
   titleEl.style.pointerEvents = curPageN === 0 ? '' : 'none';
   document.getElementById('note-scroll').scrollTop = 0;
   autosizeBodyN(); updatePagerN();
-  setTimeout(()=>{
-    canvasCtx.clearRect(0, 0, canvasEl.width, canvasEl.height);
-    if(p.drawing){ const img = new Image(); img.onload = ()=> canvasCtx.drawImage(img, 0, 0); img.src = p.drawing; }
-  }, delay || 0);
+  setTimeout(renderPageN, delay || 0);
 }
 function goPageN(i){
   if(i < 0 || i >= pagesN.length || i === curPageN) return;
   syncPageN(); curPageN = i; loadPageN(0); saveCurrentNoteN();
 }
 function addPageN(){
-  syncPageN(); pagesN.splice(curPageN + 1, 0, { body:'', drawing:'', paper:paperN });
+  syncPageN(); pagesN.splice(curPageN + 1, 0, { body:'', base:'', strokes:[], paper:paperN });
   curPageN++; loadPageN(0); saveCurrentNoteN();
 }
 function deletePageN(){
@@ -15275,7 +15357,7 @@ function startNewNoteN(){
   bodyEl.value = '';
   statusEl.className = 'saved'; statusEl.textContent = 'new';
   document.getElementById('note-delete-btn').style.display = 'none';
-  pagesN = [{ body:'', drawing:'', paper:loadPaperDefaultN() }]; curPageN = 0;
+  pagesN = [{ body:'', base:'', strokes:[], paper:loadPaperDefaultN() }]; curPageN = 0;
   showEditorN();
   loadPageN(0);
   titleEl.focus();
@@ -15291,7 +15373,8 @@ async function openNoteN(id){
     bodyEl.value = item.body || '';
     statusEl.className = 'saved'; statusEl.textContent = 'saved';
     document.getElementById('note-delete-btn').style.display = '';
-    pagesN = (item.pages && item.pages.length) ? item.pages : [{ body:item.body || '', drawing:item.drawing || '', paper:item.paper || 'ruled' }];
+    pagesN = ((item.pages && item.pages.length) ? item.pages : [{ body:item.body, drawing:item.drawing, paper:item.paper }])
+      .map(q => ({ body:q.body || '', paper:q.paper || 'ruled', base:q.base || q.drawing || '', strokes:q.strokes || [] }));   // older notes' ink becomes the fixed base layer
     curPageN = 0;
     showEditorN();
     loadPageN(60);
@@ -15326,13 +15409,11 @@ function saveCurrentNoteN(){
       const existingRaw = await window.storage.get(notesKeyPrefixN() + currentNoteIdN, false).catch(()=>null);
       const createdAt = existingRaw ? (JSON.parse(existingRaw.value).createdAt || now) : now;
       const pi = curPageN, pBody = bodyEl.value, pPaper = paperN;
-      let drawing = '';
-      try{ if(canvasEl.width && canvasEl.height) drawing = await canvasToDataURLAsync(canvasEl); }catch(e){}
       const payload = {
         id: currentNoteIdN, subject: notesSubject || 'Unsorted',
         title: titleEl.value, body: '', createdAt, updatedAt: now
       };
-      if(pagesN[pi]){ pagesN[pi].body = pBody; pagesN[pi].drawing = drawing; pagesN[pi].paper = pPaper; }
+      if(pagesN[pi]){ pagesN[pi].body = pBody; pagesN[pi].paper = pPaper; }
       payload.pages = pagesN;
       payload.body = pagesN.map(x => x.body).join('\n\n');
       await window.storage.set(notesKeyPrefixN() + currentNoteIdN, JSON.stringify(payload), false);
