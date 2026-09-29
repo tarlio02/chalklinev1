@@ -14604,7 +14604,11 @@ h1,h2,h3{ font-family:'Fraunces','Source Serif 4',Georgia,serif; margin:0; color
    labels, etc) — preventDefault() on the pointer events doesn't reliably
    suppress that in every browser. Killing user-select on the whole page for
    the duration of an active stroke stops that "select everything" effect. */
-body.no-select-while-drawing{ user-select:none; -webkit-user-select:none; }
+body.no-select-while-drawing,
+.sheet.drawing, .sheet.drawing *, #note-canvas{
+  user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;
+  -webkit-tap-highlight-color:transparent;
+}
 </style>
 </head>
 <body>
@@ -14822,6 +14826,12 @@ function setModeN(mode){
   inputModeN = mode;
   penSeenN = false;
   sheetEl.classList.toggle('drawing', mode === 'draw');
+  if(mode === 'draw'){
+    // A focused textarea/title (or a leftover selection) is what iPadOS
+    // Scribble/pencil-hold latches onto and turns into "select all".
+    try{ if(document.activeElement && document.activeElement !== document.body) document.activeElement.blur(); }catch(err){}
+    try{ const sel = window.getSelection(); if(sel) sel.removeAllRanges(); }catch(err){}
+  }
   document.getElementById('mode-type-btn').classList.toggle('active', mode === 'type');
   document.getElementById('mode-draw-btn').classList.toggle('active', mode === 'draw');
   document.getElementById('draw-tools').classList.toggle('show', mode === 'draw');
@@ -14916,6 +14926,8 @@ canvasEl.addEventListener('pointerdown', (e)=>{
   // Touch never takes over a stroke in progress (that's what made lines jump
   // to a second contact), and is ignored entirely once a pen has been used.
   if(e.pointerType === 'touch' && (penSeenN || drawingActiveN)){ e.preventDefault(); return; }
+  try{ const sel = window.getSelection(); if(sel && sel.rangeCount) sel.removeAllRanges(); }catch(err){}
+  try{ if(document.activeElement && document.activeElement !== document.body) document.activeElement.blur(); }catch(err){}
   drawingActiveN = true;
   activePointerIdN = e.pointerId;
   activePointerTypeN = e.pointerType;
@@ -14945,7 +14957,11 @@ canvasEl.addEventListener('pointerdown', (e)=>{
 // Belt-and-suspenders: some browsers can still start a text selection from
 // a fast drag even with user-select:none and preventDefault() on the pointer
 // events, so also explicitly block the selectstart it would fire from.
-document.addEventListener('selectstart', (e)=>{ if(drawingActiveN) e.preventDefault(); });
+document.addEventListener('selectstart', (e)=>{
+  const t = e.target && e.target.tagName;
+  if(t === 'INPUT' || t === 'TEXTAREA') return;   // keep title/body editable
+  if(drawingActiveN || inputModeN === 'draw') e.preventDefault();
+});
 try{ window.parent.document.addEventListener('selectstart', (e)=>{ if(drawingActiveN) e.preventDefault(); }); }catch(err){}
 canvasEl.addEventListener('pointermove', (e)=>{
   if(!drawingActiveN || e.pointerId !== activePointerIdN) return;
@@ -14978,6 +14994,10 @@ function endDrawN(e){
   try{ window.parent.document.body.classList.remove('no-select-while-drawing'); }catch(err){}
   saveCurrentNoteN();
 }
+canvasEl.addEventListener('touchstart', (e)=>{ e.preventDefault(); }, { passive:false });
+canvasEl.addEventListener('touchmove', (e)=>{ e.preventDefault(); }, { passive:false });
+canvasEl.addEventListener('contextmenu', (e)=>{ e.preventDefault(); });
+canvasEl.addEventListener('dblclick', (e)=>{ e.preventDefault(); });
 canvasEl.addEventListener('pointerup', endDrawN);
 canvasEl.addEventListener('pointercancel', endDrawN);
 window.addEventListener('pointerup', endDrawN);
