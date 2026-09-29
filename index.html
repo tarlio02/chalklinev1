@@ -14591,6 +14591,13 @@ h1,h2,h3{ font-family:'Fraunces','Source Serif 4',Georgia,serif; margin:0; color
 .draw-tools.show{ display:inline-flex; }
 .swatch{ width:26px; height:26px; border-radius:50%; border:2px solid #fff; box-shadow:0 0 0 1px rgba(0,0,0,0.15); cursor:pointer; padding:0; flex-shrink:0; }
 .swatch.active{ box-shadow:0 0 0 2px var(--ink); }
+.sep{ width:1px; height:22px; background:rgba(0,0,0,0.12); flex-shrink:0; }
+.size-btn{
+  width:32px; height:32px; border-radius:50%; border:none; background:none; padding:0; cursor:pointer; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center;
+}
+.size-btn i{ display:block; border-radius:50%; background:var(--ink); }
+.size-btn.active{ background:#FFF1CC; box-shadow:0 0 0 1.5px var(--gold-deep) inset; }
 .tool-btn{
   border:none; background:none; font-family:'JetBrains Mono', monospace; font-size:12.5px; font-weight:600;
   color:var(--ink); height:34px; padding:0 10px; border-radius:999px; cursor:pointer; flex-shrink:0;
@@ -14696,6 +14703,12 @@ body.no-select-while-drawing,
         <button type="button" class="swatch active" data-color="#2A2410" style="background:#2A2410" onclick="setPenColorN('#2A2410',this)" title="Ink"></button>
         <button type="button" class="swatch" data-color="#2E7DBE" style="background:#2E7DBE" onclick="setPenColorN('#2E7DBE',this)" title="Blue"></button>
         <button type="button" class="swatch" data-color="#C0392B" style="background:#C0392B" onclick="setPenColorN('#C0392B',this)" title="Red"></button>
+        <span class="sep"></span>
+        <button type="button" class="size-btn" data-size="0.55" onclick="setPenSizeN(0.55,this)" title="Fine"><i style="width:3px;height:3px"></i></button>
+        <button type="button" class="size-btn active" data-size="1" onclick="setPenSizeN(1,this)" title="Medium"><i style="width:6px;height:6px"></i></button>
+        <button type="button" class="size-btn" data-size="1.7" onclick="setPenSizeN(1.7,this)" title="Thick"><i style="width:10px;height:10px"></i></button>
+        <button type="button" class="size-btn" data-size="2.6" onclick="setPenSizeN(2.6,this)" title="Marker"><i style="width:15px;height:15px"></i></button>
+        <span class="sep"></span>
         <button type="button" class="tool-btn" id="eraser-btn" onclick="toggleEraserN()" title="Eraser">🧽</button>
         <button type="button" class="tool-btn danger" onclick="clearDrawingN()">Clear</button>
       </div>
@@ -14854,6 +14867,18 @@ const canvasCtx = canvasEl.getContext('2d', { desynchronized: true });   // lets
 let inputModeN = 'type';
 let penColorN = '#2A2410';
 let erasingN = false;
+let penSizeN = 1;   // thickness multiplier: 0.55 fine, 1 medium, 1.7 thick, 2.6 marker
+function setPenSizeN(size, btn){
+  penSizeN = size;
+  document.querySelectorAll('.size-btn').forEach(el => el.classList.toggle('active', el === btn));
+  try{ localStorage.setItem('chalkline:notes-pen-size', String(size)); }catch(e){}
+}
+(function restorePenSizeN(){
+  let v = 1;
+  try{ v = parseFloat(localStorage.getItem('chalkline:notes-pen-size')) || 1; }catch(e){}
+  const btn = document.querySelector('.size-btn[data-size="' + v + '"]');
+  if(btn) setPenSizeN(v, btn);
+})();
 let drawingActiveN = false;
 
 function resizeCanvasN(){
@@ -14935,7 +14960,8 @@ function scheduleDrawFlushN(){
       (no corners or "polygon" look), even when samples are sparse.
    3. Pressure is low-passed separately so line width swells and thins
       gradually instead of stepping. */
-function strokeWidthN(sp, dpr){ return (1.2 + sp * 3.4) * dpr; }
+function strokeWidthN(sp, dpr){ return (1.2 + sp * 3.4) * penSizeN * dpr; }
+function eraserWidthN(dpr){ return (14 + penSizeN * 9) * dpr; }   // eraser grows with the thickness setting too
 function flushDrawQueueN(){
   rafScheduledN = false;
   if(!pendingPointsN.length) return;
@@ -14963,7 +14989,7 @@ function flushDrawQueueN(){
     canvasCtx.quadraticCurveTo(st.cx, st.cy, nmx, nmy);
     if(pt.erase){
       canvasCtx.globalCompositeOperation = 'destination-out';
-      canvasCtx.lineWidth = 22 * dpr;
+      canvasCtx.lineWidth = eraserWidthN(dpr);
     } else {
       canvasCtx.globalCompositeOperation = 'source-over';
       canvasCtx.strokeStyle = penColorN;
@@ -14986,7 +15012,7 @@ function finishStrokeN(){
   canvasCtx.beginPath();
   canvasCtx.moveTo(st.mx, st.my);
   canvasCtx.lineTo(st.cx, st.cy);
-  if(st.erase){ canvasCtx.globalCompositeOperation = 'destination-out'; canvasCtx.lineWidth = 22 * dpr; }
+  if(st.erase){ canvasCtx.globalCompositeOperation = 'destination-out'; canvasCtx.lineWidth = eraserWidthN(dpr); }
   else { canvasCtx.globalCompositeOperation = 'source-over'; canvasCtx.strokeStyle = penColorN; canvasCtx.lineWidth = strokeWidthN(st.sp, dpr); }
   canvasCtx.stroke();
 }
@@ -15033,7 +15059,7 @@ canvasEl.addEventListener('pointerdown', (e)=>{
   if(lastPtN){
     // A tap with no movement should still leave a dot.
     const dpr = window.devicePixelRatio || 1;
-    const rad = (erasingN ? 11 : strokeWidthN(lastPtN.pressure, 1) / 2) * dpr;
+    const rad = erasingN ? eraserWidthN(dpr) / 2 : strokeWidthN(lastPtN.pressure, dpr) / 2;
     canvasCtx.globalCompositeOperation = erasingN ? 'destination-out' : 'source-over';
     canvasCtx.fillStyle = erasingN ? '#000' : penColorN;
     canvasCtx.beginPath();
