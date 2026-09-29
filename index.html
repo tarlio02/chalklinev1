@@ -14848,7 +14848,7 @@ const bodyEl = document.getElementById('note-body');
 const statusEl = document.getElementById('note-status');
 const sheetEl = document.getElementById('note-sheet');
 const canvasEl = document.getElementById('note-canvas');
-const canvasCtx = canvasEl.getContext('2d');
+const canvasCtx = canvasEl.getContext('2d', { desynchronized: true });   // lets the browser skip a frame of compositor latency
 
 /* ---- Type / Draw (Apple Pencil, finger or mouse) ---- */
 let inputModeN = 'type';
@@ -14907,13 +14907,11 @@ function clearDrawingN(){
    Each segment is its own beginPath/moveTo/lineTo/stroke, so cost per point
    is constant no matter how long the stroke is (the old code re-stroked the
    whole accumulated path on every event, which is what made ink lag). */
-let lastPtN = null;        // last point actually drawn for the active stroke
-let pendingPointsN = [];   // queued points awaiting the next animation frame
+let lastPtN = null;        // last smoothed point of the active stroke (x, y, pressure)
+let pendingPointsN = [];   // raw samples queued for the next animation frame
 let rafScheduledN = false;
+let strokeN = null;        // smoothing state for the stroke in progress
 function queuePointN(ev, r, dpr){
-  // Canvas-space coords: viewport-relative clientX/Y minus the canvas's
-  // viewport-relative rect handles page scroll and pinch-zoom; dpr maps
-  // CSS pixels to the canvas's internal pixel buffer.
   pendingPointsN.push({
     x: (ev.clientX - r.left) * dpr,
     y: (ev.clientY - r.top) * dpr,
@@ -14926,32 +14924,71 @@ function scheduleDrawFlushN(){
   rafScheduledN = true;
   requestAnimationFrame(flushDrawQueueN);
 }
+/* Smoothing + stabilisation (Apple Notes style)
+   1. Stabilise: every raw sample is pulled toward the pen with an adaptive
+      low-pass filter. Slow, careful movement is smoothed hard (this removes
+      hand tremor and digitiser jitter); fast movement passes through almost
+      untouched so the ink never feels like it is lagging behind the pencil.
+   2. Curve: instead of joining samples with straight lines, each segment is a
+      quadratic Bezier that runs midpoint-to-midpoint using the previous sample
+      as its control point. That makes the stroke continuous in direction
+      (no corners or "polygon" look), even when samples are sparse.
+   3. Pressure is low-passed separately so line width swells and thins
+      gradually instead of stepping. */
+function strokeWidthN(sp, dpr){ return (1.2 + sp * 3.4) * dpr; }
 function flushDrawQueueN(){
   rafScheduledN = false;
   if(!pendingPointsN.length) return;
   const dpr = window.devicePixelRatio || 1;
   const pts = pendingPointsN; pendingPointsN = [];
   canvasCtx.lineCap = 'round'; canvasCtx.lineJoin = 'round';
-  let prevPressure = null;
   for(const pt of pts){
-    if(!lastPtN){ lastPtN = pt; continue; }
-    // Smooth the pressure so width changes gradually instead of stepping.
-    const pr = prevPressure == null ? pt.pressure : prevPressure * 0.5 + pt.pressure * 0.5;
-    prevPressure = pr;
+    if(!strokeN){
+      strokeN = { sx: pt.x, sy: pt.y, sp: pt.pressure, cx: pt.x, cy: pt.y, mx: pt.x, my: pt.y, erase: pt.erase };
+      lastPtN = { x: pt.x, y: pt.y, pressure: pt.pressure };
+      continue;
+    }
+    const st = strokeN;
+    const dx = pt.x - st.sx, dy = pt.y - st.sy;
+    const dist = Math.hypot(dx, dy) / dpr;          // CSS px moved since the smoothed point
+    if(dist < 0.25) continue;                        // ignore sub-pixel jitter
+    const alpha = Math.min(0.85, 0.2 + dist * 0.035); // more movement = less smoothing
+    st.sx += dx * alpha;
+    st.sy += dy * alpha;
+    st.sp += (pt.pressure - st.sp) * 0.22;
+    // midpoint-to-midpoint quadratic curve, control point = previous smoothed sample
+    const nmx = (st.cx + st.sx) / 2, nmy = (st.cy + st.sy) / 2;
     canvasCtx.beginPath();
-    canvasCtx.moveTo(lastPtN.x, lastPtN.y);
-    canvasCtx.lineTo(pt.x, pt.y);
+    canvasCtx.moveTo(st.mx, st.my);
+    canvasCtx.quadraticCurveTo(st.cx, st.cy, nmx, nmy);
     if(pt.erase){
       canvasCtx.globalCompositeOperation = 'destination-out';
-      canvasCtx.lineWidth = 20 * dpr;
+      canvasCtx.lineWidth = 22 * dpr;
     } else {
       canvasCtx.globalCompositeOperation = 'source-over';
       canvasCtx.strokeStyle = penColorN;
-      canvasCtx.lineWidth = (1.5 + pr * 2.5) * dpr;
+      canvasCtx.lineWidth = strokeWidthN(st.sp, dpr);
     }
     canvasCtx.stroke();
-    lastPtN = pt;
+    st.cx = st.sx; st.cy = st.sy; st.mx = nmx; st.my = nmy; st.erase = pt.erase;
+    lastPtN = { x: st.sx, y: st.sy, pressure: st.sp };
   }
+}
+// Land the tail of the stroke: the curve above always stops half a segment
+// short of the newest point, so finish it there.
+function finishStrokeN(){
+  const st = strokeN;
+  strokeN = null;
+  if(!st) return;
+  const dpr = window.devicePixelRatio || 1;
+  if(Math.hypot(st.cx - st.mx, st.cy - st.my) < 0.1) return;
+  canvasCtx.lineCap = 'round'; canvasCtx.lineJoin = 'round';
+  canvasCtx.beginPath();
+  canvasCtx.moveTo(st.mx, st.my);
+  canvasCtx.lineTo(st.cx, st.cy);
+  if(st.erase){ canvasCtx.globalCompositeOperation = 'destination-out'; canvasCtx.lineWidth = 22 * dpr; }
+  else { canvasCtx.globalCompositeOperation = 'source-over'; canvasCtx.strokeStyle = penColorN; canvasCtx.lineWidth = strokeWidthN(st.sp, dpr); }
+  canvasCtx.stroke();
 }
 let activePointerIdN = null;
 let activePointerTypeN = null;
@@ -14989,14 +15026,14 @@ canvasEl.addEventListener('pointerdown', (e)=>{
   // own selectstart/user-select guards unless we also toggle them there.
   try{ window.parent.document.body.classList.add('no-select-while-drawing'); }catch(err){}
   try{ canvasEl.setPointerCapture(e.pointerId); }catch(err){}
-  lastPtN = null;
+  lastPtN = null; strokeN = null;
   pendingPointsN = [];
   queuePointN(e, canvasEl.getBoundingClientRect(), window.devicePixelRatio || 1);
-  flushDrawQueueN(); // seeds lastPtN from the pointerdown position
+  flushDrawQueueN(); // seeds the stroke from the pointerdown position
   if(lastPtN){
     // A tap with no movement should still leave a dot.
     const dpr = window.devicePixelRatio || 1;
-    const rad = (erasingN ? 10 : (1.5 + lastPtN.pressure * 2.5) / 2) * dpr;
+    const rad = (erasingN ? 11 : strokeWidthN(lastPtN.pressure, 1) / 2) * dpr;
     canvasCtx.globalCompositeOperation = erasingN ? 'destination-out' : 'source-over';
     canvasCtx.fillStyle = erasingN ? '#000' : penColorN;
     canvasCtx.beginPath();
@@ -15036,6 +15073,7 @@ function endDrawN(e){
     queuePointN(e, canvasEl.getBoundingClientRect(), window.devicePixelRatio || 1);
   }
   flushDrawQueueN();
+  finishStrokeN();
   lastPtN = null;
   try{ if(pid != null) canvasEl.releasePointerCapture(pid); }catch(err){}
   drawingActiveN = false;
