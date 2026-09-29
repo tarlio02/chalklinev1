@@ -14546,59 +14546,89 @@ h1,h2,h3{ font-family:'Fraunces','Source Serif 4',Georgia,serif; margin:0; color
 }
 .note-row .r-delete:hover{ background:#FDECEA; color:#a5372c; }
 
-/* ---- editor ---- */
-#editor-view{ display:none; }
-.editor-bar{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:10px; }
+/* ---- editor: full-screen page (iPad Notes style) ---- */
+:root{ --lh:36px; --page-m:clamp(18px,6vw,100px); --paper:#FFFFFF; --rule-line:#D9D9DD; }
+#editor-view{
+  display:none; position:fixed; inset:0; z-index:50; background:var(--paper);
+  height:100%; overflow:hidden;
+}
 #note-status{
   font-family:'JetBrains Mono', monospace; font-size:10.5px; letter-spacing:.05em; color:var(--muted);
+  padding:0 6px; white-space:nowrap;
 }
 #note-status.saved::before{ content:'●'; color:#6E9F5E; margin-right:5px; font-size:8px; }
 #note-status.editing::before{ content:'●'; color:var(--gold); margin-right:5px; font-size:8px; }
+@media (max-width:640px){ #note-status{ font-size:0; padding:0 2px; } #note-status::before{ font-size:10px !important; margin:0 !important; } }
 
-/* ---- input-mode toolbar ---- */
-.mode-toolbar{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
-.seg{ display:inline-flex; background:#fff; border:1px solid var(--panel-border); border-radius:999px; padding:3px; gap:2px; }
+/* floating glass toolbar */
+.topbar{
+  position:absolute; z-index:20; left:0; right:0; top:calc(var(--safe-top) + 10px);
+  display:flex; align-items:center; gap:10px; padding:4px 14px 8px;
+  overflow-x:auto; scrollbar-width:none;
+}
+.topbar::-webkit-scrollbar{ display:none; }
+.topbar .spacer{ flex:1; min-width:4px; }
+.glass{
+  background:rgba(255,255,255,0.82); -webkit-backdrop-filter:saturate(1.6) blur(18px); backdrop-filter:saturate(1.6) blur(18px);
+  border:1px solid rgba(0,0,0,0.07); box-shadow:0 4px 14px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.05);
+}
+.circle-btn{
+  width:44px; height:44px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+  color:var(--ink); cursor:pointer; padding:0; font-family:inherit;
+}
+.circle-btn svg{ width:21px; height:21px; }
+.circle-btn:active{ background:rgba(240,235,220,0.95); }
+.circle-btn.danger{ color:#a5372c; }
+.pill{ display:inline-flex; align-items:center; gap:4px; height:44px; padding:0 5px; border-radius:999px; flex-shrink:0; }
 .seg-btn{
-  border:none; background:none; font-family:'JetBrains Mono', monospace; font-size:12px; font-weight:600;
-  color:var(--muted); padding:7px 14px; border-radius:999px; cursor:pointer;
+  border:none; background:none; font-family:'JetBrains Mono', monospace; font-size:12.5px; font-weight:600;
+  color:var(--muted); height:34px; padding:0 14px; border-radius:999px; cursor:pointer;
+  display:inline-flex; align-items:center; gap:7px; white-space:nowrap;
 }
+.seg-btn svg{ width:17px; height:17px; flex-shrink:0; }
 .seg-btn.active{ background:linear-gradient(140deg, var(--brick), var(--gold-deep)); color:#fff; }
-.draw-tools{ display:none; align-items:center; gap:8px; }
-.draw-tools.show{ display:flex; }
-.swatch{ width:25px; height:25px; border-radius:50%; border:2px solid #fff; box-shadow:0 0 0 1px var(--panel-border); cursor:pointer; padding:0; }
+.draw-tools{ display:none; align-items:center; gap:8px; padding:0 10px; }
+.draw-tools.show{ display:inline-flex; }
+.swatch{ width:26px; height:26px; border-radius:50%; border:2px solid #fff; box-shadow:0 0 0 1px rgba(0,0,0,0.15); cursor:pointer; padding:0; flex-shrink:0; }
 .swatch.active{ box-shadow:0 0 0 2px var(--ink); }
-#eraser-btn.active{ background:#FFF1CC; border-color:var(--gold); color:var(--ink); }
+.tool-btn{
+  border:none; background:none; font-family:'JetBrains Mono', monospace; font-size:12.5px; font-weight:600;
+  color:var(--ink); height:34px; padding:0 10px; border-radius:999px; cursor:pointer; flex-shrink:0;
+}
+.tool-btn.danger{ color:#a5372c; }
+#eraser-btn.active{ background:#FFF1CC; }
 
+/* the page: one scroll container; ruled lines are painted inside it so they scroll with the text */
+.sheet{ position:absolute; inset:0; }
+#note-scroll{
+  position:absolute; inset:0; z-index:2; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch;
+}
+#note-page{
+  position:relative; min-height:100%; padding:calc(var(--lh) * 3) 0 45vh;
+}
+#note-page.ruled::before{
+  content:''; position:absolute; z-index:0; left:var(--page-m); right:var(--page-m); top:0; bottom:0; pointer-events:none;
+  background:repeating-linear-gradient(to bottom, transparent 0, transparent calc(var(--lh) - 1px), var(--rule-line) calc(var(--lh) - 1px), var(--rule-line) var(--lh));
+}
 #note-title{
-  width:100%; border:none; outline:none; background:transparent;
-  font-family:'Fraunces','Source Serif 4',Georgia,serif; font-weight:600;
-  font-size:24px; color:var(--ink); padding:0 4px 10px; margin-bottom:4px;
+  position:relative; z-index:1; display:block; width:calc(100% - var(--page-m) * 2); margin:0 var(--page-m);
+  height:var(--lh); border:none; outline:none; background:transparent; padding:0 4px;
+  font-family:'Fraunces','Source Serif 4',Georgia,serif; font-weight:600; font-size:26px; line-height:var(--lh); color:var(--ink);
 }
-#note-title::placeholder{ color:#C9B98A; }
-
-.sheet{
-  position:relative; height:560px; overflow:hidden; border-radius:18px; border:1px solid var(--panel-border);
-  background:
-    linear-gradient(#FFFDF6, #FFFDF6) padding-box,
-    repeating-linear-gradient(to bottom, #FFFDF6 0px, #FFFDF6 33px, var(--rule) 33px, var(--rule) 34px);
-  background-size: 100% 100%, 100% 34px;
-  background-position: 0 0, 0 4px;
-  background-repeat: no-repeat, repeat-y;
-  box-shadow:0 2px 10px rgba(60,40,5,0.06);
-}
-.sheet-margin{ position:absolute; top:0; bottom:0; left:44px; width:1px; background:#F0C7C0; pointer-events:none; z-index:1; }
+#note-title::placeholder{ color:#C4BFB0; }
 #note-body{
-  position:absolute; inset:0; width:100%; height:100%; resize:none; border:none; outline:none; background:transparent;
-  font-family:'Source Serif 4', Georgia, serif; font-size:16px; line-height:34px; overflow-y:auto;
-  color:var(--ink); padding:6px 18px 30px 58px; caret-color:var(--ochre); z-index:2;
+  position:relative; z-index:1; display:block; width:calc(100% - var(--page-m) * 2); margin:0 var(--page-m);
+  min-height:calc(var(--lh) * 12); resize:none; overflow:hidden; border:none; outline:none; background:transparent;
+  font-family:'Source Serif 4', Georgia, serif; font-size:18px; line-height:var(--lh);
+  color:var(--ink); padding:0 4px; caret-color:var(--ochre);
 }
-#note-body::placeholder{ color:#C9B98A; font-style:italic; }
+#note-body::placeholder{ color:#C4BFB0; font-style:italic; }
 #note-canvas{
   position:absolute; inset:0; width:100%; height:100%; z-index:3;
   touch-action:none; pointer-events:none;
 }
 .sheet.drawing #note-canvas{ pointer-events:auto; cursor:crosshair; }
-.sheet.drawing #note-body{ pointer-events:none; }
+.sheet.drawing #note-body, .sheet.drawing #note-title{ pointer-events:none; }
 /* A fast stylus/mouse drag across the canvas can still trigger the browser's
    native text-selection gesture on surrounding page text (title, toolbar
    labels, etc) — preventDefault() on the pointer events doesn't reliably
@@ -14627,33 +14657,54 @@ body.no-select-while-drawing,
     <div id="n-content">Loading…</div>
   </div>
 
-  <!-- ===== EDITOR VIEW ===== -->
+  <!-- ===== EDITOR VIEW (full screen) ===== -->
   <div id="editor-view">
-    <div class="editor-bar">
-      <a href="#" class="back-link" onclick="closeEditorN();return false;" style="margin-bottom:0;">&#8249; Notes</a>
-      <div style="display:flex;align-items:center;gap:10px;">
-        <span id="note-status" class="saved">saved</span>
-        <button type="button" class="btn-secondary btn-danger" id="note-delete-btn" onclick="deleteCurrentNoteN();">Delete</button>
+    <div class="sheet" id="note-sheet">
+      <div id="note-scroll">
+        <div id="note-page" class="ruled">
+          <input id="note-title" type="text" placeholder="Untitled note" autocomplete="off">
+          <textarea id="note-body" placeholder="Start writing, or switch to Draw to use Apple Pencil…"></textarea>
+        </div>
       </div>
+      <canvas id="note-canvas"></canvas>
     </div>
-    <div class="mode-toolbar">
-      <div class="seg" role="tablist">
-        <button type="button" class="seg-btn active" id="mode-type-btn" onclick="setModeN('type')">⌨️ Type</button>
-        <button type="button" class="seg-btn" id="mode-draw-btn" onclick="setModeN('draw')">✎ Draw</button>
+
+    <div class="topbar">
+      <button type="button" class="glass circle-btn" onclick="closeEditorN();" aria-label="Back to notes" title="Back to notes">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+      </button>
+
+      <div class="glass pill" role="tablist" aria-label="Input mode">
+        <button type="button" class="seg-btn active" id="mode-type-btn" onclick="setModeN('type')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V5h16v2M12 5v14M9 19h6"/></svg>Type
+        </button>
+        <button type="button" class="seg-btn" id="mode-draw-btn" onclick="setModeN('draw')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>Draw
+        </button>
       </div>
-      <div class="draw-tools" id="draw-tools">
+
+      <div class="glass pill" role="tablist" aria-label="Paper style">
+        <button type="button" class="seg-btn active" id="paper-ruled-btn" onclick="setPaperN('ruled')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>Ruled
+        </button>
+        <button type="button" class="seg-btn" id="paper-blank-btn" onclick="setPaperN('blank')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/></svg>Blank
+        </button>
+      </div>
+
+      <div class="glass pill draw-tools" id="draw-tools">
         <button type="button" class="swatch active" data-color="#2A2410" style="background:#2A2410" onclick="setPenColorN('#2A2410',this)" title="Ink"></button>
         <button type="button" class="swatch" data-color="#2E7DBE" style="background:#2E7DBE" onclick="setPenColorN('#2E7DBE',this)" title="Blue"></button>
         <button type="button" class="swatch" data-color="#C0392B" style="background:#C0392B" onclick="setPenColorN('#C0392B',this)" title="Red"></button>
-        <button type="button" class="btn-secondary" id="eraser-btn" onclick="toggleEraserN()">🧽</button>
-        <button type="button" class="btn-secondary btn-danger" onclick="clearDrawingN()">Clear</button>
+        <button type="button" class="tool-btn" id="eraser-btn" onclick="toggleEraserN()" title="Eraser">🧽</button>
+        <button type="button" class="tool-btn danger" onclick="clearDrawingN()">Clear</button>
       </div>
-    </div>
-    <input id="note-title" type="text" placeholder="Untitled note" autocomplete="off">
-    <div class="sheet" id="note-sheet">
-      <div class="sheet-margin"></div>
-      <textarea id="note-body" placeholder="Start writing, or switch to Draw to use Apple Pencil…"></textarea>
-      <canvas id="note-canvas"></canvas>
+
+      <span class="spacer"></span>
+      <span id="note-status" class="saved">saved</span>
+      <button type="button" class="glass circle-btn danger" id="note-delete-btn" onclick="deleteCurrentNoteN();" aria-label="Delete note" title="Delete note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>
+      </button>
     </div>
   </div>
 
@@ -14816,7 +14867,7 @@ function resizeCanvasN(){
   canvasEl.height = Math.round(h * dpr);
   if(snapshot){
     const img = new Image();
-    img.onload = ()=> canvasCtx.drawImage(img, 0, 0, canvasEl.width, canvasEl.height);
+    img.onload = ()=> canvasCtx.drawImage(img, 0, 0);   // 1:1, never stretch ink when the screen rotates
     img.src = snapshot;
   }
 }
@@ -15002,11 +15053,43 @@ canvasEl.addEventListener('pointerup', endDrawN);
 canvasEl.addEventListener('pointercancel', endDrawN);
 window.addEventListener('pointerup', endDrawN);
 
+/* ---- Paper style: ruled lines or blank ---- */
+let paperN = 'ruled';
+function loadPaperDefaultN(){
+  try{ const v = localStorage.getItem('chalkline:notes-paper-default'); if(v === 'ruled' || v === 'blank') return v; }catch(e){}
+  return 'ruled';
+}
+function setPaperN(kind, opts){
+  paperN = (kind === 'blank') ? 'blank' : 'ruled';
+  document.getElementById('note-page').classList.toggle('ruled', paperN === 'ruled');
+  document.getElementById('paper-ruled-btn').classList.toggle('active', paperN === 'ruled');
+  document.getElementById('paper-blank-btn').classList.toggle('active', paperN === 'blank');
+  if(!(opts && opts.silent)){
+    try{ localStorage.setItem('chalkline:notes-paper-default', paperN); }catch(e){}   // new notes start with your last choice
+    saveCurrentNoteN();
+  }
+}
+function autosizeBodyN(){
+  bodyEl.style.height = 'auto';
+  // round up to a whole number of lines so the last ruled line always lines up
+  const lh = 36;
+  bodyEl.style.height = (Math.ceil(bodyEl.scrollHeight / lh) * lh) + 'px';
+}
+window.addEventListener('resize', ()=>{ if(document.getElementById('editor-view').style.display !== 'none') autosizeBodyN(); });
+document.getElementById('note-page').addEventListener('pointerdown', (e)=>{
+  // tapping empty paper below the text puts the cursor at the end, like a real notes app
+  if(inputModeN === 'type' && e.target.id === 'note-page'){
+    e.preventDefault(); bodyEl.focus(); const n = bodyEl.value.length; try{ bodyEl.setSelectionRange(n, n); }catch(err){}
+  }
+});
+
 function showEditorN(){
   document.getElementById('list-view').style.display = 'none';
   document.getElementById('editor-view').style.display = 'block';
   setModeN('type');
-  setTimeout(resizeCanvasN, 30);
+  document.getElementById('note-scroll').scrollTop = 0;
+  autosizeBodyN();
+  setTimeout(()=>{ resizeCanvasN(); autosizeBodyN(); }, 30);
 }
 function closeEditorN(){
   document.getElementById('editor-view').style.display = 'none';
@@ -15021,6 +15104,7 @@ function startNewNoteN(){
   bodyEl.value = '';
   statusEl.className = 'saved'; statusEl.textContent = 'new';
   document.getElementById('note-delete-btn').style.display = 'none';
+  setPaperN(loadPaperDefaultN(), { silent:true });
   showEditorN();
   canvasCtx.clearRect(0, 0, canvasEl.width, canvasEl.height);
   titleEl.focus();
@@ -15036,12 +15120,13 @@ async function openNoteN(id){
     bodyEl.value = item.body || '';
     statusEl.className = 'saved'; statusEl.textContent = 'saved';
     document.getElementById('note-delete-btn').style.display = '';
+    setPaperN(item.paper || 'ruled', { silent:true });
     showEditorN();
     setTimeout(()=>{
       canvasCtx.clearRect(0, 0, canvasEl.width, canvasEl.height);
       if(item.drawing){
         const img = new Image();
-        img.onload = ()=> canvasCtx.drawImage(img, 0, 0, canvasEl.width, canvasEl.height);
+        img.onload = ()=> canvasCtx.drawImage(img, 0, 0);
         img.src = item.drawing;
       }
     }, 40);
@@ -15079,7 +15164,7 @@ function saveCurrentNoteN(){
       try{ if(canvasEl.width && canvasEl.height) drawing = await canvasToDataURLAsync(canvasEl); }catch(e){}
       const payload = {
         id: currentNoteIdN, subject: notesSubject || 'Unsorted',
-        title: titleEl.value, body: bodyEl.value, drawing,
+        title: titleEl.value, body: bodyEl.value, drawing, paper: paperN,
         createdAt, updatedAt: now
       };
       await window.storage.set(notesKeyPrefixN() + currentNoteIdN, JSON.stringify(payload), false);
@@ -15095,7 +15180,7 @@ async function deleteCurrentNoteN(){
   closeEditorN();
 }
 titleEl.addEventListener('input', saveCurrentNoteN);
-bodyEl.addEventListener('input', saveCurrentNoteN);
+bodyEl.addEventListener('input', ()=>{ autosizeBodyN(); saveCurrentNoteN(); });
 
 applyScopeN();
 refreshNotesListN();
