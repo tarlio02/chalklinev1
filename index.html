@@ -15293,17 +15293,52 @@ function loadPageN(delay){
 }
 function goPageN(i){
   if(i < 0 || i >= pagesN.length || i === curPageN) return;
-  syncPageN(); curPageN = i; loadPageN(0); saveCurrentNoteN();
+  const dir = i > curPageN ? 1 : -1;
+  syncPageN(); curPageN = i; loadPageN(0); slideN(dir); saveCurrentNoteN();
 }
 function addPageN(){
   syncPageN(); pagesN.splice(curPageN + 1, 0, { body:'', base:'', strokes:[], paper:paperN });
-  curPageN++; loadPageN(0); saveCurrentNoteN();
+  curPageN++; loadPageN(0); slideN(1); saveCurrentNoteN();
 }
 function deletePageN(){
   if(pagesN.length < 2 || !confirm('Delete this page?')) return;
   pagesN.splice(curPageN, 1); curPageN = Math.min(curPageN, pagesN.length - 1);
   loadPageN(0); saveCurrentNoteN();
 }
+
+function slideN(dir){
+  try{ sheetEl.animate([{ transform:'translateX(' + (dir * 70) + 'px)', opacity:0.15 }, { transform:'none', opacity:1 }], { duration:240, easing:'cubic-bezier(.2,.8,.2,1)' }); }catch(e){}
+}
+/* Swipe left/right to move between pages. Finger swipes in Type mode; in Draw mode only when
+   a pencil is in use (finger is then free) or with two fingers, so it never fights with drawing.
+   Trackpad / mouse-wheel sideways scrolling works too. */
+(function swipePagesN(){
+  const ev = document.getElementById('editor-view');
+  let sw = null;
+  ev.addEventListener('touchstart', (e)=>{
+    const t = e.touches[0];
+    if(e.target.closest('.topbar, #pen-tray, #pager') || t.touchType === 'stylus'){ sw = null; return; }
+    if(!sw) sw = { x:t.clientX, y:t.clientY, lx:t.clientX, ly:t.clientY, n:e.touches.length };
+    else sw.n = Math.max(sw.n, e.touches.length);
+  }, { passive:true, capture:true });
+  ev.addEventListener('touchmove', (e)=>{ if(sw && e.touches[0].touchType !== 'stylus'){ sw.lx = e.touches[0].clientX; sw.ly = e.touches[0].clientY; } }, { passive:true, capture:true });
+  ev.addEventListener('touchend', (e)=>{
+    if(!sw || e.touches.length) return;
+    const s2 = sw; sw = null;
+    const dx = s2.lx - s2.x, dy = s2.ly - s2.y;
+    if(Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.6) return;
+    if(inputModeN === 'draw' && !(s2.n >= 2 || penSeenN)) return;
+    if(inputModeN === 'type' && bodyEl.selectionStart !== bodyEl.selectionEnd) return;
+    goPageN(curPageN + (dx < 0 ? 1 : -1));
+  }, { passive:true, capture:true });
+  ev.addEventListener('touchcancel', ()=>{ sw = null; }, { passive:true, capture:true });
+  let lock = 0;
+  ev.addEventListener('wheel', (e)=>{
+    if(Math.abs(e.deltaX) > Math.abs(e.deltaY) * 1.5 && Math.abs(e.deltaX) > 25 && Date.now() > lock){
+      lock = Date.now() + 500; goPageN(curPageN + (e.deltaX > 0 ? 1 : -1));
+    }
+  }, { passive:true });
+})();
 
 /* ---- Paper style: ruled lines or blank ---- */
 let paperN = 'ruled';
