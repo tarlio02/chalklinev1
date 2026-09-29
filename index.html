@@ -14820,6 +14820,7 @@ window.addEventListener('resize', ()=>{ if(document.getElementById('editor-view'
 
 function setModeN(mode){
   inputModeN = mode;
+  penSeenN = false;
   sheetEl.classList.toggle('drawing', mode === 'draw');
   document.getElementById('mode-type-btn').classList.toggle('active', mode === 'type');
   document.getElementById('mode-draw-btn').classList.toggle('active', mode === 'draw');
@@ -14893,6 +14894,12 @@ function flushDrawQueueN(){
 }
 let activePointerIdN = null;
 let activePointerTypeN = null;
+// Stylus-first input: once a pen has touched the canvas in this Draw session,
+// finger/palm touches stop drawing. A resting palm (or a second contact) was
+// starting its own strokes and dragging lines across the page while writing
+// with a stylus. Resets whenever the mode is toggled, so finger drawing comes
+// back after Type -> Draw.
+let penSeenN = false;
 canvasEl.addEventListener('pointerdown', (e)=>{
   if(inputModeN !== 'draw') return;
   // Palm rejection only applies to the specific case it's for: a resting
@@ -14905,7 +14912,10 @@ canvasEl.addEventListener('pointerdown', (e)=>{
   // drawingActiveN flag as still-authoritative in that case left the old
   // stroke's path lingering, so the new stroke's first move drew a stray
   // line back to wherever the old one had ended, instead of starting clean.
-  if(drawingActiveN && e.pointerType === 'touch' && activePointerTypeN === 'pen') return;
+  if(e.pointerType === 'pen') penSeenN = true;
+  // Touch never takes over a stroke in progress (that's what made lines jump
+  // to a second contact), and is ignored entirely once a pen has been used.
+  if(e.pointerType === 'touch' && (penSeenN || drawingActiveN)){ e.preventDefault(); return; }
   drawingActiveN = true;
   activePointerIdN = e.pointerId;
   activePointerTypeN = e.pointerType;
