@@ -16072,12 +16072,9 @@ function createViewN(pg, first){
   if(title){ title.addEventListener('input', saveCurrentNoteN); title.addEventListener('focus', ()=>setCurN(0)); }
   body.addEventListener('input', ()=>{ colonIndentN(body); autosizeViewN(v); saveCurrentNoteN(); });
   body.addEventListener('focus', ()=>{ const i = viewsN.indexOf(v); if(i >= 0 && i !== curPageN) setCurN(i); });
-  // tapping empty paper puts the cursor at the end of that page's text, like a real notes app
-  sec.addEventListener('pointerdown', (e)=>{
-    if(inputModeN === 'type' && e.target === sec){
-      e.preventDefault(); body.focus(); try{ const rg = document.createRange(); rg.selectNodeContents(body); rg.collapse(false); const sl = window.getSelection(); sl.removeAllRanges(); sl.addRange(rg); }catch(err){}
-    }
-  });
+  // tap or click anywhere on the paper to write there (margins, empty space, blank lines, below the last line)
+  sec.addEventListener('pointerdown', (e)=>{ if(inputModeN === 'type' && e.target === sec) e.preventDefault(); });   // keep the keyboard up when tapping the margin
+  sec.addEventListener('click', (e)=>{ clickToTypeN(v, e); });
   wireCanvasN(cv);
   ioN.observe(sec);
   return v;
@@ -16200,6 +16197,77 @@ function colonIndentN(body){
   }
 }
 function colonIndentAllN(){ viewsN.forEach(v => colonIndentN(v.body)); }
+
+/* ---------------- Tap anywhere to write ----------------
+   Tapping blank paper puts the cursor exactly there: below the last line it adds blank lines down to the spot you
+   tapped, on a blank line it moves the cursor across with spaces (so you can start writing mid-page), and tapping the
+   side margins puts the cursor at the start or end of that line. Tapping on existing text works as normal. */
+function normalizeBlocksN(body){
+  const kids = Array.from(body.childNodes);
+  const isBlk = n => n.nodeType === 1 && (n.tagName === 'DIV' || n.tagName === 'P');
+  if(!kids.length){ const d = document.createElement('div'); d.innerHTML = '<br>'; body.appendChild(d); return; }
+  if(kids.every(isBlk)) return;
+  let run = [];
+  const flush = () => { if(!run.length) return; const d = document.createElement('div'); body.insertBefore(d, run[0]); run.forEach(n => d.appendChild(n)); run = []; };
+  kids.forEach(n => {
+    if(isBlk(n)){ flush(); return; }
+    if(n.nodeType !== 1 && n.nodeType !== 3){ return; }
+    run.push(n);
+    if(n.nodeName === 'BR') flush();
+  });
+  flush();
+}
+function clickToTypeN(v, e){
+  if(inputModeN !== 'type' || (e.button && e.button !== 0)) return;
+  const t = e.target, body = v.body, margin = (t === v.sec);
+  const isBlk = el => el && el.parentNode === body && (el.tagName === 'DIV' || el.tagName === 'P');
+  if(!(margin || t === body || isBlk(t))) return;
+  const sel = window.getSelection();
+  if(!margin && sel && sel.rangeCount && !sel.isCollapsed) return;   // finishing a text selection, not a tap
+  const rect = body.getBoundingClientRect(), scale = body.offsetWidth ? (rect.width / body.offsetWidth) || 1 : 1;
+  const lh = 36, yL = (e.clientY - rect.top) / scale, xL = (e.clientX - rect.left) / scale - 4;
+  if(yL < 0) return;
+  normalizeBlocksN(body);
+  const kids = Array.from(body.children).filter(el => el.tagName === 'DIV' || el.tagName === 'P');
+  const last = kids[kids.length - 1], bottom = last.offsetTop + last.offsetHeight;
+  let target = null, changed = false;
+  if(yL >= bottom){                                   // below the last line: add blank lines down to the tapped one
+    const k = Math.min(80, Math.floor((yL - bottom) / lh));
+    for(let i = 0; i <= k; i++){ const d = document.createElement('div'); d.innerHTML = '<br>'; body.appendChild(d); target = d; }
+    changed = true;
+  } else {
+    target = kids.find(el => yL >= el.offsetTop && yL < el.offsetTop + el.offsetHeight) || last;
+  }
+  const empty = !(target.textContent || '').replace(/\u00a0/g, '').trim();
+  let toStart = false;
+  if(empty && !margin){                               // blank line: move the cursor across to where you tapped
+    const sp = spaceWidthN(body), maxN = Math.max(0, Math.floor(body.clientWidth / sp) - 2);
+    const n = xL > sp * 2 ? Math.min(maxN, Math.round(xL / sp)) : 0;
+    const cur = (target.textContent || '').length;
+    if(n !== cur){
+      if(n) target.textContent = ' '.repeat(n); else target.innerHTML = '<br>';
+      changed = true;
+    }
+  } else if(!empty && !margin){
+    return;                                           // tapped real text: the browser already placed the cursor
+  } else if(margin){
+    toStart = e.clientX < rect.left;
+  }
+  try{
+    body.focus({ preventScroll:true });
+    const r = document.createRange(), tn = target.firstChild;
+    if(empty && !margin){
+      if(tn && tn.nodeType === 3) r.setStart(tn, tn.length); else r.setStart(target, 0);
+      r.collapse(true);
+    } else {
+      r.selectNodeContents(target);
+      if(!toStart && target.lastChild && target.lastChild.nodeName === 'BR') r.setEndBefore(target.lastChild);
+      r.collapse(toStart);
+    }
+    const sl = window.getSelection(); sl.removeAllRanges(); sl.addRange(r);
+  }catch(err){}
+  if(changed) body.dispatchEvent(new Event('input', { bubbles:true }));
+}
 
 function cleanHtmlN(html){
   const tpl = document.createElement('template'); tpl.innerHTML = String(html);
