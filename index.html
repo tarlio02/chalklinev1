@@ -15111,8 +15111,11 @@ function recognizeShapeN(f){
   const A = Q[0], Z = Q[Q.length - 1], gap = Math.hypot(Z[0] - A[0], Z[1] - A[1]);
   const out = (poly)=>{ const r = []; for(const p of poly) r.push(+p[0].toFixed(1), +p[1].toFixed(1), 0.5); return r; };
   // straight line
-  let dev = 0; for(const p of Q) dev = Math.max(dev, distSegN(p[0], p[1], A[0], A[1], Z[0], Z[1]));
-  if(gap > 0.85 * L && dev < Math.max(5, 0.07 * gap)){
+  // Judged on how far the points stray from the chord, NOT on path length: a hand-drawn line's jitter
+  // makes its path much longer than the line itself, which used to make real lines fail this test.
+  const devs = Q.map(p => distSegN(p[0], p[1], A[0], A[1], Z[0], Z[1])).sort((u, v) => u - v);
+  const dev90 = devs[Math.floor(devs.length * 0.9)], devMax = devs[devs.length - 1];
+  if(gap > 25 && dev90 < Math.max(6, 0.06 * gap) && devMax < Math.max(14, 0.2 * gap)){
     let a = A.slice(), z = Z.slice();
     const ang = Math.abs(Math.atan2(z[1] - a[1], z[0] - a[0])) * 180 / Math.PI;
     if(ang < 4 || ang > 176){ z[1] = a[1] = (a[1] + z[1]) / 2; }
