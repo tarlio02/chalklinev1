@@ -16659,9 +16659,9 @@ function captureCaretN(){
 function restoreCaretN(c){
   if(!c) return;
   try{
-    if(c.t === 'title' && titleEl){ titleEl.focus(); titleEl.setSelectionRange(c.s, c.e); return; }
+    if(c.t === 'title' && titleEl){ titleEl.focus({ preventScroll:true }); titleEl.setSelectionRange(c.s, c.e); return; }
     const v = viewsN[c.i]; if(!v) return;
-    v.body.focus();
+    v.body.focus({ preventScroll:true });
     const w = document.createTreeWalker(v.body, NodeFilter.SHOW_TEXT);
     let n, left = c.o, node = null;
     while((n = w.nextNode())){ if(n.nodeValue.length >= left){ node = n; break; } left -= n.nodeValue.length; }
@@ -16671,6 +16671,65 @@ function restoreCaretN(c){
     const sl = window.getSelection(); sl.removeAllRanges(); sl.addRange(rg);
   }catch(e){}
 }
+/* Jump to what just changed: when another device's edit arrives, the note scrolls to the newest handwriting stroke
+   or the newly typed / changed text (whichever is lowest on the page) so you see it land. */
+function strokeKeyN(r){ const q = r.pts || []; return (r.tn || '') + ':' + q.length + ':' + q.slice(0, 6).join(',') + ':' + q.slice(-3).join(','); }
+function snapshotForDiffN(){
+  return {
+    ink: pagesN.map(pg => new Set((pg.strokes || []).map(strokeKeyN))),
+    text: viewsN.map(v => v.body.textContent || '')
+  };
+}
+function findChangeN(before){
+  const sr = scrollElN.getBoundingClientRect();
+  let best = null;
+  const offer = (clientY) => {
+    const abs = scrollElN.scrollTop + (clientY - sr.top);
+    if(!best || abs > best.abs) best = { abs, clientY };
+  };
+  pagesN.forEach((pg, i) => {
+    const v = viewsN[i]; if(!v) return;
+    // newest handwriting on this page: strokes that weren't there before
+    const oldInk = before.ink[i];
+    let added = null;
+    (pg.strokes || []).forEach(r => { if(!oldInk || !oldInk.has(strokeKeyN(r))) added = r; });
+    if(added && (added.pts || []).length){
+      const b = bbOfN(added), sec = v.sec.getBoundingClientRect(), sc = v.sec.offsetHeight ? (sec.height / v.sec.offsetHeight) || 1 : 1;
+      offer(sec.top + ((b[1] + b[3]) / 2) * sc);
+    }
+    // newest text on this page: the end of the region that differs from before
+    const oldT = before.text[i], newT = v.body.textContent || '';
+    if(oldT !== newT && (oldT !== undefined || newT)){
+      const o = oldT || '';
+      let a = 0; const max = Math.min(o.length, newT.length);
+      while(a < max && o[a] === newT[a]) a++;
+      let z = 0; while(z < max - a && o[o.length - 1 - z] === newT[newT.length - 1 - z]) z++;
+      const idx = Math.max(0, Math.min(newT.length, newT.length - z));
+      const w = document.createTreeWalker(v.body, NodeFilter.SHOW_TEXT);
+      let node, left = idx, hit = null;
+      while((node = w.nextNode())){ if(node.nodeValue.length >= left){ hit = { node, off: left }; break; } left -= node.nodeValue.length; }
+      let rc = null;
+      if(hit){
+        try{
+          const r = document.createRange(), len = hit.node.nodeValue.length;
+          if(hit.off > 0){ r.setStart(hit.node, hit.off - 1); r.setEnd(hit.node, hit.off); } else { r.setStart(hit.node, 0); r.setEnd(hit.node, Math.min(1, len)); }
+          rc = r.getBoundingClientRect();
+          if(!rc.height) rc = hit.node.parentElement.getBoundingClientRect();
+        }catch(e){}
+      }
+      if(!rc || !rc.height) rc = v.body.getBoundingClientRect();
+      offer(rc.top);
+    }
+  });
+  return best;
+}
+function revealChangeN(c){
+  if(!c) return;
+  const sr = scrollElN.getBoundingClientRect();
+  const delta = c.clientY - (sr.top + sr.height * 0.4);
+  if(Math.abs(delta) > 4) scrollElN.scrollBy({ top: delta, behavior:'smooth' });
+}
+
 let applyingRemoteN = false;
 async function applyRemoteNoteN(){
   if(!currentNoteIdN || !currentNoteKeyN || !shUserN || applyingRemoteN) return;
@@ -16685,7 +16744,8 @@ async function applyRemoteNoteN(){
     if(!item || item.id !== idNow || (item.updatedAt || 0) <= loadedStampN) return;
     if(currentNoteIdN !== idNow || noteDirtyN || drawingActiveN) return;   // something started while reading
     const newPages = pagesFromItemN(item);
-    const scrollTop = scrollElN.scrollTop, cur = curPageN, caret = captureCaretN();
+    const scrollTop = scrollElN.scrollTop, cur = curPageN, caret = captureCaretN(), before = snapshotForDiffN();
+    let rebuilt = false;
     const inkSame = newPages.length === pagesN.length && newPages.every((q, i) =>
       q.base === pagesN[i].base && q.paper === pagesN[i].paper && JSON.stringify(q.strokes) === JSON.stringify(pagesN[i].strokes || []));
     if(inkSame && viewsN.length === newPages.length){
@@ -16702,8 +16762,10 @@ async function applyRemoteNoteN(){
       pagesN = newPages; noteTitleN = item.title || '';
       mountPagesN({ cur });
       scrollElN.scrollTop = scrollTop;
+      rebuilt = true;
     }
     restoreCaretN(caret);
+    setTimeout(() => { try{ revealChangeN(findChangeN(before)); }catch(e){} }, rebuilt ? 120 : 20);   // scroll to the newest handwriting / text
     currentNoteSubjectN = item.subject || currentNoteSubjectN;
     loadedStampN = item.updatedAt || 0;
     statusEl.className = 'saved'; statusEl.textContent = 'updated';
