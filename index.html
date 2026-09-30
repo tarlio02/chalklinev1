@@ -2055,6 +2055,58 @@ setInterval(pullSoon, 120000);
 // Live note updates: the Notes page asks for a quick check of just the note it has open, so an edit
 // made on another device shows up within seconds instead of at the next full sync (focus / 2 min).
 // Same rules as pullCloud: the cloud copy only wins when this device has nothing unsynced for the key.
+// Live notes list: while the Notes list is showing, the page asks every few seconds for a light check —
+// one cheap "list" call, then only new notes (and a few existing ones, rotating) are downloaded, and notes
+// deleted on another device disappear. Same rule as the full sync: a copy with unsynced changes here is never overwritten.
+async function applyCloudKeyN(sub, key, meta){
+  const got = await workerStorage('get', { key });
+  if(!got || got.value == null) return false;
+  let value = got.value;
+  if(typeof value === 'string' && value.indexOf(GZ_PREFIX) === 0) value = await gunzipFromB64(value);
+  const h = fnv(value), m = meta[key];
+  if(m && m.h === h) return false;
+  const local = localStorage.getItem(key);
+  if(local === null || local === value || (m && m.h === fnv(local))){
+    let ch = false;
+    if(local !== value){ localStorage.setItem(key, value); ch = true; }
+    meta[key] = { h };
+    return ch;
+  }
+  return false;
+}
+let nlLastAt = 0, nlCursor = 0;
+async function pullNotesList(){
+  if(!shellUser || !shellUser.sub || cloudLoadedFor !== shellUser.sub || syncBusy) return false;
+  if(document.visibilityState !== 'visible' || Date.now() - nlLastAt < 4000) return false;
+  const sub = shellUser.sub, s = readWorkerSession();
+  if(!s || !s.token || (s.sub && s.sub !== sub)) return false;
+  nlLastAt = Date.now(); syncBusy = true;
+  let changed = false;
+  try{
+    const { keys } = await workerStorage('list', { prefix: '' });
+    const pre = 'chalkline:notes:' + sub + ':', re = syncKeyRegex(sub);
+    const cloud = (keys || []).filter(k => k.indexOf(pre) === 0 && re.test(k)), cloudSet = new Set(cloud);
+    const meta = loadSyncMeta(sub);
+    const fresh = cloud.filter(k => !meta[k] || localStorage.getItem(k) === null);
+    const rest = cloud.filter(k => meta[k] && localStorage.getItem(k) !== null);
+    const batch = fresh.slice(0, 12);
+    for(let i = 0; i < 3 && i < rest.length; i++) batch.push(rest[nlCursor++ % rest.length]);
+    for(const k of new Set(batch)){ if(await applyCloudKeyN(sub, k, meta)) changed = true; }
+    for(const k of Object.keys(meta)){                     // deleted on another device, untouched here since last sync
+      if(k.indexOf(pre) !== 0 || cloudSet.has(k) || (meta[k] && meta[k].skip)) continue;
+      const local = localStorage.getItem(k);
+      if(local !== null && meta[k].h === fnv(local)){ localStorage.removeItem(k); changed = true; }
+      delete meta[k];
+    }
+    saveSyncMeta(sub, meta);
+  } catch(e){
+    console.warn('Live notes check skipped:', (e && e.message) || e);
+  } finally {
+    syncBusy = false;
+    if(syncAgain){ syncAgain = false; scheduleSync(); }
+  }
+  return changed;
+}
 let liveLastAt = 0, liveGap = 0;   // big notes (lots of ink) are checked less often so polling stays light
 async function pullOneKey(shortKey){
   if(!shellUser || !shellUser.sub || cloudLoadedFor !== shellUser.sub || syncBusy) return false;
@@ -3124,6 +3176,7 @@ window.addEventListener('message', (e)=>{
   // A page just saved something worth uploading right away (lessons autosave often).
   if(d.syncSoon) scheduleSync(1200);
   if(d.flushSync) syncNow(false);
+  if(d.liveNotesList){ pullNotesList().then(ch => { if(ch) broadcastAuthState(); }); }
   if(d.liveNote && typeof d.key === 'string'){
     const from = e.source;
     pullOneKey(d.key).then(ch => { if(ch && from){ try{ from.postMessage({ chalklineNoteRemote:true, key:d.key }, '*'); }catch(err){} } });
@@ -16602,6 +16655,11 @@ function pollLiveN(){
   try{ parent.postMessage({ liveNote:true, key: currentNoteKeyN }, '*'); }catch(e){}
 }
 setInterval(pollLiveN, 4000);
+setInterval(()=>{   // the notes list itself: new / deleted / renamed notes from another device show up on their own
+  if(!shUserN || document.hidden || currentNoteIdN) return;
+  try{ if(window.frameElement && window.frameElement.offsetParent === null) return; }catch(e){}
+  try{ parent.postMessage({ liveNotesList:true }, '*'); }catch(e){}
+}, 6000);
 
 applyScopeN();
 refreshNotesListN();
