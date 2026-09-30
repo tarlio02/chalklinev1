@@ -14547,7 +14547,7 @@ h1,h2,h3{ font-family:'Fraunces','Source Serif 4',Georgia,serif; margin:0; color
 .note-row .r-delete:hover{ background:#FDECEA; color:#a5372c; }
 
 /* ---- editor: full-screen page (iPad Notes style) ---- */
-:root{ --lh:36px; --page-m:clamp(18px,6vw,100px); --paper:#FFFFFF; --rule-line:#D9D9DD; }
+:root{ --lh:36px; --page-m:max(clamp(18px,6vw,72px), env(safe-area-inset-left,0px), env(safe-area-inset-right,0px)); --paper:#FFFFFF; --rule-line:#D9D9DD; }
 #editor-view{
   display:none; position:fixed; inset:0; z-index:50; background:var(--paper);
   height:100%; overflow:hidden;
@@ -14593,7 +14593,7 @@ h1,h2,h3{ font-family:'Fraunces','Source Serif 4',Georgia,serif; margin:0; color
 .swatch.active{ box-shadow:0 0 0 2px var(--ink); }
 #tray-icon{ display:flex; } #tray-dot{ width:13px; height:13px; border-radius:50%; box-shadow:0 0 0 1px rgba(0,0,0,.2); }
 .tray{ position:absolute; z-index:25; top:calc(var(--safe-top) + 70px); left:14px; width:min(380px, calc(100% - 28px));
-  border-radius:22px; padding:14px; display:none; flex-direction:column; gap:14px; background:rgba(255,255,255,.95); }
+  border-radius:22px; padding:14px; display:none; max-height:calc(100% - var(--safe-top) - 96px); overflow-y:auto; flex-direction:column; gap:14px; background:rgba(255,255,255,.95); }
 .tray.open{ display:flex; }
 .tool-row{ display:flex; gap:4px; }
 .tool-opt{ flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; border:none; background:none; border-radius:14px;
@@ -14620,6 +14620,7 @@ h1,h2,h3{ font-family:'Fraunces','Source Serif 4',Georgia,serif; margin:0; color
   border:none; background:none; font-family:'JetBrains Mono', monospace; font-size:12.5px; font-weight:600;
   color:var(--ink); height:34px; padding:0 10px; border-radius:999px; cursor:pointer; flex-shrink:0;
 }
+.tool-btn:disabled{ opacity:.3; cursor:default; }
 .tool-btn.danger{ color:#a5372c; }
 #eraser-btn.active{ background:#FFF1CC; }
 
@@ -14630,6 +14631,7 @@ h1,h2,h3{ font-family:'Fraunces','Source Serif 4',Georgia,serif; margin:0; color
 }
 #note-page{
   position:relative; min-height:100%; padding:calc(var(--lh) * 3) 0 45vh;
+  width:100%; background:var(--paper); overflow:hidden;
 }
 #note-page.ruled::before{
   content:''; position:absolute; z-index:0; left:var(--page-m); right:var(--page-m); top:0; bottom:0; pointer-events:none;
@@ -14649,7 +14651,7 @@ h1,h2,h3{ font-family:'Fraunces','Source Serif 4',Georgia,serif; margin:0; color
 }
 #note-body::placeholder{ color:#C4BFB0; font-style:italic; }
 #note-canvas{
-  position:absolute; inset:0; width:100%; height:100%; z-index:3;
+  position:absolute; top:0; left:0; z-index:3;
   touch-action:none; pointer-events:none;
 }
 .sheet.drawing #note-canvas{ pointer-events:auto; cursor:crosshair; }
@@ -14689,9 +14691,9 @@ body.no-select-while-drawing,
         <div id="note-page" class="ruled">
           <input id="note-title" type="text" autocomplete="off">
           <textarea id="note-body"></textarea>
+          <canvas id="note-canvas"></canvas>
         </div>
       </div>
-      <canvas id="note-canvas"></canvas>
     </div>
 
     <div class="topbar">
@@ -14719,6 +14721,9 @@ body.no-select-while-drawing,
 
       <div class="glass pill draw-tools" id="draw-tools">
         <button type="button" class="tool-btn" id="tray-btn" onclick="toggleTrayN()" title="Pens" style="display:flex;align-items:center;gap:8px;height:34px;"><span id="tray-icon"></span><i id="tray-dot"></i></button>
+        <span class="sep"></span>
+        <button type="button" class="tool-btn" id="undo-btn" onclick="undoN()" aria-label="Undo" title="Undo"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:block"><path d="M9 14L4 9l5-5M4 9h10a6 6 0 010 12h-3"/></svg></button>
+        <button type="button" class="tool-btn" id="redo-btn" onclick="redoN()" aria-label="Redo" title="Redo"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:block"><path d="M15 14l5-5-5-5M20 9H10a6 6 0 000 12h3"/></svg></button>
         <span class="sep"></span>
         <button type="button" class="tool-btn danger" onclick="clearDrawingN()">Clear</button>
       </div>
@@ -14902,27 +14907,35 @@ function setPenSizeN(size, btn){
 })();
 let drawingActiveN = false;
 
-function resizeCanvasN(){
-  const dpr = window.devicePixelRatio || 1;
-  const w = sheetEl.clientWidth, h = sheetEl.clientHeight;
+const PAGE_COL_N = Infinity;   // full-width page: ink offset is 0
+let canvasScaleN = 1;
+function colOffN(){ const w = sheetEl.clientWidth; return Math.max(0, (w - Math.min(w, PAGE_COL_N)) / 2); }
+// The canvas covers the whole scrolling page (not just the screen), so ink scrolls with the text.
+function resizeCanvasN(force){
+  const pg = document.getElementById('note-page');
+  const w = pg.clientWidth, h = pg.clientHeight;
   if(!w || !h) return;
-  // Preserve whatever is already drawn across a resize instead of wiping it.
-  let snapshot = null;
-  if(canvasEl.width && canvasEl.height){ try{ snapshot = canvasEl.toDataURL('image/png'); }catch(e){} }
-  canvasEl.width = Math.round(w * dpr);
-  canvasEl.height = Math.round(h * dpr);
-  if(snapshot){
-    const img = new Image();
-    img.onload = ()=> canvasCtx.drawImage(img, 0, 0);   // 1:1, never stretch ink when the screen rotates
-    img.src = snapshot;
-  }
+  const needH = Math.ceil(h / 400) * 400;   // rounded up so typing doesn't keep resizing the canvas
+  const curW = parseFloat(canvasEl.style.width) || 0, curH = parseFloat(canvasEl.style.height) || 0;
+  if(!force && Math.abs(w - curW) < 1 && needH <= curH) return;
+  const dpr = window.devicePixelRatio || 1;
+  canvasScaleN = Math.min(dpr, Math.sqrt(14e6 / (w * needH)));   // stay under the browser's canvas-size limit
+  canvasEl.style.width = w + 'px'; canvasEl.style.height = needH + 'px';
+  canvasEl.width = Math.round(w * canvasScaleN); canvasEl.height = Math.round(needH * canvasScaleN);
+  renderPageN();
 }
-window.addEventListener('resize', ()=>{ if(document.getElementById('editor-view').style.display !== 'none') resizeCanvasN(); });
+function relayoutN(){
+  if(document.getElementById('editor-view').style.display === 'none') return;
+  autosizeBodyN(); resizeCanvasN();
+}
+window.addEventListener('resize', relayoutN);
+window.addEventListener('orientationchange', ()=>{ setTimeout(relayoutN, 150); setTimeout(relayoutN, 500); });   // iOS reports the new size late
 
 function setModeN(mode){
   inputModeN = mode;
   penSeenN = false;
   sheetEl.classList.toggle('drawing', mode === 'draw');
+  if(mode === 'draw') resizeCanvasN();   // make sure the ink layer covers all the text typed so far
   if(mode === 'draw'){
     // A focused textarea/title (or a leftover selection) is what iPadOS
     // Scribble/pencil-hold latches onto and turns into "select all".
@@ -14955,6 +14968,11 @@ const toolColorN = { pen:'#2A2410', pencil:'#2A2410', marker:'#2E7DBE', brush:'#
 let toolN = 'pen', inkToolN = 'pen';
 let eraseModeN = 'pixel';      // 'pixel' rubs ink out; 'object' removes whole strokes
 let strokeRecN = null;         // the stroke being recorded (kept as vector data so it can be erased as an object)
+let snapOnN = true, snappedN = false, holdN = null, holdPtN = null;
+function toggleSnapN(){
+  snapOnN = !snapOnN; try{ localStorage.setItem('chalkline:notes-snap', snapOnN ? '1' : '0'); }catch(e){}
+  const b = document.getElementById('snap-btn'); b.textContent = 'Snap shapes: ' + (snapOnN ? 'On' : 'Off'); b.classList.toggle('active', snapOnN);
+}
 function objEraseActive(){ return erasingN && eraseModeN === 'object'; }
 function setEraseModeN(m){
   eraseModeN = m;
@@ -14983,6 +15001,9 @@ function toggleTrayN(force){
     '<div class="tool-row">' + Object.keys(TOOLS).map(k => '<button type="button" class="tool-opt" data-tool="' + k + '" onclick="setToolN(\'' + k + '\')">' + iconN(k) + TOOLS[k].label + '</button>').join('') + '</div>' +
     '<div class="color-row">' + PALETTE.map(c => '<button type="button" class="swatch" data-color="' + c + '" style="background:' + c + '" onclick="setPenColorN(\'' + c + '\')"></button>').join('') + '</div>' +
     '<div class="mode-row"><button type="button" class="seg-btn" data-em="pixel" onclick="setEraseModeN(\'pixel\')">Pixel</button><button type="button" class="seg-btn" data-em="object" onclick="setEraseModeN(\'object\')">Object</button></div>' + '<div class="size-row">' + [[0.55,3],[1,6],[1.7,10],[2.6,15]].map(a => '<button type="button" class="size-btn" data-size="' + a[0] + '" onclick="setPenSizeN(' + a[0] + ',this)"><i style="width:' + a[1] + 'px;height:' + a[1] + 'px"></i></button>').join('') + '</div>';
+  t.insertAdjacentHTML('beforeend', '<div class="mode-row" style="display:flex"><button type="button" class="seg-btn" id="snap-btn" onclick="toggleSnapN()"></button></div>');
+  try{ snapOnN = localStorage.getItem('chalkline:notes-snap') !== '0'; }catch(e){}
+  snapOnN = !snapOnN; toggleSnapN();   // paints the button for the stored state
   let v = 1; try{ v = parseFloat(localStorage.getItem('chalkline:notes-pen-size')) || 1; }catch(e){}
   const b = t.querySelector('.size-btn[data-size="' + v + '"]') || t.querySelector('.size-btn[data-size="1"]');
   penSizeN = parseFloat(b.dataset.size); b.classList.add('active');
@@ -14994,6 +15015,7 @@ function toggleTrayN(force){
   }, true);
 })();
 function clearDrawingN(){
+  snapPushN();
   const pg = pagesN[curPageN]; if(pg){ pg.base = ''; pg.strokes = []; }
   canvasCtx.clearRect(0, 0, canvasEl.width, canvasEl.height);
   saveCurrentNoteN();
@@ -15015,7 +15037,7 @@ function queuePointN(ev, r, dpr){
     pressure: (ev.pressure && ev.pressure > 0) ? ev.pressure : 0.5,
     erase: erasingN, tool: toolN
   });
-  if(strokeRecN){ const q = pendingPointsN[pendingPointsN.length - 1]; strokeRecN.pts.push(+(q.x / dpr).toFixed(1), +(q.y / dpr).toFixed(1), +q.pressure.toFixed(2)); }
+  if(strokeRecN){ const q = pendingPointsN[pendingPointsN.length - 1]; strokeRecN.pts.push(+(q.x / dpr - colOffN()).toFixed(1), +(q.y / dpr).toFixed(1), +q.pressure.toFixed(2)); }
 }
 function scheduleDrawFlushN(){
   if(rafScheduledN) return;
@@ -15048,24 +15070,137 @@ function paintLayerN(st){
   c.globalCompositeOperation = 'source-over'; c.globalAlpha = st.T.a; c.strokeStyle = st.color;
   c.lineWidth = st.lw; c.lineCap = 'round'; c.lineJoin = 'round'; c.stroke(st.path); c.globalAlpha = 1;
 }
+/* ---- Shape snap: hold the pencil still at the end of a stroke and it turns into a
+   clean line, circle/ellipse, triangle or rectangle. ---- */
+function resampleN(Q, n){
+  let L = 0; for(let i = 1; i < Q.length; i++) L += Math.hypot(Q[i][0] - Q[i-1][0], Q[i][1] - Q[i-1][1]);
+  const step = L / (n - 1), R = [Q[0]]; let acc = 0, prev = Q[0];
+  for(let i = 1; i < Q.length; i++){
+    const cur = Q[i]; let d = Math.hypot(cur[0] - prev[0], cur[1] - prev[1]);
+    while(acc + d >= step && d > 0){
+      const t = (step - acc) / d, np = [prev[0] + (cur[0] - prev[0]) * t, prev[1] + (cur[1] - prev[1]) * t];
+      R.push(np); prev = np; d = Math.hypot(cur[0] - prev[0], cur[1] - prev[1]); acc = 0;
+    }
+    acc += d; prev = cur;
+  }
+  while(R.length < n) R.push(Q[Q.length - 1]);
+  return R;
+}
+function rdpN(P, e){
+  if(P.length < 3) return P;
+  const a = P[0], b = P[P.length - 1]; let m = 0, idx = 0;
+  for(let i = 1; i < P.length - 1; i++){ const d = distSegN(P[i][0], P[i][1], a[0], a[1], b[0], b[1]); if(d > m){ m = d; idx = i; } }
+  if(m > e) return rdpN(P.slice(0, idx + 1), e).slice(0, -1).concat(rdpN(P.slice(idx), e));
+  return [a, b];
+}
+function recognizeShapeN(f){
+  const P = []; for(let i = 0; i < f.length; i += 3) P.push([f[i], f[i+1]]);
+  const Q = [P[0]];
+  for(const p of P) if(Math.hypot(p[0] - Q[Q.length-1][0], p[1] - Q[Q.length-1][1]) > 1.5) Q.push(p);
+  if(Q.length < 4) return null;
+  let L = 0; for(let i = 1; i < Q.length; i++) L += Math.hypot(Q[i][0] - Q[i-1][0], Q[i][1] - Q[i-1][1]);
+  if(L < 30) return null;
+  const A = Q[0], Z = Q[Q.length - 1], gap = Math.hypot(Z[0] - A[0], Z[1] - A[1]);
+  const out = (poly)=>{ const r = []; for(const p of poly) r.push(+p[0].toFixed(1), +p[1].toFixed(1), 0.5); return r; };
+  // straight line
+  let dev = 0; for(const p of Q) dev = Math.max(dev, distSegN(p[0], p[1], A[0], A[1], Z[0], Z[1]));
+  if(gap > 0.85 * L && dev < Math.max(5, 0.07 * gap)){
+    let a = A.slice(), z = Z.slice();
+    const ang = Math.abs(Math.atan2(z[1] - a[1], z[0] - a[0])) * 180 / Math.PI;
+    if(ang < 4 || ang > 176){ z[1] = a[1] = (a[1] + z[1]) / 2; }
+    else if(Math.abs(ang - 90) < 4){ z[0] = a[0] = (a[0] + z[0]) / 2; }
+    return out([a, z]);
+  }
+  if(gap > 0.22 * L) return null;   // open scribble: leave it alone
+  const R = resampleN(Q, 64);
+  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+  for(const p of R){ x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]); }
+  const w = x1 - x0, h = y1 - y0; if(w < 15 || h < 15) return null;
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  let sum = 0, sq = 0;
+  for(const p of R){ const r = Math.hypot((p[0] - cx) / (w / 2), (p[1] - cy) / (h / 2)); sum += r; sq += r * r; }
+  const mean = sum / R.length, sd = Math.sqrt(Math.max(0, sq / R.length - mean * mean));
+  if(mean > 0.85 && mean < 1.15 && sd < 0.13){   // circle / ellipse
+    const round = Math.abs(w - h) / Math.max(w, h) < 0.18, a = round ? (w + h) / 4 : w / 2, b = round ? (w + h) / 4 : h / 2, pts = [];
+    for(let i = 0; i <= 72; i++){ const t = i / 72 * Math.PI * 2; pts.push([cx + a * Math.cos(t), cy + b * Math.sin(t)]); }
+    return out(pts);
+  }
+  // triangle / rectangle from the corners
+  let k = 0, far = 0; for(let i = 1; i < R.length; i++){ const d = Math.hypot(R[i][0] - R[0][0], R[i][1] - R[0][1]); if(d > far){ far = d; k = i; } }
+  const eps = Math.min(28, Math.max(5, 0.045 * L));
+  const V = rdpN(R.slice(0, k + 1), eps).slice(0, -1).concat(rdpN(R.slice(k), eps).slice(0, -1));
+  if(V.length === 3) return out([...V, V[0]]);
+  if(V.length === 4){
+    let axis = true;
+    for(let i = 0; i < 4; i++){ const u = V[i], v = V[(i + 1) % 4], dx = Math.abs(v[0] - u[0]), dy = Math.abs(v[1] - u[1]); if(!(dx < 0.2 * dy || dy < 0.2 * dx)) axis = false; }
+    if(axis) return out([[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]]);
+    return out([...V, V[0]]);
+  }
+  return null;
+}
+function snapShapeN(){
+  const rec = strokeRecN;
+  if(!snapOnN || !rec || snappedN || rec.erase) return;
+  const shape = recognizeShapeN(rec.pts); if(!shape) return;
+  rec.pts = shape; rec.poly = true; delete rec.bb;
+  snappedN = true; pendingPointsN = []; strokeN = null;
+  commitStrokeN(); renderPageN();
+}
+/* ---- Undo / redo: each page keeps snapshots of its stroke list ---- */
+const histN = new WeakMap();
+let objSnapDoneN = false;
+function histOfN(pg){ let h = histN.get(pg); if(!h){ h = { u:[], r:[] }; histN.set(pg, h); } return h; }
+function snapOfN(pg){ return { strokes:(pg.strokes || []).slice(), base:pg.base }; }
+function snapPushN(){
+  const pg = pagesN[curPageN]; if(!pg) return;
+  const h = histOfN(pg); h.u.push(snapOfN(pg)); if(h.u.length > 60) h.u.shift(); h.r = [];
+  updateHistBtnsN();
+}
+function stepHistN(from, to){
+  const pg = pagesN[curPageN]; if(!pg) return;
+  const h = histOfN(pg); if(!h[from].length) return;
+  h[to].push(snapOfN(pg));
+  const st = h[from].pop(); pg.strokes = st.strokes; pg.base = st.base;
+  renderPageN(); updateHistBtnsN(); saveCurrentNoteN();
+}
+function undoN(){ stepHistN('u', 'r'); }
+function redoN(){ stepHistN('r', 'u'); }
+function updateHistBtnsN(){
+  const pg = pagesN[curPageN], h = pg ? histOfN(pg) : { u:[], r:[] };
+  document.getElementById('undo-btn').disabled = !h.u.length;
+  document.getElementById('redo-btn').disabled = !h.r.length;
+}
+document.addEventListener('keydown', (e)=>{
+  if(inputModeN !== 'draw' || !(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'z') return;
+  e.preventDefault(); e.shiftKey ? redoN() : undoN();
+});
 function commitStrokeN(){
   const rec = strokeRecN; strokeRecN = null;
   const pg = pagesN[curPageN];
   if(!rec || !rec.pts.length || !pg) return;
+  snapPushN();
   (pg.strokes = pg.strokes || []).push(rec);
 }
 // Re-draws a saved stroke by feeding its raw points back through the live smoothing engine.
 function replayStrokeN(rec){
-  const dpr = window.devicePixelRatio || 1, q = rec.pts, keep = [penColorN, penSizeN];
+  if(rec.poly){   // snapped shape: straight, exact segments (no smoothing)
+    const c = canvasCtx, k = canvasScaleN, q = rec.pts, T = TOOLS[rec.tn];
+    c.globalCompositeOperation = 'source-over'; c.globalAlpha = T.a; c.strokeStyle = rec.color;
+    c.lineWidth = T.w(0.5) * rec.size * k; c.lineCap = 'round'; c.lineJoin = 'round';
+    c.beginPath(); c.moveTo((q[0] + colOffN()) * k, q[1] * k);
+    for(let i = 3; i < q.length; i += 3) c.lineTo((q[i] + colOffN()) * k, q[i+1] * k);
+    c.stroke(); c.globalAlpha = 1; return;
+  }
+  const dpr = canvasScaleN, q = rec.pts, keep = [penColorN, penSizeN], ox = colOffN();
   penColorN = rec.color; penSizeN = rec.size;
-  for(let i = 0; i < q.length; i += 3) pendingPointsN.push({ x:q[i] * dpr, y:q[i+1] * dpr, pressure:q[i+2], erase:rec.erase, tool:rec.tn });
+  for(let i = 0; i < q.length; i += 3) pendingPointsN.push({ x:(q[i] + ox) * dpr, y:q[i+1] * dpr, pressure:q[i+2], erase:rec.erase, tool:rec.tn });
   strokeN = null; flushDrawQueueN(); finishStrokeN();
   const tap = q.length <= 6 && Math.hypot(q[0] - q[q.length-3], q[1] - q[q.length-2]) < 0.5;
   if(tap && !TOOLS[rec.tn].layer){   // a tap with no movement leaves a dot
     const c = canvasCtx;
     c.globalCompositeOperation = rec.erase ? 'destination-out' : 'source-over';
     c.globalAlpha = rec.erase ? 1 : TOOLS[rec.tn].a; c.fillStyle = rec.erase ? '#000' : rec.color;
-    c.beginPath(); c.arc(q[0] * dpr, q[1] * dpr, (rec.erase ? eraserWidthN(dpr) : strokeWidthN(q[2], dpr, rec.tn)) / 2, 0, Math.PI * 2); c.fill(); c.globalAlpha = 1;
+    c.beginPath(); c.arc((q[0] + ox) * dpr, q[1] * dpr, (rec.erase ? eraserWidthN(dpr) : strokeWidthN(q[2], dpr, rec.tn)) / 2, 0, Math.PI * 2); c.fill(); c.globalAlpha = 1;
   }
   penColorN = keep[0]; penSizeN = keep[1];
 }
@@ -15077,7 +15212,7 @@ function renderPageN(){
   const go = ()=>{ (pg.strokes || []).forEach(replayStrokeN); };
   if(!pg.base){ go(); return; }
   let img = imgCacheN.get(pg);
-  if(img && img.complete){ c.drawImage(img, 0, 0); go(); return; }
+  if(img && img.complete){ c.drawImage(img, colOffN() * (canvasScaleN), 0); go(); return; }
   img = new Image();
   img.onload = ()=>{ imgCacheN.set(pg, img); if(pagesN[curPageN] === pg) renderPageN(); };
   img.src = pg.base;
@@ -15109,12 +15244,16 @@ function objEraseAtN(x, y){
   const pg = pagesN[curPageN]; if(!pg || !pg.strokes) return;
   const r = eraserWidthN(1) / 2;
   const kept = pg.strokes.filter(rec => rec.erase || !strokeHitN(rec, x, y, r));
-  if(kept.length !== pg.strokes.length){ pg.strokes = kept; scheduleRenderN(); }
+  if(kept.length !== pg.strokes.length){
+    if(!objSnapDoneN){ snapPushN(); objSnapDoneN = true; }   // one undo step per erase gesture
+    pg.strokes = kept; scheduleRenderN();
+  }
 }
 function flushDrawQueueN(){
   rafScheduledN = false;
+  if(snappedN){ pendingPointsN = []; return; }
   if(!pendingPointsN.length) return;
-  const dpr = window.devicePixelRatio || 1, c = canvasCtx;
+  const dpr = canvasScaleN, c = canvasCtx;
   const pts = pendingPointsN; pendingPointsN = [];
   c.lineCap = 'round'; c.lineJoin = 'round';
   for(const pt of pts){
@@ -15150,8 +15289,8 @@ function flushDrawQueueN(){
 }
 function finishStrokeN(){
   const st = strokeN; strokeN = null;
-  if(!st) return;
-  const dpr = window.devicePixelRatio || 1, c = canvasCtx;
+  if(!st || snappedN) return;
+  const dpr = canvasScaleN, c = canvasCtx;
   if(st.T.layer){ st.path.lineTo(st.cx, st.cy); paintLayerN(st); return; }
   if(Math.hypot(st.cx - st.mx, st.cy - st.my) < 0.1) return;
   c.lineCap = 'round'; c.lineJoin = 'round';
@@ -15168,6 +15307,7 @@ let activePointerTypeN = null;
 let penSeenN = false;
 canvasEl.addEventListener('pointerdown', (e)=>{
   if(inputModeN !== 'draw') return;
+  if(e.pointerType === 'touch'){ touchScrollStartN(e); e.preventDefault(); return; }   // fingers only scroll
   // Palm rejection only applies to the specific case it's for: a resting
   // palm (pointerType 'touch') landing while an actual pen stroke is in
   // progress. A fresh 'pen' contact always takes over and resets the path,
@@ -15195,18 +15335,20 @@ canvasEl.addEventListener('pointerdown', (e)=>{
   try{ window.parent.document.body.classList.add('no-select-while-drawing'); }catch(err){}
   try{ canvasEl.setPointerCapture(e.pointerId); }catch(err){}
   lastPtN = null; strokeN = null; strokeRecN = null;
+  snappedN = false; holdPtN = null; clearTimeout(holdN);
   if(objEraseActive()){
+    objSnapDoneN = false;
     const r0 = canvasEl.getBoundingClientRect();
-    objEraseAtN(e.clientX - r0.left, e.clientY - r0.top);
+    objEraseAtN(e.clientX - r0.left - colOffN(), e.clientY - r0.top);
     e.preventDefault(); return;
   }
   strokeRecN = { tn: erasingN ? 'eraser' : toolN, erase: erasingN, color: penColorN, size: penSizeN, pts: [] };
   pendingPointsN = [];
-  queuePointN(e, canvasEl.getBoundingClientRect(), window.devicePixelRatio || 1);
+  queuePointN(e, canvasEl.getBoundingClientRect(), canvasScaleN);
   flushDrawQueueN(); // seeds the stroke from the pointerdown position
   if(lastPtN && !strokeN.T.layer){
     // A tap with no movement should still leave a dot.
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = canvasScaleN;
     const rad = erasingN ? eraserWidthN(dpr) / 2 : strokeWidthN(lastPtN.pressure, dpr) / 2;
     canvasCtx.globalCompositeOperation = erasingN ? 'destination-out' : 'source-over';
     canvasCtx.fillStyle = erasingN ? '#000' : penColorN;
@@ -15226,15 +15368,45 @@ document.addEventListener('selectstart', (e)=>{
   if(drawingActiveN || inputModeN === 'draw') e.preventDefault();
 });
 try{ window.parent.document.addEventListener('selectstart', (e)=>{ if(drawingActiveN) e.preventDefault(); }); }catch(err){}
+// ---- Finger = scroll (with momentum). Only a pen or mouse can draw. ----
+let tsN = null, inertiaN = 0;
+function touchScrollStartN(e){
+  cancelAnimationFrame(inertiaN);
+  if(drawingActiveN) return;   // ignore a resting palm while a pen stroke is in progress
+  tsN = { id:e.pointerId, y:e.clientY, t:performance.now(), v:0 };
+  try{ canvasEl.setPointerCapture(e.pointerId); }catch(err){}
+}
+canvasEl.addEventListener('pointermove', (e)=>{
+  if(!tsN || e.pointerId !== tsN.id) return;
+  const now = performance.now(), dy = e.clientY - tsN.y, dt = Math.max(1, now - tsN.t);
+  document.getElementById('note-scroll').scrollTop -= dy;
+  tsN.v = 0.7 * tsN.v + 0.3 * (dy / dt); tsN.y = e.clientY; tsN.t = now;
+  e.preventDefault();
+});
+function touchEndN(e){
+  if(!tsN || e.pointerId !== tsN.id) return;
+  let vel = tsN.v * 16; tsN = null;
+  const sc = document.getElementById('note-scroll');
+  const step = ()=>{ sc.scrollTop -= vel; vel *= 0.95; if(Math.abs(vel) > 0.4) inertiaN = requestAnimationFrame(step); };
+  if(Math.abs(vel) > 1) step();
+}
+canvasEl.addEventListener('pointerup', touchEndN);
+canvasEl.addEventListener('pointermove', (e)=>{
+  if(!drawingActiveN || e.pointerId !== activePointerIdN || !strokeRecN || snappedN) return;
+  if(holdPtN && Math.hypot(e.clientX - holdPtN.x, e.clientY - holdPtN.y) < 3) return;   // hand jitter doesn't restart the hold
+  holdPtN = { x:e.clientX, y:e.clientY }; clearTimeout(holdN); holdN = setTimeout(snapShapeN, 550);
+});
+['pointerup','pointercancel'].forEach(t => canvasEl.addEventListener(t, ()=>{ clearTimeout(holdN); holdPtN = null; }));
+canvasEl.addEventListener('pointercancel', touchEndN);
 canvasEl.addEventListener('pointermove', (e)=>{
   if(!drawingActiveN || e.pointerId !== activePointerIdN) return;
   // Input phase only: one rect read per event, every coalesced sample queued
   // (nothing throttled or discarded), drawing deferred to the rAF flush.
   const r = canvasEl.getBoundingClientRect();
-  const dpr = window.devicePixelRatio || 1;
+  const dpr = canvasScaleN;
   const coalesced = (typeof e.getCoalescedEvents === 'function') ? e.getCoalescedEvents() : [];
   const samples = coalesced.length ? coalesced : [e];
-  if(objEraseActive()){ for(const ev of samples) objEraseAtN(ev.clientX - r.left, ev.clientY - r.top); e.preventDefault(); return; }
+  if(objEraseActive()){ for(const ev of samples) objEraseAtN(ev.clientX - r.left - colOffN(), ev.clientY - r.top); e.preventDefault(); return; }
   for(const ev of samples) queuePointN(ev, r, dpr);
   scheduleDrawFlushN();
   e.preventDefault();
@@ -15246,7 +15418,7 @@ function endDrawN(e){
   // No more input is coming: land the final segment (including the pointerup's
   // own position) now rather than waiting for the next frame.
   if(e && e.type === 'pointerup' && e.clientX != null){
-    queuePointN(e, canvasEl.getBoundingClientRect(), window.devicePixelRatio || 1);
+    queuePointN(e, canvasEl.getBoundingClientRect(), canvasScaleN);
   }
   flushDrawQueueN();
   finishStrokeN();
@@ -15280,6 +15452,7 @@ function updatePagerN(){
   document.getElementById('pg-prev').disabled = curPageN === 0;
   document.getElementById('pg-next').disabled = curPageN >= pagesN.length - 1;
   document.getElementById('pg-del').style.display = pagesN.length > 1 ? '' : 'none';
+  updateHistBtnsN();
 }
 function loadPageN(delay){
   const p = pagesN[curPageN];
@@ -15327,7 +15500,6 @@ function slideN(dir){
     const s2 = sw; sw = null;
     const dx = s2.lx - s2.x, dy = s2.ly - s2.y;
     if(Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.6) return;
-    if(inputModeN === 'draw' && !(s2.n >= 2 || penSeenN)) return;
     if(inputModeN === 'type' && bodyEl.selectionStart !== bodyEl.selectionEnd) return;
     goPageN(curPageN + (dx < 0 ? 1 : -1));
   }, { passive:true, capture:true });
@@ -15377,7 +15549,7 @@ function showEditorN(){
   setModeN('type');
   document.getElementById('note-scroll').scrollTop = 0;
   autosizeBodyN();
-  setTimeout(()=>{ resizeCanvasN(); autosizeBodyN(); }, 30);
+  setTimeout(()=>{ autosizeBodyN(); resizeCanvasN(true); }, 30);
 }
 function closeEditorN(){
   document.getElementById('editor-view').style.display = 'none';
