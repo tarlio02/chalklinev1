@@ -14591,14 +14591,20 @@ h1,h2,h3{ font-family:'Fraunces','Source Serif 4',Georgia,serif; margin:0; color
 .draw-tools.show{ display:inline-flex; }
 .swatch{ width:26px; height:26px; border-radius:50%; border:2px solid #fff; box-shadow:0 0 0 1px rgba(0,0,0,0.15); cursor:pointer; padding:0; flex-shrink:0; }
 .swatch.active{ box-shadow:0 0 0 2px var(--ink); }
-#tray-icon{ display:flex; } #tray-dot{ width:13px; height:13px; border-radius:50%; box-shadow:0 0 0 1px rgba(0,0,0,.2); }
+#tray-icon{ display:flex; align-items:center; justify-content:center; width:34px; height:34px; }
+#tray-icon .pen-ico{ width:13px; height:35px; transform:rotate(225deg); overflow:visible; filter:drop-shadow(0 1px 1px rgba(0,0,0,.18)); } #tray-dot{ width:13px; height:13px; border-radius:50%; box-shadow:0 0 0 1px rgba(0,0,0,.2); }
 .tray{ position:absolute; z-index:25; top:calc(var(--safe-top) + 70px); left:14px; width:min(380px, calc(100% - 28px));
   border-radius:22px; padding:14px; display:none; max-height:calc(100% - var(--safe-top) - 96px); overflow-y:auto; flex-direction:column; gap:14px; background:rgba(255,255,255,.95); }
 .tray.open{ display:flex; }
 .tool-row{ display:flex; gap:4px; }
 .tool-opt{ flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; border:none; background:none; border-radius:14px;
   padding:8px 2px 6px; font:600 10px 'JetBrains Mono',monospace; color:var(--muted); cursor:pointer; }
+.tool-opt{ overflow:hidden; padding-bottom:6px; }
+.tool-ico{ display:block; height:44px; overflow:hidden; }
+.tool-opt .pen-ico{ display:block; margin:0 auto; transition:transform .16s cubic-bezier(.2,.8,.2,1); transform:translateY(12px); }
+.tool-opt:hover .pen-ico{ transform:translateY(6px); }
 .tool-opt.active{ background:#FFF1CC; color:var(--ink); }
+.tool-opt.active .pen-ico{ transform:translateY(0); filter:drop-shadow(0 2px 2px rgba(0,0,0,.2)); }
 .color-row{ display:flex; gap:11px; flex-wrap:wrap; justify-content:center; }
 .mode-row .seg-btn{ padding:0 11px; }
 .mode-row{ display:none; justify-content:center; gap:4px; }
@@ -14972,13 +14978,56 @@ function setEraseModeN(m){
   document.querySelectorAll('#pen-tray [data-em]').forEach(el => el.classList.toggle('active', el.dataset.em === m));
   try{ localStorage.setItem('chalkline:notes-erase-mode', m); }catch(e){}
 }
-function iconN(t){ return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + ICONS[t] + '</svg>'; }
+/* Illustrated tool icons: each one is drawn like the real thing, and its tip / ink takes the colour you have picked. */
+const ICON_LINE_N = 'stroke="rgba(0,0,0,.28)" stroke-width=".8" stroke-linejoin="round"';
+function penSvgN(t, color){
+  const c = color || '#2A2410', L = ICON_LINE_N;
+  const shine = (x, y, h) => '<rect x="' + x + '" y="' + y + '" width="2" height="' + h + '" rx="1" fill="#fff" opacity=".32"/>';
+  let g = '';
+  if(t === 'pen'){          // ballpoint / gel pen
+    g = '<path d="M12 2L15.5 15H8.5Z" fill="' + c + '" ' + L + '/>' +
+        '<rect x="7.5" y="15" width="9" height="5" rx="1" fill="#D3D7DD" ' + L + '/>' +
+        '<rect x="6.5" y="20" width="11" height="38" rx="3.5" fill="#3B404C" ' + L + '/>' + shine(8.6, 23, 30) +
+        '<rect x="6.5" y="43" width="11" height="3" fill="' + c + '" opacity=".95"/>' +
+        '<rect x="9.5" y="55" width="5" height="8" rx="2" fill="#2A2E38" ' + L + '/>';
+  } else if(t === 'pencil'){ // wooden pencil
+    g = '<path d="M12 2L17 17H7Z" fill="#F0D3A2" ' + L + '/>' +
+        '<path d="M12 2L14.3 9H9.7Z" fill="' + c + '" ' + L + '/>' +
+        '<rect x="7" y="17" width="10" height="33" fill="#F2B840" ' + L + '/>' +
+        '<rect x="9.4" y="17" width="1.4" height="33" fill="#D99A22" opacity=".8"/><rect x="13.2" y="17" width="1.4" height="33" fill="#D99A22" opacity=".8"/>' + shine(7.9, 19, 27) +
+        '<rect x="7" y="50" width="10" height="5.5" fill="#BFC3CB" ' + L + '/><path d="M7 52.2H17M7 53.9H17" stroke="rgba(0,0,0,.25)" stroke-width=".6"/>' +
+        '<rect x="7" y="55.5" width="10" height="7.5" rx="2.5" fill="#EC8792" ' + L + '/>';
+  } else if(t === 'marker'){ // chisel-tip felt marker
+    g = '<path d="M9 11L10.6 2.5H13.4L15 11Z" fill="' + c + '" ' + L + '/>' +
+        '<rect x="7" y="11" width="10" height="6" rx="1.5" fill="#DDE0E5" ' + L + '/>' +
+        '<rect x="5.8" y="17" width="12.4" height="42" rx="3.5" fill="#5A6170" ' + L + '/>' + shine(8, 20, 34) +
+        '<rect x="5.8" y="33" width="12.4" height="9" fill="' + c + '"/><rect x="5.8" y="33" width="12.4" height="9" fill="none" ' + L + '/>' +
+        '<rect x="8" y="57" width="8" height="6" rx="2" fill="#464C59" ' + L + '/>';
+  } else if(t === 'brush'){  // round paint brush
+    g = '<path d="M12 1C15.4 6 16.8 12 15.4 21H8.6C7.2 12 8.6 6 12 1Z" fill="' + c + '" ' + L + '/>' +
+        '<rect x="8" y="21" width="8" height="11" rx="1.2" fill="#CDD1D8" ' + L + '/><path d="M8 24.5H16M8 28H16" stroke="rgba(0,0,0,.25)" stroke-width=".6"/>' +
+        '<path d="M9 32H15L14 62.5Q12 64 10 62.5Z" fill="#7B4A29" ' + L + '/><path d="M11 34L11.2 58" stroke="#fff" stroke-width="1.3" stroke-linecap="round" opacity=".28"/>';
+  } else if(t === 'highlighter'){ // chisel highlighter, translucent body
+    g = '<path d="M8.4 16L9.2 7L15 2.5L15.8 7V16Z" fill="' + c + '" ' + L + '/>' +
+        '<rect x="6" y="16" width="12" height="7" rx="1.5" fill="#F2F3F5" ' + L + '/>' +
+        '<rect x="5.6" y="23" width="12.8" height="40" rx="3.5" fill="' + c + '" opacity=".38"/><rect x="5.6" y="23" width="12.8" height="40" rx="3.5" fill="none" ' + L + '/>' +
+        '<rect x="7.8" y="38" width="8.4" height="10" rx="1" fill="#fff" opacity=".8"/>' + shine(8, 26, 8) +
+        '<rect x="5.6" y="57" width="12.8" height="6" rx="3" fill="' + c + '"/><rect x="5.6" y="57" width="12.8" height="6" rx="3" fill="none" ' + L + '/>';
+  } else {                   // eraser
+    g = '<rect x="4.5" y="6" width="15" height="22" rx="4" fill="#F09BA8" ' + L + '/>' + shine(6.6, 9, 14) +
+        '<rect x="4.5" y="24" width="15" height="36" rx="3" fill="#F1F2F5" ' + L + '/>' +
+        '<rect x="4.5" y="34" width="15" height="9" fill="#4C74B5"/><rect x="4.5" y="34" width="15" height="9" fill="none" ' + L + '/>';
+  }
+  return '<svg class="pen-ico" viewBox="0 0 24 64" width="22" height="59" aria-hidden="true">' + g + '</svg>';
+}
+function iconN(t){ return penSvgN(t, (t === 'eraser') ? null : toolColorN[t]); }
 function setToolN(t){
   toolN = t; erasingN = (t === 'eraser');
   if(!erasingN){ inkToolN = t; penColorN = toolColorN[t]; }
   document.querySelectorAll('.tool-opt').forEach(el => el.classList.toggle('active', el.dataset.tool === t));
   document.querySelectorAll('#pen-tray .swatch').forEach(el => el.classList.toggle('active', !erasingN && el.dataset.color === penColorN));
   document.getElementById('pen-tray').classList.toggle('eraser', erasingN);
+  document.querySelectorAll('#pen-tray .tool-opt').forEach(el => { const k = el.dataset.tool, i = el.querySelector('.tool-ico'); if(i) i.innerHTML = iconN(k); });
   document.getElementById('tray-icon').innerHTML = iconN(t);
   const d = document.getElementById('tray-dot');
   d.style.background = penColorN; d.style.display = erasingN ? 'none' : 'block';
@@ -14991,7 +15040,7 @@ function toggleTrayN(force){
 (function buildTrayN(){
   const t = document.getElementById('pen-tray');
   t.innerHTML =
-    '<div class="tool-row">' + Object.keys(TOOLS).map(k => '<button type="button" class="tool-opt" data-tool="' + k + '" onclick="setToolN(\'' + k + '\')">' + iconN(k) + TOOLS[k].label + '</button>').join('') + '</div>' +
+    '<div class="tool-row">' + Object.keys(TOOLS).map(k => '<button type="button" class="tool-opt" data-tool="' + k + '" onclick="setToolN(\'' + k + '\')"><span class="tool-ico">' + iconN(k) + '</span>' + TOOLS[k].label + '</button>').join('') + '</div>' +
     '<div class="color-row">' + PALETTE.map(c => '<button type="button" class="swatch" data-color="' + c + '" style="background:' + c + '" onclick="setPenColorN(\'' + c + '\')"></button>').join('') + '</div>' +
     '<div class="mode-row"><button type="button" class="seg-btn" data-em="pixel" onclick="setEraseModeN(\'pixel\')">Pixel</button><button type="button" class="seg-btn" data-em="object" onclick="setEraseModeN(\'object\')">Object</button></div>' + '<div class="size-row">' + [[0.55,3],[1,6],[1.7,10],[2.6,15]].map(a => '<button type="button" class="size-btn" data-size="' + a[0] + '" onclick="setPenSizeN(' + a[0] + ',this)"><i style="width:' + a[1] + 'px;height:' + a[1] + 'px"></i></button>').join('') + '</div>';
   t.insertAdjacentHTML('beforeend', '<div class="mode-row" style="display:flex"><button type="button" class="seg-btn" id="snap-btn" onclick="toggleSnapN()"></button></div>');
