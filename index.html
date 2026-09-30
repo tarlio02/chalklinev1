@@ -14637,7 +14637,7 @@ h1,h2,h3{ font-family:'Fraunces','Source Serif 4',Georgia,serif; margin:0; color
 }
 /* every page is stacked in one vertical scroll; each has its own ruled paper, text and ink layer */
 /* pinch zoom: the wrapper is sized to the zoomed page, the stack inside is scaled from its top-left corner */
-#zoom-wrap{ --zoom:1; width:calc(100% * var(--zoom)); margin:0 auto; }
+#zoom-wrap{ --zoom:1; width:calc(var(--lw, 100%) * var(--zoom)); margin:0 auto; }
 #pages-stack{ display:flex; flex-direction:column; gap:12px; padding-bottom:calc(var(--safe-bottom) + 28px); width:calc(100% / var(--zoom)); transform-origin:0 0; }
 #zoom-wrap.zoomed #pages-stack{ transform:scale(var(--zoom)); }
 #zoom-chip{ position:absolute; z-index:22; left:50%; transform:translateX(-50%); bottom:calc(var(--safe-bottom) + 16px); display:none;
@@ -14968,7 +14968,7 @@ let canvasScaleN = 1;
 function colOffN(){ const w = sheetEl.clientWidth; return Math.max(0, (w - Math.min(w, PAGE_COL_N)) / 2); }
 function relayoutN(){
   if(document.getElementById('editor-view').style.display === 'none') return;
-  autosizeAllN(); refreshCanvasesN();
+  autoFitN(); autosizeAllN(); refreshCanvasesN();
 }
 window.addEventListener('resize', relayoutN);
 window.addEventListener('orientationchange', ()=>{ setTimeout(relayoutN, 150); setTimeout(relayoutN, 500); });   // iOS reports the new size late
@@ -15807,7 +15807,14 @@ const ZOOM_MIN_N = 0.5, ZOOM_MAX_N = 4;
 let zoomN = 1, rasterZoomN = 1, pinchN = null, rerasterTimerN = null;
 const zoomWrapN = document.getElementById('zoom-wrap');
 const stackElN = document.getElementById('pages-stack');
-function zoomOffXN(z){ const W = scrollElN.clientWidth; return Math.max(0, (W - W * z) / 2); }   // the page centres itself when zoomed out
+/* Fit-to-width: ink is stored at fixed pixel positions from whatever width it was drawn at (e.g. landscape).
+   When the screen gets narrower (rotating to portrait) the page is laid out at the wider width the ink needs and
+   scaled down to fit, so nothing is clipped off the right edge. Notes without wide ink are untouched. */
+let fitWN = 0, lastFitWN = 0, fitStaleN = true;
+function layoutWN(){ return fitWN || scrollElN.clientWidth; }
+function baseZN(){ const W = scrollElN.clientWidth; return (fitWN && W) ? Math.min(1, W / fitWN) : 1; }
+function minZN(){ return Math.min(ZOOM_MIN_N, baseZN()); }
+function zoomOffXN(z){ const W = scrollElN.clientWidth; return Math.max(0, (W - layoutWN() * z) / 2); }   // the page centres itself when zoomed out
 function applyZoomN(z){
   zoomN = z;
   const on = Math.abs(z - 1) > 0.005;
@@ -15815,7 +15822,7 @@ function applyZoomN(z){
   zoomWrapN.classList.toggle('zoomed', on);
   zoomWrapN.style.height = on ? Math.ceil(stackElN.offsetHeight * z) + 'px' : '';
   const c = document.getElementById('zoom-chip');
-  c.classList.toggle('show', on); c.textContent = Math.round(z * 100) + '% \u00b7 tap to reset';
+  const base = baseZN(); c.classList.toggle('show', Math.abs(z - base) > 0.005); c.textContent = Math.round(z / base * 100) + '% \u00b7 tap to reset';
 }
 // keep the scrolled area as tall as the zoomed pages when text is typed
 try{ new ResizeObserver(()=>{ if(zoomN !== 1) zoomWrapN.style.height = Math.ceil(stackElN.offsetHeight * zoomN) + 'px'; }).observe(stackElN); }catch(e){}
@@ -15839,11 +15846,11 @@ function zoomKeepN(z, px, py, u, v){
 function contentPtN(px, py){ return { u:(scrollElN.scrollLeft + px - zoomOffXN(zoomN)) / zoomN, v:(scrollElN.scrollTop + py) / zoomN }; }
 function zoomAtN(z, clientX, clientY){
   const r = scrollElN.getBoundingClientRect(), px = clientX - r.left, py = clientY - r.top, c = contentPtN(px, py);
-  zoomKeepN(Math.min(ZOOM_MAX_N, Math.max(ZOOM_MIN_N, z)), px, py, c.u, c.v);
+  zoomKeepN(Math.min(ZOOM_MAX_N, Math.max(minZN(), z)), px, py, c.u, c.v);
   scheduleRerasterN();
 }
-function resetZoomN(){ const r = scrollElN.getBoundingClientRect(); zoomAtN(1, r.left + r.width / 2, r.top + r.height / 2); }
-function clearZoomN(){ pinchN = null; applyZoomN(1); rasterZoomN = 1; scrollElN.style.overflow = ''; }
+function resetZoomN(){ const r = scrollElN.getBoundingClientRect(); zoomAtN(baseZN(), r.left + r.width / 2, r.top + r.height / 2); }
+function clearZoomN(){ pinchN = null; fitWN = 0; lastFitWN = 0; fitStaleN = true; zoomWrapN.style.removeProperty('--lw'); applyZoomN(1); rasterZoomN = 1; scrollElN.style.overflow = ''; }
 function pinchInfoN(t){ return { x:(t[0].clientX + t[1].clientX) / 2, y:(t[0].clientY + t[1].clientY) / 2, d:Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY) }; }
 scrollElN.addEventListener('touchstart', (e)=>{
   if(e.touches.length !== 2 || drawingActiveN) return;   // a pen stroke in progress is never interrupted
@@ -15858,7 +15865,7 @@ scrollElN.addEventListener('touchstart', (e)=>{
 scrollElN.addEventListener('touchmove', (e)=>{
   if(!pinchN || e.touches.length < 2) return;
   const r = scrollElN.getBoundingClientRect(), m = pinchInfoN(e.touches);
-  const z = Math.min(ZOOM_MAX_N, Math.max(ZOOM_MIN_N, pinchN.z0 * m.d / pinchN.d0));
+  const z = Math.min(ZOOM_MAX_N, Math.max(minZN(), pinchN.z0 * m.d / pinchN.d0));
   pinchN.px = m.x - r.left; pinchN.py = m.y - r.top;
   zoomKeepN(z, pinchN.px, pinchN.py, pinchN.u, pinchN.v);
   if(e.cancelable) e.preventDefault();
@@ -15866,7 +15873,7 @@ scrollElN.addEventListener('touchmove', (e)=>{
 function endPinchN(e){
   if(!pinchN || e.touches.length >= 2) return;
   const pn = pinchN; pinchN = null;
-  if(Math.abs(zoomN - 1) < 0.06) zoomKeepN(1, pn.px, pn.py, pn.u, pn.v);   // snaps back to 100% when close
+  if(Math.abs(zoomN - baseZN()) < 0.06) zoomKeepN(baseZN(), pn.px, pn.py, pn.u, pn.v);   // snaps back to 100% when close
   scrollElN.style.overflow = ''; stackElN.style.willChange = '';
   scheduleRerasterN();
 }
@@ -15878,6 +15885,32 @@ scrollElN.addEventListener('wheel', (e)=>{
 }, { passive:false });
 ['gesturestart', 'gesturechange', 'gestureend'].forEach(t => document.addEventListener(t, (e)=>e.preventDefault()));   // Safari: stop the whole page zooming
 
+function inkRightN(){   // right-most edge of any ink on any page, in page pixels
+  let m = 0;
+  for(const pg of pagesN){
+    for(const rec of (pg.strokes || [])){
+      if(rec.erase || !rec.pts || !rec.pts.length) continue;
+      try{ const b = bbOfN(rec), T = TOOLS[rec.tn]; m = Math.max(m, b[2] + (T ? T.w(1) * (rec.size || 1) / 2 : 0)); }catch(e){}
+    }
+  }
+  return m;
+}
+function setFitN(Lw){
+  const W = scrollElN.clientWidth;
+  fitWN = Lw || 0;
+  if(fitWN) zoomWrapN.style.setProperty('--lw', fitWN + 'px'); else zoomWrapN.style.removeProperty('--lw');
+  applyZoomN(fitWN ? Math.min(1, W / fitWN) : 1);
+  rasterZoomN = 1;
+  scrollElN.scrollLeft = 0;
+}
+function autoFitN(){
+  const W = scrollElN.clientWidth; if(!W) return;
+  if(!fitStaleN && W === lastFitWN) return;   // only when the width really changed (rotation) or a note was opened
+  fitStaleN = false; lastFitWN = W;
+  const need = inkRightN() + 24;
+  setFitN(need > W + 1 ? Math.ceil(need) : 0);
+  viewsN.forEach((v, i)=>{ if(v.live) resizeCanvasN(false, i); });
+}
 // Only pages near the screen keep a full-resolution ink canvas; the rest are released to save memory.
 const ioN = new IntersectionObserver((ents)=>{
   for(const en of ents){
@@ -15935,7 +15968,7 @@ function renderAtN(i){
 
 /* ---- text area sizing: each page is at least one sheet tall; its ruled lines run to the bottom ---- */
 function pageMinHN(){
-  const w = sheetEl.clientWidth, h = sheetEl.clientHeight;
+  const w = layoutWN(), h = sheetEl.clientHeight / (baseZN() || 1);
   return Math.max(Math.round(w * 1.294), Math.round(h * 0.85));
 }
 function autosizeViewN(v){
