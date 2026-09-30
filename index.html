@@ -14604,11 +14604,10 @@ h1,h2,h3{ font-family:'Fraunces','Source Serif 4',Georgia,serif; margin:0; color
 .mode-row{ display:none; justify-content:center; gap:4px; }
 #pen-tray.eraser .mode-row{ display:flex; }
 .size-row{ display:flex; gap:8px; justify-content:center; }
-.pager{ position:absolute; z-index:20; left:50%; transform:translateX(-50%); bottom:calc(var(--safe-bottom) + 18px);
-  display:flex; align-items:center; gap:2px; height:46px; padding:0 6px; border-radius:999px; }
-.pg-btn{ border:none; background:none; height:36px; min-width:36px; padding:0 10px; border-radius:999px; cursor:pointer;
-  font:600 13px 'JetBrains Mono',monospace; color:var(--ink); }
-.pg-btn:disabled{ opacity:.3; cursor:default; }
+#page-tools{ gap:2px; padding:0 6px; }
+#page-tools .tool-btn{ display:inline-flex; align-items:center; gap:6px; }
+#page-tools .tool-btn svg{ width:16px; height:16px; flex-shrink:0; }
+#page-tools .tool-btn:disabled{ opacity:.3; cursor:default; }
 #pg-label{ font:600 12.5px 'JetBrains Mono',monospace; color:var(--muted); padding:0 6px; white-space:nowrap; }
 .sep{ width:1px; height:22px; background:rgba(0,0,0,0.12); flex-shrink:0; }
 .size-btn{
@@ -14626,44 +14625,51 @@ h1,h2,h3{ font-family:'Fraunces','Source Serif 4',Georgia,serif; margin:0; color
 #eraser-btn.active{ background:#FFF1CC; }
 
 /* the page: one scroll container; ruled lines are painted inside it so they scroll with the text */
-.sheet{ position:absolute; inset:0; }
+.sheet{ position:absolute; inset:0; background:#E6E6EA; }
 #note-scroll{
   position:absolute; inset:0; z-index:2; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch;
 }
-#note-page{
-  position:relative; min-height:100%; padding:calc(var(--lh) * 3) 0 45vh;
-  width:100%; background:var(--paper); overflow:hidden;
+/* every page is stacked in one vertical scroll; each has its own ruled paper, text and ink layer */
+#pages-stack{ display:flex; flex-direction:column; gap:12px; padding-bottom:calc(var(--safe-bottom) + 28px); }
+.note-page{
+  position:relative; flex:none; width:100%; padding:var(--lh) 0; background:var(--paper); overflow:hidden;
+  box-shadow:0 1px 3px rgba(0,0,0,0.07);
 }
-#note-page.ruled::before{
+.note-page.first{ padding-top:calc(var(--lh) * 3); }
+.note-page.ruled::before{
   content:''; position:absolute; z-index:0; left:var(--page-m); right:var(--page-m); top:0; bottom:0; pointer-events:none;
   background:repeating-linear-gradient(to bottom, transparent 0, transparent calc(var(--lh) - 1px), var(--rule-line) calc(var(--lh) - 1px), var(--rule-line) var(--lh));
 }
-#note-title{
+.page-tag{
+  position:absolute; z-index:1; right:14px; bottom:8px; pointer-events:none;
+  font:600 10.5px 'JetBrains Mono',monospace; color:#B9B5A6;
+}
+.note-title{
   position:relative; z-index:1; display:block; width:calc(100% - var(--page-m) * 2); margin:0 var(--page-m);
   height:var(--lh); border:none; outline:none; background:transparent; padding:0 4px;
   font-family:'Fraunces','Source Serif 4',Georgia,serif; font-weight:600; font-size:26px; line-height:var(--lh); color:var(--ink);
 }
-#note-title::placeholder{ color:#C4BFB0; }
-#note-body{
+.note-title::placeholder{ color:#C4BFB0; }
+.note-body{
   position:relative; z-index:1; display:block; width:calc(100% - var(--page-m) * 2); margin:0 var(--page-m);
-  min-height:calc(var(--lh) * 12); resize:none; overflow:hidden; border:none; outline:none; background:transparent;
+  min-height:calc(var(--lh) * 4); resize:none; overflow:hidden; border:none; outline:none; background:transparent;
   font-family:'Source Serif 4', Georgia, serif; font-size:18px; line-height:var(--lh);
   color:var(--ink); padding:0 4px; caret-color:var(--ochre);
 }
-#note-body::placeholder{ color:#C4BFB0; font-style:italic; }
-#note-canvas{
+.note-body::placeholder{ color:#C4BFB0; font-style:italic; }
+.note-canvas{
   position:absolute; top:0; left:0; z-index:3;
   touch-action:none; pointer-events:none;
 }
-.sheet.drawing #note-canvas{ pointer-events:auto; cursor:crosshair; }
-.sheet.drawing #note-body, .sheet.drawing #note-title{ pointer-events:none; }
+.sheet.drawing .note-canvas{ pointer-events:auto; cursor:crosshair; }
+.sheet.drawing .note-body, .sheet.drawing .note-title{ pointer-events:none; }
 /* A fast stylus/mouse drag across the canvas can still trigger the browser's
    native text-selection gesture on surrounding page text (title, toolbar
    labels, etc) — preventDefault() on the pointer events doesn't reliably
    suppress that in every browser. Killing user-select on the whole page for
    the duration of an active stroke stops that "select everything" effect. */
 body.no-select-while-drawing,
-.sheet.drawing, .sheet.drawing *, #note-canvas{
+.sheet.drawing, .sheet.drawing *, .note-canvas{
   user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;
   -webkit-tap-highlight-color:transparent;
 }
@@ -14689,11 +14695,7 @@ body.no-select-while-drawing,
   <div id="editor-view">
     <div class="sheet" id="note-sheet">
       <div id="note-scroll">
-        <div id="note-page" class="ruled">
-          <input id="note-title" type="text" autocomplete="off">
-          <textarea id="note-body"></textarea>
-          <canvas id="note-canvas"></canvas>
-        </div>
+        <div id="pages-stack"></div>
       </div>
     </div>
 
@@ -14701,6 +14703,13 @@ body.no-select-while-drawing,
       <button type="button" class="glass circle-btn" onclick="closeEditorN();" aria-label="Back to notes" title="Back to notes">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
       </button>
+
+      <div class="glass pill" id="page-tools" aria-label="Pages">
+        <button type="button" class="tool-btn" id="add-page-btn" onclick="addPageN()" aria-label="Add page" title="Add a page after this one"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Page</button>
+        <span class="sep"></span>
+        <span id="pg-label">1 / 1</span>
+        <button type="button" class="tool-btn danger" id="pg-del" onclick="deletePageN()" aria-label="Delete this page" title="Delete this page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
+      </div>
 
       <div class="glass pill" role="tablist" aria-label="Input mode">
         <button type="button" class="seg-btn active" id="mode-type-btn" onclick="setModeN('type')">
@@ -14738,14 +14747,6 @@ body.no-select-while-drawing,
 
     <div class="glass tray" id="pen-tray"></div>
 
-    <div class="glass pager" id="pager">
-      <button type="button" class="pg-btn" id="pg-prev" onclick="goPageN(curPageN-1)" aria-label="Previous page">&#8249;</button>
-      <span id="pg-label">1 / 1</span>
-      <button type="button" class="pg-btn" id="pg-next" onclick="goPageN(curPageN+1)" aria-label="Next page">&#8250;</button>
-      <span class="sep"></span>
-      <button type="button" class="pg-btn" onclick="addPageN()">+ Page</button>
-      <button type="button" class="pg-btn" id="pg-del" onclick="deletePageN()" aria-label="Delete page">&#128465;</button>
-    </div>
   </div>
 
 </div>
@@ -14883,12 +14884,11 @@ async function refreshNotesListN(){
 /* ---------------- Editor ---------------- */
 let currentNoteIdN = null;
 let saveTimerN = null;
-const titleEl = document.getElementById('note-title');
-const bodyEl = document.getElementById('note-body');
+let titleEl = null;          // the title input lives on the first page
+let bodyEl = null;           // text area of the active page
 const statusEl = document.getElementById('note-status');
 const sheetEl = document.getElementById('note-sheet');
-const canvasEl = document.getElementById('note-canvas');
-const canvasCtx = canvasEl.getContext('2d', { desynchronized: true });   // lets the browser skip a frame of compositor latency
+let canvasEl = null, canvasCtx = null;   // ink canvas of the active page (each page has its own)
 
 /* ---- Type / Draw (Apple Pencil, finger or mouse) ---- */
 let inputModeN = 'type';
@@ -14911,23 +14911,9 @@ let drawingActiveN = false;
 const PAGE_COL_N = Infinity;   // full-width page: ink offset is 0
 let canvasScaleN = 1;
 function colOffN(){ const w = sheetEl.clientWidth; return Math.max(0, (w - Math.min(w, PAGE_COL_N)) / 2); }
-// The canvas covers the whole scrolling page (not just the screen), so ink scrolls with the text.
-function resizeCanvasN(force){
-  const pg = document.getElementById('note-page');
-  const w = pg.clientWidth, h = pg.clientHeight;
-  if(!w || !h) return;
-  const needH = Math.ceil(h / 400) * 400;   // rounded up so typing doesn't keep resizing the canvas
-  const curW = parseFloat(canvasEl.style.width) || 0, curH = parseFloat(canvasEl.style.height) || 0;
-  if(!force && Math.abs(w - curW) < 1 && needH <= curH) return;
-  const dpr = window.devicePixelRatio || 1;
-  canvasScaleN = Math.min(dpr, Math.sqrt(14e6 / (w * needH)));   // stay under the browser's canvas-size limit
-  canvasEl.style.width = w + 'px'; canvasEl.style.height = needH + 'px';
-  canvasEl.width = Math.round(w * canvasScaleN); canvasEl.height = Math.round(needH * canvasScaleN);
-  renderPageN();
-}
 function relayoutN(){
   if(document.getElementById('editor-view').style.display === 'none') return;
-  autosizeBodyN(); resizeCanvasN();
+  autosizeAllN(); refreshCanvasesN();
 }
 window.addEventListener('resize', relayoutN);
 window.addEventListener('orientationchange', ()=>{ setTimeout(relayoutN, 150); setTimeout(relayoutN, 500); });   // iOS reports the new size late
@@ -14936,7 +14922,7 @@ function setModeN(mode){
   inputModeN = mode;
   penSeenN = false;
   sheetEl.classList.toggle('drawing', mode === 'draw');
-  if(mode === 'draw') resizeCanvasN();   // make sure the ink layer covers all the text typed so far
+  if(mode === 'draw') refreshCanvasesN();   // make sure every page's ink layer covers all the text typed so far
   if(mode === 'draw'){
     // A focused textarea/title (or a leftover selection) is what iPadOS
     // Scribble/pencil-hold latches onto and turns into "select all".
@@ -14974,8 +14960,7 @@ function toggleSnapN(){
   snapOnN = !snapOnN; try{ localStorage.setItem('chalkline:notes-snap', snapOnN ? '1' : '0'); }catch(e){}
   const b = document.getElementById('snap-btn'); b.textContent = 'Snap shapes: ' + (snapOnN ? 'On' : 'Off'); b.classList.toggle('active', snapOnN);
 }
-let convTimerN = null, convBusyN = false, fontTriedN = false;
-const WORKER_URL_N = "https://api.takundamambudzi02.workers.dev";
+let fontTriedN = false;   // set once the handwriting font (used by older notes) has been requested
 let refineN = 'light';   // handwriting refine: 'off' | 'light' | 'strong'
 function setRefineN(l){
   refineN = l; try{ localStorage.setItem('chalkline:notes-refine', l); }catch(e){}
@@ -15012,9 +14997,9 @@ function toggleTrayN(force){
   t.insertAdjacentHTML('beforeend', '<div class="mode-row" style="display:flex"><button type="button" class="seg-btn" id="snap-btn" onclick="toggleSnapN()"></button></div>');
   try{ snapOnN = localStorage.getItem('chalkline:notes-snap') !== '0'; }catch(e){}
   snapOnN = !snapOnN; toggleSnapN();   // paints the button for the stored state
-  t.insertAdjacentHTML('beforeend', '<div class="mode-row" style="display:flex;align-items:center;flex-wrap:wrap;row-gap:6px"><span style="font:600 10px JetBrains Mono,monospace;color:var(--muted);margin-right:6px">Refine handwriting</span><button type="button" class="seg-btn" data-rf="off" onclick="setRefineN(\'off\')">Off</button><button type="button" class="seg-btn" data-rf="light" onclick="setRefineN(\'light\')">Light</button><button type="button" class="seg-btn" data-rf="strong" onclick="setRefineN(\'strong\')">Strong</button><button type="button" class="seg-btn" data-rf="font" onclick="setRefineN(\'font\')">Font</button></div>');
+  t.insertAdjacentHTML('beforeend', '<div class="mode-row" style="display:flex;align-items:center;flex-wrap:wrap;row-gap:6px"><span style="font:600 10px JetBrains Mono,monospace;color:var(--muted);margin-right:6px">Refine handwriting</span><button type="button" class="seg-btn" data-rf="off" onclick="setRefineN(\'off\')">Off</button><button type="button" class="seg-btn" data-rf="light" onclick="setRefineN(\'light\')">Light</button><button type="button" class="seg-btn" data-rf="strong" onclick="setRefineN(\'strong\')">Strong</button></div>');
   let rf = 'light'; try{ rf = localStorage.getItem('chalkline:notes-refine') || 'light'; }catch(e){}
-  setRefineN(['off','light','strong','font'].includes(rf) ? rf : 'light');
+  setRefineN(['off','light','strong'].includes(rf) ? rf : 'light');
   let v = 1; try{ v = parseFloat(localStorage.getItem('chalkline:notes-pen-size')) || 1; }catch(e){}
   const b = t.querySelector('.size-btn[data-size="' + v + '"]') || t.querySelector('.size-btn[data-size="1"]');
   penSizeN = parseFloat(b.dataset.size); b.classList.add('active');
@@ -15191,41 +15176,75 @@ document.addEventListener('keydown', (e)=>{
 /* ---- Handwriting refine: when a stroke ends it is resampled evenly and its wobble is
    smoothed away with a Gaussian filter. Sharp corners (the points of an A, the turn in a k)
    are detected first and kept, so letters stay yours but look steadier and neater. ---- */
-function refineStrokeN(f, sigmaPx){
+function refineStrokeN(f, strong){
+  // 1. clean up the raw samples, then resample at an even spacing
   const P = []; for(let i = 0; i < f.length; i += 3) P.push([f[i], f[i+1], f[i+2]]);
   const Q = [P[0]];
   for(const p of P) if(Math.hypot(p[0] - Q[Q.length-1][0], p[1] - Q[Q.length-1][1]) > 0.8) Q.push(p);
   if(Q.length < 6) return null;
   let L = 0; for(let i = 1; i < Q.length; i++) L += Math.hypot(Q[i][0] - Q[i-1][0], Q[i][1] - Q[i-1][1]);
   if(L < 12) return null;
-  const n = Math.max(6, Math.ceil(L / 2.5) + 1), R = resampleN(Q, n);
-  // corner anchors
-  const k = 3, ang = new Array(n).fill(0);
-  for(let i = k; i < n - k; i++){
+  const step = strong ? 3 : 2, R = resampleN(Q, Math.max(8, Math.ceil(L / step) + 1)), N = R.length;
+  // 2. find the real corners (points of an A, the turn in a k) by how sharply the path bends over ~8px each side
+  const k = Math.max(2, Math.round(8 / step)), cornerDeg = strong ? 54 : 60, ang = new Array(N).fill(0);
+  for(let i = k; i < N - k; i++){
     const ax = R[i][0] - R[i-k][0], ay = R[i][1] - R[i-k][1], bx = R[i+k][0] - R[i][0], by = R[i+k][1] - R[i][1];
     const la = Math.hypot(ax, ay), lb = Math.hypot(bx, by); if(la < 1 || lb < 1) continue;
     ang[i] = Math.acos(Math.max(-1, Math.min(1, (ax * bx + ay * by) / (la * lb)))) * 180 / Math.PI;
   }
   const anch = [0];
-  for(let i = k; i < n - k; i++){
-    if(ang[i] < 65) continue;
+  for(let i = k; i < N - k; i++){
+    if(ang[i] < cornerDeg) continue;
     let top = true; for(let j = i - k; j <= i + k; j++) if(ang[j] > ang[i]) top = false;
     if(top && i - anch[anch.length - 1] >= k) anch.push(i);
   }
-  anch.push(n - 1);
-  // smooth each stretch between anchors, endpoints fixed
-  const sig = sigmaPx / 2.5, Rw = Math.ceil(2.5 * sig), O = R.map(p => p.slice());
+  if(N - 1 - anch[anch.length - 1] < k && anch.length > 1) anch.pop();
+  anch.push(N - 1);
+  // 3. Taubin smoothing between corners: removes wobble without shrinking loops (an 'o' stays as big as you drew it)
+  const lam = 0.5, mu = -0.53, iters = strong ? 18 : 8, O = R.map(p => [p[0], p[1], p[2]]);
   for(let a = 0; a < anch.length - 1; a++){
-    const s0 = anch[a], e0 = anch[a + 1];
-    for(let i = s0 + 1; i < e0; i++){
-      let sx = 0, sy = 0, sp = 0, sw = 0;
-      for(let j = Math.max(s0, i - Rw); j <= Math.min(e0, i + Rw); j++){
-        const w = Math.exp(-((i - j) * (i - j)) / (2 * sig * sig)); sx += R[j][0] * w; sy += R[j][1] * w; sp += R[j][2] * w; sw += w;
+    const s0 = anch[a], e0 = anch[a + 1], m = e0 - s0 + 1;
+    if(m < 4) continue;
+    const X = new Float64Array(m), Y = new Float64Array(m), NX = new Float64Array(m), NY = new Float64Array(m);
+    for(let i = 0; i < m; i++){ X[i] = O[s0 + i][0]; Y[i] = O[s0 + i][1]; }
+    for(let it = 0; it < iters; it++){
+      for(const w of [lam, mu]){
+        NX[0] = X[0]; NY[0] = Y[0]; NX[m-1] = X[m-1]; NY[m-1] = Y[m-1];
+        for(let i = 1; i < m - 1; i++){ NX[i] = X[i] + w * ((X[i-1] + X[i+1]) / 2 - X[i]); NY[i] = Y[i] + w * ((Y[i-1] + Y[i+1]) / 2 - Y[i]); }
+        X.set(NX); Y.set(NY);
       }
-      O[i] = [sx / sw, sy / sw, sp / sw];
+    }
+    for(let i = 0; i < m; i++){ O[s0 + i][0] = X[i]; O[s0 + i][1] = Y[i]; }
+    // 4. a stretch that was meant to be straight (the stem of an l, the bar of a t) is drawn straight
+    const A = O[s0], B = O[e0], len = Math.hypot(B[0] - A[0], B[1] - A[1]);
+    if(len >= 16){
+      let dev = 0; for(let i = s0; i <= e0; i++) dev = Math.max(dev, distSegN(O[i][0], O[i][1], A[0], A[1], B[0], B[1]));
+      const thr = strong ? Math.max(3, 0.05 * len) : Math.max(1.8, 0.025 * len), sMix = strong ? 1 : 0.7;
+      if(dev < thr){
+        for(let i = s0 + 1; i < e0; i++){
+          const t = (i - s0) / (e0 - s0);
+          O[i][0] += (A[0] + (B[0] - A[0]) * t - O[i][0]) * sMix; O[i][1] += (A[1] + (B[1] - A[1]) * t - O[i][1]) * sMix;
+        }
+      }
     }
   }
-  const out = []; for(const p of O) out.push(+p[0].toFixed(1), +p[1].toFixed(1), +Math.max(0.05, Math.min(1, p[2])).toFixed(2));
+  // 5. a loop that almost meets itself (o, a, e, 6, 0) is closed
+  const tk = Math.max(2, Math.round(6 / step)); let turn = 0;
+  for(let i = tk; i < N - tk; i += tk){
+    const ax = O[i][0] - O[i-tk][0], ay = O[i][1] - O[i-tk][1], bx = O[i+tk][0] - O[i][0], by = O[i+tk][1] - O[i][1];
+    turn += Math.atan2(ax * by - ay * bx, ax * bx + ay * by);
+  }
+  const gap = Math.hypot(O[N-1][0] - O[0][0], O[N-1][1] - O[0][1]), closeMax = strong ? Math.max(8, 0.16 * L) : Math.max(5, 0.08 * L);
+  if(L > 36 && Math.abs(turn) * 180 / Math.PI > 290 && gap > 0.5 && gap < closeMax){
+    const mm = Math.max(4, Math.round(N * 0.28)), ox = O[0][0] - O[N-1][0], oy = O[0][1] - O[N-1][1];
+    for(let j = 0; j < mm; j++){ const t = (j + 1) / mm, e = t * t * (3 - 2 * t), i = N - mm + j; O[i][0] += ox * e; O[i][1] += oy * e; }
+  }
+  // 6. pressure: smoothed so the line swells and thins gradually, with a soft pen-like taper at both ends
+  let pr = O.map(p => p[2]);
+  for(let pass = 0; pass < (strong ? 10 : 5); pass++){ const t = pr.slice(); for(let i = 1; i < N - 1; i++) t[i] = 0.25 * pr[i-1] + 0.5 * pr[i] + 0.25 * pr[i+1]; pr = t; }
+  const taper = Math.max(3, Math.round((strong ? 14 : 10) / step)), floor = strong ? 0.6 : 0.78;
+  for(let i = 0; i < taper && i < N / 2; i++){ const e = i / taper, fct = floor + (1 - floor) * e * e * (3 - 2 * e); pr[i] *= fct; pr[N-1-i] *= fct; }
+  const out = []; for(let i = 0; i < N; i++) out.push(+O[i][0].toFixed(1), +O[i][1].toFixed(1), +Math.max(0.05, Math.min(1, pr[i])).toFixed(2));
   return out;
 }
 function bbOfN(rec){
@@ -15254,88 +15273,6 @@ function renderRegionN(x0, y0, x1, y1){
   }
   c.restore();
 }
-/* ---- Font mode: after you pause, the handwriting is read by the AI and replaced with the same
-   words in a handwritten font, right where you wrote them. Undo brings the ink back. ---- */
-function toastN(msg, label, fn){
-  let t = document.getElementById('toast-n');
-  if(!t){
-    t = document.createElement('div'); t.id = 'toast-n'; t.className = 'glass';
-    t.style.cssText = 'position:absolute;z-index:30;left:50%;transform:translateX(-50%);bottom:calc(var(--safe-bottom) + 76px);padding:10px 16px;border-radius:999px;font:600 13px JetBrains Mono,monospace;display:flex;gap:14px;align-items:center;white-space:nowrap;';
-    document.getElementById('editor-view').appendChild(t);
-  }
-  t.innerHTML = ''; const sp = document.createElement('span'); sp.textContent = msg; t.appendChild(sp);
-  if(label){ const b = document.createElement('button'); b.textContent = label; b.style.cssText = 'border:none;background:none;font:inherit;color:#a5372c;cursor:pointer;padding:0'; b.onclick = ()=>{ t.style.display = 'none'; fn(); }; t.appendChild(b); }
-  t.style.display = 'flex'; clearTimeout(t._h); t._h = setTimeout(()=>{ t.style.display = 'none'; }, label ? 6000 : 3000);
-}
-async function ocrInkN(b64){
-  const headers = { 'Content-Type':'application/json' };
-  try{ const ses = JSON.parse(localStorage.getItem('chalkline_session') || 'null'); if(ses && ses.token) headers.Authorization = 'Bearer ' + ses.token; }catch(e){}
-  const r = await fetch(WORKER_URL_N + '/gemini', {
-    method:'POST', headers,
-    body: JSON.stringify({
-      system_instruction:{ parts:[{ text:'You transcribe handwriting from an image. Output ONLY the text exactly as written, one output line per line of handwriting, with no commentary, quotes or markdown. If the image has no legible handwritten words (only drawings, diagrams or scribbles), output exactly: NONE' }] },
-      contents:[{ role:'user', parts:[{ text:'Transcribe the handwriting in this image.' }, { inline_data:{ mime_type:'image/png', data:b64 } }] }],
-      generationConfig:{ maxOutputTokens:600, thinkingConfig:{ thinkingLevel:'low' } }
-    })
-  });
-  const data = await r.json();
-  const part = r.ok && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts;
-  return part ? part.map(x => x.text || '').join('').trim() : '';
-}
-function lineClustersN(recs){
-  const items = recs.map(r => { const b = bbOfN(r); return { b, cy:(b[1] + b[3]) / 2, h:b[3] - b[1], color:r.color }; }).sort((u, v) => u.cy - v.cy);
-  const hs = items.map(i => i.h).sort((u, v) => u - v), med = hs[Math.floor(hs.length / 2)] || 20;
-  const gap = Math.max(16, 0.8 * med), lines = [];
-  for(const it of items){
-    const L = lines[lines.length - 1];
-    if(L && it.cy - L.lastCy <= gap){ L.x0 = Math.min(L.x0, it.b[0]); L.x1 = Math.max(L.x1, it.b[2]); L.y0 = Math.min(L.y0, it.b[1]); L.y1 = Math.max(L.y1, it.b[3]); L.lastCy = it.cy; }
-    else lines.push({ x0:it.b[0], x1:it.b[2], y0:it.b[1], y1:it.b[3], lastCy:it.cy, color:it.color });
-  }
-  return lines;
-}
-async function convertPendingN(){
-  const pg = pagesN[curPageN];
-  if(!pg || convBusyN || drawingActiveN) return;
-  const pend = (pg.strokes || []).filter(r => r.pend);
-  if(!pend.length) return;
-  convBusyN = true; pend.forEach(r => { r.pend = false; });   // each stroke is only ever sent once
-  try{
-    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
-    for(const r of pend){ const b = bbOfN(r); x0 = Math.min(x0, b[0]); y0 = Math.min(y0, b[1]); x1 = Math.max(x1, b[2]); y1 = Math.max(y1, b[3]); }
-    const pad = 12, k = canvasScaleN; x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 += pad; y1 += pad;
-    const w = x1 - x0, h = y1 - y0, sc = Math.min(2, 1000 / Math.max(w, h));
-    const off = document.createElement('canvas'); off.width = Math.max(1, Math.round(w * sc)); off.height = Math.max(1, Math.round(h * sc));
-    const oc = off.getContext('2d'); oc.fillStyle = '#fff'; oc.fillRect(0, 0, off.width, off.height);
-    oc.drawImage(canvasEl, x0 * k, y0 * k, w * k, h * k, 0, 0, off.width, off.height);
-    toastN('Reading handwriting…');
-    const txt = await ocrInkN(off.toDataURL('image/png').split(',')[1]);
-    if(!txt || /^NONE\b/i.test(txt)){ toastN(txt ? 'Kept as ink – no words found' : 'Couldn\u2019t read that just now'); return; }
-    const still = pend.filter(r => pg.strokes.includes(r));
-    if(!still.length || pagesN[curPageN] !== pg) return;
-    const lines = txt.split('\n').map(t => t.trim()).filter(Boolean);
-    let clusters = lineClustersN(still);
-    if(clusters.length !== lines.length){   // model saw a different number of lines: spread evenly over the ink's area
-      const U = { x0:Math.min(...clusters.map(c => c.x0)), x1:Math.max(...clusters.map(c => c.x1)), y0:Math.min(...clusters.map(c => c.y0)), y1:Math.max(...clusters.map(c => c.y1)) };
-      const lh = (U.y1 - U.y0) / lines.length;
-      clusters = lines.map((_, i) => ({ x0:U.x0, x1:U.x1, y0:U.y0 + i * lh, y1:U.y0 + (i + 1) * lh, color:clusters[0].color }));
-    }
-    try{ await document.fonts.load('700 32px Caveat'); }catch(e){}
-    const c = canvasCtx, pageW = document.getElementById('note-page').clientWidth, made = [];
-    lines.forEach((text, i) => {
-      const cl = clusters[i]; let fs = Math.max(20, Math.min(64, (cl.y1 - cl.y0) * 0.9));
-      c.font = '700 ' + fs + 'px Caveat, cursive';
-      let tw = c.measureText(text).width; const room = Math.max(60, pageW - cl.x0 - 24);
-      if(tw > room){ fs *= room / tw; tw = room; }
-      const cy = (cl.y0 + cl.y1) / 2;
-      made.push({ tn:'pen', size:1, color:cl.color, text, x:+cl.x0.toFixed(1), cy:+cy.toFixed(1), fs:+fs.toFixed(1), pts:[cl.x0, cy - fs * 0.6, 0.5, cl.x0 + tw, cy + fs * 0.6, 0.5] });
-    });
-    snapPushN();
-    pg.strokes = pg.strokes.filter(r => !still.includes(r)).concat(made);
-    renderPageN(); updateHistBtnsN(); saveCurrentNoteN();
-    toastN('Converted to handwriting font', 'Undo', undoN);
-  }catch(e){ console.warn('Handwriting conversion failed', e); toastN('Couldn\u2019t read that just now'); }
-  finally{ convBusyN = false; }
-}
 function commitStrokeN(){
   const rec = strokeRecN; strokeRecN = null;
   const pg = pagesN[curPageN];
@@ -15343,14 +15280,11 @@ function commitStrokeN(){
   let refined = false;
   const T = TOOLS[rec.tn];
   if(refineN !== 'off' && !rec.poly && !rec.erase && T.a === 1 && !T.layer){
-    const r = refineStrokeN(rec.pts, refineN === 'strong' ? 4.5 : 2);
+    const r = refineStrokeN(rec.pts, refineN === 'strong');
     if(r){ rec.pts = r; rec.poly = true; refined = true; }
   }
   snapPushN();
   (pg.strokes = pg.strokes || []).push(rec);
-  if(refineN === 'font' && T.a === 1 && !T.layer && !rec.erase && !rec.shape && !rec.text){
-    rec.pend = true; clearTimeout(convTimerN); convTimerN = setTimeout(convertPendingN, 1800);   // convert once you pause writing
-  }
   if(refined){ const b = bbOfN(rec), pad = T.w(1) * rec.size + 12; renderRegionN(b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad); }
 }
 // Re-draws a saved stroke by feeding its raw points back through the live smoothing engine.
@@ -15397,7 +15331,7 @@ function renderPageN(){
   const pg = pagesN[curPageN]; if(!pg) return;
   const c = canvasCtx;
   if(!fontTriedN && (pg.strokes || []).some(r => r.text) && !document.fonts.check('700 24px Caveat')){
-    fontTriedN = true; document.fonts.load('700 24px Caveat').then(scheduleRenderN);   // re-draw once the font is ready
+    fontTriedN = true; document.fonts.load('700 24px Caveat').then(()=>{ viewsN.forEach((_, i)=>renderAtN(i)); });   // re-draw once the font is ready
   }
   c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1; c.clearRect(0, 0, canvasEl.width, canvasEl.height);
   const go = ()=>{ (pg.strokes || []).forEach(replayStrokeN); };
@@ -15405,13 +15339,14 @@ function renderPageN(){
   let img = imgCacheN.get(pg);
   if(img && img.complete){ c.drawImage(img, colOffN() * (canvasScaleN), 0); go(); return; }
   img = new Image();
-  img.onload = ()=>{ imgCacheN.set(pg, img); if(pagesN[curPageN] === pg) renderPageN(); };
+  img.onload = ()=>{ imgCacheN.set(pg, img); const ix = pagesN.indexOf(pg); if(ix >= 0) renderAtN(ix); };
   img.src = pg.base;
 }
 let renderQueuedN = false;
 function scheduleRenderN(){
   if(renderQueuedN) return; renderQueuedN = true;
-  requestAnimationFrame(()=>{ renderQueuedN = false; renderPageN(); });
+  const i = curPageN;
+  requestAnimationFrame(()=>{ renderQueuedN = false; renderAtN(i); });
 }
 function distSegN(px, py, ax, ay, bx, by){
   const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
@@ -15451,7 +15386,7 @@ function flushDrawQueueN(){
   for(const pt of pts){
     if(!strokeN){
       const tn = pt.erase ? 'eraser' : pt.tool, T = TOOLS[tn];
-      strokeN = { sx: pt.x, sy: pt.y, sp: pt.pressure, cx: pt.x, cy: pt.y, mx: pt.x, my: pt.y, erase: pt.erase, tn, T, color: penColorN };
+      strokeN = { sx: pt.x, sy: pt.y, tx: pt.x, ty: pt.y, lx: pt.x, ly: pt.y, sp: pt.pressure, cx: pt.x, cy: pt.y, mx: pt.x, my: pt.y, erase: pt.erase, tn, T, color: penColorN };
       if(T.layer){
         const b = document.createElement('canvas'); b.width = canvasEl.width; b.height = canvasEl.height;
         b.getContext('2d').drawImage(canvasEl, 0, 0);
@@ -15462,20 +15397,24 @@ function flushDrawQueueN(){
       continue;
     }
     const st = strokeN;
+    st.lx = pt.x; st.ly = pt.y;   // where the pen really is, so the stroke can land exactly there when you lift
     const dx = pt.x - st.sx, dy = pt.y - st.sy;
     const dist = Math.hypot(dx, dy) / dpr;
     if(dist < 0.25) continue;
-    const alpha = Math.min(0.85, 0.2 + dist * 0.035);
+    // Two-stage stabiliser: a heavier adaptive low-pass (slow, careful movement is smoothed hard, quick strokes
+    // still keep up), then a second gentle pass that irons out whatever wobble is left.
+    const alpha = Math.min(0.7, 0.13 + dist * 0.028);
     st.sx += dx * alpha; st.sy += dy * alpha;
-    st.sp += (pt.pressure - st.sp) * 0.22;
-    const nmx = (st.cx + st.sx) / 2, nmy = (st.cy + st.sy) / 2;
+    st.tx += (st.sx - st.tx) * 0.6; st.ty += (st.sy - st.ty) * 0.6;
+    st.sp += (pt.pressure - st.sp) * 0.14;
+    const nmx = (st.cx + st.tx) / 2, nmy = (st.cy + st.ty) / 2;
     if(st.T.layer){ st.path.quadraticCurveTo(st.cx, st.cy, nmx, nmy); }
     else {
       c.beginPath(); c.moveTo(st.mx, st.my); c.quadraticCurveTo(st.cx, st.cy, nmx, nmy);
       applyPenN(st, dpr); c.stroke(); c.globalAlpha = 1;
     }
-    st.cx = st.sx; st.cy = st.sy; st.mx = nmx; st.my = nmy;
-    lastPtN = { x: st.sx, y: st.sy, pressure: st.sp };
+    st.cx = st.tx; st.cy = st.ty; st.mx = nmx; st.my = nmy;
+    lastPtN = { x: st.tx, y: st.ty, pressure: st.sp };
   }
   if(strokeN && strokeN.T.layer) paintLayerN(strokeN);
 }
@@ -15483,12 +15422,16 @@ function finishStrokeN(){
   const st = strokeN; strokeN = null;
   if(!st || snappedN) return;
   const dpr = canvasScaleN, c = canvasCtx;
-  if(st.T.layer){ st.path.lineTo(st.cx, st.cy); paintLayerN(st); return; }
-  if(Math.hypot(st.cx - st.mx, st.cy - st.my) < 0.1) return;
+  if(st.T.layer){ st.path.quadraticCurveTo(st.cx, st.cy, st.lx, st.ly); paintLayerN(st); return; }
+  if(Math.hypot(st.cx - st.mx, st.cy - st.my) < 0.1 && Math.hypot(st.lx - st.cx, st.ly - st.cy) < 0.1) return;
   c.lineCap = 'round'; c.lineJoin = 'round';
-  c.beginPath(); c.moveTo(st.mx, st.my); c.lineTo(st.cx, st.cy);
+  c.beginPath(); c.moveTo(st.mx, st.my); c.quadraticCurveTo(st.cx, st.cy, st.lx, st.ly);   // land on the spot where the pen lifted
   applyPenN(st, dpr); c.stroke(); c.globalAlpha = 1;
 }
+// Every page has its own ink canvas, so the handlers below are registered once and attached to each canvas as it is created.
+const canvasHandlersN = [];
+function onCanvasN(type, fn, opts){ canvasHandlersN.push([type, fn, opts]); }
+function wireCanvasN(cv){ for(const h of canvasHandlersN) cv.addEventListener(h[0], h[1], h[2]); }
 let activePointerIdN = null;
 let activePointerTypeN = null;
 // Stylus-first input: once a pen has touched the canvas in this Draw session,
@@ -15497,8 +15440,9 @@ let activePointerTypeN = null;
 // with a stylus. Resets whenever the mode is toggled, so finger drawing comes
 // back after Type -> Draw.
 let penSeenN = false;
-canvasEl.addEventListener('pointerdown', (e)=>{
+onCanvasN('pointerdown', (e)=>{
   if(inputModeN !== 'draw') return;
+  if(canvasEl !== e.currentTarget && e.currentTarget._v){ const ix = viewsN.indexOf(e.currentTarget._v); if(ix >= 0) setCurN(ix); }   // the page you touch becomes the active one
   if(e.pointerType === 'touch'){ touchScrollStartN(e); e.preventDefault(); return; }   // fingers only scroll
   // Palm rejection only applies to the specific case it's for: a resting
   // palm (pointerType 'touch') landing while an actual pen stroke is in
@@ -15527,7 +15471,7 @@ canvasEl.addEventListener('pointerdown', (e)=>{
   try{ window.parent.document.body.classList.add('no-select-while-drawing'); }catch(err){}
   try{ canvasEl.setPointerCapture(e.pointerId); }catch(err){}
   lastPtN = null; strokeN = null; strokeRecN = null;
-  snappedN = false; holdPtN = null; clearTimeout(holdN); clearTimeout(convTimerN);
+  snappedN = false; holdPtN = null; clearTimeout(holdN);
   if(objEraseActive()){
     objSnapDoneN = false;
     const r0 = canvasEl.getBoundingClientRect();
@@ -15566,9 +15510,9 @@ function touchScrollStartN(e){
   cancelAnimationFrame(inertiaN);
   if(drawingActiveN) return;   // ignore a resting palm while a pen stroke is in progress
   tsN = { id:e.pointerId, y:e.clientY, t:performance.now(), v:0 };
-  try{ canvasEl.setPointerCapture(e.pointerId); }catch(err){}
+  try{ (e.target || canvasEl).setPointerCapture(e.pointerId); }catch(err){}
 }
-canvasEl.addEventListener('pointermove', (e)=>{
+onCanvasN('pointermove', (e)=>{
   if(!tsN || e.pointerId !== tsN.id) return;
   const now = performance.now(), dy = e.clientY - tsN.y, dt = Math.max(1, now - tsN.t);
   document.getElementById('note-scroll').scrollTop -= dy;
@@ -15582,15 +15526,15 @@ function touchEndN(e){
   const step = ()=>{ sc.scrollTop -= vel; vel *= 0.95; if(Math.abs(vel) > 0.4) inertiaN = requestAnimationFrame(step); };
   if(Math.abs(vel) > 1) step();
 }
-canvasEl.addEventListener('pointerup', touchEndN);
-canvasEl.addEventListener('pointermove', (e)=>{
+onCanvasN('pointerup', touchEndN);
+onCanvasN('pointermove', (e)=>{
   if(!drawingActiveN || e.pointerId !== activePointerIdN || !strokeRecN || snappedN) return;
   if(holdPtN && Math.hypot(e.clientX - holdPtN.x, e.clientY - holdPtN.y) < 3) return;   // hand jitter doesn't restart the hold
   holdPtN = { x:e.clientX, y:e.clientY }; clearTimeout(holdN); holdN = setTimeout(snapShapeN, 550);
 });
-['pointerup','pointercancel'].forEach(t => canvasEl.addEventListener(t, ()=>{ clearTimeout(holdN); holdPtN = null; }));
-canvasEl.addEventListener('pointercancel', touchEndN);
-canvasEl.addEventListener('pointermove', (e)=>{
+['pointerup','pointercancel'].forEach(t => onCanvasN(t, ()=>{ clearTimeout(holdN); holdPtN = null; }));
+onCanvasN('pointercancel', touchEndN);
+onCanvasN('pointermove', (e)=>{
   if(!drawingActiveN || e.pointerId !== activePointerIdN) return;
   // Input phase only: one rect read per event, every coalesced sample queued
   // (nothing throttled or discarded), drawing deferred to the rAF flush.
@@ -15624,85 +15568,171 @@ function endDrawN(e){
   try{ window.parent.document.body.classList.remove('no-select-while-drawing'); }catch(err){}
   saveCurrentNoteN();
 }
-canvasEl.addEventListener('touchstart', (e)=>{ e.preventDefault(); }, { passive:false });
-canvasEl.addEventListener('touchmove', (e)=>{ e.preventDefault(); }, { passive:false });
-canvasEl.addEventListener('contextmenu', (e)=>{ e.preventDefault(); });
-canvasEl.addEventListener('dblclick', (e)=>{ e.preventDefault(); });
-canvasEl.addEventListener('pointerup', endDrawN);
-canvasEl.addEventListener('pointercancel', endDrawN);
+onCanvasN('touchstart', (e)=>{ e.preventDefault(); }, { passive:false });
+onCanvasN('touchmove', (e)=>{ e.preventDefault(); }, { passive:false });
+onCanvasN('contextmenu', (e)=>{ e.preventDefault(); });
+onCanvasN('dblclick', (e)=>{ e.preventDefault(); });
+onCanvasN('pointerup', endDrawN);
+onCanvasN('pointercancel', endDrawN);
 window.addEventListener('pointerup', endDrawN);
 
-/* ---- Pages: each page has its own text, drawing and paper style ---- */
+/* ---- Pages: every page is stacked in one vertical scroll; each has its own text, ink layer and paper style ---- */
 let pagesN = [{ body:'', base:'', strokes:[], paper:'ruled' }];
-let curPageN = 0;
-function syncPageN(){
-  const p = pagesN[curPageN]; if(!p) return;
-  p.body = bodyEl.value; p.paper = paperN;
+let curPageN = 0;          // the page you last touched / are looking at: pen, undo, paper style act on it
+let viewsN = [];           // one view (DOM + ink canvas) per page, same order as pagesN
+let noteTitleN = '';
+const scrollElN = document.getElementById('note-scroll');
+// Only pages near the screen keep a full-resolution ink canvas; the rest are released to save memory.
+const ioN = new IntersectionObserver((ents)=>{
+  for(const en of ents){
+    const v = en.target._v, i = viewsN.indexOf(v);
+    if(i < 0) continue;
+    if(en.isIntersecting) resizeCanvasN(false, i); else releaseViewN(i);
+  }
+}, { root: scrollElN, rootMargin: '60% 0px' });
+
+function syncAllN(){ viewsN.forEach((v, i)=>{ if(pagesN[i]) pagesN[i].body = v.body.value; }); }
+function useViewN(i){
+  const v = viewsN[i]; if(!v) return;
+  curPageN = i; bodyEl = v.body; canvasEl = v.cv; canvasCtx = v.ctx; canvasScaleN = v.scale;
 }
+function setCurN(i){ if(i < 0 || i >= viewsN.length) return; useViewN(i); updatePagerN(); }
 function updatePagerN(){
   document.getElementById('pg-label').textContent = (curPageN + 1) + ' / ' + pagesN.length;
-  document.getElementById('pg-prev').disabled = curPageN === 0;
-  document.getElementById('pg-next').disabled = curPageN >= pagesN.length - 1;
-  document.getElementById('pg-del').style.display = pagesN.length > 1 ? '' : 'none';
+  document.getElementById('pg-del').disabled = pagesN.length < 2;
+  const p = pagesN[curPageN]; if(p) setPaperN(p.paper || 'ruled', { silent:true });
   updateHistBtnsN();
 }
-function loadPageN(delay){
-  const p = pagesN[curPageN];
-  bodyEl.value = p.body || '';
-  setPaperN(p.paper || 'ruled', { silent:true });
-  titleEl.style.visibility = curPageN === 0 ? 'visible' : 'hidden';   // title lives on page 1
-  titleEl.style.pointerEvents = curPageN === 0 ? '' : 'none';
-  document.getElementById('note-scroll').scrollTop = 0;
-  autosizeBodyN(); updatePagerN();
-  setTimeout(renderPageN, delay || 0);
+function renumberN(){ viewsN.forEach((v, i)=>{ v.tag.textContent = String(i + 1); }); }
+
+/* ---- ink canvas of one page ---- */
+function resizeCanvasN(force, idx){
+  const i = idx == null ? curPageN : idx, v = viewsN[i]; if(!v) return;
+  const w = v.sec.clientWidth, h = v.sec.clientHeight;
+  if(!w || !h) return;
+  const needH = Math.ceil(h / 400) * 400;   // rounded up so typing doesn't keep resizing the canvas
+  const curW = parseFloat(v.cv.style.width) || 0, curH = parseFloat(v.cv.style.height) || 0;
+  if(!force && v.live && Math.abs(w - curW) < 1 && needH <= curH) return;
+  const dpr = window.devicePixelRatio || 1;
+  v.scale = Math.min(dpr, Math.sqrt(14e6 / (w * needH)));   // stay under the browser's canvas-size limit
+  v.cv.style.width = w + 'px'; v.cv.style.height = needH + 'px';
+  v.cv.width = Math.round(w * v.scale); v.cv.height = Math.round(needH * v.scale);
+  v.live = true;
+  if(i === curPageN) canvasScaleN = v.scale;
+  renderAtN(i);
 }
-function goPageN(i){
-  if(i < 0 || i >= pagesN.length || i === curPageN) return;
-  const dir = i > curPageN ? 1 : -1;
-  syncPageN(); curPageN = i; loadPageN(0); slideN(dir); saveCurrentNoteN();
+function releaseViewN(i){
+  const v = viewsN[i]; if(!v || !v.live) return;
+  if(drawingActiveN && i === curPageN) return;
+  v.cv.width = 1; v.cv.height = 1; v.live = false;
 }
+function refreshCanvasesN(){ viewsN.forEach((v, i)=>{ if(v.live) resizeCanvasN(false, i); }); }
+// Re-draws one page's ink; the drawing engine works on the "active" page, so switch to it and back.
+function renderAtN(i){
+  const v = viewsN[i]; if(!v || !v.live) return;
+  if(drawingActiveN && i !== curPageN){ setTimeout(()=>renderAtN(i), 120); return; }
+  const prev = curPageN;
+  useViewN(i); renderPageN();
+  if(prev !== i) useViewN(prev);
+}
+
+/* ---- text area sizing: each page is at least one sheet tall; its ruled lines run to the bottom ---- */
+function pageMinHN(){
+  const w = sheetEl.clientWidth, h = sheetEl.clientHeight;
+  return Math.max(Math.round(w * 1.294), Math.round(h * 0.85));
+}
+function autosizeViewN(v){
+  const lh = 36, cs = getComputedStyle(v.sec);
+  const pad = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0), titleH = v.title ? lh : 0;
+  v.body.style.height = 'auto';
+  const need = Math.ceil(v.body.scrollHeight / lh) * lh;   // whole number of lines so the last ruled line lines up
+  const fill = Math.max(lh * 4, Math.floor((pageMinHN() - pad - titleH) / lh) * lh);
+  v.body.style.height = Math.max(need, fill) + 'px';
+}
+function autosizeAllN(){ viewsN.forEach(autosizeViewN); }
+
+/* ---- building the stack ---- */
+function createViewN(pg, first){
+  const sec = document.createElement('section');
+  sec.className = 'note-page' + (first ? ' first' : '') + ((pg.paper || 'ruled') === 'blank' ? '' : ' ruled');
+  let title = null;
+  if(first){
+    title = document.createElement('input'); title.type = 'text'; title.autocomplete = 'off'; title.className = 'note-title';
+    title.value = noteTitleN || ''; sec.appendChild(title); titleEl = title;
+  }
+  const body = document.createElement('textarea'); body.className = 'note-body'; body.value = pg.body || ''; sec.appendChild(body);
+  const cv = document.createElement('canvas'); cv.className = 'note-canvas'; sec.appendChild(cv);
+  const tag = document.createElement('div'); tag.className = 'page-tag'; sec.appendChild(tag);
+  const v = { sec, title, body, cv, tag, ctx: cv.getContext('2d', { desynchronized:true }), scale:1, live:false };
+  sec._v = v; cv._v = v;
+  if(title){ title.addEventListener('input', saveCurrentNoteN); title.addEventListener('focus', ()=>setCurN(0)); }
+  body.addEventListener('input', ()=>{ autosizeViewN(v); saveCurrentNoteN(); });
+  body.addEventListener('focus', ()=>{ const i = viewsN.indexOf(v); if(i >= 0 && i !== curPageN) setCurN(i); });
+  // tapping empty paper puts the cursor at the end of that page's text, like a real notes app
+  sec.addEventListener('pointerdown', (e)=>{
+    if(inputModeN === 'type' && e.target === sec){
+      e.preventDefault(); body.focus(); const n = body.value.length; try{ body.setSelectionRange(n, n); }catch(err){}
+    }
+  });
+  wireCanvasN(cv);
+  ioN.observe(sec);
+  return v;
+}
+function mountPagesN(opts){
+  opts = opts || {};
+  viewsN.forEach(v => { try{ ioN.unobserve(v.sec); }catch(e){} });
+  viewsN = []; titleEl = null; bodyEl = null; canvasEl = null; canvasCtx = null;
+  const stack = document.getElementById('pages-stack'); stack.innerHTML = '';
+  pagesN.forEach((pg, i)=>{ const v = createViewN(pg, i === 0); viewsN.push(v); stack.appendChild(v.sec); });
+  autosizeAllN(); renumberN();
+  const want = Math.max(0, Math.min(opts.cur || 0, viewsN.length - 1));
+  setCurN(want);
+  if(opts.cur) scrollToPageN(want, false); else scrollElN.scrollTop = 0;
+  setTimeout(relayoutN, 30);
+  try{ document.fonts.ready.then(relayoutN); }catch(e){}
+}
+function scrollToPageN(i, smooth){
+  const v = viewsN[i]; if(!v) return;
+  const tb = document.querySelector('.topbar');
+  const clear = i === 0 ? 0 : Math.max(0, tb.getBoundingClientRect().bottom - scrollElN.getBoundingClientRect().top + 6);   // keep the page top just below the toolbar
+  scrollElN.scrollTo({ top: Math.max(0, v.sec.offsetTop - clear), behavior: smooth ? 'smooth' : 'auto' });
+}
+// The page under the middle of the screen becomes the current one as you scroll.
+function pickCurN(){
+  if(drawingActiveN || !viewsN.length) return;
+  const r = scrollElN.getBoundingClientRect(), mid = r.top + r.height * 0.4;
+  let idx = 0;
+  for(let i = 0; i < viewsN.length; i++){ if(viewsN[i].sec.getBoundingClientRect().top <= mid) idx = i; }
+  if(idx !== curPageN) setCurN(idx);
+}
+(function(){
+  let q = false;
+  scrollElN.addEventListener('scroll', ()=>{ if(q) return; q = true; requestAnimationFrame(()=>{ q = false; pickCurN(); }); }, { passive:true });
+})();
+
+function goPageN(i){ if(i >= 0 && i < pagesN.length) scrollToPageN(i, true); }
 function addPageN(){
-  syncPageN(); pagesN.splice(curPageN + 1, 0, { body:'', base:'', strokes:[], paper:paperN });
-  curPageN++; loadPageN(0); slideN(1); saveCurrentNoteN();
+  if(!viewsN.length) return;
+  syncAllN();
+  const at = curPageN + 1, pg = { body:'', base:'', strokes:[], paper:paperN };
+  pagesN.splice(at, 0, pg);
+  const v = createViewN(pg, false);
+  viewsN.splice(at, 0, v);
+  viewsN[at - 1].sec.after(v.sec);
+  autosizeViewN(v); renumberN(); setCurN(at);
+  scrollToPageN(at, true);
+  if(inputModeN === 'type'){ try{ v.body.focus({ preventScroll:true }); }catch(e){} }
+  saveCurrentNoteN();
 }
 function deletePageN(){
   if(pagesN.length < 2 || !confirm('Delete this page?')) return;
-  pagesN.splice(curPageN, 1); curPageN = Math.min(curPageN, pagesN.length - 1);
-  loadPageN(0); saveCurrentNoteN();
+  syncAllN();
+  noteTitleN = titleEl ? titleEl.value : noteTitleN;
+  const i = curPageN;
+  pagesN.splice(i, 1);
+  mountPagesN({ cur: Math.min(i, pagesN.length - 1) });
+  saveCurrentNoteN();
 }
-
-function slideN(dir){
-  try{ sheetEl.animate([{ transform:'translateX(' + (dir * 70) + 'px)', opacity:0.15 }, { transform:'none', opacity:1 }], { duration:240, easing:'cubic-bezier(.2,.8,.2,1)' }); }catch(e){}
-}
-/* Swipe left/right to move between pages. Finger swipes in Type mode; in Draw mode only when
-   a pencil is in use (finger is then free) or with two fingers, so it never fights with drawing.
-   Trackpad / mouse-wheel sideways scrolling works too. */
-(function swipePagesN(){
-  const ev = document.getElementById('editor-view');
-  let sw = null;
-  ev.addEventListener('touchstart', (e)=>{
-    const t = e.touches[0];
-    if(e.target.closest('.topbar, #pen-tray, #pager') || t.touchType === 'stylus'){ sw = null; return; }
-    if(!sw) sw = { x:t.clientX, y:t.clientY, lx:t.clientX, ly:t.clientY, n:e.touches.length };
-    else sw.n = Math.max(sw.n, e.touches.length);
-  }, { passive:true, capture:true });
-  ev.addEventListener('touchmove', (e)=>{ if(sw && e.touches[0].touchType !== 'stylus'){ sw.lx = e.touches[0].clientX; sw.ly = e.touches[0].clientY; } }, { passive:true, capture:true });
-  ev.addEventListener('touchend', (e)=>{
-    if(!sw || e.touches.length) return;
-    const s2 = sw; sw = null;
-    const dx = s2.lx - s2.x, dy = s2.ly - s2.y;
-    if(Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.6) return;
-    if(inputModeN === 'type' && bodyEl.selectionStart !== bodyEl.selectionEnd) return;
-    goPageN(curPageN + (dx < 0 ? 1 : -1));
-  }, { passive:true, capture:true });
-  ev.addEventListener('touchcancel', ()=>{ sw = null; }, { passive:true, capture:true });
-  let lock = 0;
-  ev.addEventListener('wheel', (e)=>{
-    if(Math.abs(e.deltaX) > Math.abs(e.deltaY) * 1.5 && Math.abs(e.deltaX) > 25 && Date.now() > lock){
-      lock = Date.now() + 500; goPageN(curPageN + (e.deltaX > 0 ? 1 : -1));
-    }
-  }, { passive:true });
-})();
 
 /* ---- Paper style: ruled lines or blank ---- */
 let paperN = 'ruled';
@@ -15713,7 +15743,7 @@ function loadPaperDefaultN(){
 function setPaperN(kind, opts){
   paperN = (kind === 'blank') ? 'blank' : 'ruled';
   if(pagesN[curPageN]) pagesN[curPageN].paper = paperN;
-  document.getElementById('note-page').classList.toggle('ruled', paperN === 'ruled');
+  const pv = viewsN[curPageN]; if(pv) pv.sec.classList.toggle('ruled', paperN === 'ruled');
   document.getElementById('paper-ruled-btn').classList.toggle('active', paperN === 'ruled');
   document.getElementById('paper-blank-btn').classList.toggle('active', paperN === 'blank');
   if(!(opts && opts.silent)){
@@ -15721,45 +15751,28 @@ function setPaperN(kind, opts){
     saveCurrentNoteN();
   }
 }
-function autosizeBodyN(){
-  bodyEl.style.height = 'auto';
-  // round up to a whole number of lines so the last ruled line always lines up
-  const lh = 36;
-  bodyEl.style.height = (Math.ceil(bodyEl.scrollHeight / lh) * lh) + 'px';
-}
-window.addEventListener('resize', ()=>{ if(document.getElementById('editor-view').style.display !== 'none') autosizeBodyN(); });
-document.getElementById('note-page').addEventListener('pointerdown', (e)=>{
-  // tapping empty paper below the text puts the cursor at the end, like a real notes app
-  if(inputModeN === 'type' && e.target.id === 'note-page'){
-    e.preventDefault(); bodyEl.focus(); const n = bodyEl.value.length; try{ bodyEl.setSelectionRange(n, n); }catch(err){}
-  }
-});
-
 function showEditorN(){
   document.getElementById('list-view').style.display = 'none';
   document.getElementById('editor-view').style.display = 'block';
   setModeN('type');
-  document.getElementById('note-scroll').scrollTop = 0;
-  autosizeBodyN();
-  setTimeout(()=>{ autosizeBodyN(); resizeCanvasN(true); }, 30);
 }
 function closeEditorN(){
   document.getElementById('editor-view').style.display = 'none';
   document.getElementById('list-view').style.display = 'block';
+  viewsN.forEach((v, i)=>releaseViewN(i));
   currentNoteIdN = null;
   refreshNotesListN();
 }
 function startNewNoteN(){
   if(!shUserN){ alert('Sign in to save notes to your account.'); return; }
   currentNoteIdN = 'n_' + Date.now().toString(36) + Math.random().toString(36).slice(2,8);
-  titleEl.value = '';
-  bodyEl.value = '';
+  noteTitleN = '';
   statusEl.className = 'saved'; statusEl.textContent = 'new';
   document.getElementById('note-delete-btn').style.display = 'none';
   pagesN = [{ body:'', base:'', strokes:[], paper:loadPaperDefaultN() }]; curPageN = 0;
   showEditorN();
-  loadPageN(0);
-  titleEl.focus();
+  mountPagesN();
+  if(titleEl) titleEl.focus();
 }
 async function openNoteN(id){
   if(!shUserN) return;
@@ -15768,15 +15781,14 @@ async function openNoteN(id){
     if(!rec) return;
     const item = JSON.parse(rec.value);
     currentNoteIdN = id;
-    titleEl.value = item.title || '';
-    bodyEl.value = item.body || '';
+    noteTitleN = item.title || '';
     statusEl.className = 'saved'; statusEl.textContent = 'saved';
     document.getElementById('note-delete-btn').style.display = '';
     pagesN = ((item.pages && item.pages.length) ? item.pages : [{ body:item.body, drawing:item.drawing, paper:item.paper }])
       .map(q => ({ body:q.body || '', paper:q.paper || 'ruled', base:q.base || q.drawing || '', strokes:(q.strokes || []).map(r => (r.pend = false, r)) }));   // older notes' ink becomes the fixed base layer
     curPageN = 0;
     showEditorN();
-    loadPageN(60);
+    mountPagesN();
   } catch(e){ console.error('Open note failed:', e); }
 }
 function canvasToDataURLAsync(canvas){
@@ -15801,21 +15813,21 @@ function canvasToDataURLAsync(canvas){
 function saveCurrentNoteN(){
   if(!currentNoteIdN || !shUserN) return;
   statusEl.className = 'editing'; statusEl.textContent = 'editing…';
+  syncAllN();
+  const idSnap = currentNoteIdN, pagesSnap = pagesN, titleSnap = titleEl ? titleEl.value : noteTitleN, subjSnap = notesSubject;
   clearTimeout(saveTimerN);
   saveTimerN = setTimeout(async ()=>{
     try{
-      const now = Date.now();
-      const existingRaw = await window.storage.get(notesKeyPrefixN() + currentNoteIdN, false).catch(()=>null);
+      const now = Date.now(), key = notesKeyPrefixN() + idSnap;
+      const existingRaw = await window.storage.get(key, false).catch(()=>null);
       const createdAt = existingRaw ? (JSON.parse(existingRaw.value).createdAt || now) : now;
-      const pi = curPageN, pBody = bodyEl.value, pPaper = paperN;
       const payload = {
-        id: currentNoteIdN, subject: notesSubject || 'Unsorted',
-        title: titleEl.value, body: '', createdAt, updatedAt: now
+        id: idSnap, subject: subjSnap || 'Unsorted',
+        title: titleSnap, body: '', createdAt, updatedAt: now
       };
-      if(pagesN[pi]){ pagesN[pi].body = pBody; pagesN[pi].paper = pPaper; }
-      payload.pages = pagesN;
-      payload.body = pagesN.map(x => x.body).join('\n\n');
-      await window.storage.set(notesKeyPrefixN() + currentNoteIdN, JSON.stringify(payload), false);
+      payload.pages = pagesSnap;
+      payload.body = pagesSnap.map(x => x.body).join('\n\n');
+      await window.storage.set(key, JSON.stringify(payload), false);
       statusEl.className = 'saved'; statusEl.textContent = 'saved';
       document.getElementById('note-delete-btn').style.display = '';
     } catch(e){ console.error('Save note failed:', e); statusEl.textContent = 'save failed'; }
@@ -15827,8 +15839,6 @@ async function deleteCurrentNoteN(){
   try{ await window.storage.delete(notesKeyPrefixN() + currentNoteIdN, false); } catch(e){}
   closeEditorN();
 }
-titleEl.addEventListener('input', saveCurrentNoteN);
-bodyEl.addEventListener('input', ()=>{ autosizeBodyN(); saveCurrentNoteN(); });
 
 applyScopeN();
 refreshNotesListN();
