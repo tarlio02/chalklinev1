@@ -14686,8 +14686,15 @@ h1,h2,h3{ font-family:'Fraunces','Source Serif 4',Georgia,serif; margin:0; color
   min-height:calc(var(--lh) * 4); resize:none; overflow:hidden; border:none; outline:none; background:transparent;
   font-family:'Source Serif 4', Georgia, serif; font-size:18px; line-height:var(--lh);
   color:var(--ink); padding:0 4px; caret-color:var(--ochre);
+  white-space:pre-wrap; overflow-wrap:break-word; -webkit-user-select:text; user-select:text;
 }
-.note-body::placeholder{ color:#C4BFB0; font-style:italic; }
+.note-body div, .note-body p{ margin:0; }
+/* text formatting bar (Type mode) */
+#fmt-tools{ gap:2px; padding:0 6px; }
+.fmt-btn{ width:34px; padding:0; display:inline-flex; align-items:center; justify-content:center; font-family:'Source Serif 4',Georgia,serif; font-size:17px; }
+.fmt-btn.active{ background:#FFF1CC; box-shadow:0 0 0 1.5px var(--gold-deep) inset; }
+#fmt-a{ display:inline-block; line-height:1; padding-bottom:2px; border-bottom:3px solid #2A2410; font:700 16px 'Source Serif 4',Georgia,serif; }
+#text-color-pop{ left:14px; right:auto; width:min(300px, calc(100% - 28px)); padding:14px; }
 .note-canvas{
   position:absolute; top:0; left:0; z-index:3;
   touch-action:none; pointer-events:none;
@@ -14751,6 +14758,14 @@ body.no-select-while-drawing,
         </button>
       </div>
 
+      <div class="glass pill draw-tools" id="fmt-tools" aria-label="Text formatting">
+        <button type="button" class="tool-btn fmt-btn" data-cmd="bold" onmousedown="event.preventDefault()" onclick="fmtN('bold')" aria-label="Bold" title="Bold"><b>B</b></button>
+        <button type="button" class="tool-btn fmt-btn" data-cmd="italic" onmousedown="event.preventDefault()" onclick="fmtN('italic')" aria-label="Italic" title="Italic"><i>I</i></button>
+        <button type="button" class="tool-btn fmt-btn" data-cmd="underline" onmousedown="event.preventDefault()" onclick="fmtN('underline')" aria-label="Underline" title="Underline"><u>U</u></button>
+        <span class="sep"></span>
+        <button type="button" class="tool-btn fmt-btn" id="fmt-color-btn" onmousedown="event.preventDefault()" onclick="toggleTextColorN()" aria-label="Text colour" title="Text colour"><span id="fmt-a">A</span></button>
+      </div>
+
       <div class="glass pill draw-tools" id="draw-tools">
         <button type="button" class="tool-btn" id="tray-btn" onclick="toggleTrayN()" title="Pens" style="display:flex;align-items:center;gap:8px;height:34px;"><span id="tray-icon"></span><i id="tray-dot"></i></button>
         <span class="sep"></span>
@@ -14769,6 +14784,7 @@ body.no-select-while-drawing,
     </div>
 
     <div class="glass tray" id="pen-tray"></div>
+    <div class="glass menu-pop" id="text-color-pop" role="menu" aria-label="Text colour"><div class="menu-sec">Text colour</div><div class="color-row" id="text-color-row"></div></div>
     <button type="button" class="glass" id="zoom-chip" onclick="resetZoomN()">100%</button>
 
     <div class="glass menu-pop" id="settings-menu" role="menu" aria-label="Note settings">
@@ -14963,6 +14979,9 @@ function setModeN(mode){
   document.getElementById('mode-type-btn').classList.toggle('active', mode === 'type');
   document.getElementById('mode-draw-btn').classList.toggle('active', mode === 'draw');
   document.getElementById('draw-tools').classList.toggle('show', mode === 'draw');
+  document.getElementById('fmt-tools').classList.toggle('show', mode === 'type');
+  viewsN.forEach(v => { v.body.contentEditable = mode === 'type' ? 'true' : 'false'; });
+  if(mode !== 'type') hideTextColorN();
   if(mode !== 'draw') toggleTrayN(false);
 }
 const TOOLS = {
@@ -15064,7 +15083,7 @@ function setPenColorN(color){ if(erasingN) setToolN(inkToolN); toolColorN[toolN]
 function toggleTrayN(force){
   const t = document.getElementById('pen-tray');
   t.classList.toggle('open', force === undefined ? !t.classList.contains('open') : force);
-  if(t.classList.contains('open')){ const sm = document.getElementById('settings-menu'); if(sm){ sm.classList.remove('open'); document.getElementById('settings-btn').classList.remove('open'); } }
+  if(t.classList.contains('open')){ hideTextColorN(); const sm = document.getElementById('settings-menu'); if(sm){ sm.classList.remove('open'); document.getElementById('settings-btn').classList.remove('open'); } }
 }
 (function buildTrayN(){
   const t = document.getElementById('pen-tray');
@@ -15586,6 +15605,7 @@ onCanvasN('pointerdown', (e)=>{
 document.addEventListener('selectstart', (e)=>{
   const t = e.target && e.target.tagName;
   if(t === 'INPUT' || t === 'TEXTAREA') return;   // keep title/body editable
+  if(inputModeN === 'type' && !drawingActiveN) return;
   if(drawingActiveN || inputModeN === 'draw') e.preventDefault();
 });
 try{ window.parent.document.addEventListener('selectstart', (e)=>{ if(drawingActiveN) e.preventDefault(); }); }catch(err){}
@@ -15753,7 +15773,8 @@ const ioN = new IntersectionObserver((ents)=>{
   }
 }, { root: scrollElN, rootMargin: '60% 0px' });
 
-function syncAllN(){ viewsN.forEach((v, i)=>{ if(pagesN[i]) pagesN[i].body = v.body.value; }); }
+function bodyTextN(el){ return (el.innerText || el.textContent || '').replace(/\u00a0/g, ' ').replace(/\s+$/, ''); }
+function syncAllN(){ viewsN.forEach((v, i)=>{ if(pagesN[i]){ pagesN[i].body = bodyTextN(v.body); pagesN[i].html = v.body.innerHTML; } }); }   // plain text stays in body (previews, other tools); formatting lives in html
 function useViewN(i){
   const v = viewsN[i]; if(!v) return;
   curPageN = i; bodyEl = v.body; canvasEl = v.cv; canvasCtx = v.ctx; canvasScaleN = v.scale;
@@ -15822,7 +15843,15 @@ function createViewN(pg, first){
     title = document.createElement('input'); title.type = 'text'; title.autocomplete = 'off'; title.className = 'note-title';
     title.value = noteTitleN || ''; sec.appendChild(title); titleEl = title;
   }
-  const body = document.createElement('textarea'); body.className = 'note-body'; body.value = pg.body || ''; sec.appendChild(body);
+  const body = document.createElement('div'); body.className = 'note-body'; body.contentEditable = inputModeN === 'type' ? 'true' : 'false';
+  body.setAttribute('role', 'textbox'); body.setAttribute('aria-multiline', 'true'); body.spellcheck = true;
+  body.innerHTML = pg.html ? cleanHtmlN(pg.html) : textToHtmlN(pg.body || ''); sec.appendChild(body);
+  body.addEventListener('paste', (e)=>{   // paste as plain text so nothing foreign sneaks in
+    e.preventDefault();
+    const t = (e.clipboardData || window.clipboardData).getData('text/plain');
+    if(t) document.execCommand('insertText', false, t);
+  });
+  body.addEventListener('focus', ()=>{ try{ document.execCommand('styleWithCSS', false, true); document.execCommand('defaultParagraphSeparator', false, 'div'); }catch(err){} });
   const cv = document.createElement('canvas'); cv.className = 'note-canvas'; sec.appendChild(cv);
   const tag = document.createElement('div'); tag.className = 'page-tag'; sec.appendChild(tag);
   const v = { sec, title, body, cv, tag, ctx: cv.getContext('2d', { desynchronized:true }), scale:1, live:false };
@@ -15833,7 +15862,7 @@ function createViewN(pg, first){
   // tapping empty paper puts the cursor at the end of that page's text, like a real notes app
   sec.addEventListener('pointerdown', (e)=>{
     if(inputModeN === 'type' && e.target === sec){
-      e.preventDefault(); body.focus(); const n = body.value.length; try{ body.setSelectionRange(n, n); }catch(err){}
+      e.preventDefault(); body.focus(); try{ const rg = document.createRange(); rg.selectNodeContents(body); rg.collapse(false); const sl = window.getSelection(); sl.removeAllRanges(); sl.addRange(rg); }catch(err){}
     }
   });
   wireCanvasN(cv);
@@ -15896,6 +15925,103 @@ function deletePageN(){
   saveCurrentNoteN();
 }
 
+/* ---- Rich text: bold / italic / underline / colour in Type mode ---- */
+const TEXT_COLORS_N = ['#2A2410', '#2E7DBE', '#C0392B', '#2F9E5B', '#F0862A', '#7B4FB3', '#8A8267', '#E0559A'];
+function escHtmlN(t){ return t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function textToHtmlN(t){ return (t ? t.split('\n') : ['']).map(l => '<div>' + (l ? escHtmlN(l) : '<br>') + '</div>').join(''); }
+const HTML_DROP_N = { SCRIPT:1, STYLE:1, IFRAME:1, OBJECT:1, EMBED:1, LINK:1, META:1, IMG:1, SVG:1, FORM:1, INPUT:1, BUTTON:1, TEXTAREA:1, SELECT:1 };
+const HTML_KEEP_N = { B:1, STRONG:1, I:1, EM:1, U:1, SPAN:1, DIV:1, P:1, BR:1, FONT:1 };
+const COLOR_OK_N = /^(#[0-9a-f]{3,8}|rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*(,\s*[\d.]+\s*)?\))$/i;
+// Saved notes are re-inserted as HTML, so only a small whitelist of tags and styles is ever let through.
+function cleanHtmlN(html){
+  const tpl = document.createElement('template'); tpl.innerHTML = String(html);
+  (function walk(node){
+    Array.from(node.childNodes).forEach(ch => {
+      if(ch.nodeType === 3) return;
+      if(ch.nodeType !== 1){ ch.remove(); return; }
+      if(HTML_DROP_N[ch.tagName.toUpperCase()]){ ch.remove(); return; }
+      walk(ch);
+      if(!HTML_KEEP_N[ch.tagName.toUpperCase()]){ while(ch.firstChild) ch.parentNode.insertBefore(ch.firstChild, ch); ch.remove(); return; }
+      const st = ch.style, keep = [];
+      let col = st.color; if(!col && ch.tagName === 'FONT') col = ch.getAttribute('color') || '';
+      if(col && COLOR_OK_N.test(col.trim())) keep.push('color:' + col.trim());
+      if(/^(bold|[6-9]00)$/.test(st.fontWeight)) keep.push('font-weight:bold');
+      if(st.fontStyle === 'italic') keep.push('font-style:italic');
+      if(/underline/.test(st.textDecoration || st.textDecorationLine || '')) keep.push('text-decoration:underline');
+      Array.from(ch.attributes).forEach(a => ch.removeAttribute(a.name));
+      if(keep.length) ch.setAttribute('style', keep.join(';'));
+    });
+  })(tpl.content);
+  const out = tpl.innerHTML;
+  return out || '<div><br></div>';
+}
+let lastRangeN = null, lastBodyN = null;
+document.addEventListener('selectionchange', ()=>{
+  const sel = window.getSelection(); if(!sel || !sel.rangeCount) return;
+  const r = sel.getRangeAt(0), n = r.commonAncestorContainer, el = n.nodeType === 1 ? n : n.parentElement;
+  const b = el && el.closest ? el.closest('.note-body') : null;
+  if(b){ lastRangeN = r.cloneRange(); lastBodyN = b; updateFmtStateN(); }
+});
+function focusBodyN(){   // true when the formatting command has a text selection to act on
+  const a = document.activeElement;
+  if(a && a.classList && a.classList.contains('note-body')) return true;
+  if(a && a.tagName === 'INPUT') return false;   // the title stays plain text
+  if(lastBodyN && lastRangeN && lastBodyN.isConnected){
+    lastBodyN.focus({ preventScroll:true });
+    const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(lastRangeN); return true;
+  }
+  if(bodyEl){
+    bodyEl.focus({ preventScroll:true });
+    const rg = document.createRange(); rg.selectNodeContents(bodyEl); rg.collapse(false);
+    const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(rg); return true;
+  }
+  return false;
+}
+function fmtN(cmd){
+  if(inputModeN !== 'type' || !focusBodyN()) return;
+  try{ document.execCommand('styleWithCSS', false, true); document.execCommand(cmd); }catch(err){}
+  saveCurrentNoteN(); updateFmtStateN();
+}
+function rgbToHexN(c){
+  c = String(c || '').trim();
+  const m = c.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+  if(m) return '#' + [m[1], m[2], m[3]].map(x => ('0' + (+x).toString(16)).slice(-2)).join('').toUpperCase();
+  return c.toUpperCase();
+}
+function setFmtColorUiN(hex){
+  document.getElementById('fmt-a').style.borderBottomColor = hex || '#2A2410';
+  document.querySelectorAll('#text-color-row .swatch').forEach(el => el.classList.toggle('active', el.dataset.color.toUpperCase() === (hex || '').toUpperCase()));
+}
+function updateFmtStateN(){
+  const a = document.activeElement; if(!(a && a.classList && a.classList.contains('note-body'))) return;
+  ['bold', 'italic', 'underline'].forEach(c => {
+    let on = false; try{ on = document.queryCommandState(c); }catch(err){}
+    const b = document.querySelector('.fmt-btn[data-cmd="' + c + '"]'); if(b) b.classList.toggle('active', !!on);
+  });
+  let col = ''; try{ col = document.queryCommandValue('foreColor'); }catch(err){}
+  if(col) setFmtColorUiN(rgbToHexN(col));
+}
+function applyTextColorN(c){
+  if(inputModeN !== 'type' || !focusBodyN()) return;
+  try{ document.execCommand('styleWithCSS', false, true); document.execCommand('foreColor', false, c); }catch(err){}
+  setFmtColorUiN(c); saveCurrentNoteN(); hideTextColorN();
+}
+function hideTextColorN(){ const p = document.getElementById('text-color-pop'); if(p) p.classList.remove('open'); const b = document.getElementById('fmt-color-btn'); if(b) b.classList.remove('active'); }
+function toggleTextColorN(){
+  const p = document.getElementById('text-color-pop'), open = !p.classList.contains('open');
+  if(!open){ hideTextColorN(); return; }
+  toggleTrayN(false); toggleSettingsN(false);
+  p.classList.add('open'); document.getElementById('fmt-color-btn').classList.add('active');
+}
+(function buildTextColorsN(){
+  document.getElementById('text-color-row').innerHTML = TEXT_COLORS_N.map(c => '<button type="button" class="swatch" data-color="' + c + '" style="background:' + c + '" onmousedown="event.preventDefault()" onclick="applyTextColorN(\'' + c + '\')" aria-label="' + c + '"></button>').join('');
+  setFmtColorUiN('#2A2410');
+  document.getElementById('editor-view').addEventListener('pointerdown', (e)=>{
+    const p = document.getElementById('text-color-pop');
+    if(p.classList.contains('open') && !e.target.closest('#text-color-pop') && !e.target.closest('#fmt-color-btn')) hideTextColorN();
+  }, true);
+})();
+
 /* ---- Paper style: ruled, blank or dotted ---- */
 const PAPERS_N = ['ruled', 'blank', 'dotted'];
 let paperN = 'ruled';
@@ -15928,7 +16054,7 @@ function toggleSettingsN(force){
   const m = document.getElementById('settings-menu'), b = document.getElementById('settings-btn');
   const open = force === undefined ? !m.classList.contains('open') : force;
   m.classList.toggle('open', open); b.classList.toggle('open', open);
-  if(open) toggleTrayN(false);
+  if(open){ toggleTrayN(false); hideTextColorN(); }
 }
 document.getElementById('editor-view').addEventListener('pointerdown', (e)=>{
   const m = document.getElementById('settings-menu');
@@ -15971,7 +16097,7 @@ async function openNoteN(id){
     statusEl.className = 'saved'; statusEl.textContent = 'saved';
     document.getElementById('note-delete-btn').style.display = '';
     pagesN = ((item.pages && item.pages.length) ? item.pages : [{ body:item.body, drawing:item.drawing, paper:item.paper }])
-      .map(q => ({ body:q.body || '', paper:q.paper || 'ruled', base:q.base || q.drawing || '', strokes:(q.strokes || []).map(r => (r.pend = false, r)) }));   // older notes' ink becomes the fixed base layer
+      .map(q => ({ body:q.body || '', paper:q.paper || 'ruled', base:q.base || q.drawing || '', html:q.html || '', strokes:(q.strokes || []).map(r => (r.pend = false, r)) }));   // older notes' ink becomes the fixed base layer
     curPageN = 0;
     showEditorN();
     mountPagesN();
