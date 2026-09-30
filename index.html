@@ -2133,25 +2133,28 @@ function sendNotesPing(){
   try{ rtChan.send({ type:'broadcast', event:'note', payload:{ t:Date.now() } }); }catch(e){}
 }
 let liveLastAt = 0, liveGap = 0;   // big notes (lots of ink) are checked less often so polling stays light
+// Fast lane for the open note. Uploading and downloading one note no longer waits on (or hashes) every other
+// note, and it does not queue behind the background sync. Timings are printed in the console as "[live] ...".
+let liveBusy = false;
 async function pullOneKey(shortKey){
-  if(!shellUser || !shellUser.sub || cloudLoadedFor !== shellUser.sub || syncBusy) return false;
+  if(!shellUser || !shellUser.sub || cloudLoadedFor !== shellUser.sub || liveBusy) return false;
   if(document.visibilityState !== 'visible') return false;
   if(Date.now() - liveLastAt < liveGap) return false;
   const sub = shellUser.sub, full = 'chalkline:' + String(shortKey);
   if(full.indexOf('chalkline:notes:' + sub + ':') !== 0 || !syncKeyRegex(sub).test(full)) return false;
   const s = readWorkerSession();
   if(!s || !s.token || (s.sub && s.sub !== sub)) return false;
-  liveLastAt = Date.now();
-  syncBusy = true;
+  liveLastAt = Date.now(); liveBusy = true;
   let changed = false;
+  const t0 = performance.now();
   try{
     const got = await workerStorage('get', { key: full });
     if(got && got.value != null){
       let value = got.value;
       if(typeof value === 'string' && value.indexOf(GZ_PREFIX) === 0) value = await gunzipFromB64(value);
       const sz = String(value).length;
-      liveGap = sz > 400000 ? 20000 : sz > 100000 ? 10000 : 0;
-      const h = fnv(value), meta = loadSyncMeta(sub), m = meta[full];
+      liveGap = sz > 400000 ? 8000 : sz > 100000 ? 3000 : 0;
+      const h = fnv(value), meta = loadSyncMeta(sub), m = meta[full];   // no await between this read and the save below
       if(!(m && m.h === h)){
         const local = localStorage.getItem(full);
         if(local === null || local === value || (m && m.h === fnv(local))){
@@ -2160,14 +2163,45 @@ async function pullOneKey(shortKey){
           saveSyncMeta(sub, meta);
         }
       }
+      if(changed) console.log('[live] pulled note (' + Math.round(sz / 1024) + ' KB) in ' + Math.round(performance.now() - t0) + ' ms');
     }
   } catch(e){
     console.warn('Live note check skipped:', (e && e.message) || e);
   } finally {
-    syncBusy = false;
-    if(syncAgain){ syncAgain = false; scheduleSync(); }
+    liveBusy = false;
   }
   return changed;
+}
+// Upload one note right after it is saved (instead of waiting for the whole-account sync), then nudge other devices.
+const pnState = {};
+async function pushOneKey(shortKey){
+  if(!shellUser || !shellUser.sub || cloudLoadedFor !== shellUser.sub){ scheduleSync(1200); return; }
+  const sub = shellUser.sub, full = 'chalkline:' + String(shortKey);
+  if(full.indexOf('chalkline:notes:' + sub + ':') !== 0 || !syncKeyRegex(sub).test(full)) return;
+  const st = pnState[full] || (pnState[full] = {});
+  if(st.busy){ st.again = true; return; }   // a newer save arrived mid-upload: send the latest once this one lands
+  st.busy = true;
+  try{
+    do{
+      st.again = false;
+      const v = localStorage.getItem(full); if(v === null) break;
+      const m0 = loadSyncMeta(sub)[full]; if(m0 && m0.h === fnv(v)) break;
+      const t0 = performance.now();
+      let payload = v;
+      if(v.length > 60000 && typeof CompressionStream !== 'undefined'){   // ink notes are big: compress before sending
+        try{ const z = await gzipToB64(v); if(z.length < v.length * 0.9) payload = z; }catch(e){}
+      }
+      await workerStorage('set', { key: full, value: payload });
+      const meta = loadSyncMeta(sub); meta[full] = { h: fnv(v) }; saveSyncMeta(sub, meta);
+      sendNotesPing();
+      console.log('[live] pushed note (' + Math.round(v.length / 1024) + ' KB' + (payload !== v ? ', sent ' + Math.round(payload.length / 1024) + ' KB' : '') + ') in ' + Math.round(performance.now() - t0) + ' ms');
+    } while(st.again);
+  } catch(e){
+    console.warn('Live upload failed, falling back to normal sync:', (e && e.message) || e);
+    scheduleSync(800);
+  } finally {
+    st.busy = false;
+  }
 }
 
 function handleShellCredential(response){
@@ -3201,6 +3235,7 @@ window.addEventListener('message', (e)=>{
   // A page just saved something worth uploading right away (lessons autosave often).
   if(d.syncSoon) scheduleSync(1200);
   if(d.flushSync) syncNow(false);
+  if(d.pushNote && typeof d.key === 'string'){ pushOneKey(d.key); }
   if(d.liveNotesList){ pullNotesList().then(ch => { if(ch) broadcastAuthState(); }); }
   if(d.liveNote && typeof d.key === 'string'){
     const from = e.source;
@@ -15012,7 +15047,7 @@ window.addEventListener('message', (e)=>{
     return;
   }
   if(d.chalklineNoteRemote){ if(d.key === currentNoteKeyN) applyRemoteNoteN(); return; }
-  if(d.chalklineLivePing){ if(currentNoteIdN) pollLiveN(); else pollListN(); return; }
+  if(d.chalklineLivePing){ const go = () => { if(currentNoteIdN) pollLiveN(); else pollListN(); }; go(); setTimeout(go, 1500); setTimeout(go, 4000); return; }   // re-check twice: the cloud copy can lag a moment behind the ping
   if(d.presetSubject){ notesSubject = d.presetSubject; }
   else if(d.chalklineClearSubject){ notesSubject = null; }
   else if(d.loadNoteId){ openNoteN(d.loadNoteId); return; }
@@ -16582,11 +16617,11 @@ function saveCurrentNoteN(){
       if(currentNoteIdN === idSnap) currentNoteKeyN = key;
       loadedStampN = now;
       if(editGenN === genSnap) noteDirtyN = false;
-      try{ parent.postMessage({ syncSoon:true }, '*'); }catch(e){}   // upload right away so other devices see it fast
+      try{ parent.postMessage({ pushNote:true, key }, '*'); if(oldKeySnap && oldKeySnap !== key) parent.postMessage({ syncSoon:true }, '*'); }catch(e){}   // upload just this note right away so other devices see it fast
       statusEl.className = 'saved'; statusEl.textContent = 'saved';
       document.getElementById('note-delete-btn').style.display = '';
     } catch(e){ console.error('Save note failed:', e); statusEl.textContent = 'save failed'; }
-  }, 500);
+  }, 300);
 }
 async function deleteCurrentNoteN(){
   if(!currentNoteIdN) return;
@@ -16680,7 +16715,7 @@ function pollLiveN(){
   try{ if(window.frameElement && window.frameElement.offsetParent === null) return; }catch(e){}
   try{ parent.postMessage({ liveNote:true, key: currentNoteKeyN }, '*'); }catch(e){}
 }
-setInterval(pollLiveN, 4000);
+setInterval(pollLiveN, 2500);
 function pollListN(){   // the notes list itself: new / deleted / renamed notes from another device show up on their own
   if(!shUserN || document.hidden || currentNoteIdN) return;
   try{ if(window.frameElement && window.frameElement.offsetParent === null) return; }catch(e){}
