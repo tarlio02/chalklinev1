@@ -1975,6 +1975,7 @@ async function pushLocal(sub){
       if(job.del){
         await workerStorage('delete', { key: job.k });
         delete meta[job.k];
+        if(String(job.k).indexOf('chalkline:notes:') === 0) pushedNotes = true;
         return;
       }
       try{
@@ -1986,6 +1987,7 @@ async function pushLocal(sub){
         await workerStorage('set', { key: job.k, value: await gzipToB64(job.v) });
       }
       meta[job.k] = { h: fnv(job.v) };
+      if(String(job.k).indexOf('chalkline:notes:') === 0) pushedNotes = true;
     } catch(e){
       if(e && e.message === 'session expired') throw e;    // stop the batch, don't mark as skip
       meta[job.k] = { h: fnv(job.v), skip:true };
@@ -2018,9 +2020,10 @@ async function syncNow(pullFirst){
       if(cleared) saveSyncMeta(sub, mm);
     }
     const changed = (pullFirst || firstLoad) ? await pullCloud(sub, firstLoad) : false;
-    if(firstLoad) cloudLoadedFor = sub;
+    if(firstLoad){ cloudLoadedFor = sub; ensureRealtime(); }
     const profileChanged = applyStoredProfileToShellUser();   // pick up a profile pulled just now (or from another device)
     const pushFailed = await pushLocal(sub);
+    if(pushedNotes){ pushedNotes = false; sendNotesPing(); }
     if(changed || profileChanged) broadcastAuthState();   // pages re-read their data now that it changed
     const i = window.__syncInfo || {};
     if(firstLoad || changed) setSyncStatus('OK — ' + (i.matched || 0) + ' item(s) in cloud for this account (id …' + String(i.sub || '').slice(-4) + ')' + (i.total && !i.matched ? ' — account id mismatch: ' + i.sample + ' vs ' + i.sub : ''), !!(i.total && !i.matched));
@@ -2106,6 +2109,28 @@ async function pullNotesList(){
     if(syncAgain){ syncAgain = false; scheduleSync(); }
   }
   return changed;
+}
+// Instant nudge between your own devices: after a device uploads a note it sends a tiny "something changed" ping
+// (no note content, no names) on a Supabase Realtime channel private to your account id. Other devices signed in
+// as you react by checking right away instead of waiting for the next timer tick. If Realtime is unavailable the
+// timers below still keep everything up to date.
+let rtChan = null, rtSub = null, pushedNotes = false;
+function ensureRealtime(){
+  if(!supabaseClient || !shellUser || !shellUser.sub || rtSub === shellUser.sub) return;
+  try{ if(rtChan) supabaseClient.removeChannel(rtChan); }catch(e){}
+  rtSub = shellUser.sub;
+  try{
+    rtChan = supabaseClient.channel('chalkline-notes-' + rtSub, { config:{ broadcast:{ self:false } } })
+      .on('broadcast', { event:'note' }, () => {
+        liveLastAt = 0; nlLastAt = 0;
+        try{ frames.notes.contentWindow.postMessage({ chalklineLivePing:true }, '*'); }catch(e){}
+      })
+      .subscribe();
+  }catch(e){ rtChan = null; console.warn('Realtime unavailable:', (e && e.message) || e); }
+}
+function sendNotesPing(){
+  if(!rtChan) return;
+  try{ rtChan.send({ type:'broadcast', event:'note', payload:{ t:Date.now() } }); }catch(e){}
 }
 let liveLastAt = 0, liveGap = 0;   // big notes (lots of ink) are checked less often so polling stays light
 async function pullOneKey(shortKey){
@@ -14987,6 +15012,7 @@ window.addEventListener('message', (e)=>{
     return;
   }
   if(d.chalklineNoteRemote){ if(d.key === currentNoteKeyN) applyRemoteNoteN(); return; }
+  if(d.chalklineLivePing){ if(currentNoteIdN) pollLiveN(); else pollListN(); return; }
   if(d.presetSubject){ notesSubject = d.presetSubject; }
   else if(d.chalklineClearSubject){ notesSubject = null; }
   else if(d.loadNoteId){ openNoteN(d.loadNoteId); return; }
@@ -16655,11 +16681,12 @@ function pollLiveN(){
   try{ parent.postMessage({ liveNote:true, key: currentNoteKeyN }, '*'); }catch(e){}
 }
 setInterval(pollLiveN, 4000);
-setInterval(()=>{   // the notes list itself: new / deleted / renamed notes from another device show up on their own
+function pollListN(){   // the notes list itself: new / deleted / renamed notes from another device show up on their own
   if(!shUserN || document.hidden || currentNoteIdN) return;
   try{ if(window.frameElement && window.frameElement.offsetParent === null) return; }catch(e){}
   try{ parent.postMessage({ liveNotesList:true }, '*'); }catch(e){}
-}, 6000);
+}
+setInterval(pollListN, 6000);
 
 applyScopeN();
 refreshNotesListN();
