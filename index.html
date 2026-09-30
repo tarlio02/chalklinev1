@@ -14633,10 +14633,16 @@ h1,h2,h3{ font-family:'Fraunces','Source Serif 4',Georgia,serif; margin:0; color
 /* the page: one scroll container; ruled lines are painted inside it so they scroll with the text */
 .sheet{ position:absolute; inset:0; background:#E6E6EA; }
 #note-scroll{
-  position:absolute; inset:0; z-index:2; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch;
+  position:absolute; inset:0; z-index:2; overflow-y:auto; overflow-x:auto; -webkit-overflow-scrolling:touch; touch-action:pan-x pan-y;
 }
 /* every page is stacked in one vertical scroll; each has its own ruled paper, text and ink layer */
-#pages-stack{ display:flex; flex-direction:column; gap:12px; padding-bottom:calc(var(--safe-bottom) + 28px); }
+/* pinch zoom: the wrapper is sized to the zoomed page, the stack inside is scaled from its top-left corner */
+#zoom-wrap{ --zoom:1; width:calc(100% * var(--zoom)); margin:0 auto; }
+#pages-stack{ display:flex; flex-direction:column; gap:12px; padding-bottom:calc(var(--safe-bottom) + 28px); width:calc(100% / var(--zoom)); transform-origin:0 0; }
+#zoom-wrap.zoomed #pages-stack{ transform:scale(var(--zoom)); }
+#zoom-chip{ position:absolute; z-index:22; left:50%; transform:translateX(-50%); bottom:calc(var(--safe-bottom) + 16px); display:none;
+  height:34px; padding:0 14px; border-radius:999px; font:600 12px 'JetBrains Mono',monospace; color:var(--ink); cursor:pointer; }
+#zoom-chip.show{ display:block; }
 .note-page{
   position:relative; flex:none; width:100%; padding:var(--lh) 0; background:var(--paper); overflow:hidden;
   box-shadow:0 1px 3px rgba(0,0,0,0.07);
@@ -14646,6 +14652,25 @@ h1,h2,h3{ font-family:'Fraunces','Source Serif 4',Georgia,serif; margin:0; color
   content:''; position:absolute; z-index:0; left:var(--page-m); right:var(--page-m); top:0; bottom:0; pointer-events:none;
   background:repeating-linear-gradient(to bottom, transparent 0, transparent calc(var(--lh) - 1px), var(--rule-line) calc(var(--lh) - 1px), var(--rule-line) var(--lh));
 }
+.note-page.dotted::before{
+  content:''; position:absolute; z-index:0; left:var(--page-m); right:var(--page-m); top:0; bottom:0; pointer-events:none;
+  background-image:radial-gradient(circle at center, #B4B4BC 0, #B4B4BC 1.3px, transparent 1.9px);
+  background-size:var(--lh) var(--lh);
+  background-position:0 calc(var(--lh) / 2 - 0.5px);
+}
+/* 3-dot settings menu */
+.circle-btn.open{ background:rgba(255,241,204,.98); }
+.menu-pop{ position:absolute; z-index:26; top:calc(var(--safe-top) + 70px); right:14px; width:min(250px, calc(100% - 28px));
+  border-radius:20px; padding:10px; display:none; flex-direction:column; gap:2px; background:rgba(255,255,255,.96); }
+.menu-pop.open{ display:flex; }
+.menu-sec{ font:600 10px 'JetBrains Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); padding:4px 8px 6px; }
+.menu-opt{ display:flex; align-items:center; gap:10px; border:none; background:none; width:100%; height:42px; padding:0 10px;
+  border-radius:12px; font:600 13px 'JetBrains Mono',monospace; color:var(--ink); cursor:pointer; text-align:left; }
+.menu-opt svg{ width:20px; height:20px; flex-shrink:0; }
+.menu-opt .menu-check{ margin-left:auto; width:16px; height:16px; opacity:0; color:var(--gold-deep); }
+.menu-opt.active{ background:#FFF1CC; }
+.menu-opt.active .menu-check{ opacity:1; }
+.menu-link{ border:none; background:none; font:600 11.5px 'JetBrains Mono',monospace; color:var(--muted); padding:10px 10px 4px; text-align:left; cursor:pointer; }
 .page-tag{
   position:absolute; z-index:1; right:14px; bottom:8px; pointer-events:none;
   font:600 10.5px 'JetBrains Mono',monospace; color:#B9B5A6;
@@ -14701,7 +14726,7 @@ body.no-select-while-drawing,
   <div id="editor-view">
     <div class="sheet" id="note-sheet">
       <div id="note-scroll">
-        <div id="pages-stack"></div>
+        <div id="zoom-wrap"><div id="pages-stack"></div></div>
       </div>
     </div>
 
@@ -14726,15 +14751,6 @@ body.no-select-while-drawing,
         </button>
       </div>
 
-      <div class="glass pill" role="tablist" aria-label="Paper style">
-        <button type="button" class="seg-btn active" id="paper-ruled-btn" onclick="setPaperN('ruled')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>Ruled
-        </button>
-        <button type="button" class="seg-btn" id="paper-blank-btn" onclick="setPaperN('blank')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/></svg>Blank
-        </button>
-      </div>
-
       <div class="glass pill draw-tools" id="draw-tools">
         <button type="button" class="tool-btn" id="tray-btn" onclick="toggleTrayN()" title="Pens" style="display:flex;align-items:center;gap:8px;height:34px;"><span id="tray-icon"></span><i id="tray-dot"></i></button>
         <span class="sep"></span>
@@ -14746,12 +14762,22 @@ body.no-select-while-drawing,
 
       <span class="spacer"></span>
       <span id="note-status" class="saved">saved</span>
+      <button type="button" class="glass circle-btn" id="settings-btn" onclick="toggleSettingsN()" aria-label="Note settings" aria-haspopup="true" title="Note settings"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>
       <button type="button" class="glass circle-btn danger" id="note-delete-btn" onclick="deleteCurrentNoteN();" aria-label="Delete note" title="Delete note">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>
       </button>
     </div>
 
     <div class="glass tray" id="pen-tray"></div>
+    <button type="button" class="glass" id="zoom-chip" onclick="resetZoomN()">100%</button>
+
+    <div class="glass menu-pop" id="settings-menu" role="menu" aria-label="Note settings">
+    <div class="menu-sec">Paper <span id="menu-paper-pg"></span></div>
+    <button type="button" class="menu-opt" data-paper="ruled" role="menuitemradio" aria-checked="false" onclick="setPaperN('ruled')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>Ruled<svg class="menu-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg></button>
+    <button type="button" class="menu-opt" data-paper="blank" role="menuitemradio" aria-checked="false" onclick="setPaperN('blank')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/></svg>Blank<svg class="menu-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg></button>
+    <button type="button" class="menu-opt" data-paper="dotted" role="menuitemradio" aria-checked="false" onclick="setPaperN('dotted')"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="6" cy="6" r="1.5"/><circle cx="12" cy="6" r="1.5"/><circle cx="18" cy="6" r="1.5"/><circle cx="6" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="18" cy="12" r="1.5"/><circle cx="6" cy="18" r="1.5"/><circle cx="12" cy="18" r="1.5"/><circle cx="18" cy="18" r="1.5"/></svg>Dotted<svg class="menu-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg></button>
+    <button type="button" class="menu-link" id="paper-all-btn" onclick="applyPaperAllN()">Apply to all pages</button>
+    </div>
 
   </div>
 
@@ -14901,17 +14927,16 @@ let inputModeN = 'type';
 let penColorN = '#2A2410';
 let erasingN = false;
 let penSizeN = 1;   // thickness multiplier: 0.55 fine, 1 medium, 1.7 thick, 2.6 marker
-function setPenSizeN(size, btn){
-  penSizeN = size;
-  document.querySelectorAll('.size-btn').forEach(el => el.classList.toggle('active', el === btn));
-  try{ localStorage.setItem('chalkline:notes-pen-size', String(size)); }catch(e){}
+const toolSizeN = { pen:1, pencil:1, marker:1, brush:1, highlighter:1, eraser:1 };   // every pen remembers its own thickness
+const PENS_KEY_N = 'chalkline:notes-pens';
+function savePensN(){   // last used tool + each pen's colour and size
+  try{ localStorage.setItem(PENS_KEY_N, JSON.stringify({ tool:toolN, ink:inkToolN, colors:toolColorN, sizes:toolSizeN })); }catch(e){}
 }
-(function restorePenSizeN(){
-  let v = 1;
-  try{ v = parseFloat(localStorage.getItem('chalkline:notes-pen-size')) || 1; }catch(e){}
-  const btn = document.querySelector('.size-btn[data-size="' + v + '"]');
-  if(btn) setPenSizeN(v, btn);
-})();
+function setPenSizeN(size, btn){
+  penSizeN = size; toolSizeN[toolN] = size;
+  document.querySelectorAll('.size-btn').forEach(el => el.classList.toggle('active', el === btn));
+  savePensN();
+}
 let drawingActiveN = false;
 
 const PAGE_COL_N = Infinity;   // full-width page: ink offset is 0
@@ -15027,15 +15052,19 @@ function setToolN(t){
   document.querySelectorAll('.tool-opt').forEach(el => el.classList.toggle('active', el.dataset.tool === t));
   document.querySelectorAll('#pen-tray .swatch').forEach(el => el.classList.toggle('active', !erasingN && el.dataset.color === penColorN));
   document.getElementById('pen-tray').classList.toggle('eraser', erasingN);
+  penSizeN = toolSizeN[t] || 1;
+  document.querySelectorAll('#pen-tray .size-btn').forEach(el => el.classList.toggle('active', parseFloat(el.dataset.size) === penSizeN));
   document.querySelectorAll('#pen-tray .tool-opt').forEach(el => { const k = el.dataset.tool, i = el.querySelector('.tool-ico'); if(i) i.innerHTML = iconN(k); });
   document.getElementById('tray-icon').innerHTML = iconN(t);
   const d = document.getElementById('tray-dot');
   d.style.background = penColorN; d.style.display = erasingN ? 'none' : 'block';
+  savePensN();
 }
 function setPenColorN(color){ if(erasingN) setToolN(inkToolN); toolColorN[toolN] = color; setToolN(toolN); }
 function toggleTrayN(force){
   const t = document.getElementById('pen-tray');
   t.classList.toggle('open', force === undefined ? !t.classList.contains('open') : force);
+  if(t.classList.contains('open')){ const sm = document.getElementById('settings-menu'); if(sm){ sm.classList.remove('open'); document.getElementById('settings-btn').classList.remove('open'); } }
 }
 (function buildTrayN(){
   const t = document.getElementById('pen-tray');
@@ -15049,12 +15078,19 @@ function toggleTrayN(force){
   t.insertAdjacentHTML('beforeend', '<div class="mode-row" style="display:flex;align-items:center;flex-wrap:wrap;row-gap:6px"><span style="font:600 10px JetBrains Mono,monospace;color:var(--muted);margin-right:6px">Refine handwriting</span><button type="button" class="seg-btn" data-rf="off" onclick="setRefineN(\'off\')">Off</button><button type="button" class="seg-btn" data-rf="light" onclick="setRefineN(\'light\')">Light</button><button type="button" class="seg-btn" data-rf="strong" onclick="setRefineN(\'strong\')">Strong</button></div>');
   let rf = 'light'; try{ rf = localStorage.getItem('chalkline:notes-refine') || 'light'; }catch(e){}
   setRefineN(['off','light','strong'].includes(rf) ? rf : 'light');
-  let v = 1; try{ v = parseFloat(localStorage.getItem('chalkline:notes-pen-size')) || 1; }catch(e){}
-  const b = t.querySelector('.size-btn[data-size="' + v + '"]') || t.querySelector('.size-btn[data-size="1"]');
-  penSizeN = parseFloat(b.dataset.size); b.classList.add('active');
+  let saved = null; try{ saved = JSON.parse(localStorage.getItem(PENS_KEY_N) || 'null'); }catch(e){}
+  let legacy = 1; try{ legacy = parseFloat(localStorage.getItem('chalkline:notes-pen-size')) || 1; }catch(e){}
+  const okSize = z => t.querySelector('.size-btn[data-size="' + z + '"]') ? z : 1;
+  Object.keys(TOOLS).forEach(k => {
+    toolSizeN[k] = okSize(legacy);   // older single size setting is the starting point
+    if(saved && saved.sizes && saved.sizes[k] != null) toolSizeN[k] = okSize(saved.sizes[k]);
+    if(k !== 'eraser' && saved && saved.colors && PALETTE.indexOf(saved.colors[k]) >= 0) toolColorN[k] = saved.colors[k];
+  });
+  if(saved && saved.ink && saved.ink !== 'eraser' && TOOLS[saved.ink]) inkToolN = saved.ink;
+  penColorN = toolColorN[inkToolN];
   let em = 'pixel'; try{ em = localStorage.getItem('chalkline:notes-erase-mode') || 'pixel'; }catch(e){}
   setEraseModeN(em === 'object' ? 'object' : 'pixel');
-  setToolN('pen');
+  setToolN(saved && TOOLS[saved.tool] ? saved.tool : inkToolN);
   document.getElementById('editor-view').addEventListener('pointerdown', (e)=>{
     if(t.classList.contains('open') && !e.target.closest('#pen-tray') && !e.target.closest('#tray-btn')) toggleTrayN(false);
   }, true);
@@ -15077,8 +15113,8 @@ let rafScheduledN = false;
 let strokeN = null;        // smoothing state for the stroke in progress
 function queuePointN(ev, r, dpr){
   pendingPointsN.push({
-    x: (ev.clientX - r.left) * dpr,
-    y: (ev.clientY - r.top) * dpr,
+    x: (ev.clientX - r.left) / zoomN * dpr,
+    y: (ev.clientY - r.top) / zoomN * dpr,
     pressure: (ev.pressure && ev.pressure > 0) ? ev.pressure : 0.5,
     erase: erasingN, tool: toolN
   });
@@ -15524,7 +15560,7 @@ onCanvasN('pointerdown', (e)=>{
   if(objEraseActive()){
     objSnapDoneN = false;
     const r0 = canvasEl.getBoundingClientRect();
-    objEraseAtN(e.clientX - r0.left - colOffN(), e.clientY - r0.top);
+    objEraseAtN((e.clientX - r0.left) / zoomN - colOffN(), (e.clientY - r0.top) / zoomN);
     e.preventDefault(); return;
   }
   strokeRecN = { tn: erasingN ? 'eraser' : toolN, erase: erasingN, color: penColorN, size: penSizeN, pts: [] };
@@ -15558,13 +15594,14 @@ let tsN = null, inertiaN = 0;
 function touchScrollStartN(e){
   cancelAnimationFrame(inertiaN);
   if(drawingActiveN) return;   // ignore a resting palm while a pen stroke is in progress
-  tsN = { id:e.pointerId, y:e.clientY, t:performance.now(), v:0 };
+  tsN = { id:e.pointerId, x:e.clientX, y:e.clientY, t:performance.now(), v:0 };
   try{ (e.target || canvasEl).setPointerCapture(e.pointerId); }catch(err){}
 }
 onCanvasN('pointermove', (e)=>{
   if(!tsN || e.pointerId !== tsN.id) return;
   const now = performance.now(), dy = e.clientY - tsN.y, dt = Math.max(1, now - tsN.t);
   document.getElementById('note-scroll').scrollTop -= dy;
+  document.getElementById('note-scroll').scrollLeft -= e.clientX - tsN.x; tsN.x = e.clientX;
   tsN.v = 0.7 * tsN.v + 0.3 * (dy / dt); tsN.y = e.clientY; tsN.t = now;
   e.preventDefault();
 });
@@ -15591,7 +15628,7 @@ onCanvasN('pointermove', (e)=>{
   const dpr = canvasScaleN;
   const coalesced = (typeof e.getCoalescedEvents === 'function') ? e.getCoalescedEvents() : [];
   const samples = coalesced.length ? coalesced : [e];
-  if(objEraseActive()){ for(const ev of samples) objEraseAtN(ev.clientX - r.left - colOffN(), ev.clientY - r.top); e.preventDefault(); return; }
+  if(objEraseActive()){ for(const ev of samples) objEraseAtN((ev.clientX - r.left) / zoomN - colOffN(), (ev.clientY - r.top) / zoomN); e.preventDefault(); return; }
   for(const ev of samples) queuePointN(ev, r, dpr);
   scheduleDrawFlushN();
   e.preventDefault();
@@ -15631,6 +15668,82 @@ let curPageN = 0;          // the page you last touched / are looking at: pen, u
 let viewsN = [];           // one view (DOM + ink canvas) per page, same order as pagesN
 let noteTitleN = '';
 const scrollElN = document.getElementById('note-scroll');
+/* ---- Two-finger pinch zoom (also ctrl + scroll wheel / trackpad pinch) ---- */
+const ZOOM_MIN_N = 0.5, ZOOM_MAX_N = 4;
+let zoomN = 1, rasterZoomN = 1, pinchN = null, rerasterTimerN = null;
+const zoomWrapN = document.getElementById('zoom-wrap');
+const stackElN = document.getElementById('pages-stack');
+function zoomOffXN(z){ const W = scrollElN.clientWidth; return Math.max(0, (W - W * z) / 2); }   // the page centres itself when zoomed out
+function applyZoomN(z){
+  zoomN = z;
+  const on = Math.abs(z - 1) > 0.005;
+  zoomWrapN.style.setProperty('--zoom', String(z));
+  zoomWrapN.classList.toggle('zoomed', on);
+  zoomWrapN.style.height = on ? Math.ceil(stackElN.offsetHeight * z) + 'px' : '';
+  const c = document.getElementById('zoom-chip');
+  c.classList.toggle('show', on); c.textContent = Math.round(z * 100) + '% \u00b7 tap to reset';
+}
+// keep the scrolled area as tall as the zoomed pages when text is typed
+try{ new ResizeObserver(()=>{ if(zoomN !== 1) zoomWrapN.style.height = Math.ceil(stackElN.offsetHeight * zoomN) + 'px'; }).observe(stackElN); }catch(e){}
+function scheduleRerasterN(){
+  clearTimeout(rerasterTimerN);
+  rerasterTimerN = setTimeout(()=>{
+    if(pinchN) return;
+    if(drawingActiveN){ scheduleRerasterN(); return; }
+    const target = Math.max(1, zoomN);
+    if(Math.abs(target - rasterZoomN) < 0.05) return;
+    rasterZoomN = target;
+    viewsN.forEach((v, i)=>{ if(v.live) resizeCanvasN(true, i); });   // redraw the ink at the new sharpness
+  }, 250);
+}
+// zoom to z, keeping content point (u, v) [unscaled page px] under screen point (px, py) [relative to the scroll area]
+function zoomKeepN(z, px, py, u, v){
+  applyZoomN(z);
+  scrollElN.scrollLeft = u * z + zoomOffXN(z) - px;
+  scrollElN.scrollTop = v * z - py;
+}
+function contentPtN(px, py){ return { u:(scrollElN.scrollLeft + px - zoomOffXN(zoomN)) / zoomN, v:(scrollElN.scrollTop + py) / zoomN }; }
+function zoomAtN(z, clientX, clientY){
+  const r = scrollElN.getBoundingClientRect(), px = clientX - r.left, py = clientY - r.top, c = contentPtN(px, py);
+  zoomKeepN(Math.min(ZOOM_MAX_N, Math.max(ZOOM_MIN_N, z)), px, py, c.u, c.v);
+  scheduleRerasterN();
+}
+function resetZoomN(){ const r = scrollElN.getBoundingClientRect(); zoomAtN(1, r.left + r.width / 2, r.top + r.height / 2); }
+function clearZoomN(){ pinchN = null; applyZoomN(1); rasterZoomN = 1; scrollElN.style.overflow = ''; }
+function pinchInfoN(t){ return { x:(t[0].clientX + t[1].clientX) / 2, y:(t[0].clientY + t[1].clientY) / 2, d:Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY) }; }
+scrollElN.addEventListener('touchstart', (e)=>{
+  if(e.touches.length !== 2 || drawingActiveN) return;   // a pen stroke in progress is never interrupted
+  const m = pinchInfoN(e.touches); if(m.d < 40) return;
+  const r = scrollElN.getBoundingClientRect(), c = contentPtN(m.x - r.left, m.y - r.top);
+  cancelAnimationFrame(inertiaN); tsN = null;   // stop finger-scrolling: the two fingers are zooming now
+  pinchN = { d0:m.d, z0:zoomN, u:c.u, v:c.v, px:m.x - r.left, py:m.y - r.top };
+  scrollElN.style.overflow = 'hidden';           // blocks the browser's own two-finger scroll; scrollTop/Left still work from code
+  stackElN.style.willChange = 'transform';
+  if(e.cancelable) e.preventDefault();
+}, { passive:false, capture:true });
+scrollElN.addEventListener('touchmove', (e)=>{
+  if(!pinchN || e.touches.length < 2) return;
+  const r = scrollElN.getBoundingClientRect(), m = pinchInfoN(e.touches);
+  const z = Math.min(ZOOM_MAX_N, Math.max(ZOOM_MIN_N, pinchN.z0 * m.d / pinchN.d0));
+  pinchN.px = m.x - r.left; pinchN.py = m.y - r.top;
+  zoomKeepN(z, pinchN.px, pinchN.py, pinchN.u, pinchN.v);
+  if(e.cancelable) e.preventDefault();
+}, { passive:false, capture:true });
+function endPinchN(e){
+  if(!pinchN || e.touches.length >= 2) return;
+  const pn = pinchN; pinchN = null;
+  if(Math.abs(zoomN - 1) < 0.06) zoomKeepN(1, pn.px, pn.py, pn.u, pn.v);   // snaps back to 100% when close
+  scrollElN.style.overflow = ''; stackElN.style.willChange = '';
+  scheduleRerasterN();
+}
+scrollElN.addEventListener('touchend', endPinchN, { capture:true });
+scrollElN.addEventListener('touchcancel', endPinchN, { capture:true });
+scrollElN.addEventListener('wheel', (e)=>{
+  if(!e.ctrlKey) return;   // ctrl + wheel (and a trackpad pinch) zooms; a plain wheel still scrolls
+  e.preventDefault(); zoomAtN(zoomN * Math.exp(-e.deltaY * 0.01), e.clientX, e.clientY);
+}, { passive:false });
+['gesturestart', 'gesturechange', 'gestureend'].forEach(t => document.addEventListener(t, (e)=>e.preventDefault()));   // Safari: stop the whole page zooming
+
 // Only pages near the screen keep a full-resolution ink canvas; the rest are released to save memory.
 const ioN = new IntersectionObserver((ents)=>{
   for(const en of ents){
@@ -15662,7 +15775,7 @@ function resizeCanvasN(force, idx){
   const needH = Math.ceil(h / 400) * 400;   // rounded up so typing doesn't keep resizing the canvas
   const curW = parseFloat(v.cv.style.width) || 0, curH = parseFloat(v.cv.style.height) || 0;
   if(!force && v.live && Math.abs(w - curW) < 1 && needH <= curH) return;
-  const dpr = window.devicePixelRatio || 1;
+  const dpr = (window.devicePixelRatio || 1) * Math.max(1, zoomN);   // sharper ink when zoomed in
   v.scale = Math.min(dpr, Math.sqrt(14e6 / (w * needH)));   // stay under the browser's canvas-size limit
   v.cv.style.width = w + 'px'; v.cv.style.height = needH + 'px';
   v.cv.width = Math.round(w * v.scale); v.cv.height = Math.round(needH * v.scale);
@@ -15703,7 +15816,7 @@ function autosizeAllN(){ viewsN.forEach(autosizeViewN); }
 /* ---- building the stack ---- */
 function createViewN(pg, first){
   const sec = document.createElement('section');
-  sec.className = 'note-page' + (first ? ' first' : '') + ((pg.paper || 'ruled') === 'blank' ? '' : ' ruled');
+  sec.className = 'note-page' + (first ? ' first' : '') + paperClsN(pg.paper);
   let title = null;
   if(first){
     title = document.createElement('input'); title.type = 'text'; title.autocomplete = 'off'; title.className = 'note-title';
@@ -15744,7 +15857,7 @@ function scrollToPageN(i, smooth){
   const v = viewsN[i]; if(!v) return;
   const tb = document.querySelector('.topbar');
   const clear = i === 0 ? 0 : Math.max(0, tb.getBoundingClientRect().bottom - scrollElN.getBoundingClientRect().top + 6);   // keep the page top just below the toolbar
-  scrollElN.scrollTo({ top: Math.max(0, v.sec.offsetTop - clear), behavior: smooth ? 'smooth' : 'auto' });
+  scrollElN.scrollTo({ top: Math.max(0, v.sec.offsetTop * zoomN - clear), behavior: smooth ? 'smooth' : 'auto' });
 }
 // The page under the middle of the screen becomes the current one as you scroll.
 function pickCurN(){
@@ -15783,29 +15896,53 @@ function deletePageN(){
   saveCurrentNoteN();
 }
 
-/* ---- Paper style: ruled lines or blank ---- */
+/* ---- Paper style: ruled, blank or dotted ---- */
+const PAPERS_N = ['ruled', 'blank', 'dotted'];
 let paperN = 'ruled';
+function normPaperN(k){ return PAPERS_N.indexOf(k) >= 0 ? k : 'ruled'; }
+function paperClsN(k){ k = normPaperN(k); return k === 'blank' ? '' : ' ' + k; }
 function loadPaperDefaultN(){
-  try{ const v = localStorage.getItem('chalkline:notes-paper-default'); if(v === 'ruled' || v === 'blank') return v; }catch(e){}
+  try{ const v = localStorage.getItem('chalkline:notes-paper-default'); if(PAPERS_N.indexOf(v) >= 0) return v; }catch(e){}
   return 'ruled';
 }
+function paintPaperN(sec, kind){ sec.classList.toggle('ruled', kind === 'ruled'); sec.classList.toggle('dotted', kind === 'dotted'); }
 function setPaperN(kind, opts){
-  paperN = (kind === 'blank') ? 'blank' : 'ruled';
+  paperN = normPaperN(kind);
   if(pagesN[curPageN]) pagesN[curPageN].paper = paperN;
-  const pv = viewsN[curPageN]; if(pv) pv.sec.classList.toggle('ruled', paperN === 'ruled');
-  document.getElementById('paper-ruled-btn').classList.toggle('active', paperN === 'ruled');
-  document.getElementById('paper-blank-btn').classList.toggle('active', paperN === 'blank');
+  const pv = viewsN[curPageN]; if(pv) paintPaperN(pv.sec, paperN);
+  document.querySelectorAll('#settings-menu [data-paper]').forEach(el => {
+    const on = el.dataset.paper === paperN; el.classList.toggle('active', on); el.setAttribute('aria-checked', on ? 'true' : 'false');
+  });
+  const pl = document.getElementById('menu-paper-pg'); if(pl) pl.textContent = pagesN.length > 1 ? '\u00b7 page ' + (curPageN + 1) : '';
+  const all = document.getElementById('paper-all-btn'); if(all) all.style.display = pagesN.length > 1 ? '' : 'none';
   if(!(opts && opts.silent)){
     try{ localStorage.setItem('chalkline:notes-paper-default', paperN); }catch(e){}   // new notes start with your last choice
     saveCurrentNoteN();
   }
 }
+function applyPaperAllN(){
+  pagesN.forEach((pg, i)=>{ pg.paper = paperN; if(viewsN[i]) paintPaperN(viewsN[i].sec, paperN); });
+  saveCurrentNoteN();
+}
+function toggleSettingsN(force){
+  const m = document.getElementById('settings-menu'), b = document.getElementById('settings-btn');
+  const open = force === undefined ? !m.classList.contains('open') : force;
+  m.classList.toggle('open', open); b.classList.toggle('open', open);
+  if(open) toggleTrayN(false);
+}
+document.getElementById('editor-view').addEventListener('pointerdown', (e)=>{
+  const m = document.getElementById('settings-menu');
+  if(m.classList.contains('open') && !e.target.closest('#settings-menu') && !e.target.closest('#settings-btn')) toggleSettingsN(false);
+}, true);
 function showEditorN(){
+  clearZoomN();
   document.getElementById('list-view').style.display = 'none';
   document.getElementById('editor-view').style.display = 'block';
   setModeN('type');
 }
 function closeEditorN(){
+  toggleSettingsN(false);
+  clearZoomN();
   document.getElementById('editor-view').style.display = 'none';
   document.getElementById('list-view').style.display = 'block';
   viewsN.forEach((v, i)=>releaseViewN(i));
