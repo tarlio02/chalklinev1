@@ -1849,7 +1849,10 @@ async function gunzipFromB64(v){
   return await new Response(ds.readable).text();
 }
 function syncKeyRegex(sub){
-  return new RegExp('^chalkline:(courses|session|summary|quiz|notes|notes-settings|tutorial|profile|assistant):' + String(sub).replace(/[^\w]/g,'\\$&') + '(:|$)');
+  const esc = String(sub).replace(/[^\w]/g,'\\$&');
+  // Also synced: XP / accuracy stats / mistakes log / per-subject concept meta
+  // ("chalkline:progress:<name>:<sub>") and the first-lesson feedback record.
+  return new RegExp('^chalkline:(?:(?:courses|session|summary|quiz|notes|notes-settings|tutorial|profile|assistant):|progress:(?:xp|stats|mistakes|concept-meta):|firstLessonFeedback:)' + esc + '(:|$)');
 }
 function fnv(str){
   let h = 2166136261;
@@ -1887,6 +1890,33 @@ function applyStoredProfileToShellUser(){
   return changed;
 }
 const isCoursesKey = k => k.indexOf('chalkline:courses:') === 0;
+// Progress data changed on two devices: merge instead of letting one overwrite the other.
+const isProgressKey = k => k.indexOf('chalkline:progress:') === 0;
+function mergeProgress(key, a, b){
+  try{
+    if(key.indexOf('chalkline:progress:xp:') === 0){
+      return String(Math.max(parseInt(a,10) || 0, parseInt(b,10) || 0));
+    }
+    const A = JSON.parse(a), B = JSON.parse(b);
+    if(key.indexOf('chalkline:progress:stats:') === 0){
+      const out = {};
+      new Set(Object.keys(A || {}).concat(Object.keys(B || {}))).forEach(sj => {
+        const x = (A && A[sj]) || {}, y = (B && B[sj]) || {};
+        out[sj] = { correct: Math.max(x.correct || 0, y.correct || 0), total: Math.max(x.total || 0, y.total || 0) };
+      });
+      return JSON.stringify(out);
+    }
+    if(key.indexOf('chalkline:progress:mistakes:') === 0){
+      const seen = new Set(), all = [];
+      [].concat(Array.isArray(A) ? A : [], Array.isArray(B) ? B : []).forEach(m => {
+        const id = JSON.stringify(m); if(!seen.has(id)){ seen.add(id); all.push(m); }
+      });
+      all.sort((m, n) => (m.ts || 0) - (n.ts || 0));
+      return JSON.stringify(all.slice(-150));
+    }
+    return JSON.stringify(Object.assign({}, B, A));   // concept-meta: keep both, this device wins ties
+  } catch(e){ return a; }
+}
 function unionCourses(a, b){
   try{ return JSON.stringify(Array.from(new Set([].concat(JSON.parse(a) || [], JSON.parse(b) || [])))); }
   catch(e){ return a; }
@@ -1931,6 +1961,10 @@ async function pullCloud(sub, authoritative){
       const merged = unionCourses(local, value);
       localStorage.setItem(key, merged); changed = true;
       meta[key] = { h: fnv(merged) };                      // differs from cloud now, so the merge is pushed next
+    } else if(isProgressKey(key)){
+      const merged = mergeProgress(key, local, value);
+      if(merged !== local){ localStorage.setItem(key, merged); changed = true; }
+      meta[key] = { h: h };                                // differs from cloud if merged !== cloud, so it is pushed next
     } else {
       meta[key] = { h: m ? m.h : '' };                     // keep this device's copy; push will overwrite the cloud
     }
@@ -15547,7 +15581,7 @@ function refineStrokeN(f, strong){
   if(L < 12) return null;
   const step = strong ? 3 : 2, R = resampleN(Q, Math.max(8, Math.ceil(L / step) + 1)), N = R.length;
   // 2. find the real corners (points of an A, the turn in a k) by how sharply the path bends over ~8px each side
-  const k = Math.max(2, Math.round(8 / step)), cornerDeg = strong ? 54 : 60, ang = new Array(N).fill(0);
+  const k = Math.max(2, Math.round(8 / step)), cornerDeg = strong ? 68 : 76, ang = new Array(N).fill(0);
   for(let i = k; i < N - k; i++){
     const ax = R[i][0] - R[i-k][0], ay = R[i][1] - R[i-k][1], bx = R[i+k][0] - R[i][0], by = R[i+k][1] - R[i][1];
     const la = Math.hypot(ax, ay), lb = Math.hypot(bx, by); if(la < 1 || lb < 1) continue;
@@ -15562,7 +15596,7 @@ function refineStrokeN(f, strong){
   if(N - 1 - anch[anch.length - 1] < k && anch.length > 1) anch.pop();
   anch.push(N - 1);
   // 3. Taubin smoothing between corners: removes wobble without shrinking loops (an 'o' stays as big as you drew it)
-  const lam = 0.5, mu = -0.53, iters = strong ? 24 : 13, O = R.map(p => [p[0], p[1], p[2]]);
+  const lam = 0.5, mu = -0.53, iters = strong ? 40 : 28, O = R.map(p => [p[0], p[1], p[2]]);
   for(let a = 0; a < anch.length - 1; a++){
     const s0 = anch[a], e0 = anch[a + 1], m = e0 - s0 + 1;
     if(m < 4) continue;
@@ -15580,7 +15614,7 @@ function refineStrokeN(f, strong){
     const A = O[s0], B = O[e0], len = Math.hypot(B[0] - A[0], B[1] - A[1]);
     if(len >= 16){
       let dev = 0; for(let i = s0; i <= e0; i++) dev = Math.max(dev, distSegN(O[i][0], O[i][1], A[0], A[1], B[0], B[1]));
-      const thr = strong ? Math.max(3.4, 0.06 * len) : Math.max(2.4, 0.035 * len), sMix = strong ? 1 : 0.8;
+      const thr = strong ? Math.max(2.6, 0.04 * len) : Math.max(1.8, 0.025 * len), sMix = strong ? 0.55 : 0.35;
       if(dev < thr){
         for(let i = s0 + 1; i < e0; i++){
           const t = (i - s0) / (e0 - s0);
@@ -15589,6 +15623,17 @@ function refineStrokeN(f, strong){
       }
     }
   }
+  // 4b. soften the corners: a few light passes over the whole stroke so turns become rounded, not pointed
+  { const X = new Float64Array(N), Y = new Float64Array(N), NX = new Float64Array(N), NY = new Float64Array(N);
+    for(let i = 0; i < N; i++){ X[i] = O[i][0]; Y[i] = O[i][1]; }
+    for(let it = 0; it < (strong ? 6 : 4); it++){
+      for(const w of [0.45, -0.48]){
+        NX[0] = X[0]; NY[0] = Y[0]; NX[N-1] = X[N-1]; NY[N-1] = Y[N-1];
+        for(let i = 1; i < N - 1; i++){ NX[i] = X[i] + w * ((X[i-1] + X[i+1]) / 2 - X[i]); NY[i] = Y[i] + w * ((Y[i-1] + Y[i+1]) / 2 - Y[i]); }
+        X.set(NX); Y.set(NY);
+      }
+    }
+    for(let i = 0; i < N; i++){ O[i][0] = X[i]; O[i][1] = Y[i]; } }
   // 5. a loop that almost meets itself (o, a, e, 6, 0) is closed
   const tk = Math.max(2, Math.round(6 / step)); let turn = 0;
   for(let i = tk; i < N - tk; i += tk){
@@ -15734,7 +15779,16 @@ function replayStrokeN(rec){
     const c = canvasCtx, k = canvasScaleN, q = rec.pts, T = TOOLS[rec.tn], o = colOffN();
     c.globalCompositeOperation = 'source-over'; c.globalAlpha = T.a; c.strokeStyle = rec.color;
     c.lineCap = 'round'; c.lineJoin = 'round';
-    if(T.a === 1 && !T.layer){   // opaque pens: width follows pressure segment by segment
+    if(T.a === 1 && !T.layer && !rec.shape && q.length >= 12){   // refined handwriting: smooth curve through the points, width follows pressure
+      const n = q.length / 3, X = i => (q[i*3] + o) * k, Y = i => q[i*3+1] * k, W = i => T.w(q[i*3+2]) * rec.size * k;
+      let px = X(0), py = Y(0);
+      for(let i = 1; i < n - 1; i++){
+        const mx = (X(i) + X(i+1)) / 2, my = (Y(i) + Y(i+1)) / 2;
+        c.lineWidth = W(i); c.beginPath(); c.moveTo(px, py); c.quadraticCurveTo(X(i), Y(i), mx, my); c.stroke();
+        px = mx; py = my;
+      }
+      c.lineWidth = W(n - 1); c.beginPath(); c.moveTo(px, py); c.lineTo(X(n - 1), Y(n - 1)); c.stroke();
+    } else if(T.a === 1 && !T.layer){   // opaque pens (snapped shapes): width follows pressure segment by segment
       for(let i = 3; i < q.length; i += 3){
         c.lineWidth = T.w((q[i-1] + q[i+2]) / 2) * rec.size * k;
         c.beginPath(); c.moveTo((q[i-3] + o) * k, q[i-2] * k); c.lineTo((q[i] + o) * k, q[i+1] * k); c.stroke();
