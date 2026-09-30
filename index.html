@@ -2052,6 +2052,47 @@ document.addEventListener('visibilitychange', pullSoon);
 window.addEventListener('focus', pullSoon);
 setInterval(pullSoon, 120000);
 
+// Live note updates: the Notes page asks for a quick check of just the note it has open, so an edit
+// made on another device shows up within seconds instead of at the next full sync (focus / 2 min).
+// Same rules as pullCloud: the cloud copy only wins when this device has nothing unsynced for the key.
+let liveLastAt = 0, liveGap = 0;   // big notes (lots of ink) are checked less often so polling stays light
+async function pullOneKey(shortKey){
+  if(!shellUser || !shellUser.sub || cloudLoadedFor !== shellUser.sub || syncBusy) return false;
+  if(document.visibilityState !== 'visible') return false;
+  if(Date.now() - liveLastAt < liveGap) return false;
+  const sub = shellUser.sub, full = 'chalkline:' + String(shortKey);
+  if(full.indexOf('chalkline:notes:' + sub + ':') !== 0 || !syncKeyRegex(sub).test(full)) return false;
+  const s = readWorkerSession();
+  if(!s || !s.token || (s.sub && s.sub !== sub)) return false;
+  liveLastAt = Date.now();
+  syncBusy = true;
+  let changed = false;
+  try{
+    const got = await workerStorage('get', { key: full });
+    if(got && got.value != null){
+      let value = got.value;
+      if(typeof value === 'string' && value.indexOf(GZ_PREFIX) === 0) value = await gunzipFromB64(value);
+      const sz = String(value).length;
+      liveGap = sz > 400000 ? 20000 : sz > 100000 ? 10000 : 0;
+      const h = fnv(value), meta = loadSyncMeta(sub), m = meta[full];
+      if(!(m && m.h === h)){
+        const local = localStorage.getItem(full);
+        if(local === null || local === value || (m && m.h === fnv(local))){
+          if(local !== value){ localStorage.setItem(full, value); changed = true; }
+          meta[full] = { h };
+          saveSyncMeta(sub, meta);
+        }
+      }
+    }
+  } catch(e){
+    console.warn('Live note check skipped:', (e && e.message) || e);
+  } finally {
+    syncBusy = false;
+    if(syncAgain){ syncAgain = false; scheduleSync(); }
+  }
+  return changed;
+}
+
 function handleShellCredential(response){
   shellUser = decodeShellIdToken(response.credential);
   try{ localStorage.setItem(SHELL_AUTH_STORAGE_KEY, JSON.stringify(shellUser)); }
@@ -3083,6 +3124,10 @@ window.addEventListener('message', (e)=>{
   // A page just saved something worth uploading right away (lessons autosave often).
   if(d.syncSoon) scheduleSync(1200);
   if(d.flushSync) syncNow(false);
+  if(d.liveNote && typeof d.key === 'string'){
+    const from = e.source;
+    pullOneKey(d.key).then(ch => { if(ch && from){ try{ from.postMessage({ chalklineNoteRemote:true, key:d.key }, '*'); }catch(err){} } });
+  }
   if(d.requestBackground && e.source) sendBgState(e.source);
   if(typeof d.setBackground === 'string') setTutorBg(d.setBackground);
   // Board transparency (tutor page). The shell keeps the saved value because
@@ -14885,8 +14930,10 @@ window.addEventListener('message', (e)=>{
   if(d.chalklineAuth){
     shUserN = d.signedIn ? d.user : null;
     refreshNotesListN();
+    applyRemoteNoteN();   // a full sync may have brought a newer copy of the open note
     return;
   }
+  if(d.chalklineNoteRemote){ if(d.key === currentNoteKeyN) applyRemoteNoteN(); return; }
   if(d.presetSubject){ notesSubject = d.presetSubject; }
   else if(d.chalklineClearSubject){ notesSubject = null; }
   else if(d.loadNoteId){ openNoteN(d.loadNoteId); return; }
@@ -14956,6 +15003,7 @@ async function refreshNotesListN(){
 /* ---------------- Editor ---------------- */
 let currentNoteIdN = null;
 let saveTimerN = null;
+let noteDirtyN = false, editGenN = 0, loadedStampN = 0;   // unsaved edits in flight / edit counter / updatedAt of the copy on screen
 let titleEl = null;          // the title input lives on the first page
 let bodyEl = null;           // text area of the active page
 const statusEl = document.getElementById('note-status');
@@ -16261,6 +16309,7 @@ function startNewNoteN(){
   currentNoteIdN = 'n_' + Date.now().toString(36) + Math.random().toString(36).slice(2,8);
   noteTitleN = '';
   currentNoteSubjectN = notesSubject || 'Unsorted'; currentNoteKeyN = null;
+  loadedStampN = 0; noteDirtyN = false;
   statusEl.className = 'saved'; statusEl.textContent = 'new';
   document.getElementById('note-delete-btn').style.display = 'none';
   pagesN = [{ body:'', base:'', strokes:[], paper:loadPaperDefaultN() }]; curPageN = 0;
@@ -16279,6 +16328,7 @@ async function openNoteN(id, knownKey){
     currentNoteIdN = id;
     currentNoteKeyN = key; currentNoteSubjectN = item.subject || 'Unsorted';
     noteTitleN = item.title || '';
+    loadedStampN = item.updatedAt || 0; noteDirtyN = false;
     statusEl.className = 'saved'; statusEl.textContent = 'saved';
     document.getElementById('note-delete-btn').style.display = '';
     pagesN = ((item.pages && item.pages.length) ? item.pages : [{ body:item.body, drawing:item.drawing, paper:item.paper }])
@@ -16310,6 +16360,7 @@ function canvasToDataURLAsync(canvas){
 function saveCurrentNoteN(){
   if(!currentNoteIdN || !shUserN) return;
   statusEl.className = 'editing'; statusEl.textContent = 'editing…';
+  const genSnap = ++editGenN; noteDirtyN = true;
   syncAllN();
   const idSnap = currentNoteIdN, pagesSnap = pagesN, titleSnap = titleEl ? titleEl.value : noteTitleN, subjSnap = currentNoteSubjectN || notesSubject || 'Unsorted', oldKeySnap = currentNoteKeyN;
   clearTimeout(saveTimerN);
@@ -16327,6 +16378,9 @@ function saveCurrentNoteN(){
       await window.storage.set(key, JSON.stringify(payload), false);
       if(oldKeySnap && oldKeySnap !== key){ try{ await window.storage.delete(oldKeySnap, false); }catch(e){} }   // older un-bucketed copy moves into its course
       if(currentNoteIdN === idSnap) currentNoteKeyN = key;
+      loadedStampN = now;
+      if(editGenN === genSnap) noteDirtyN = false;
+      try{ parent.postMessage({ syncSoon:true }, '*'); }catch(e){}   // upload right away so other devices see it fast
       statusEl.className = 'saved'; statusEl.textContent = 'saved';
       document.getElementById('note-delete-btn').style.display = '';
     } catch(e){ console.error('Save note failed:', e); statusEl.textContent = 'save failed'; }
@@ -16338,6 +16392,93 @@ async function deleteCurrentNoteN(){
   try{ await window.storage.delete(currentNoteKeyN || noteKeyN(currentNoteSubjectN || notesSubject, currentNoteIdN), false); } catch(e){}
   closeEditorN();
 }
+
+/* ---------------- Live updates from another device ----------------
+   While a note is open the shell is asked every few seconds to check just that note in the cloud.
+   If a newer copy arrives and nothing here is unsaved (no typing/drawing in flight), it is swapped in place:
+   text is updated without rebuilding the page (keeps focus, keyboard and scroll); a changed page count or
+   ink layer rebuilds the pages but keeps your scroll spot and cursor. If both devices edit at the same
+   moment, the last one to save wins, as with the rest of Chalkline sync. */
+function pagesFromItemN(item){
+  return ((item.pages && item.pages.length) ? item.pages : [{ body:item.body, drawing:item.drawing, paper:item.paper }])
+    .map(q => ({ body:q.body || '', paper:q.paper || 'ruled', base:q.base || q.drawing || '', html:q.html || '', strokes:(q.strokes || []).map(r => (r.pend = false, r)) }));
+}
+function captureCaretN(){
+  try{
+    const ae = document.activeElement;
+    if(titleEl && ae === titleEl) return { t:'title', s:titleEl.selectionStart, e:titleEl.selectionEnd };
+    const vi = viewsN.findIndex(v => v.body === ae);
+    if(vi >= 0){
+      const sel = window.getSelection();
+      if(sel.rangeCount){
+        const r = sel.getRangeAt(0), pre = document.createRange();
+        pre.selectNodeContents(ae); pre.setEnd(r.endContainer, r.endOffset);
+        return { t:'body', i:vi, o:pre.toString().length };
+      }
+    }
+  }catch(e){}
+  return null;
+}
+function restoreCaretN(c){
+  if(!c) return;
+  try{
+    if(c.t === 'title' && titleEl){ titleEl.focus(); titleEl.setSelectionRange(c.s, c.e); return; }
+    const v = viewsN[c.i]; if(!v) return;
+    v.body.focus();
+    const w = document.createTreeWalker(v.body, NodeFilter.SHOW_TEXT);
+    let n, left = c.o, node = null;
+    while((n = w.nextNode())){ if(n.nodeValue.length >= left){ node = n; break; } left -= n.nodeValue.length; }
+    const rg = document.createRange();
+    if(node) rg.setStart(node, left); else rg.selectNodeContents(v.body);
+    rg.collapse(!node ? false : true);
+    const sl = window.getSelection(); sl.removeAllRanges(); sl.addRange(rg);
+  }catch(e){}
+}
+let applyingRemoteN = false;
+async function applyRemoteNoteN(){
+  if(!currentNoteIdN || !currentNoteKeyN || !shUserN || applyingRemoteN) return;
+  if(noteDirtyN || drawingActiveN) return;
+  applyingRemoteN = true;
+  try{
+    const idNow = currentNoteIdN, keyNow = currentNoteKeyN;
+    let rec = null;
+    try{ rec = await window.storage.get(keyNow, false); }catch(e){}
+    if(!rec) return;
+    let item; try{ item = JSON.parse(rec.value); }catch(e){ return; }
+    if(!item || item.id !== idNow || (item.updatedAt || 0) <= loadedStampN) return;
+    if(currentNoteIdN !== idNow || noteDirtyN || drawingActiveN) return;   // something started while reading
+    const newPages = pagesFromItemN(item);
+    const scrollTop = scrollElN.scrollTop, cur = curPageN, caret = captureCaretN();
+    const inkSame = newPages.length === pagesN.length && newPages.every((q, i) =>
+      q.base === pagesN[i].base && q.paper === pagesN[i].paper && JSON.stringify(q.strokes) === JSON.stringify(pagesN[i].strokes || []));
+    if(inkSame && viewsN.length === newPages.length){
+      newPages.forEach((q, i) => {
+        if((q.html || '') !== (pagesN[i].html || '') || (q.body || '') !== (pagesN[i].body || '')){
+          viewsN[i].body.innerHTML = q.html ? cleanHtmlN(q.html) : textToHtmlN(q.body || '');
+          pagesN[i].body = q.body; pagesN[i].html = q.html;
+        }
+      });
+      noteTitleN = item.title || '';
+      if(titleEl && titleEl.value !== noteTitleN) titleEl.value = noteTitleN;
+      autosizeAllN();
+    } else {
+      pagesN = newPages; noteTitleN = item.title || '';
+      mountPagesN({ cur });
+      scrollElN.scrollTop = scrollTop;
+    }
+    restoreCaretN(caret);
+    currentNoteSubjectN = item.subject || currentNoteSubjectN;
+    loadedStampN = item.updatedAt || 0;
+    statusEl.className = 'saved'; statusEl.textContent = 'updated';
+    setTimeout(() => { if(!noteDirtyN && statusEl.textContent === 'updated') statusEl.textContent = 'saved'; }, 2500);
+  } finally { applyingRemoteN = false; }
+}
+function pollLiveN(){
+  if(!currentNoteIdN || !currentNoteKeyN || !shUserN || document.hidden) return;
+  try{ if(window.frameElement && window.frameElement.offsetParent === null) return; }catch(e){}
+  try{ parent.postMessage({ liveNote:true, key: currentNoteKeyN }, '*'); }catch(e){}
+}
+setInterval(pollLiveN, 4000);
 
 applyScopeN();
 refreshNotesListN();
