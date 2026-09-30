@@ -15122,6 +15122,7 @@ function toggleTrayN(force){
     if(t.classList.contains('open') && !e.target.closest('#pen-tray') && !e.target.closest('#tray-btn')) toggleTrayN(false);
   }, true);
 })();
+let lineModeN = 'off', lastLineKindN = 'line', lineDragN = null, lineRafN = 0;   // lineModeN: off | line | arrow | dotted | darrow
 (function initLinesN(){
   const LI = inner => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + inner + '</svg>';
   const ICONS = {
@@ -15428,7 +15429,7 @@ function commitStrokeN(){
 }
 // Re-draws a saved stroke by feeding its raw points back through the live smoothing engine.
 /* ---- Lines, arrows and dotted lines: drag to place, snaps to horizontal / vertical ---- */
-let lineModeN = 'off', lastLineKindN = 'line', lineDragN = null, lineRafN = 0;   // lineModeN: off | line | arrow | dotted | darrow
+// (lineModeN, lastLineKindN, lineDragN, lineRafN are declared above initLinesN, which uses them at load)
 function lineRecOfN(d){
   const lw = TOOLS[d.tn].w(0.5) * d.size, pad = 24 + lw * 3;
   return { tn:d.tn, erase:false, color:d.color, size:d.size, line:d.kind, poly:true,
