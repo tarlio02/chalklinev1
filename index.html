@@ -14600,6 +14600,7 @@ h1,h2,h3{ font-family:'Fraunces','Source Serif 4',Georgia,serif; margin:0; color
   padding:8px 2px 6px; font:600 10px 'JetBrains Mono',monospace; color:var(--muted); cursor:pointer; }
 .tool-opt.active{ background:#FFF1CC; color:var(--ink); }
 .color-row{ display:flex; gap:11px; flex-wrap:wrap; justify-content:center; }
+.mode-row .seg-btn{ padding:0 11px; }
 .mode-row{ display:none; justify-content:center; gap:4px; }
 #pen-tray.eraser .mode-row{ display:flex; }
 .size-row{ display:flex; gap:8px; justify-content:center; }
@@ -14973,6 +14974,8 @@ function toggleSnapN(){
   snapOnN = !snapOnN; try{ localStorage.setItem('chalkline:notes-snap', snapOnN ? '1' : '0'); }catch(e){}
   const b = document.getElementById('snap-btn'); b.textContent = 'Snap shapes: ' + (snapOnN ? 'On' : 'Off'); b.classList.toggle('active', snapOnN);
 }
+let convTimerN = null, convBusyN = false, fontTriedN = false;
+const WORKER_URL_N = "https://api.takundamambudzi02.workers.dev";
 let refineN = 'light';   // handwriting refine: 'off' | 'light' | 'strong'
 function setRefineN(l){
   refineN = l; try{ localStorage.setItem('chalkline:notes-refine', l); }catch(e){}
@@ -15009,9 +15012,9 @@ function toggleTrayN(force){
   t.insertAdjacentHTML('beforeend', '<div class="mode-row" style="display:flex"><button type="button" class="seg-btn" id="snap-btn" onclick="toggleSnapN()"></button></div>');
   try{ snapOnN = localStorage.getItem('chalkline:notes-snap') !== '0'; }catch(e){}
   snapOnN = !snapOnN; toggleSnapN();   // paints the button for the stored state
-  t.insertAdjacentHTML('beforeend', '<div class="mode-row" style="display:flex;align-items:center"><span style="font:600 10px JetBrains Mono,monospace;color:var(--muted);margin-right:6px">Refine handwriting</span><button type="button" class="seg-btn" data-rf="off" onclick="setRefineN(\'off\')">Off</button><button type="button" class="seg-btn" data-rf="light" onclick="setRefineN(\'light\')">Light</button><button type="button" class="seg-btn" data-rf="strong" onclick="setRefineN(\'strong\')">Strong</button></div>');
+  t.insertAdjacentHTML('beforeend', '<div class="mode-row" style="display:flex;align-items:center;flex-wrap:wrap;row-gap:6px"><span style="font:600 10px JetBrains Mono,monospace;color:var(--muted);margin-right:6px">Refine handwriting</span><button type="button" class="seg-btn" data-rf="off" onclick="setRefineN(\'off\')">Off</button><button type="button" class="seg-btn" data-rf="light" onclick="setRefineN(\'light\')">Light</button><button type="button" class="seg-btn" data-rf="strong" onclick="setRefineN(\'strong\')">Strong</button><button type="button" class="seg-btn" data-rf="font" onclick="setRefineN(\'font\')">Font</button></div>');
   let rf = 'light'; try{ rf = localStorage.getItem('chalkline:notes-refine') || 'light'; }catch(e){}
-  setRefineN(['off','light','strong'].includes(rf) ? rf : 'light');
+  setRefineN(['off','light','strong','font'].includes(rf) ? rf : 'light');
   let v = 1; try{ v = parseFloat(localStorage.getItem('chalkline:notes-pen-size')) || 1; }catch(e){}
   const b = t.querySelector('.size-btn[data-size="' + v + '"]') || t.querySelector('.size-btn[data-size="1"]');
   penSizeN = parseFloat(b.dataset.size); b.classList.add('active');
@@ -15153,7 +15156,7 @@ function snapShapeN(){
   const rec = strokeRecN;
   if(!snapOnN || !rec || snappedN || rec.erase) return;
   const shape = recognizeShapeN(rec.pts); if(!shape) return;
-  rec.pts = shape; rec.poly = true; delete rec.bb;
+  rec.pts = shape; rec.poly = true; rec.shape = true; delete rec.bb;
   snappedN = true; pendingPointsN = []; strokeN = null;
   commitStrokeN(); renderPageN();
 }
@@ -15251,6 +15254,88 @@ function renderRegionN(x0, y0, x1, y1){
   }
   c.restore();
 }
+/* ---- Font mode: after you pause, the handwriting is read by the AI and replaced with the same
+   words in a handwritten font, right where you wrote them. Undo brings the ink back. ---- */
+function toastN(msg, label, fn){
+  let t = document.getElementById('toast-n');
+  if(!t){
+    t = document.createElement('div'); t.id = 'toast-n'; t.className = 'glass';
+    t.style.cssText = 'position:absolute;z-index:30;left:50%;transform:translateX(-50%);bottom:calc(var(--safe-bottom) + 76px);padding:10px 16px;border-radius:999px;font:600 13px JetBrains Mono,monospace;display:flex;gap:14px;align-items:center;white-space:nowrap;';
+    document.getElementById('editor-view').appendChild(t);
+  }
+  t.innerHTML = ''; const sp = document.createElement('span'); sp.textContent = msg; t.appendChild(sp);
+  if(label){ const b = document.createElement('button'); b.textContent = label; b.style.cssText = 'border:none;background:none;font:inherit;color:#a5372c;cursor:pointer;padding:0'; b.onclick = ()=>{ t.style.display = 'none'; fn(); }; t.appendChild(b); }
+  t.style.display = 'flex'; clearTimeout(t._h); t._h = setTimeout(()=>{ t.style.display = 'none'; }, label ? 6000 : 3000);
+}
+async function ocrInkN(b64){
+  const headers = { 'Content-Type':'application/json' };
+  try{ const ses = JSON.parse(localStorage.getItem('chalkline_session') || 'null'); if(ses && ses.token) headers.Authorization = 'Bearer ' + ses.token; }catch(e){}
+  const r = await fetch(WORKER_URL_N + '/gemini', {
+    method:'POST', headers,
+    body: JSON.stringify({
+      system_instruction:{ parts:[{ text:'You transcribe handwriting from an image. Output ONLY the text exactly as written, one output line per line of handwriting, with no commentary, quotes or markdown. If the image has no legible handwritten words (only drawings, diagrams or scribbles), output exactly: NONE' }] },
+      contents:[{ role:'user', parts:[{ text:'Transcribe the handwriting in this image.' }, { inline_data:{ mime_type:'image/png', data:b64 } }] }],
+      generationConfig:{ maxOutputTokens:600, thinkingConfig:{ thinkingLevel:'low' } }
+    })
+  });
+  const data = await r.json();
+  const part = r.ok && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts;
+  return part ? part.map(x => x.text || '').join('').trim() : '';
+}
+function lineClustersN(recs){
+  const items = recs.map(r => { const b = bbOfN(r); return { b, cy:(b[1] + b[3]) / 2, h:b[3] - b[1], color:r.color }; }).sort((u, v) => u.cy - v.cy);
+  const hs = items.map(i => i.h).sort((u, v) => u - v), med = hs[Math.floor(hs.length / 2)] || 20;
+  const gap = Math.max(16, 0.8 * med), lines = [];
+  for(const it of items){
+    const L = lines[lines.length - 1];
+    if(L && it.cy - L.lastCy <= gap){ L.x0 = Math.min(L.x0, it.b[0]); L.x1 = Math.max(L.x1, it.b[2]); L.y0 = Math.min(L.y0, it.b[1]); L.y1 = Math.max(L.y1, it.b[3]); L.lastCy = it.cy; }
+    else lines.push({ x0:it.b[0], x1:it.b[2], y0:it.b[1], y1:it.b[3], lastCy:it.cy, color:it.color });
+  }
+  return lines;
+}
+async function convertPendingN(){
+  const pg = pagesN[curPageN];
+  if(!pg || convBusyN || drawingActiveN) return;
+  const pend = (pg.strokes || []).filter(r => r.pend);
+  if(!pend.length) return;
+  convBusyN = true; pend.forEach(r => { r.pend = false; });   // each stroke is only ever sent once
+  try{
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    for(const r of pend){ const b = bbOfN(r); x0 = Math.min(x0, b[0]); y0 = Math.min(y0, b[1]); x1 = Math.max(x1, b[2]); y1 = Math.max(y1, b[3]); }
+    const pad = 12, k = canvasScaleN; x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 += pad; y1 += pad;
+    const w = x1 - x0, h = y1 - y0, sc = Math.min(2, 1000 / Math.max(w, h));
+    const off = document.createElement('canvas'); off.width = Math.max(1, Math.round(w * sc)); off.height = Math.max(1, Math.round(h * sc));
+    const oc = off.getContext('2d'); oc.fillStyle = '#fff'; oc.fillRect(0, 0, off.width, off.height);
+    oc.drawImage(canvasEl, x0 * k, y0 * k, w * k, h * k, 0, 0, off.width, off.height);
+    toastN('Reading handwriting…');
+    const txt = await ocrInkN(off.toDataURL('image/png').split(',')[1]);
+    if(!txt || /^NONE\b/i.test(txt)){ toastN(txt ? 'Kept as ink – no words found' : 'Couldn\u2019t read that just now'); return; }
+    const still = pend.filter(r => pg.strokes.includes(r));
+    if(!still.length || pagesN[curPageN] !== pg) return;
+    const lines = txt.split('\n').map(t => t.trim()).filter(Boolean);
+    let clusters = lineClustersN(still);
+    if(clusters.length !== lines.length){   // model saw a different number of lines: spread evenly over the ink's area
+      const U = { x0:Math.min(...clusters.map(c => c.x0)), x1:Math.max(...clusters.map(c => c.x1)), y0:Math.min(...clusters.map(c => c.y0)), y1:Math.max(...clusters.map(c => c.y1)) };
+      const lh = (U.y1 - U.y0) / lines.length;
+      clusters = lines.map((_, i) => ({ x0:U.x0, x1:U.x1, y0:U.y0 + i * lh, y1:U.y0 + (i + 1) * lh, color:clusters[0].color }));
+    }
+    try{ await document.fonts.load('700 32px Caveat'); }catch(e){}
+    const c = canvasCtx, pageW = document.getElementById('note-page').clientWidth, made = [];
+    lines.forEach((text, i) => {
+      const cl = clusters[i]; let fs = Math.max(20, Math.min(64, (cl.y1 - cl.y0) * 0.9));
+      c.font = '700 ' + fs + 'px Caveat, cursive';
+      let tw = c.measureText(text).width; const room = Math.max(60, pageW - cl.x0 - 24);
+      if(tw > room){ fs *= room / tw; tw = room; }
+      const cy = (cl.y0 + cl.y1) / 2;
+      made.push({ tn:'pen', size:1, color:cl.color, text, x:+cl.x0.toFixed(1), cy:+cy.toFixed(1), fs:+fs.toFixed(1), pts:[cl.x0, cy - fs * 0.6, 0.5, cl.x0 + tw, cy + fs * 0.6, 0.5] });
+    });
+    snapPushN();
+    pg.strokes = pg.strokes.filter(r => !still.includes(r)).concat(made);
+    renderPageN(); updateHistBtnsN(); saveCurrentNoteN();
+    toastN('Converted to handwriting font', 'Undo', undoN);
+  }catch(e){ console.warn('Handwriting conversion failed', e); toastN('Couldn\u2019t read that just now'); }
+  finally{ convBusyN = false; }
+}
 function commitStrokeN(){
   const rec = strokeRecN; strokeRecN = null;
   const pg = pagesN[curPageN];
@@ -15263,10 +15348,19 @@ function commitStrokeN(){
   }
   snapPushN();
   (pg.strokes = pg.strokes || []).push(rec);
+  if(refineN === 'font' && T.a === 1 && !T.layer && !rec.erase && !rec.shape && !rec.text){
+    rec.pend = true; clearTimeout(convTimerN); convTimerN = setTimeout(convertPendingN, 1800);   // convert once you pause writing
+  }
   if(refined){ const b = bbOfN(rec), pad = T.w(1) * rec.size + 12; renderRegionN(b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad); }
 }
 // Re-draws a saved stroke by feeding its raw points back through the live smoothing engine.
 function replayStrokeN(rec){
+  if(rec.text){   // handwriting converted to a handwritten font
+    const c = canvasCtx, k = canvasScaleN;
+    c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1; c.fillStyle = rec.color;
+    c.font = '700 ' + (rec.fs * k) + 'px Caveat, cursive'; c.textBaseline = 'middle'; c.textAlign = 'left';
+    c.fillText(rec.text, (rec.x + colOffN()) * k, rec.cy * k); return;
+  }
   if(rec.poly){   // snapped shape or refined handwriting: exact polyline, no live smoothing
     const c = canvasCtx, k = canvasScaleN, q = rec.pts, T = TOOLS[rec.tn], o = colOffN();
     c.globalCompositeOperation = 'source-over'; c.globalAlpha = T.a; c.strokeStyle = rec.color;
@@ -15302,6 +15396,9 @@ const imgCacheN = new WeakMap();
 function renderPageN(){
   const pg = pagesN[curPageN]; if(!pg) return;
   const c = canvasCtx;
+  if(!fontTriedN && (pg.strokes || []).some(r => r.text) && !document.fonts.check('700 24px Caveat')){
+    fontTriedN = true; document.fonts.load('700 24px Caveat').then(scheduleRenderN);   // re-draw once the font is ready
+  }
   c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1; c.clearRect(0, 0, canvasEl.width, canvasEl.height);
   const go = ()=>{ (pg.strokes || []).forEach(replayStrokeN); };
   if(!pg.base){ go(); return; }
@@ -15322,6 +15419,7 @@ function distSegN(px, py, ax, ay, bx, by){
   return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
 }
 function strokeHitN(rec, x, y, r){
+  if(rec.text){ const b = bbOfN(rec); return x >= b[0] - r && x <= b[2] + r && y >= b[1] - r && y <= b[3] + r; }
   const q = rec.pts, w = r + TOOLS[rec.tn].w(1) * rec.size / 2;
   if(!rec.bb){
     let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
@@ -15429,7 +15527,7 @@ canvasEl.addEventListener('pointerdown', (e)=>{
   try{ window.parent.document.body.classList.add('no-select-while-drawing'); }catch(err){}
   try{ canvasEl.setPointerCapture(e.pointerId); }catch(err){}
   lastPtN = null; strokeN = null; strokeRecN = null;
-  snappedN = false; holdPtN = null; clearTimeout(holdN);
+  snappedN = false; holdPtN = null; clearTimeout(holdN); clearTimeout(convTimerN);
   if(objEraseActive()){
     objSnapDoneN = false;
     const r0 = canvasEl.getBoundingClientRect();
@@ -15675,7 +15773,7 @@ async function openNoteN(id){
     statusEl.className = 'saved'; statusEl.textContent = 'saved';
     document.getElementById('note-delete-btn').style.display = '';
     pagesN = ((item.pages && item.pages.length) ? item.pages : [{ body:item.body, drawing:item.drawing, paper:item.paper }])
-      .map(q => ({ body:q.body || '', paper:q.paper || 'ruled', base:q.base || q.drawing || '', strokes:q.strokes || [] }));   // older notes' ink becomes the fixed base layer
+      .map(q => ({ body:q.body || '', paper:q.paper || 'ruled', base:q.base || q.drawing || '', strokes:(q.strokes || []).map(r => (r.pend = false, r)) }));   // older notes' ink becomes the fixed base layer
     curPageN = 0;
     showEditorN();
     loadPageN(60);
