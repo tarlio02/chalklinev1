@@ -4205,8 +4205,7 @@ html,body{ height:100%; overflow:hidden; }
     <!-- ---------- Course detail view ---------- -->
     <div id="dash-course-view" style="display:none;">
       <div class="dash-head fade-up" style="display:flex;align-items:center;gap:14px;margin-bottom:30px;max-width:none;">
-        <button type="button" id="course-back-btn" title="Back to Dashboard"
-          style="border:none;background:rgba(255,255,255,0.75);border:1px solid rgba(0,0,0,0.06);width:38px;height:38px;border-radius:12px;font-size:16px;cursor:pointer;flex-shrink:0;color:var(--ink);">←</button>
+        <button type="button" id="course-back-btn" title="Back to Dashboard" aria-label="Back to Dashboard" style="display:inline-flex;align-items:center;gap:8px;height:42px;padding:0 16px 0 14px;border-radius:999px;background:#fff;border:1.5px solid var(--ink);color:var(--ink);font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;box-shadow:0 3px 0 rgba(30,43,58,0.18), 0 8px 16px -8px rgba(30,43,58,0.30);"><span aria-hidden="true" style="font-size:16px;line-height:1;">&larr;</span> Back</button>
         <div id="course-hero" class="course-hero">
           <span class="course-hero-badge" aria-hidden="true">📘</span>
           <div class="course-hero-text">
@@ -12105,6 +12104,19 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
   text-decoration:none; cursor:pointer; background:none; border:none; padding:0;
 }
 .icon-link:hover{ text-decoration:underline; }
+.back-link{
+  display:inline-flex; align-items:center; gap:8px; margin:0 0 14px;
+  padding:9px 16px 9px 12px; border-radius:999px;
+  background:#fff; color:var(--ink,#2A2410); border:1.5px solid var(--ink,#2A2410);
+  font-family:'JetBrains Mono', monospace; font-size:13px; font-weight:700; line-height:1.2;
+  text-decoration:none; cursor:pointer; -webkit-tap-highlight-color:transparent;
+  box-shadow:0 3px 0 rgba(42,36,16,0.18), 0 8px 16px -8px rgba(42,36,16,0.30);
+  transition:transform .15s ease, background .15s ease, color .15s ease, box-shadow .15s ease;
+}
+.back-link svg{ width:15px; height:15px; flex-shrink:0; }
+.back-link .back-arrow{ font-size:16px; line-height:1; }
+.back-link:hover{ background:var(--ink,#2A2410); color:#fff; transform:translateY(-1px); }
+.back-link:active{ transform:translateY(2px); box-shadow:none; }
 
 #summary-panel{
   background:#fff; border:1px solid var(--panel-border); border-radius:14px;
@@ -12323,7 +12335,7 @@ html,body{ height:100%; overflow:hidden; }
   <div class="main-area">
   <div class="wrap">
   <div class="page-head">
-    <a href="#" class="icon-link" style="display:inline-flex;align-items:center;gap:4px;margin-bottom:14px;" onclick="parent.postMessage({nav:'home'},'*');return false;">
+    <a href="#" class="back-link" onclick="parent.postMessage({nav:'home'},'*');return false;">
       <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M10 12.5 5 8l5-4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       Back to home
     </a>
@@ -12967,11 +12979,18 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 .btn-primary:hover{ transform:translateY(-2px) scale(1.03); box-shadow:0 10px 20px -8px rgba(120,90,20,0.42), 0 1px 0 rgba(255,255,255,0.25) inset; }
 
 .back-link{
-  display:inline-flex; align-items:center; gap:6px; margin-bottom:14px;
-  font-family:'JetBrains Mono', monospace; font-size:12.5px; color:var(--muted);
-  text-decoration:none; cursor:pointer;
+  display:inline-flex; align-items:center; gap:8px; margin:0 0 14px;
+  padding:9px 16px 9px 12px; border-radius:999px;
+  background:#fff; color:var(--ink,#2A2410); border:1.5px solid var(--ink,#2A2410);
+  font-family:'JetBrains Mono', monospace; font-size:13px; font-weight:700; line-height:1.2;
+  text-decoration:none; cursor:pointer; -webkit-tap-highlight-color:transparent;
+  box-shadow:0 3px 0 rgba(42,36,16,0.18), 0 8px 16px -8px rgba(42,36,16,0.30);
+  transition:transform .15s ease, background .15s ease, color .15s ease, box-shadow .15s ease;
 }
-.back-link:hover{ color:var(--ink); }
+.back-link svg{ width:15px; height:15px; flex-shrink:0; }
+.back-link .back-arrow{ font-size:16px; line-height:1; }
+.back-link:hover{ background:var(--ink,#2A2410); color:#fff; transform:translateY(-1px); }
+.back-link:active{ transform:translateY(2px); box-shadow:none; }
 
 .signin-note{
   background:#fff; border:1px solid var(--panel-border); border-radius:14px;
@@ -13242,7 +13261,7 @@ html,body{ height:100%; overflow:hidden; }
   <div class="wrap">
   <div class="page-head">
     <div>
-      <a href="#" class="back-link" id="th-back" style="display:none;" onclick="goBackToCourseTH();return false;">&#8249; <span id="th-back-name"></span></a>
+      <a href="#" class="back-link" id="th-back" onclick="goBackToCourseTH();return false;"><span class="back-arrow" aria-hidden="true">&larr;</span> Back to <span id="th-back-name"></span></a>
       <h1 id="th-title">🎓 Previous tutorials</h1>
       <p id="th-sub">Your saved whiteboard lessons, grouped by subject or course. 💡 Pick up right where you left off.</p>
     </div>
@@ -13320,8 +13339,8 @@ function applyScopeTH(){
   document.getElementById('th-sub').textContent = scoped
     ? "Your previous lessons for " + historySubjectTH + ". Pick one to continue, or start a new lesson."
     : "Your saved whiteboard lessons, grouped by subject or course.";
-  document.getElementById('th-back').style.display = scoped ? 'inline-flex' : 'none';
-  document.getElementById('th-back-name').textContent = scoped ? historySubjectTH : '';
+  document.getElementById('th-back').style.display = 'inline-flex';
+  document.getElementById('th-back-name').textContent = scoped ? historySubjectTH : 'Dashboard';
 }
 function startNewTH(){
   parent.postMessage(historySubjectTH
@@ -13615,11 +13634,18 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 .btn-primary:hover{ transform:translateY(-2px) scale(1.03); box-shadow:0 10px 20px -8px rgba(120,90,20,0.42), 0 1px 0 rgba(255,255,255,0.25) inset; }
 
 .back-link{
-  display:inline-flex; align-items:center; gap:6px; margin-bottom:14px;
-  font-family:'JetBrains Mono', monospace; font-size:12.5px; color:var(--muted);
-  text-decoration:none; cursor:pointer;
+  display:inline-flex; align-items:center; gap:8px; margin:0 0 14px;
+  padding:9px 16px 9px 12px; border-radius:999px;
+  background:#fff; color:var(--ink,#2A2410); border:1.5px solid var(--ink,#2A2410);
+  font-family:'JetBrains Mono', monospace; font-size:13px; font-weight:700; line-height:1.2;
+  text-decoration:none; cursor:pointer; -webkit-tap-highlight-color:transparent;
+  box-shadow:0 3px 0 rgba(42,36,16,0.18), 0 8px 16px -8px rgba(42,36,16,0.30);
+  transition:transform .15s ease, background .15s ease, color .15s ease, box-shadow .15s ease;
 }
-.back-link:hover{ color:var(--ink); }
+.back-link svg{ width:15px; height:15px; flex-shrink:0; }
+.back-link .back-arrow{ font-size:16px; line-height:1; }
+.back-link:hover{ background:var(--ink,#2A2410); color:#fff; transform:translateY(-1px); }
+.back-link:active{ transform:translateY(2px); box-shadow:none; }
 
 .signin-note{
   background:#fff; border:1px solid var(--panel-border); border-radius:14px;
@@ -13864,7 +13890,7 @@ html,body{ height:100%; overflow:hidden; }
   <div class="wrap">
   <div class="page-head">
     <div>
-      <a href="#" class="back-link" id="sh-back" style="display:none;" onclick="goBackToCourseSH();return false;">&#8249; <span id="sh-back-name"></span></a>
+      <a href="#" class="back-link" id="sh-back" onclick="goBackToCourseSH();return false;"><span class="back-arrow" aria-hidden="true">&larr;</span> Back to <span id="sh-back-name"></span></a>
       <h1 id="sh-title">📚 Previous summaries</h1>
       <p id="sh-sub">Every PDF summary you've saved to your account. ⚡ Instant recall, zero rereading.</p>
     </div>
@@ -13942,8 +13968,8 @@ function applyScopeSH(){
   document.getElementById('sh-sub').textContent = scoped
     ? "Your previous summaries for " + historySubjectSH + ". Pick one to reopen it, or summarize a new PDF."
     : "Every PDF summary you've saved to your account.";
-  document.getElementById('sh-back').style.display = scoped ? 'inline-flex' : 'none';
-  document.getElementById('sh-back-name').textContent = scoped ? historySubjectSH : '';
+  document.getElementById('sh-back').style.display = 'inline-flex';
+  document.getElementById('sh-back-name').textContent = scoped ? historySubjectSH : 'Dashboard';
 }
 function startNewSH(){
   parent.postMessage(historySubjectSH
@@ -14157,11 +14183,18 @@ nav{ display:flex; align-items:center; justify-content:space-between; padding:26
 .btn-primary:hover{ transform:translateY(-2px) scale(1.03); box-shadow:0 10px 20px -8px rgba(120,90,20,0.42), 0 1px 0 rgba(255,255,255,0.25) inset; }
 
 .back-link{
-  display:inline-flex; align-items:center; gap:6px; margin-bottom:14px;
-  font-family:'JetBrains Mono', monospace; font-size:12.5px; color:var(--muted);
-  text-decoration:none; cursor:pointer;
+  display:inline-flex; align-items:center; gap:8px; margin:0 0 14px;
+  padding:9px 16px 9px 12px; border-radius:999px;
+  background:#fff; color:var(--ink,#2A2410); border:1.5px solid var(--ink,#2A2410);
+  font-family:'JetBrains Mono', monospace; font-size:13px; font-weight:700; line-height:1.2;
+  text-decoration:none; cursor:pointer; -webkit-tap-highlight-color:transparent;
+  box-shadow:0 3px 0 rgba(42,36,16,0.18), 0 8px 16px -8px rgba(42,36,16,0.30);
+  transition:transform .15s ease, background .15s ease, color .15s ease, box-shadow .15s ease;
 }
-.back-link:hover{ color:var(--ink); }
+.back-link svg{ width:15px; height:15px; flex-shrink:0; }
+.back-link .back-arrow{ font-size:16px; line-height:1; }
+.back-link:hover{ background:var(--ink,#2A2410); color:#fff; transform:translateY(-1px); }
+.back-link:active{ transform:translateY(2px); box-shadow:none; }
 
 .signin-note{
   background:#fff; border:1px solid var(--panel-border); border-radius:14px;
@@ -14406,7 +14439,7 @@ html,body{ height:100%; overflow:hidden; }
   <div class="wrap">
   <div class="page-head">
     <div>
-      <a href="#" class="back-link" id="qh-back" style="display:none;" onclick="goBackToCourseQH();return false;">&#8249; <span id="qh-back-name"></span></a>
+      <a href="#" class="back-link" id="qh-back" onclick="goBackToCourseQH();return false;"><span class="back-arrow" aria-hidden="true">&larr;</span> Back to <span id="qh-back-name"></span></a>
       <h1 id="qh-title">🧠 Tests &amp; Quizzes</h1>
       <p id="qh-sub">Every quiz you have taken, across all your courses. 🔥 Keep the streak going.</p>
     </div>
@@ -14484,8 +14517,8 @@ function applyScopeQH(){
   document.getElementById('qh-sub').textContent = scoped
     ? "Your previous quizzes for " + historySubjectQH + ". Pick one to review it, or start a new quiz."
     : "Every quiz you have taken, across all your courses.";
-  document.getElementById('qh-back').style.display = scoped ? 'inline-flex' : 'none';
-  document.getElementById('qh-back-name').textContent = scoped ? historySubjectQH : '';
+  document.getElementById('qh-back').style.display = 'inline-flex';
+  document.getElementById('qh-back-name').textContent = scoped ? historySubjectQH : 'Dashboard';
 }
 function startNewQH(){
   parent.postMessage(historySubjectQH
@@ -14646,11 +14679,18 @@ h1,h2,h3{ font-family:'Fraunces','Source Serif 4',Georgia,serif; margin:0; color
 .page-head h1{ font-size:28px; margin:0 0 8px; }
 .page-head p{ font-size:15px; color:#5c5847; margin:0; max-width:440px; line-height:1.5; }
 .back-link{
-  display:inline-flex; align-items:center; gap:6px; margin-bottom:12px;
-  font-family:'JetBrains Mono', monospace; font-size:12.5px; color:var(--muted);
-  text-decoration:none; cursor:pointer; border:none; background:none; padding:0;
+  display:inline-flex; align-items:center; gap:8px; margin:0 0 12px;
+  padding:9px 16px 9px 12px; border-radius:999px;
+  background:#fff; color:var(--ink,#2A2410); border:1.5px solid var(--ink,#2A2410);
+  font-family:'JetBrains Mono', monospace; font-size:13px; font-weight:700; line-height:1.2;
+  text-decoration:none; cursor:pointer; -webkit-tap-highlight-color:transparent;
+  box-shadow:0 3px 0 rgba(42,36,16,0.18), 0 8px 16px -8px rgba(42,36,16,0.30);
+  transition:transform .15s ease, background .15s ease, color .15s ease, box-shadow .15s ease;
 }
-.back-link:hover{ color:var(--ink); }
+.back-link svg{ width:15px; height:15px; flex-shrink:0; }
+.back-link .back-arrow{ font-size:16px; line-height:1; }
+.back-link:hover{ background:var(--ink,#2A2410); color:#fff; transform:translateY(-1px); }
+.back-link:active{ transform:translateY(2px); box-shadow:none; }
 .btn-primary{
   font-family:'Source Serif 4', serif; font-size:14.5px; font-weight:600;
   background:linear-gradient(140deg, var(--gold-deep), var(--gold)); color:#fff; border:none; border-radius:999px;
@@ -14735,6 +14775,9 @@ h1,h2,h3{ font-family:'Fraunces','Source Serif 4',Georgia,serif; margin:0; color
   color:var(--ink); cursor:pointer; padding:0; font-family:inherit;
 }
 .circle-btn svg{ width:21px; height:21px; }
+.circle-btn.back-cta{ width:auto; padding:0 16px 0 10px; gap:4px; border-radius:999px; background:#fff; border:1.5px solid var(--ink);
+  font-family:'JetBrains Mono', monospace; font-size:13px; font-weight:700; }
+.circle-btn.back-cta svg{ width:18px; height:18px; }
 .circle-btn:active{ background:rgba(240,235,220,0.95); }
 .circle-btn.danger{ color:#a5372c; }
 .pill{ display:inline-flex; align-items:center; gap:4px; height:44px; padding:0 5px; border-radius:999px; flex-shrink:0; }
@@ -14885,7 +14928,7 @@ body.no-select-while-drawing,
   <div id="list-view">
     <div class="page-head">
       <div>
-        <a href="#" class="back-link" id="n-back" onclick="goBackToCourseN();return false;">&#8249; <span id="n-back-name"></span></a>
+        <a href="#" class="back-link" id="n-back" onclick="goBackToCourseN();return false;"><span class="back-arrow" aria-hidden="true">&larr;</span> Back to <span id="n-back-name"></span></a>
         <h1 id="n-title">🗒️ Notes</h1>
         <p id="n-sub">Your notes.</p>
       </div>
@@ -14903,8 +14946,8 @@ body.no-select-while-drawing,
     </div>
 
     <div class="topbar">
-      <button type="button" class="glass circle-btn" onclick="closeEditorN();" aria-label="Back to notes" title="Back to notes">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+      <button type="button" class="glass circle-btn back-cta" onclick="closeEditorN();" aria-label="Back to notes" title="Back to notes">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg><span>Back</span>
       </button>
 
       <div class="glass pill" id="page-tools" aria-label="Pages">
@@ -17056,8 +17099,19 @@ html,body{ height:100%; overflow:hidden; }
 .app-shell .sidebar .sidebar-toggle:hover{ transform:translateX(3px); box-shadow:0 1px 0 #fff inset, 3px 0 0 rgba(160,120,40,0.22), 12px 8px 16px -6px rgba(90,65,10,0.45); }
 .app-shell .sidebar .sidebar-toggle:active{ transform:translateX(1px) scale(0.96); }
 
-.back-link{ display:inline-flex; align-items:center; gap:6px; margin:24px 0 4px; font-family:'JetBrains Mono', monospace; font-size:12.5px; color:var(--muted); text-decoration:none; cursor:pointer; }
-.back-link:hover{ color:var(--ink); }
+.back-link{
+  display:inline-flex; align-items:center; gap:8px; margin:24px 0 4px;
+  padding:9px 16px 9px 12px; border-radius:999px;
+  background:#fff; color:var(--ink,#2A2410); border:1.5px solid var(--ink,#2A2410);
+  font-family:'JetBrains Mono', monospace; font-size:13px; font-weight:700; line-height:1.2;
+  text-decoration:none; cursor:pointer; -webkit-tap-highlight-color:transparent;
+  box-shadow:0 3px 0 rgba(42,36,16,0.18), 0 8px 16px -8px rgba(42,36,16,0.30);
+  transition:transform .15s ease, background .15s ease, color .15s ease, box-shadow .15s ease;
+}
+.back-link svg{ width:15px; height:15px; flex-shrink:0; }
+.back-link .back-arrow{ font-size:16px; line-height:1; }
+.back-link:hover{ background:var(--ink,#2A2410); color:#fff; transform:translateY(-1px); }
+.back-link:active{ transform:translateY(2px); box-shadow:none; }
 
 .setup-card{ background:#fff; border:1px solid var(--panel-border); border-radius:14px; padding:26px 26px 22px; max-width:460px; margin:6px auto 60px; }
 .field-row{ margin-bottom:18px; }
