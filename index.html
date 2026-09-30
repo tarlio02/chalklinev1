@@ -15999,6 +15999,7 @@ function createViewN(pg, first){
     const t = (e.clipboardData || window.clipboardData).getData('text/plain');
     if(t) document.execCommand('insertText', false, t);
   });
+  body.addEventListener('beforeinput', (e)=>{ if(e.inputType === 'insertText' || e.inputType === 'insertCompositionText') applyStickyFmtN(); });
   body.addEventListener('focus', ()=>{ try{ document.execCommand('styleWithCSS', false, true); document.execCommand('defaultParagraphSeparator', false, 'div'); }catch(err){} });
   const cv = document.createElement('canvas'); cv.className = 'note-canvas'; sec.appendChild(cv);
   const tag = document.createElement('div'); tag.className = 'page-tag'; sec.appendChild(tag);
@@ -16125,10 +16126,28 @@ function focusBodyN(){   // true when the formatting command has a text selectio
   }
   return false;
 }
+/* Your chosen text formatting is "sticky": it stays as you set it when you move the cursor into other text,
+   and is what new typing uses, instead of the toolbar switching to whatever formatting the old text has. */
+const stickyFmtN = { bold:false, italic:false, underline:false, color:'#2A2410' };
 function fmtN(cmd){
   if(inputModeN !== 'type' || !focusBodyN()) return;
-  try{ document.execCommand('styleWithCSS', false, true); document.execCommand(cmd); }catch(err){}
+  const sel = window.getSelection(), collapsed = !sel.rangeCount || sel.getRangeAt(0).collapsed;
+  let cur = false; try{ cur = document.queryCommandState(cmd); }catch(err){}
+  const want = collapsed ? !stickyFmtN[cmd] : !cur;   // with a selection, toggle what that selection really is
+  stickyFmtN[cmd] = want;
+  if(cur !== want){ try{ document.execCommand('styleWithCSS', false, true); document.execCommand(cmd); }catch(err){} }
   saveCurrentNoteN(); updateFmtStateN();
+}
+function applyStickyFmtN(){   // called just before a character is typed: make it match the toolbar
+  if(inputModeN !== 'type') return;
+  const sel = window.getSelection(); if(!sel.rangeCount || !sel.getRangeAt(0).collapsed) return;
+  try{ document.execCommand('styleWithCSS', false, true); }catch(err){}
+  ['bold', 'italic', 'underline'].forEach(c => {
+    let on = false; try{ on = document.queryCommandState(c); }catch(err){}
+    if(on !== stickyFmtN[c]){ try{ document.execCommand(c); }catch(err){} }
+  });
+  let col = ''; try{ col = rgbToHexN(document.queryCommandValue('foreColor')); }catch(err){}
+  if(col && col.toUpperCase() !== stickyFmtN.color.toUpperCase()){ try{ document.execCommand('foreColor', false, stickyFmtN.color); }catch(err){} }
 }
 function rgbToHexN(c){
   c = String(c || '').trim();
@@ -16141,16 +16160,14 @@ function setFmtColorUiN(hex){
   document.querySelectorAll('#text-color-row .swatch').forEach(el => el.classList.toggle('active', el.dataset.color.toUpperCase() === (hex || '').toUpperCase()));
 }
 function updateFmtStateN(){
-  const a = document.activeElement; if(!(a && a.classList && a.classList.contains('note-body'))) return;
   ['bold', 'italic', 'underline'].forEach(c => {
-    let on = false; try{ on = document.queryCommandState(c); }catch(err){}
-    const b = document.querySelector('.fmt-btn[data-cmd="' + c + '"]'); if(b) b.classList.toggle('active', !!on);
+    const b = document.querySelector('.fmt-btn[data-cmd="' + c + '"]'); if(b) b.classList.toggle('active', !!stickyFmtN[c]);
   });
-  let col = ''; try{ col = document.queryCommandValue('foreColor'); }catch(err){}
-  if(col) setFmtColorUiN(rgbToHexN(col));
+  setFmtColorUiN(stickyFmtN.color);
 }
 function applyTextColorN(c){
   if(inputModeN !== 'type' || !focusBodyN()) return;
+  stickyFmtN.color = c;
   try{ document.execCommand('styleWithCSS', false, true); document.execCommand('foreColor', false, c); }catch(err){}
   setFmtColorUiN(c); saveCurrentNoteN(); hideTextColorN();
 }
