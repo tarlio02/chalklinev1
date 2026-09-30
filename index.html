@@ -14864,6 +14864,20 @@ function goBackToCourseN(){
 }
 
 function notesKeyPrefixN(){ return 'notes:' + shUserN.sub + ':'; }
+/* Every course gets its own bucket: "notes:<sub>:<course>:<id>" (same slug convention as the assistant's chats),
+   so a course's notes are stored, synced to the cloud and listed under that course only. Older notes were saved as
+   "notes:<sub>:<id>" with the course only inside the note; they are still read, and move into their course's
+   bucket the next time they're saved. */
+function noteSlugN(subject){ return (subject && subject !== 'Unsorted') ? encodeURIComponent(String(subject).trim().toLowerCase()) : '__general__'; }
+function noteKeyN(subject, id){ return notesKeyPrefixN() + noteSlugN(subject) + ':' + id; }
+let currentNoteSubjectN = null, currentNoteKeyN = null;   // the open note's own course, and where it is stored
+async function findNoteKeyN(id){
+  const prefix = notesKeyPrefixN();
+  try{
+    const r = await window.storage.list(prefix, false);
+    return ((r && r.keys) || []).find(k => k === prefix + id || k.endsWith(':' + id)) || null;
+  }catch(e){ return null; }
+}
 
 window.addEventListener('message', (e)=>{
   const d = e.data;
@@ -14897,9 +14911,11 @@ async function refreshNotesListN(){
     const result = await window.storage.list(notesKeyPrefixN(), false);
     if(myReq !== notesReqN) return;
     const keys = (result && result.keys) ? result.keys : [];
-    const items = [];
+    const items = [], prefix = notesKeyPrefixN(), wantSlug = notesSubject ? noteSlugN(notesSubject) : null;
     for(const key of keys){
-      try{ const rec = await window.storage.get(key, false); if(rec) items.push(JSON.parse(rec.value)); } catch(e){}
+      const parts = key.slice(prefix.length).split(':');
+      if(wantSlug !== null && parts.length >= 2 && parts[0] !== wantSlug) continue;   // another course's note: never even opened here
+      try{ const rec = await window.storage.get(key, false); if(rec){ const it = JSON.parse(rec.value); it._key = key; items.push(it); } } catch(e){}
     }
     if(myReq !== notesReqN) return;
     items.sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
@@ -14917,14 +14933,14 @@ async function refreshNotesListN(){
       row.innerHTML = `
         <div class="r-icon">🗒️</div>
         <span class="r-title">${escapeHtmlN(item.title || 'Untitled note')}</span>
-        <span class="r-date">${date.toLocaleDateString()}</span>
+        <span class="r-date">${date.toLocaleDateString()}${(!notesSubject && item.subject && item.subject !== 'Unsorted') ? ' \u00b7 ' + escapeHtmlN(item.subject) : ''}</span>
         <button type="button" class="r-delete" title="Delete">✕</button>
       `;
-      row.addEventListener('click', ()=> openNoteN(item.id));
+      row.addEventListener('click', ()=> openNoteN(item.id, item._key));
       row.querySelector('.r-delete').addEventListener('click', async (ev)=>{
         ev.stopPropagation();
         if(!confirm('Delete this note? This can\u2019t be undone.')) return;
-        try{ await window.storage.delete(notesKeyPrefixN() + item.id, false); refreshNotesListN(); }
+        try{ await window.storage.delete(item._key || (notesKeyPrefixN() + item.id), false); refreshNotesListN(); }
         catch(e){ console.error('Delete note failed:', e); }
       });
       list.appendChild(row);
@@ -16244,6 +16260,7 @@ function startNewNoteN(){
   if(!shUserN){ alert('Sign in to save notes to your account.'); return; }
   currentNoteIdN = 'n_' + Date.now().toString(36) + Math.random().toString(36).slice(2,8);
   noteTitleN = '';
+  currentNoteSubjectN = notesSubject || 'Unsorted'; currentNoteKeyN = null;
   statusEl.className = 'saved'; statusEl.textContent = 'new';
   document.getElementById('note-delete-btn').style.display = 'none';
   pagesN = [{ body:'', base:'', strokes:[], paper:loadPaperDefaultN() }]; curPageN = 0;
@@ -16251,13 +16268,16 @@ function startNewNoteN(){
   mountPagesN();
   if(titleEl) titleEl.focus();
 }
-async function openNoteN(id){
+async function openNoteN(id, knownKey){
   if(!shUserN) return;
   try{
-    const rec = await window.storage.get(notesKeyPrefixN() + id, false);
+    const key = knownKey || await findNoteKeyN(id);
+    if(!key) return;
+    const rec = await window.storage.get(key, false);
     if(!rec) return;
     const item = JSON.parse(rec.value);
     currentNoteIdN = id;
+    currentNoteKeyN = key; currentNoteSubjectN = item.subject || 'Unsorted';
     noteTitleN = item.title || '';
     statusEl.className = 'saved'; statusEl.textContent = 'saved';
     document.getElementById('note-delete-btn').style.display = '';
@@ -16291,20 +16311,22 @@ function saveCurrentNoteN(){
   if(!currentNoteIdN || !shUserN) return;
   statusEl.className = 'editing'; statusEl.textContent = 'editing…';
   syncAllN();
-  const idSnap = currentNoteIdN, pagesSnap = pagesN, titleSnap = titleEl ? titleEl.value : noteTitleN, subjSnap = notesSubject;
+  const idSnap = currentNoteIdN, pagesSnap = pagesN, titleSnap = titleEl ? titleEl.value : noteTitleN, subjSnap = currentNoteSubjectN || notesSubject || 'Unsorted', oldKeySnap = currentNoteKeyN;
   clearTimeout(saveTimerN);
   saveTimerN = setTimeout(async ()=>{
     try{
-      const now = Date.now(), key = notesKeyPrefixN() + idSnap;
-      const existingRaw = await window.storage.get(key, false).catch(()=>null);
+      const now = Date.now(), key = noteKeyN(subjSnap, idSnap);
+      const existingRaw = await window.storage.get(oldKeySnap || key, false).catch(()=>null);
       const createdAt = existingRaw ? (JSON.parse(existingRaw.value).createdAt || now) : now;
       const payload = {
-        id: idSnap, subject: subjSnap || 'Unsorted',
+        id: idSnap, subject: subjSnap,
         title: titleSnap, body: '', createdAt, updatedAt: now
       };
       payload.pages = pagesSnap;
       payload.body = pagesSnap.map(x => x.body).join('\n\n');
       await window.storage.set(key, JSON.stringify(payload), false);
+      if(oldKeySnap && oldKeySnap !== key){ try{ await window.storage.delete(oldKeySnap, false); }catch(e){} }   // older un-bucketed copy moves into its course
+      if(currentNoteIdN === idSnap) currentNoteKeyN = key;
       statusEl.className = 'saved'; statusEl.textContent = 'saved';
       document.getElementById('note-delete-btn').style.display = '';
     } catch(e){ console.error('Save note failed:', e); statusEl.textContent = 'save failed'; }
@@ -16313,7 +16335,7 @@ function saveCurrentNoteN(){
 async function deleteCurrentNoteN(){
   if(!currentNoteIdN) return;
   if(!confirm('Delete this note? This can\u2019t be undone.')) return;
-  try{ await window.storage.delete(notesKeyPrefixN() + currentNoteIdN, false); } catch(e){}
+  try{ await window.storage.delete(currentNoteKeyN || noteKeyN(currentNoteSubjectN || notesSubject, currentNoteIdN), false); } catch(e){}
   closeEditorN();
 }
 
