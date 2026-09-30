@@ -16070,7 +16070,7 @@ function createViewN(pg, first){
   const v = { sec, title, body, cv, tag, ctx: cv.getContext('2d', { desynchronized:true }), scale:1, live:false };
   sec._v = v; cv._v = v;
   if(title){ title.addEventListener('input', saveCurrentNoteN); title.addEventListener('focus', ()=>setCurN(0)); }
-  body.addEventListener('input', ()=>{ autosizeViewN(v); saveCurrentNoteN(); });
+  body.addEventListener('input', ()=>{ colonIndentN(body); autosizeViewN(v); saveCurrentNoteN(); });
   body.addEventListener('focus', ()=>{ const i = viewsN.indexOf(v); if(i >= 0 && i !== curPageN) setCurN(i); });
   // tapping empty paper puts the cursor at the end of that page's text, like a real notes app
   sec.addEventListener('pointerdown', (e)=>{
@@ -16088,12 +16088,12 @@ function mountPagesN(opts){
   viewsN = []; titleEl = null; bodyEl = null; canvasEl = null; canvasCtx = null;
   const stack = document.getElementById('pages-stack'); stack.innerHTML = '';
   pagesN.forEach((pg, i)=>{ const v = createViewN(pg, i === 0); viewsN.push(v); stack.appendChild(v.sec); });
-  autosizeAllN(); renumberN();
+  colonIndentAllN(); autosizeAllN(); renumberN();
   const want = Math.max(0, Math.min(opts.cur || 0, viewsN.length - 1));
   setCurN(want);
   if(opts.cur) scrollToPageN(want, false); else scrollElN.scrollTop = 0;
   setTimeout(relayoutN, 30);
-  try{ document.fonts.ready.then(relayoutN); }catch(e){}
+  try{ document.fonts.ready.then(()=>{ colonIndentAllN(); relayoutN(); }); }catch(e){}
 }
 function scrollToPageN(i, smooth){
   const v = viewsN[i]; if(!v) return;
@@ -16146,6 +16146,61 @@ const HTML_DROP_N = { SCRIPT:1, STYLE:1, IFRAME:1, OBJECT:1, EMBED:1, LINK:1, ME
 const HTML_KEEP_N = { B:1, STRONG:1, I:1, EM:1, U:1, SPAN:1, DIV:1, P:1, BR:1, FONT:1 };
 const COLOR_OK_N = /^(#[0-9a-f]{3,8}|rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*(,\s*[\d.]+\s*)?\))$/i;
 // Saved notes are re-inserted as HTML, so only a small whitelist of tags and styles is ever let through.
+/* ---------------- Colon alignment ----------------
+   A line like "Term: meaning" hangs at the colon: when it wraps, and on every line typed under it, the text starts
+   right where the words after the colon start. A blank line ends the block. Spaces typed at the start of a line
+   still push that line further right as usual. Nothing extra is saved: it is worked out from the text each time. */
+let spaceCtxN = null;
+function spaceWidthN(body){
+  const cs = getComputedStyle(body);
+  try{
+    if(!spaceCtxN) spaceCtxN = document.createElement('canvas').getContext('2d');
+    spaceCtxN.font = cs.fontStyle + ' ' + cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily;
+    const w = spaceCtxN.measureText(' ').width; if(w > 0) return w;
+  }catch(e){}
+  return (parseFloat(cs.fontSize) || 22) * 0.25;
+}
+function widthToCharN(el, n){   // rendered width of the first n characters of a line (0 if it can't be measured on one line)
+  const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  let node, left = n;
+  while((node = w.nextNode())){
+    if(node.nodeValue.length >= left){
+      try{
+        const r = document.createRange(); r.setStart(el, 0); r.setEnd(node, left);
+        const b = r.getBoundingClientRect();
+        return (b.height > 0 && b.height < 54) ? b.width : 0;   // taller than one line: the label itself wrapped
+      }catch(e){ return 0; }
+    }
+    left -= node.nodeValue.length;
+  }
+  return 0;
+}
+function colonIndentN(body){
+  if(!body || !body.isConnected) return;
+  const kids = Array.from(body.children).filter(el => el.tagName === 'DIV' || el.tagName === 'P');
+  if(!kids.length) return;
+  const bw = body.getBoundingClientRect().width, scale = body.offsetWidth ? (bw / body.offsetWidth) || 1 : 1;
+  const maxW = body.clientWidth * 0.55, sp = spaceWidthN(body);
+  const plan = []; let W = 0;
+  for(const el of kids){
+    const txt = (el.textContent || '').replace(/\u00a0/g, ' ');
+    if(!txt.trim()){ plan.push([el, W, 0]); W = 0; continue; }   // an empty line under a colon line keeps the caret aligned, then the block ends
+    const m = txt.match(/^\s*[^\s:][^:\n]{0,38}:(?=\s|$)/);       // "Label:" — not times (10:30) or links (https://)
+    if(m){
+      const w = widthToCharN(el, m[0].length);
+      if(w > 0){ W = Math.round(Math.min(w / scale + sp, maxW) * 10) / 10; plan.push([el, W, -W]); continue; }
+    }
+    plan.push([el, W, 0]);
+  }
+  for(const [el, pl, ti] of plan){
+    const a = pl ? pl + 'px' : '', b = ti ? ti + 'px' : '';
+    if(el.style.paddingLeft !== a) el.style.paddingLeft = a;
+    if(el.style.textIndent !== b) el.style.textIndent = b;
+    if(!el.getAttribute('style')) el.removeAttribute('style');
+  }
+}
+function colonIndentAllN(){ viewsN.forEach(v => colonIndentN(v.body)); }
+
 function cleanHtmlN(html){
   const tpl = document.createElement('template'); tpl.innerHTML = String(html);
   (function walk(node){
@@ -16460,7 +16515,7 @@ async function applyRemoteNoteN(){
       });
       noteTitleN = item.title || '';
       if(titleEl && titleEl.value !== noteTitleN) titleEl.value = noteTitleN;
-      autosizeAllN();
+      colonIndentAllN(); autosizeAllN();
     } else {
       pagesN = newPages; noteTitleN = item.title || '';
       mountPagesN({ cur });
