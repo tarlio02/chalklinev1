@@ -14689,6 +14689,13 @@ h1,h2,h3{ font-family:'Fraunces','Source Serif 4',Georgia,serif; margin:0; color
   white-space:pre-wrap; overflow-wrap:break-word; -webkit-user-select:text; user-select:text;
 }
 .note-body div, .note-body p{ margin:0; }
+/* line / arrow / dotted-line drawing */
+.line-row{ display:flex; justify-content:center; align-items:center; gap:4px; flex-wrap:wrap; }
+.line-row .seg-btn{ padding:0 11px; }
+.line-lbl{ font:600 10px 'JetBrains Mono',monospace; color:var(--muted); margin-right:6px; }
+#pen-tray.eraser .line-row{ display:none; }
+#line-btn.active{ background:#FFF1CC; box-shadow:0 0 0 1.5px var(--gold-deep) inset; }
+#line-btn svg{ width:20px; height:20px; display:block; }
 /* text formatting bar (Type mode) */
 #fmt-tools{ gap:2px; padding:0 6px; }
 .fmt-btn{ width:34px; padding:0; display:inline-flex; align-items:center; justify-content:center; font-family:'Source Serif 4',Georgia,serif; font-size:17px; }
@@ -14768,6 +14775,7 @@ body.no-select-while-drawing,
 
       <div class="glass pill draw-tools" id="draw-tools">
         <button type="button" class="tool-btn" id="tray-btn" onclick="toggleTrayN()" title="Pens" style="display:flex;align-items:center;gap:8px;height:34px;"><span id="tray-icon"></span><i id="tray-dot"></i></button>
+        <button type="button" class="tool-btn" id="line-btn" onclick="toggleLineN()" aria-label="Lines, arrows and dotted lines" title="Lines, arrows & dotted lines" style="display:flex;align-items:center;height:34px"></button>
         <span class="sep"></span>
         <button type="button" class="tool-btn" id="undo-btn" onclick="undoN()" aria-label="Undo" title="Undo"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:block"><path d="M9 14L4 9l5-5M4 9h10a6 6 0 010 12h-3"/></svg></button>
         <button type="button" class="tool-btn" id="redo-btn" onclick="redoN()" aria-label="Redo" title="Redo"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:block"><path d="M15 14l5-5-5-5M20 9H10a6 6 0 000 12h3"/></svg></button>
@@ -15114,6 +15122,33 @@ function toggleTrayN(force){
     if(t.classList.contains('open') && !e.target.closest('#pen-tray') && !e.target.closest('#tray-btn')) toggleTrayN(false);
   }, true);
 })();
+(function initLinesN(){
+  const LI = inner => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + inner + '</svg>';
+  const ICONS = {
+    off:    LI('<path d="M3 15c2-7 4-7 5-3s3 4 5 0 4-6 8-3"/>'),
+    line:   LI('<path d="M4 19L20 5"/>'),
+    arrow:  LI('<path d="M4 19L20 5M20 5h-7M20 5v7"/>'),
+    dotted: LI('<path d="M4 19L20 5" stroke-width="3" stroke-dasharray="0.1 4.4"/>'),
+    darrow: LI('<path d="M4 19L18 6.5" stroke-width="3" stroke-dasharray="0.1 4.4"/><path d="M20 5h-7M20 5v7"/>')
+  };
+  const NAMES = { off:'Freehand', line:'Line', arrow:'Arrow', dotted:'Dotted line', darrow:'Dotted arrow' };
+  const t = document.getElementById('pen-tray');
+  t.querySelector('.color-row').insertAdjacentHTML('beforebegin',
+    '<div class="line-row"><span class="line-lbl">Draw as</span>' +
+    Object.keys(ICONS).map(k => '<button type="button" class="seg-btn" data-lm="' + k + '" title="' + NAMES[k] + '" aria-label="' + NAMES[k] + '" onclick="setLineModeN(\'' + k + '\')">' + ICONS[k] + '</button>').join('') + '</div>');
+  window.setLineModeN = function(m){
+    lineModeN = ICONS[m] ? m : 'off';
+    if(lineModeN !== 'off') lastLineKindN = lineModeN;
+    t.querySelectorAll('[data-lm]').forEach(el => el.classList.toggle('active', el.dataset.lm === lineModeN));
+    const b = document.getElementById('line-btn'); b.classList.toggle('active', lineModeN !== 'off'); b.innerHTML = ICONS[lastLineKindN];
+    try{ localStorage.setItem('chalkline:notes-line-mode', lineModeN); localStorage.setItem('chalkline:notes-line-kind', lastLineKindN); }catch(e){}
+  };
+  window.toggleLineN = function(){ setLineModeN(lineModeN === 'off' ? lastLineKindN : 'off'); };
+  let m = 'off', k = 'line';
+  try{ m = localStorage.getItem('chalkline:notes-line-mode') || 'off'; k = localStorage.getItem('chalkline:notes-line-kind') || 'line'; }catch(e){}
+  lastLineKindN = (ICONS[k] && k !== 'off') ? k : 'line';
+  setLineModeN(m);
+})();
 function clearDrawingN(){
   snapPushN();
   const pg = pagesN[curPageN]; if(pg){ pg.base = ''; pg.strokes = []; }
@@ -15392,7 +15427,81 @@ function commitStrokeN(){
   if(refined){ const b = bbOfN(rec), pad = T.w(1) * rec.size + 12; renderRegionN(b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad); }
 }
 // Re-draws a saved stroke by feeding its raw points back through the live smoothing engine.
+/* ---- Lines, arrows and dotted lines: drag to place, snaps to horizontal / vertical ---- */
+let lineModeN = 'off', lastLineKindN = 'line', lineDragN = null, lineRafN = 0;   // lineModeN: off | line | arrow | dotted | darrow
+function lineRecOfN(d){
+  const lw = TOOLS[d.tn].w(0.5) * d.size, pad = 24 + lw * 3;
+  return { tn:d.tn, erase:false, color:d.color, size:d.size, line:d.kind, poly:true,
+    pts:[+d.x0.toFixed(1), +d.y0.toFixed(1), 0.5, +d.x1.toFixed(1), +d.y1.toFixed(1), 0.5],
+    bb:[Math.min(d.x0, d.x1) - pad, Math.min(d.y0, d.y1) - pad, Math.max(d.x0, d.x1) + pad, Math.max(d.y0, d.y1) + pad] };
+}
+// k = canvas pixels per page pixel, o = horizontal page offset
+function drawLineRecN(rec, c, k, o){
+  const q = rec.pts, T = TOOLS[rec.tn] || TOOLS.pen;
+  const x0 = (q[0] + o) * k, y0 = q[1] * k, x1 = (q[3] + o) * k, y1 = q[4] * k;
+  const lw = Math.max(1, T.w(0.5) * rec.size * k), len = Math.hypot(x1 - x0, y1 - y0);
+  const dotted = rec.line === 'dotted' || rec.line === 'darrow', arrow = rec.line === 'arrow' || rec.line === 'darrow';
+  c.save();
+  c.globalCompositeOperation = 'source-over'; c.globalAlpha = T.a; c.strokeStyle = rec.color;
+  c.lineWidth = lw; c.lineCap = 'round'; c.lineJoin = 'round';
+  if(dotted && len > 1){
+    const n = Math.max(1, Math.round(len / Math.max(lw * 2.4, 7 * k)));   // whole number of dots so both ends get one
+    c.setLineDash([0.01, len / n]);
+  }
+  c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
+  c.setLineDash([]);
+  if(arrow && len > 1){
+    const a = Math.atan2(y1 - y0, x1 - x0), hl = Math.min(len * 0.5, Math.max(14 * k, lw * 4.2));
+    c.beginPath();
+    c.moveTo(x1 - hl * Math.cos(a - 0.5), y1 - hl * Math.sin(a - 0.5));
+    c.lineTo(x1, y1);
+    c.lineTo(x1 - hl * Math.cos(a + 0.5), y1 - hl * Math.sin(a + 0.5));
+    c.stroke();
+  }
+  c.restore();
+}
+function ptOfN(ev){ const r = canvasEl.getBoundingClientRect(); return [(ev.clientX - r.left) / zoomN - colOffN(), (ev.clientY - r.top) / zoomN]; }
+function snapLineEndN(x0, y0, x, y){   // within ~7 degrees of horizontal or vertical, the line straightens out
+  if(!snapOnN) return [x, y];
+  const dx = x - x0, dy = y - y0;
+  if(Math.hypot(dx, dy) < 8) return [x, y];
+  const ang = Math.atan2(Math.abs(dy), Math.abs(dx)) * 180 / Math.PI;
+  if(ang < 7) return [x, y0];
+  if(ang > 83) return [x0, y];
+  return [x, y];
+}
+function beginLineN(e){
+  const b = document.createElement('canvas'); b.width = canvasEl.width; b.height = canvasEl.height;
+  b.getContext('2d').drawImage(canvasEl, 0, 0);   // clean copy of the page to redraw the preview over
+  const p = ptOfN(e);
+  lineDragN = { base:b, x0:p[0], y0:p[1], x1:p[0], y1:p[1], kind:lineModeN, tn:toolN, color:penColorN, size:penSizeN };
+}
+function restoreLineBaseN(d){
+  canvasCtx.save(); canvasCtx.globalCompositeOperation = 'copy'; canvasCtx.globalAlpha = 1; canvasCtx.drawImage(d.base, 0, 0); canvasCtx.restore();
+}
+function paintLineDragN(){
+  const d = lineDragN; if(!d) return;
+  restoreLineBaseN(d);
+  drawLineRecN(lineRecOfN(d), canvasCtx, canvasScaleN, colOffN());
+}
+function updateLineN(e){
+  const d = lineDragN, p = ptOfN(e), s = snapLineEndN(d.x0, d.y0, p[0], p[1]);
+  d.x1 = s[0]; d.y1 = s[1];
+  if(!lineRafN) lineRafN = requestAnimationFrame(()=>{ lineRafN = 0; paintLineDragN(); });
+}
+function finishLineN(e){
+  const d = lineDragN; lineDragN = null;
+  cancelAnimationFrame(lineRafN); lineRafN = 0;
+  if(e && e.type === 'pointerup' && e.clientX != null){ const p = ptOfN(e), s = snapLineEndN(d.x0, d.y0, p[0], p[1]); d.x1 = s[0]; d.y1 = s[1]; }
+  restoreLineBaseN(d);
+  const pg = pagesN[curPageN];
+  if((e && e.type === 'pointercancel') || !pg || Math.hypot(d.x1 - d.x0, d.y1 - d.y0) < 6) return;   // a tap or a cancelled drag places nothing
+  const rec = lineRecOfN(d);
+  snapPushN(); (pg.strokes = pg.strokes || []).push(rec);
+  drawLineRecN(rec, canvasCtx, canvasScaleN, colOffN());
+}
 function replayStrokeN(rec){
+  if(rec.line){ drawLineRecN(rec, canvasCtx, canvasScaleN, colOffN()); return; }
   if(rec.text){   // handwriting converted to a handwritten font
     const c = canvasCtx, k = canvasScaleN;
     c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1; c.fillStyle = rec.color;
@@ -15582,6 +15691,7 @@ onCanvasN('pointerdown', (e)=>{
     objEraseAtN((e.clientX - r0.left) / zoomN - colOffN(), (e.clientY - r0.top) / zoomN);
     e.preventDefault(); return;
   }
+  if(lineModeN !== 'off' && !erasingN){ beginLineN(e); e.preventDefault(); return; }   // straight line / arrow / dotted line
   strokeRecN = { tn: erasingN ? 'eraser' : toolN, erase: erasingN, color: penColorN, size: penSizeN, pts: [] };
   pendingPointsN = [];
   queuePointN(e, canvasEl.getBoundingClientRect(), canvasScaleN);
@@ -15644,6 +15754,7 @@ onCanvasN('pointermove', (e)=>{
   if(!drawingActiveN || e.pointerId !== activePointerIdN) return;
   // Input phase only: one rect read per event, every coalesced sample queued
   // (nothing throttled or discarded), drawing deferred to the rAF flush.
+  if(lineDragN){ updateLineN(e); e.preventDefault(); return; }
   const r = canvasEl.getBoundingClientRect();
   const dpr = canvasScaleN;
   const coalesced = (typeof e.getCoalescedEvents === 'function') ? e.getCoalescedEvents() : [];
@@ -15659,12 +15770,15 @@ function endDrawN(e){
   const pid = activePointerIdN;
   // No more input is coming: land the final segment (including the pointerup's
   // own position) now rather than waiting for the next frame.
-  if(e && e.type === 'pointerup' && e.clientX != null){
-    queuePointN(e, canvasEl.getBoundingClientRect(), canvasScaleN);
+  if(lineDragN){ finishLineN(e); }
+  else {
+    if(e && e.type === 'pointerup' && e.clientX != null){
+      queuePointN(e, canvasEl.getBoundingClientRect(), canvasScaleN);
+    }
+    flushDrawQueueN();
+    finishStrokeN();
+    commitStrokeN();
   }
-  flushDrawQueueN();
-  finishStrokeN();
-  commitStrokeN();
   lastPtN = null;
   try{ if(pid != null) canvasEl.releasePointerCapture(pid); }catch(err){}
   drawingActiveN = false;
