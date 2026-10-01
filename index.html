@@ -14943,6 +14943,27 @@ h1,h2,h3{ font-family:'Fraunces','Source Serif 4',Georgia,serif; margin:0; color
 }
 .sheet.drawing .note-canvas{ pointer-events:auto; cursor:crosshair; }
 .sheet.drawing .note-body, .sheet.drawing .note-title{ pointer-events:none; }
+/* ---- Select pen: lasso, selection box, handles, toolbar ---- */
+.sel-ov{ position:absolute; inset:0; z-index:4; pointer-events:none; }
+.sel-ov svg{ position:absolute; inset:0; width:100%; height:100%; overflow:visible; pointer-events:none; }
+.sel-box{ position:absolute; box-sizing:border-box; border:calc(1.6px / var(--zoom,1)) dashed var(--ochre); border-radius:calc(4px / var(--zoom,1)); background:rgba(46,125,190,.06); pointer-events:auto; touch-action:none; cursor:move; }
+.sel-h{ position:absolute; width:calc(16px / var(--zoom,1)); height:calc(16px / var(--zoom,1)); box-sizing:border-box; border:calc(2.5px / var(--zoom,1)) solid var(--ochre); background:#fff; border-radius:50%; touch-action:none; pointer-events:auto; }
+.sel-h::after{ content:''; position:absolute; inset:calc(-12px / var(--zoom,1)); }   /* roomy touch target */
+.sel-h[data-h="nw"]{ left:0; top:0; transform:translate(-50%,-50%); cursor:nwse-resize; }
+.sel-h[data-h="ne"]{ left:100%; top:0; transform:translate(-50%,-50%); cursor:nesw-resize; }
+.sel-h[data-h="se"]{ left:100%; top:100%; transform:translate(-50%,-50%); cursor:nwse-resize; }
+.sel-h[data-h="sw"]{ left:0; top:100%; transform:translate(-50%,-50%); cursor:nesw-resize; }
+.sel-rot{ left:50%; top:calc(-30px / var(--zoom,1)); transform:translate(-50%,-50%); cursor:grab; background:var(--ochre); }
+.sel-stem{ position:absolute; left:50%; top:calc(-30px / var(--zoom,1)); width:calc(1.6px / var(--zoom,1)); height:calc(30px / var(--zoom,1)); background:var(--ochre); transform:translateX(-50%); pointer-events:none; }
+.sel-bar{ position:absolute; left:0; top:0; z-index:6; transform-origin:0 0; display:flex; flex-direction:column; gap:7px; padding:9px 11px; background:rgba(255,255,255,.97); border:1px solid rgba(42,36,16,.14); border-radius:14px; box-shadow:0 6px 24px rgba(42,36,16,.2); pointer-events:auto; touch-action:none; white-space:nowrap; }
+.sel-row{ display:flex; align-items:center; justify-content:center; gap:6px; }
+.sel-sw{ width:24px; height:24px; padding:0; border-radius:50%; border:2px solid #fff; box-shadow:0 0 0 1px rgba(42,36,16,.28); cursor:pointer; }
+.sel-sw.on{ box-shadow:0 0 0 2px var(--ochre); }
+.sel-b{ min-width:34px; height:30px; padding:0 8px; display:inline-flex; align-items:center; justify-content:center; border-radius:9px; border:1px solid rgba(42,36,16,.15); background:#fff; color:var(--ink); cursor:pointer; }
+.sel-b i{ display:block; width:18px; background:var(--ink); border-radius:3px; }
+.sel-b.danger{ color:var(--danger); }
+.sel-sep{ width:1px; height:20px; background:rgba(42,36,16,.15); margin:0 2px; }
+
 /* A fast stylus/mouse drag across the canvas can still trigger the browser's
    native text-selection gesture on surrounding page text (title, toolbar
    labels, etc) — preventDefault() on the pointer events doesn't reliably
@@ -15011,6 +15032,7 @@ body.no-select-while-drawing,
       <div class="glass pill draw-tools" id="draw-tools">
         <button type="button" class="tool-btn" id="tray-btn" onclick="toggleTrayN()" title="Pens" style="display:flex;align-items:center;gap:8px;height:34px;"><span id="tray-icon"></span><i id="tray-dot"></i></button>
         <button type="button" class="tool-btn" id="line-btn" onclick="toggleLineN()" aria-label="Lines, arrows and dotted lines" title="Lines, arrows & dotted lines" style="display:flex;align-items:center;height:34px"></button>
+        <button type="button" class="tool-btn" id="sel-btn" onclick="toggleSelN()" aria-label="Select pen: circle handwriting to move, resize or recolour it" title="Select pen: circle handwriting to move, resize, rotate or recolour it" style="display:flex;align-items:center;height:34px"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block"><path d="M12 4c4.4 0 8 1.8 8 4s-3.6 4-8 4-8-1.8-8-4 3.6-4 8-4z" stroke-dasharray="3.2 2.6"/><path d="M8.2 12.4c-.9 1.5-1 3.2.3 4.5 1 1 2.5 1.1 3.3.3"/></svg></button>
         <span class="sep"></span>
         <button type="button" class="tool-btn" id="undo-btn" onclick="undoN()" aria-label="Undo" title="Undo"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:block"><path d="M9 14L4 9l5-5M4 9h10a6 6 0 010 12h-3"/></svg></button>
         <button type="button" class="tool-btn" id="redo-btn" onclick="redoN()" aria-label="Redo" title="Redo"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:block"><path d="M15 14l5-5-5-5M20 9H10a6 6 0 000 12h3"/></svg></button>
@@ -15245,6 +15267,7 @@ function setModeN(mode){
   document.getElementById('fmt-tools').classList.toggle('show', mode === 'type');
   viewsN.forEach(v => { v.body.contentEditable = mode === 'type' ? 'true' : 'false'; });
   if(mode !== 'type') hideTextColorN();
+  if(mode !== 'draw') setSelModeN(false);
   if(mode !== 'draw') toggleTrayN(false);
 }
 const TOOLS = {
@@ -15266,6 +15289,7 @@ const ICONS = {
 const PALETTE = ['#2A2410','#2E7DBE','#C0392B','#2F9E5B','#F0862A','#7B4FB3','#FFD84A','#FF8FB8'];
 const toolColorN = { pen:'#2A2410', pencil:'#2A2410', marker:'#2E7DBE', brush:'#2A2410', highlighter:'#FFD84A' };
 let toolN = 'pen', inkToolN = 'pen';
+var selModeN = false, selRecsN = [], selGroupN = [], selPgN = null, selBBN = null, selUiN = null, selGestN = null;   // select pen state
 let eraseModeN = 'pixel';      // 'pixel' rubs ink out; 'object' removes whole strokes
 let strokeRecN = null;         // the stroke being recorded (kept as vector data so it can be erased as an object)
 let snapOnN = true, snappedN = false, holdN = null, holdPtN = null;
@@ -15329,6 +15353,7 @@ function penSvgN(t, color){
 }
 function iconN(t){ return penSvgN(t, (t === 'eraser') ? null : toolColorN[t]); }
 function setToolN(t){
+  if(selModeN) setSelModeN(false);
   toolN = t; erasingN = (t === 'eraser');
   if(!erasingN){ inkToolN = t; penColorN = toolColorN[t]; }
   document.querySelectorAll('.tool-opt').forEach(el => el.classList.toggle('active', el.dataset.tool === t));
@@ -15393,19 +15418,21 @@ let lineModeN = 'off', lastLineKindN = 'line', lineDragN = null, lineRafN = 0;  
     '<div class="line-row"><span class="line-lbl">Draw as</span>' +
     Object.keys(ICONS).map(k => '<button type="button" class="seg-btn" data-lm="' + k + '" title="' + NAMES[k] + '" aria-label="' + NAMES[k] + '" onclick="setLineModeN(\'' + k + '\')">' + ICONS[k] + '</button>').join('') + '</div>');
   window.setLineModeN = function(m){
+    if(selModeN && m && m !== 'off') setSelModeN(false);
     lineModeN = ICONS[m] ? m : 'off';
     if(lineModeN !== 'off') lastLineKindN = lineModeN;
     t.querySelectorAll('[data-lm]').forEach(el => el.classList.toggle('active', el.dataset.lm === lineModeN));
     const b = document.getElementById('line-btn'); b.classList.toggle('active', lineModeN !== 'off'); b.innerHTML = ICONS[lastLineKindN];
     try{ localStorage.setItem('chalkline:notes-line-mode', lineModeN); localStorage.setItem('chalkline:notes-line-kind', lastLineKindN); }catch(e){}
   };
-  window.toggleLineN = function(){ setLineModeN(lineModeN === 'off' ? lastLineKindN : 'off'); };
+  window.toggleLineN = function(){ if(selModeN) setSelModeN(false); setLineModeN(lineModeN === 'off' ? lastLineKindN : 'off'); };
   let m = 'off', k = 'line';
   try{ m = localStorage.getItem('chalkline:notes-line-mode') || 'off'; k = localStorage.getItem('chalkline:notes-line-kind') || 'line'; }catch(e){}
   lastLineKindN = (ICONS[k] && k !== 'off') ? k : 'line';
   setLineModeN(m);
 })();
 function clearDrawingN(){
+  selResetN();
   snapPushN();
   const pg = pagesN[curPageN]; if(pg){ pg.base = ''; pg.strokes = []; }
   canvasCtx.clearRect(0, 0, canvasEl.width, canvasEl.height);
@@ -15554,7 +15581,7 @@ function stepHistN(from, to){
   const pg = pagesN[curPageN]; if(!pg) return;
   const h = histOfN(pg); if(!h[from].length) return;
   h[to].push(snapOfN(pg));
-  const st = h[from].pop(); pg.strokes = st.strokes; pg.base = st.base;
+  const st = h[from].pop(); pg.strokes = st.strokes; pg.base = st.base; selResetN();
   renderPageN(); updateHistBtnsN(); saveCurrentNoteN();
 }
 function undoN(){ stepHistN('u', 'r'); }
@@ -15567,6 +15594,321 @@ function updateHistBtnsN(){
 document.addEventListener('keydown', (e)=>{
   if(inputModeN !== 'draw' || !(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'z') return;
   e.preventDefault(); e.shiftKey ? redoN() : undoN();
+});
+/* ---- Select pen (lasso): circle handwriting to select it, then move, resize, rotate, recolour, duplicate or delete ---- */
+function selPtN(ev, v){ const r = v.cv.getBoundingClientRect(); return [(ev.clientX - r.left) / zoomN - colOffN(), (ev.clientY - r.top) / zoomN]; }
+function selViewIdxN(){ return selPgN ? pagesN.indexOf(selPgN) : -1; }
+function selPolyHasN(poly, x, y){
+  let ins = false;
+  for(let i = 0, j = poly.length - 1; i < poly.length; j = i++){
+    const xi = poly[i][0], yi = poly[i][1], xj = poly[j][0], yj = poly[j][1];
+    if(((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) ins = !ins;
+  }
+  return ins;
+}
+function selRecInsideN(rec, poly){
+  if(rec.text){ const b = bbOfN(rec); return selPolyHasN(poly, (b[0] + b[2]) / 2, (b[1] + b[3]) / 2); }
+  const q = rec.pts; if(!q || q.length < 3) return false;
+  const n = q.length / 3, step = Math.max(1, Math.floor(n / 28)); let tot = 0, inn = 0;
+  for(let i = 0; i < n; i += step){ tot++; if(selPolyHasN(poly, q[i*3], q[i*3+1])) inn++; }
+  return inn / tot >= 0.55;
+}
+function selBoundsN(recs){
+  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+  for(const r of recs){
+    if(r.erase) continue;
+    if(r.text){ const b = bbOfN(r); x0 = Math.min(x0, b[0]); y0 = Math.min(y0, b[1]); x1 = Math.max(x1, b[2]); y1 = Math.max(y1, b[3]); continue; }
+    const q = r.pts, T = TOOLS[r.tn], hw = T ? Math.max(1, T.w(0.5) * (r.size || 1) / 2) : 2;
+    for(let i = 0; i + 1 < q.length; i += 3){ x0 = Math.min(x0, q[i] - hw); y0 = Math.min(y0, q[i+1] - hw); x1 = Math.max(x1, q[i] + hw); y1 = Math.max(y1, q[i+1] + hw); }
+  }
+  return x1 < x0 ? null : [x0 - 4, y0 - 4, x1 + 4, y1 + 4];
+}
+// Rubbed-out parts of a selected stroke are separate eraser strokes; take along the ones that belong to the selection.
+function selCarryErasersN(pg, picked){
+  const set = new Set(picked), arr = pg.strokes, bb = selBoundsN(picked);
+  const first = arr.findIndex(r => set.has(r));
+  if(!bb || first < 0) return picked.slice();
+  const others = arr.filter(r => !set.has(r) && !r.erase), carried = new Set();
+  for(let i = first + 1; i < arr.length; i++){
+    const r = arr[i]; if(!r.erase || !r.pts || r.pts.length < 3) continue;
+    const q = r.pts, n = q.length / 3, rad = (14 + (r.size || 1) * 9) / 2, step = Math.max(1, Math.floor(n / 16));
+    let tot = 0, inn = 0, hitsOther = false;
+    for(let k = 0; k < n; k += step){
+      tot++; const x = q[k*3], y = q[k*3+1];
+      if(x >= bb[0] - rad && x <= bb[2] + rad && y >= bb[1] - rad && y <= bb[3] + rad) inn++;
+      if(!hitsOther) for(const o of others){ if(strokeHitN(o, x, y, rad)){ hitsOther = true; break; } }
+    }
+    if(inn / tot >= 0.6 && !hitsOther) carried.add(r);
+  }
+  return arr.filter(r => set.has(r) || carried.has(r));
+}
+function selOvN(v){
+  if(!v.ov || !v.ov.isConnected){
+    const ov = document.createElement('div'); ov.className = 'sel-ov';
+    ov.innerHTML = '<svg><path class="sel-lasso" fill="rgba(46,125,190,.08)" stroke="#2E7DBE" stroke-linejoin="round" stroke-linecap="round"/></svg>';
+    v.sec.appendChild(ov); v.ov = ov;
+  }
+  return v.ov;
+}
+function selDropUiN(){ if(selUiN){ try{ selUiN.box.remove(); selUiN.bar.remove(); }catch(e){} selUiN = null; } }
+function selResetN(){
+  if(selGestN){ try{ selGestN.cleanup(); cancelAnimationFrame(selGestN.raf); }catch(e){} selGestN = null; }
+  selDropUiN(); selRecsN = []; selGroupN = []; selPgN = null; selBBN = null;
+}
+function setSelModeN(on){
+  selModeN = !!on;
+  const b = document.getElementById('sel-btn'); if(b) b.classList.toggle('active', selModeN);
+  try{ sheetEl.classList.toggle('selecting', selModeN); }catch(e){}
+  if(selModeN){ try{ toggleTrayN(false); }catch(e){} } else selResetN();
+}
+function toggleSelN(){ setSelModeN(!selModeN); }
+
+// ---- lasso ----
+function selPointerDownN(e){
+  const cv = e.currentTarget, v = cv._v || viewsN[curPageN]; if(!v) return;
+  selResetN();
+  const pid = e.pointerId, poly = [selPtN(e, v)], ov = selOvN(v), path = ov.querySelector('.sel-lasso');
+  path.setAttribute('stroke-width', 1.8 / zoomN); path.setAttribute('stroke-dasharray', (7 / zoomN) + ' ' + (5 / zoomN)); path.setAttribute('d', '');
+  try{ cv.setPointerCapture(pid); }catch(err){}
+  const draw = ()=>{ path.setAttribute('d', 'M' + poly.map(p => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join('L') + 'Z'); };
+  const move = (ev)=>{
+    if(ev.pointerId !== pid) return;
+    const last = poly[poly.length - 1], p = selPtN(ev, v);
+    if(Math.hypot(p[0] - last[0], p[1] - last[1]) > 1.5){ poly.push(p); draw(); }
+  };
+  const end = (ev)=>{
+    if(ev.pointerId !== pid) return;
+    window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', end); window.removeEventListener('pointercancel', end);
+    try{ cv.releasePointerCapture(pid); }catch(err){}
+    path.setAttribute('d', '');
+    if(ev.type !== 'pointercancel') selFinishLassoN(v, poly);
+  };
+  window.addEventListener('pointermove', move); window.addEventListener('pointerup', end); window.addEventListener('pointercancel', end);
+}
+function selFinishLassoN(v, poly){
+  const idx = viewsN.indexOf(v), pg = pagesN[idx]; if(!pg || !pg.strokes) return;
+  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+  for(const p of poly){ x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); }
+  let picked = [];
+  if(x1 - x0 < 12 && y1 - y0 < 12){   // a tap: pick the stroke under the pen
+    const p = poly[0];
+    for(let i = pg.strokes.length - 1; i >= 0; i--){ const r = pg.strokes[i]; if(!r.erase && r.pts && strokeHitN(r, p[0], p[1], 8)){ picked = [r]; break; } }
+  } else if(poly.length >= 3){
+    picked = pg.strokes.filter(r => !r.erase && selRecInsideN(r, poly));
+  }
+  if(!picked.length) return;
+  selPgN = pg; selRecsN = picked; selGroupN = selCarryErasersN(pg, picked);
+  selShowN();
+}
+
+// ---- selection box, handles and toolbar ----
+function selShowN(){
+  selDropUiN();
+  const idx = selViewIdxN(), v = viewsN[idx]; if(idx < 0 || !v) return;
+  selBBN = selBoundsN(selRecsN); if(!selBBN){ selResetN(); return; }
+  const ov = selOvN(v);
+  const box = document.createElement('div'); box.className = 'sel-box';
+  box.innerHTML = '<i class="sel-h" data-h="nw"></i><i class="sel-h" data-h="ne"></i><i class="sel-h" data-h="se"></i><i class="sel-h" data-h="sw"></i><i class="sel-stem"></i><i class="sel-h sel-rot" data-h="rot"></i>';
+  const cols = selRecsN.map(r => (r.color || '').toLowerCase()), same = cols.every(c => c === cols[0]) ? cols[0] : null;
+  const bar = document.createElement('div'); bar.className = 'sel-bar';
+  bar.innerHTML =
+    '<div class="sel-row">' + PALETTE.map(c => '<button type="button" class="sel-sw' + (same === c.toLowerCase() ? ' on' : '') + '" data-color="' + c + '" style="background:' + c + '" aria-label="Colour"></button>').join('') + '</div>' +
+    '<div class="sel-row">' +
+      [['0.55', 2], ['1', 3.5], ['1.7', 6]].map(a => '<button type="button" class="sel-b" data-sz="' + a[0] + '" title="Thickness"><i style="height:' + a[1] + 'px"></i></button>').join('') +
+      '<span class="sel-sep"></span>' +
+      '<button type="button" class="sel-b" data-act="dup" title="Duplicate" aria-label="Duplicate"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2h2"/></svg></button>' +
+      '<button type="button" class="sel-b danger" data-act="del" title="Delete" aria-label="Delete"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12M9 7V4h6v3"/></svg></button>' +
+    '</div>';
+  ov.appendChild(box); ov.appendChild(bar);
+  selUiN = { box, bar };
+  box.addEventListener('pointerdown', (e)=>{ const h = e.target && e.target.dataset ? e.target.dataset.h : null; selBeginGestN(e, h || 'move'); });
+  bar.addEventListener('pointerdown', (e)=>{ e.stopPropagation(); });
+  bar.addEventListener('click', (e)=>{
+    const b = e.target.closest('[data-color],[data-sz],[data-act]'); if(!b) return;
+    if(b.dataset.color){ const c = b.dataset.color; selApplyN(()=>({ color:c })); }
+    else if(b.dataset.sz){ const z = parseFloat(b.dataset.sz); selApplyN(()=>({ size:z })); }
+    else if(b.dataset.act === 'dup') selDupN();
+    else if(b.dataset.act === 'del') selDelN();
+  });
+  selLayoutN();
+}
+function selLayoutN(bb){
+  if(!selUiN) return; bb = bb || selBBN; if(!bb) return;
+  const v = viewsN[selViewIdxN()]; if(!v) return;
+  const box = selUiN.box, bar = selUiN.bar, z = zoomN || 1;
+  box.style.left = bb[0] + 'px'; box.style.top = bb[1] + 'px'; box.style.width = (bb[2] - bb[0]) + 'px'; box.style.height = (bb[3] - bb[1]) + 'px';
+  const W = v.sec.clientWidth, bw = bar.offsetWidth / z, bh = bar.offsetHeight / z, cx = (bb[0] + bb[2]) / 2;
+  const x = Math.max(4 / z, Math.min(W - bw - 4 / z, cx - bw / 2));
+  let y = bb[1] - bh - 46 / z; if(y < 4 / z) y = bb[3] + 14 / z;
+  bar.style.transform = 'translate(' + x + 'px,' + y + 'px) scale(' + (1 / z) + ')';
+}
+
+// ---- transforms ----
+function selTPtN(T, x, y){
+  const dx = x - T.ox, dy = y - T.oy, c = Math.cos(T.th), s = Math.sin(T.th);
+  return [T.ox + T.tx + T.s * (dx * c - dy * s), T.oy + T.ty + T.s * (dx * s + dy * c)];
+}
+// Returns a transformed COPY (history snapshots share the originals, so records are never edited in place).
+function selXformN(rec, T){
+  const n = Object.assign({}, rec); delete n.bb;
+  if(rec.text){
+    const c = selTPtN(T, rec.x, rec.cy); n.x = c[0]; n.cy = c[1]; n.fs = rec.fs * T.s;
+    const b = bbOfN(rec), a0 = selTPtN(T, b[0], b[1]), a1 = selTPtN(T, b[2], b[3]);
+    n.bb = [Math.min(a0[0], a1[0]), Math.min(a0[1], a1[1]), Math.max(a0[0], a1[0]), Math.max(a0[1], a1[1])];
+    return n;
+  }
+  const q = rec.pts, o = new Array(q.length);
+  for(let i = 0; i + 2 < q.length; i += 3){ const p = selTPtN(T, q[i], q[i+1]); o[i] = +p[0].toFixed(1); o[i+1] = +p[1].toFixed(1); o[i+2] = q[i+2]; }
+  n.pts = o;
+  if(Math.abs(T.s - 1) > 1e-6) n.size = Math.max(0.25, Math.min(8, (rec.size || 1) * Math.sqrt(T.s)));
+  return selFixBBN(n);
+}
+function selFixBBN(n){
+  delete n.bb;
+  if(n.line && n.pts && n.pts.length >= 6 && TOOLS[n.tn]){
+    const lw = TOOLS[n.tn].w(0.5) * n.size, pad = 24 + lw * 3, q = n.pts;
+    n.bb = [Math.min(q[0], q[3]) - pad, Math.min(q[1], q[4]) - pad, Math.max(q[0], q[3]) + pad, Math.max(q[1], q[4]) + pad];
+  }
+  return n;
+}
+function selFitN(T, bb, W, H){
+  const ps = [[bb[0], bb[1]], [bb[2], bb[1]], [bb[2], bb[3]], [bb[0], bb[3]]].map(p => selTPtN(T, p[0], p[1]));
+  const xs = ps.map(p => p[0]), ys = ps.map(p => p[1]), x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  if(x0 < 0) T.tx -= x0; else if(x1 > W) T.tx += W - x1;
+  if(y0 < 0) T.ty -= y0; else if(y1 > H) T.ty += H - y1;
+  return T;
+}
+function selTFromN(g, p){
+  const W = g.v.sec.clientWidth, H = g.v.sec.clientHeight, bb = g.bb;
+  if(g.kind === 'move'){
+    let tx = p[0] - g.p0[0], ty = p[1] - g.p0[1];
+    if(bb[2] - bb[0] <= W) tx = Math.max(-bb[0], Math.min(W - bb[2], tx));
+    if(bb[3] - bb[1] <= H) ty = Math.max(-bb[1], Math.min(H - bb[3], ty));
+    return { s:1, th:0, ox:0, oy:0, tx, ty };
+  }
+  if(g.kind === 'rot'){
+    const cx = (bb[0] + bb[2]) / 2, cy = (bb[1] + bb[3]) / 2, st = Math.PI / 12;
+    let th = Math.atan2(p[1] - cy, p[0] - cx) - Math.atan2(g.p0[1] - cy, g.p0[0] - cx);
+    const sn = Math.round(th / st) * st; if(Math.abs(th - sn) < 0.05) th = sn;   // clicks into place at 15 degree steps
+    return selFitN({ s:1, th, ox:cx, oy:cy, tx:0, ty:0 }, bb, W, H);
+  }
+  const O = g.O, C = g.C, vx = C[0] - O[0], vy = C[1] - O[1];
+  const px = p[0] + (C[0] - g.p0[0]), py = p[1] + (C[1] - g.p0[1]);
+  let s = ((px - O[0]) * vx + (py - O[1]) * vy) / (vx * vx + vy * vy), smax = 20;
+  if(vx > 0) smax = Math.min(smax, (W - O[0]) / vx); else if(vx < 0) smax = Math.min(smax, (0 - O[0]) / vx);
+  if(vy > 0) smax = Math.min(smax, (H - O[1]) / vy); else if(vy < 0) smax = Math.min(smax, (0 - O[1]) / vy);
+  s = Math.min(smax, Math.max(0.15, s));
+  return { s, th:0, ox:O[0], oy:O[1], tx:0, ty:0 };
+}
+
+// ---- drag gestures (move / corner resize / rotate) ----
+function selBeginGestN(e, kind){
+  if(!selUiN || selGestN) return;
+  e.preventDefault(); e.stopPropagation();
+  const idx = selViewIdxN(), v = viewsN[idx]; if(idx < 0 || !v) return;
+  const bb = selBBN.slice(), el = selUiN.box;
+  const g = { kind, id:e.pointerId, p0:selPtN(e, v), bb, idx, v, T:null, bg:undefined, raf:0, moved:false };
+  if(kind.length === 2){
+    g.C = [kind[1] === 'e' ? bb[2] : bb[0], kind[0] === 's' ? bb[3] : bb[1]];
+    g.O = [bb[0] + bb[2] - g.C[0], bb[1] + bb[3] - g.C[1]];
+  }
+  const move = (ev)=>{
+    if(ev.pointerId !== g.id) return;
+    const p = selPtN(ev, v);
+    if(!g.moved && Math.hypot(p[0] - g.p0[0], p[1] - g.p0[1]) < 2.5) return;
+    g.moved = true; g.T = selTFromN(g, p);
+    if(!g.raf) g.raf = requestAnimationFrame(()=>{ g.raf = 0; selPreviewN(g); });
+    ev.preventDefault();
+  };
+  const up = (ev)=>{
+    if(ev.pointerId !== g.id) return;
+    g.cleanup(); cancelAnimationFrame(g.raf); g.bg = null;
+    try{ el.releasePointerCapture(g.id); }catch(err){}
+    selGestN = null;
+    if(ev.type === 'pointercancel' || !g.moved){ if(g.moved) renderAtN(idx); selShowN(); return; }
+    g.T = selTFromN(g, selPtN(ev, v));
+    selCommitN(g.T);
+  };
+  g.cleanup = ()=>{ el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up); };
+  el.addEventListener('pointermove', move); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+  try{ el.setPointerCapture(e.pointerId); }catch(err){}
+  selUiN.bar.style.visibility = 'hidden';
+  selGestN = g;
+}
+function selPreviewN(g){
+  const pg = pagesN[g.idx], v = g.v; if(!pg || !v.live || !g.T) return;
+  const T = g.T, grp = new Set(selGroupN), keep = (pg.strokes || []).filter(r => !grp.has(r)), tmp = selGroupN.map(r => selXformN(r, T));
+  const prev = curPageN; useViewN(g.idx);
+  try{
+    if(g.bg === undefined){   // page without the selection, drawn once and reused for every frame of the drag
+      const img = pg.base ? imgCacheN.get(pg) : null;
+      if(!pg.base || (img && img.complete)){
+        const saved = pg.strokes; pg.strokes = keep; renderPageN(); pg.strokes = saved;
+        const bg = document.createElement('canvas'); bg.width = canvasEl.width; bg.height = canvasEl.height;
+        bg.getContext('2d').drawImage(canvasEl, 0, 0); g.bg = bg;
+      } else g.bg = null;
+    }
+    if(g.bg){
+      const c = canvasCtx; c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1;
+      c.clearRect(0, 0, canvasEl.width, canvasEl.height); c.drawImage(g.bg, 0, 0);
+      tmp.forEach(replayStrokeN);
+    } else { const saved = pg.strokes; pg.strokes = keep.concat(tmp); renderPageN(); pg.strokes = saved; }
+  } finally { useViewN(prev); }
+  const box = selUiN && selUiN.box; if(!box) return;
+  if(g.kind === 'rot'){ box.style.transform = 'translate(' + T.tx + 'px,' + T.ty + 'px) rotate(' + T.th + 'rad)'; }
+  else {
+    const a = selTPtN(T, g.bb[0], g.bb[1]), b = selTPtN(T, g.bb[2], g.bb[3]);
+    box.style.transform = ''; box.style.left = Math.min(a[0], b[0]) + 'px'; box.style.top = Math.min(a[1], b[1]) + 'px';
+    box.style.width = Math.abs(b[0] - a[0]) + 'px'; box.style.height = Math.abs(b[1] - a[1]) + 'px';
+  }
+}
+function selCommitN(T){
+  const idx = selViewIdxN(), pg = pagesN[idx]; if(!pg){ selResetN(); return; }
+  const grp = new Set(selGroupN), cur = pg.strokes || [];
+  if(!cur.some(r => grp.has(r))){ selResetN(); return; }
+  setCurN(idx); snapPushN();   // one undo step per gesture
+  const keep = cur.filter(r => !grp.has(r)), moved = cur.filter(r => grp.has(r)).map(r => selXformN(r, T));
+  pg.strokes = keep.concat(moved);   // the edited ink lands on top, so older eraser strokes can't rub it out
+  selGroupN = moved; selRecsN = moved.filter(r => !r.erase);
+  renderAtN(idx); selShowN(); saveCurrentNoteN();
+}
+
+// ---- toolbar actions ----
+function selApplyN(fn){
+  const idx = selViewIdxN(), pg = pagesN[idx]; if(!pg) return;
+  const grp = new Set(selGroupN); if(!(pg.strokes || []).some(r => grp.has(r))){ selResetN(); return; }
+  setCurN(idx); snapPushN();
+  const map = new Map();
+  pg.strokes = pg.strokes.map(r => {
+    if(!grp.has(r) || r.erase) return r;
+    const n = selFixBBN(Object.assign({}, r, fn(r))); map.set(r, n); return n;
+  });
+  selGroupN = selGroupN.map(r => map.get(r) || r); selRecsN = selRecsN.map(r => map.get(r) || r);
+  renderAtN(idx); selShowN(); saveCurrentNoteN();
+}
+function selDupN(){
+  const idx = selViewIdxN(), pg = pagesN[idx], v = viewsN[idx]; if(!pg || !v) return;
+  const src = selRecsN.filter(r => (pg.strokes || []).indexOf(r) >= 0 && !r.erase); if(!src.length) return;
+  const bb = selBBN, W = v.sec.clientWidth, H = v.sec.clientHeight;
+  const T = { s:1, th:0, ox:0, oy:0, tx:(bb[2] + 24 > W ? -24 : 24), ty:(bb[3] + 24 > H ? -24 : 24) };
+  setCurN(idx); snapPushN();
+  const clones = src.map(r => selXformN(r, T));
+  pg.strokes = pg.strokes.concat(clones);
+  selRecsN = clones; selGroupN = clones.slice();
+  renderAtN(idx); selShowN(); saveCurrentNoteN();
+}
+function selDelN(){
+  const idx = selViewIdxN(), pg = pagesN[idx]; if(!pg) return;
+  const grp = new Set(selGroupN);
+  setCurN(idx); snapPushN();
+  pg.strokes = (pg.strokes || []).filter(r => !grp.has(r));
+  selResetN(); renderAtN(idx); saveCurrentNoteN();
+}
+document.addEventListener('keydown', (e)=>{
+  if(!selRecsN.length || inputModeN !== 'draw') return;
+  const t = e.target; if(t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+  if(e.key === 'Delete' || e.key === 'Backspace'){ e.preventDefault(); selDelN(); }
+  else if(e.key === 'Escape') selResetN();
 });
 /* ---- Handwriting refine: when a stroke ends it is resampled evenly and its wobble is
    smoothed away with a Gaussian filter. Sharp corners (the points of an A, the turn in a k)
@@ -15947,6 +16289,7 @@ onCanvasN('pointerdown', (e)=>{
   // Touch never takes over a stroke in progress (that's what made lines jump
   // to a second contact), and is ignored entirely once a pen has been used.
   if(e.pointerType === 'touch' && (penSeenN || drawingActiveN)){ e.preventDefault(); return; }
+  if(selModeN){ selPointerDownN(e); e.preventDefault(); return; }   // select pen: lasso instead of ink
   try{ const sel = window.getSelection(); if(sel && sel.rangeCount) sel.removeAllRanges(); }catch(err){}
   try{ if(document.activeElement && document.activeElement !== document.body) document.activeElement.blur(); }catch(err){}
   drawingActiveN = true;
@@ -16099,6 +16442,7 @@ function applyZoomN(z){
   zoomWrapN.style.height = on ? Math.ceil(stackElN.offsetHeight * z) + 'px' : '';
   const c = document.getElementById('zoom-chip');
   const base = baseZN(); c.classList.toggle('show', Math.abs(z - base) > 0.005); c.textContent = Math.round(z / base * 100) + '% \u00b7 tap to reset';
+  selLayoutN();
 }
 // keep the scrolled area as tall as the zoomed pages when text is typed
 try{ new ResizeObserver(()=>{ if(zoomN !== 1) zoomWrapN.style.height = Math.ceil(stackElN.offsetHeight * zoomN) + 'px'; }).observe(stackElN); }catch(e){}
@@ -16293,6 +16637,7 @@ function createViewN(pg, first){
 function mountPagesN(opts){
   opts = opts || {};
   viewsN.forEach(v => { try{ ioN.unobserve(v.sec); }catch(e){} });
+  selResetN();
   viewsN = []; titleEl = null; bodyEl = null; canvasEl = null; canvasCtx = null;
   const stack = document.getElementById('pages-stack'); stack.innerHTML = '';
   pagesN.forEach((pg, i)=>{ const v = createViewN(pg, i === 0); viewsN.push(v); stack.appendChild(v.sec); });
