@@ -14945,7 +14945,8 @@ h1,h2,h3{ font-family:'Fraunces','Source Serif 4',Georgia,serif; margin:0; color
 .sheet.drawing .note-body, .sheet.drawing .note-title{ pointer-events:none; }
 /* ---- Select pen: lasso, selection box, handles, toolbar ---- */
 .sel-ov{ position:absolute; inset:0; z-index:4; pointer-events:none; }
-.sel-ov svg{ position:absolute; inset:0; width:100%; height:100%; overflow:visible; pointer-events:none; }
+.sel-ov > svg{ position:absolute; inset:0; width:100%; height:100%; overflow:visible; pointer-events:none; }
+.sel-b svg{ position:static; width:18px; height:18px; flex:none; display:block; }
 .sel-box{ position:absolute; box-sizing:border-box; border:calc(1.6px / var(--zoom,1)) dashed var(--ochre); border-radius:calc(4px / var(--zoom,1)); background:rgba(46,125,190,.06); pointer-events:auto; touch-action:none; cursor:move; }
 .sel-h{ position:absolute; width:calc(16px / var(--zoom,1)); height:calc(16px / var(--zoom,1)); box-sizing:border-box; border:calc(2.5px / var(--zoom,1)) solid var(--ochre); background:#fff; border-radius:50%; touch-action:none; pointer-events:auto; }
 .sel-h::after{ content:''; position:absolute; inset:calc(-12px / var(--zoom,1)); }   /* roomy touch target */
