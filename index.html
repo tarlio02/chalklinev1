@@ -16101,21 +16101,43 @@ function applyZoomN(z){
   const on = Math.abs(z - 1) > 0.005;
   zoomWrapN.style.setProperty('--zoom', String(z));
   zoomWrapN.classList.toggle('zoomed', on);
-  zoomWrapN.style.height = on ? Math.ceil(stackElN.offsetHeight * z) + 'px' : '';
+  zoomWrapN.style.height = on ? Math.ceil((stackHN || stackElN.offsetHeight) * z) + 'px' : '';
   const c = document.getElementById('zoom-chip');
   const base = baseZN(); c.classList.toggle('show', Math.abs(z - base) > 0.005); c.textContent = Math.round(z / base * 100) + '% \u00b7 tap to reset';
 }
 // keep the scrolled area as tall as the zoomed pages when text is typed
-try{ new ResizeObserver(()=>{ if(zoomN !== 1) zoomWrapN.style.height = Math.ceil(stackElN.offsetHeight * zoomN) + 'px'; }).observe(stackElN); }catch(e){}
+let stackHN = 0;   // height of the page stack, cached so pinching never forces a layout
+try{ new ResizeObserver(()=>{ stackHN = stackElN.offsetHeight; if(zoomN !== 1) zoomWrapN.style.height = Math.ceil(stackHN * zoomN) + 'px'; }).observe(stackElN); }catch(e){}
+let rerasterGenN = 0;
+function scaleForN(w, needH){   // canvas pixels per page pixel: sharper when zoomed in, but capped so the canvas stays a sane size
+  const dpr = (window.devicePixelRatio || 1) * Math.min(2.5, Math.max(1, zoomN));
+  return Math.min(dpr, 3.5, Math.sqrt(10e6 / (w * needH)));
+}
 function scheduleRerasterN(){
-  clearTimeout(rerasterTimerN);
+  clearTimeout(rerasterTimerN); rerasterGenN++;
   rerasterTimerN = setTimeout(()=>{
     if(pinchN) return;
     if(drawingActiveN){ scheduleRerasterN(); return; }
     const target = Math.max(1, zoomN);
     if(Math.abs(target - rasterZoomN) < 0.05) return;
-    rasterZoomN = target;
-    viewsN.forEach((v, i)=>{ if(v.live) resizeCanvasN(true, i); });   // redraw the ink at the new sharpness
+    const gen = ++rerasterGenN, sr = scrollElN.getBoundingClientRect(), mid = sr.top + sr.height / 2;
+    const order = [];
+    viewsN.forEach((v, i)=>{ if(v.live){ const r = v.sec.getBoundingClientRect(); order.push({ i, d:Math.abs((r.top + r.bottom) / 2 - mid) }); } });
+    order.sort((a, b)=>a.d - b.d);   // what you are looking at first
+    let k = 0;
+    const step = ()=>{
+      if(gen !== rerasterGenN) return;   // a newer zoom took over
+      if(pinchN || drawingActiveN){ scheduleRerasterN(); return; }
+      const it = order[k++];
+      if(!it){ rasterZoomN = target; return; }
+      const v = viewsN[it.i];
+      if(v && v.live){
+        const w = v.sec.clientWidth, h = parseFloat(v.cv.style.height) || 0;
+        if(w && h && Math.abs(scaleForN(w, h) - v.scale) / v.scale > 0.06) resizeCanvasN(true, it.i);   // skip pages that are already sharp enough
+      }
+      setTimeout(step, 24);   // one page per tick so the screen stays responsive
+    };
+    step();
   }, 250);
 }
 // zoom to z, keeping content point (u, v) [unscaled page px] under screen point (px, py) [relative to the scroll area]
@@ -16147,13 +16169,14 @@ scrollElN.addEventListener('touchmove', (e)=>{
   if(!pinchN || e.touches.length < 2) return;
   const r = scrollElN.getBoundingClientRect(), m = pinchInfoN(e.touches);
   const z = Math.min(ZOOM_MAX_N, Math.max(minZN(), pinchN.z0 * m.d / pinchN.d0));
-  pinchN.px = m.x - r.left; pinchN.py = m.y - r.top;
-  zoomKeepN(z, pinchN.px, pinchN.py, pinchN.u, pinchN.v);
+  pinchN.px = m.x - r.left; pinchN.py = m.y - r.top; pinchN.zt = z;
+  if(!pinchN.raf) pinchN.raf = requestAnimationFrame(()=>{ const p = pinchN; if(!p) return; p.raf = 0; zoomKeepN(p.zt, p.px, p.py, p.u, p.v); });   // touch events come faster than frames
   if(e.cancelable) e.preventDefault();
 }, { passive:false, capture:true });
 function endPinchN(e){
   if(!pinchN || e.touches.length >= 2) return;
   const pn = pinchN; pinchN = null;
+  if(pn.raf){ cancelAnimationFrame(pn.raf); zoomKeepN(pn.zt, pn.px, pn.py, pn.u, pn.v); }
   if(Math.abs(zoomN - baseZN()) < 0.06) zoomKeepN(baseZN(), pn.px, pn.py, pn.u, pn.v);   // snaps back to 100% when close
   scrollElN.style.overflow = ''; stackElN.style.willChange = '';
   scheduleRerasterN();
@@ -16224,8 +16247,7 @@ function resizeCanvasN(force, idx){
   const needH = Math.ceil(h / 400) * 400;   // rounded up so typing doesn't keep resizing the canvas
   const curW = parseFloat(v.cv.style.width) || 0, curH = parseFloat(v.cv.style.height) || 0;
   if(!force && v.live && Math.abs(w - curW) < 1 && needH <= curH) return;
-  const dpr = (window.devicePixelRatio || 1) * Math.max(1, zoomN);   // sharper ink when zoomed in
-  v.scale = Math.min(dpr, Math.sqrt(14e6 / (w * needH)));   // stay under the browser's canvas-size limit
+  v.scale = scaleForN(w, needH);   // sharper ink when zoomed in, within a sane canvas size
   v.cv.style.width = w + 'px'; v.cv.style.height = needH + 'px';
   v.cv.width = Math.round(w * v.scale); v.cv.height = Math.round(needH * v.scale);
   v.live = true;
@@ -16316,7 +16338,7 @@ function scrollToPageN(i, smooth){
 }
 // The page under the middle of the screen becomes the current one as you scroll.
 function pickCurN(){
-  if(drawingActiveN || !viewsN.length) return;
+  if(drawingActiveN || pinchN || !viewsN.length) return;
   const r = scrollElN.getBoundingClientRect(), mid = r.top + r.height * 0.4;
   let idx = 0;
   for(let i = 0; i < viewsN.length; i++){ if(viewsN[i].sec.getBoundingClientRect().top <= mid) idx = i; }
