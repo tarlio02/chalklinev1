@@ -14943,6 +14943,19 @@ h1,h2,h3{ font-family:'Fraunces','Source Serif 4',Georgia,serif; margin:0; color
 }
 .sheet.drawing .note-canvas{ pointer-events:auto; cursor:crosshair; }
 .sheet.drawing .note-body, .sheet.drawing .note-title{ pointer-events:none; }
+/* attached photos / PDF pages: sit between the text and the ink layer, so you can write on top of them */
+.note-img{ position:absolute; z-index:2; touch-action:manipulation; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; cursor:grab; }
+.note-img img{ display:block; width:100%; height:100%; object-fit:fill; pointer-events:none; -webkit-user-drag:none; border-radius:2px; box-shadow:0 1px 4px rgba(0,0,0,.18); }
+.note-img.sel{ outline:2px solid var(--ochre); outline-offset:1px; touch-action:none; }
+.sheet.drawing .note-img{ pointer-events:none; }
+.img-x, .img-h{ display:none; position:absolute; z-index:3; }
+.note-img.sel .img-x{ display:flex; }
+.note-img.sel .img-h{ display:block; }
+.img-x{ top:-14px; right:-14px; width:30px; height:30px; border-radius:50%; border:2px solid #fff; background:#C0392B; color:#fff; font:700 13px/1 'JetBrains Mono',monospace; align-items:center; justify-content:center; padding:0; cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,.3); }
+.img-h{ right:-12px; bottom:-12px; width:26px; height:26px; border-radius:50%; background:var(--ochre); border:3px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,.3); cursor:nwse-resize; touch-action:none; }
+#attach-menu{ left:14px; right:auto; width:min(270px, calc(100% - 28px)); }
+#attach-btn svg{ width:17px; height:17px; }
+
 /* A fast stylus/mouse drag across the canvas can still trigger the browser's
    native text-selection gesture on surrounding page text (title, toolbar
    labels, etc) — preventDefault() on the pointer events doesn't reliably
@@ -14991,6 +15004,12 @@ body.no-select-while-drawing,
         <button type="button" class="tool-btn danger" id="pg-del" onclick="deletePageN()" aria-label="Delete this page" title="Delete this page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
       </div>
 
+      <div class="glass pill" id="attach-pill" aria-label="Add photo or PDF">
+        <button type="button" class="seg-btn" id="attach-btn" onclick="toggleAttachN()" aria-haspopup="true" title="Add a photo or PDF">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11l-9 9a5 5 0 01-7-7l9-9a3.5 3.5 0 015 5l-9 9a2 2 0 01-3-3l8-8"/></svg>Add
+        </button>
+      </div>
+
       <div class="glass pill" role="tablist" aria-label="Input mode">
         <button type="button" class="seg-btn active" id="mode-type-btn" onclick="setModeN('type')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V5h16v2M12 5v14M9 19h6"/></svg>Type
@@ -15026,6 +15045,16 @@ body.no-select-while-drawing,
       </button>
     </div>
 
+    <div class="glass menu-pop" id="attach-menu" role="menu" aria-label="Add to note">
+      <div class="menu-sec">Add to this note</div>
+      <button type="button" class="menu-opt" onclick="pickFilesN('img')" role="menuitem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M21 16l-5-5-9 9"/></svg>Photo from library</button>
+      <button type="button" class="menu-opt" onclick="pickFilesN('cam')" role="menuitem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Take a photo</button>
+      <button type="button" class="menu-opt" onclick="pickFilesN('pdf')" role="menuitem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 13h6M9 17h6"/></svg>PDF (each page becomes a note page)</button>
+      <div class="menu-link" style="cursor:default">Tip: you can also paste or drag an image into the note.</div>
+    </div>
+    <input type="file" id="img-file" accept="image/*" multiple hidden>
+    <input type="file" id="cam-file" accept="image/*" capture="environment" hidden>
+    <input type="file" id="pdf-file" accept="application/pdf,.pdf" hidden>
     <div class="glass tray" id="pen-tray"></div>
     <div class="glass menu-pop" id="text-color-pop" role="menu" aria-label="Text colour"><div class="menu-sec">Text colour</div><div class="color-row" id="text-color-row"></div></div>
     <button type="button" class="glass" id="zoom-chip" onclick="resetZoomN()">100%</button>
@@ -15244,7 +15273,7 @@ function setModeN(mode){
   document.getElementById('draw-tools').classList.toggle('show', mode === 'draw');
   document.getElementById('fmt-tools').classList.toggle('show', mode === 'type');
   viewsN.forEach(v => { v.body.contentEditable = mode === 'type' ? 'true' : 'false'; });
-  if(mode !== 'type') hideTextColorN();
+  if(mode !== 'type'){ hideTextColorN(); selectImgN(null); }
   if(mode !== 'draw') toggleTrayN(false);
 }
 const TOOLS = {
@@ -16279,7 +16308,9 @@ function autosizeViewN(v){
   const pad = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0), titleH = v.title ? lh : 0;
   v.body.style.height = 'auto';
   const need = Math.ceil(v.body.scrollHeight / lh) * lh;   // whole number of lines so the last ruled line lines up
-  const fill = Math.max(lh * 4, Math.floor((pageMinHN() - pad - titleH) / lh) * lh);
+  let fill = Math.max(lh * 4, Math.floor((pageMinHN() - pad - titleH) / lh) * lh);
+  let ib = 0; v.sec.querySelectorAll('.note-img').forEach(e => { ib = Math.max(ib, e.offsetTop + e.offsetHeight); });
+  if(ib) fill = Math.max(fill, Math.ceil((ib - pad - titleH) / lh) * lh);   // the page grows to fit its photos / PDF page
   v.body.style.height = Math.max(need, fill) + 'px';
 }
 function autosizeAllN(){ viewsN.forEach(autosizeViewN); }
@@ -16305,7 +16336,7 @@ function createViewN(pg, first){
   body.addEventListener('focus', ()=>{ try{ document.execCommand('styleWithCSS', false, true); document.execCommand('defaultParagraphSeparator', false, 'div'); }catch(err){} });
   const cv = document.createElement('canvas'); cv.className = 'note-canvas'; sec.appendChild(cv);
   const tag = document.createElement('div'); tag.className = 'page-tag'; sec.appendChild(tag);
-  const v = { sec, title, body, cv, tag, ctx: cv.getContext('2d', { desynchronized:true }), scale:1, live:false };
+  const v = { pg, sec, title, body, cv, tag, ctx: cv.getContext('2d', { desynchronized:true }), scale:1, live:false };
   sec._v = v; cv._v = v;
   if(title){ title.addEventListener('input', saveCurrentNoteN); title.addEventListener('focus', ()=>setCurN(0)); }
   body.addEventListener('input', ()=>{ colonIndentN(body); autosizeViewN(v); saveCurrentNoteN(); });
@@ -16314,6 +16345,7 @@ function createViewN(pg, first){
   sec.addEventListener('pointerdown', (e)=>{ if(inputModeN === 'type' && e.target === sec) e.preventDefault(); });   // keep the keyboard up when tapping the margin
   sec.addEventListener('click', (e)=>{ clickToTypeN(v, e); });
   wireCanvasN(cv);
+  renderImgsN(v);
   ioN.observe(sec);
   return v;
 }
@@ -16644,7 +16676,7 @@ function toggleSettingsN(force){
   const m = document.getElementById('settings-menu'), b = document.getElementById('settings-btn');
   const open = force === undefined ? !m.classList.contains('open') : force;
   m.classList.toggle('open', open); b.classList.toggle('open', open);
-  if(open){ toggleTrayN(false); hideTextColorN(); }
+  if(open){ toggleTrayN(false); hideTextColorN(); toggleAttachN(false); }
 }
 document.getElementById('editor-view').addEventListener('pointerdown', (e)=>{
   const m = document.getElementById('settings-menu');
@@ -16694,7 +16726,7 @@ async function openNoteN(id, knownKey){
     statusEl.className = 'saved'; statusEl.textContent = 'saved';
     document.getElementById('note-delete-btn').style.display = '';
     pagesN = ((item.pages && item.pages.length) ? item.pages : [{ body:item.body, drawing:item.drawing, paper:item.paper }])
-      .map(q => ({ body:q.body || '', paper:q.paper || 'ruled', base:q.base || q.drawing || '', html:q.html || '', strokes:(q.strokes || []).map(r => (r.pend = false, r)) }));   // older notes' ink becomes the fixed base layer
+      .map(q => ({ body:q.body || '', paper:q.paper || 'ruled', base:q.base || q.drawing || '', html:q.html || '', imgs:(q.imgs || []), strokes:(q.strokes || []).map(r => (r.pend = false, r)) }));   // older notes' ink becomes the fixed base layer
     curPageN = 0;
     showEditorN();
     mountPagesN();
@@ -16743,7 +16775,8 @@ function saveCurrentNoteN(inkOnly){
       };
       payload.pages = pagesSnap;
       payload.body = pagesSnap.map(x => x.body).join('\n\n');
-      await window.storage.set(key, JSON.stringify(payload), false);
+      const stored = await window.storage.set(key, JSON.stringify(payload), false);
+      if(!stored) throw new Error('storage full');
       if(oldKeySnap && oldKeySnap !== key){ try{ await window.storage.delete(oldKeySnap, false); }catch(e){} }   // older un-bucketed copy moves into its course
       if(currentNoteIdN === idSnap) currentNoteKeyN = key;
       loadedStampN = now;
@@ -16751,7 +16784,9 @@ function saveCurrentNoteN(inkOnly){
       try{ parent.postMessage({ pushNote:true, key }, '*'); if(oldKeySnap && oldKeySnap !== key) parent.postMessage({ syncSoon:true }, '*'); }catch(e){}   // upload just this note right away so other devices see it fast
       statusEl.className = 'saved'; statusEl.textContent = 'saved';
       document.getElementById('note-delete-btn').style.display = '';
-    } catch(e){ console.error('Save note failed:', e); statusEl.textContent = 'save failed'; }
+    } catch(e){ console.error('Save note failed:', e);
+      if(e && e.message === 'storage full'){ statusEl.textContent = 'too big to save'; if(!window.__bigNoteWarnedN){ window.__bigNoteWarnedN = true; alert('This note is too big to save on this device. Remove a photo or a few PDF pages and it will save again.'); } }
+      else statusEl.textContent = 'save failed'; }
   };
   pendingSaveN = run;
   saveTimerN = setTimeout(()=>{ pendingSaveN = null; run(); }, inkOnly === true ? 1200 : 600);   // while writing, wait for a real pause
@@ -16774,7 +16809,7 @@ async function deleteCurrentNoteN(){
    moment, the last one to save wins, as with the rest of Chalkline sync. */
 function pagesFromItemN(item){
   return ((item.pages && item.pages.length) ? item.pages : [{ body:item.body, drawing:item.drawing, paper:item.paper }])
-    .map(q => ({ body:q.body || '', paper:q.paper || 'ruled', base:q.base || q.drawing || '', html:q.html || '', strokes:(q.strokes || []).map(r => (r.pend = false, r)) }));
+    .map(q => ({ body:q.body || '', paper:q.paper || 'ruled', base:q.base || q.drawing || '', html:q.html || '', imgs:(q.imgs || []), strokes:(q.strokes || []).map(r => (r.pend = false, r)) }));
 }
 function captureCaretN(){
   try{
@@ -16883,7 +16918,7 @@ async function applyRemoteNoteN(){
     const scrollTop = scrollElN.scrollTop, cur = curPageN, caret = captureCaretN(), before = snapshotForDiffN();
     let rebuilt = false;
     const inkSame = newPages.length === pagesN.length && newPages.every((q, i) =>
-      q.base === pagesN[i].base && q.paper === pagesN[i].paper && JSON.stringify(q.strokes) === JSON.stringify(pagesN[i].strokes || []));
+      q.base === pagesN[i].base && q.paper === pagesN[i].paper && imgsSigN(q.imgs) === imgsSigN(pagesN[i].imgs) && JSON.stringify(q.strokes) === JSON.stringify(pagesN[i].strokes || []));
     if(inkSame && viewsN.length === newPages.length){
       newPages.forEach((q, i) => {
         if((q.html || '') !== (pagesN[i].html || '') || (q.body || '') !== (pagesN[i].body || '')){
@@ -16920,6 +16955,200 @@ function pollListN(){   // the notes list itself: new / deleted / renamed notes 
   try{ parent.postMessage({ liveNotesList:true }, '*'); }catch(e){}
 }
 setInterval(pollListN, 6000);
+
+/* ---------------- Photos & PDFs ----------------
+   Each page keeps a list of attached images: { id, src, fx, y, fw, ar } (left edge and width as a fraction of the page
+   width, top in page pixels, aspect ratio = height / width). They sit under the ink layer, so you can write or draw
+   straight over a photo or a PDF page. Photos are shrunk and saved as JPEG so notes stay small enough to sync. */
+let selImgN = null;
+function imgsSigN(a){ return JSON.stringify((a || []).map(m => [m.id, m.fx, m.y, m.fw, m.ar, (m.src || '').length])); }
+function placeImgElN(el, im){
+  el.style.left = (im.fx * 100) + '%'; el.style.width = (im.fw * 100) + '%'; el.style.top = im.y + 'px';
+  el.style.aspectRatio = '1 / ' + im.ar;
+}
+function selectImgN(el){
+  if(selImgN && selImgN !== el) selImgN.classList.remove('sel');
+  selImgN = el || null; if(el) el.classList.add('sel');
+}
+function buildImgElN(v, im){
+  const el = document.createElement('div'); el.className = 'note-img'; el._im = im; el._v = v;
+  placeImgElN(el, im);
+  const img = document.createElement('img'); img.src = im.src; img.alt = 'Attached image'; img.draggable = false; img.decoding = 'async';
+  img.addEventListener('load', ()=>{ autosizeViewN(v); });
+  el.appendChild(img);
+  const x = document.createElement('button'); x.type = 'button'; x.className = 'img-x'; x.setAttribute('aria-label', 'Remove image'); x.textContent = '\u2715';
+  x.addEventListener('pointerdown', e => e.stopPropagation());
+  x.addEventListener('click', e => { e.stopPropagation(); removeImgN(el); });
+  const h = document.createElement('div'); h.className = 'img-h';
+  el.appendChild(x); el.appendChild(h);
+  el.addEventListener('pointerdown', e => imgDownN(e, el, e.target === h ? 'resize' : 'move'));
+  return el;
+}
+function renderImgsN(v){
+  v.sec.querySelectorAll('.note-img').forEach(e => e.remove());
+  ((v.pg && v.pg.imgs) || []).forEach(im => v.sec.insertBefore(buildImgElN(v, im), v.cv));
+}
+function removeImgN(el){
+  const v = el._v; v.pg.imgs = (v.pg.imgs || []).filter(m => m !== el._im);
+  if(selImgN === el) selImgN = null;
+  el.remove(); autosizeViewN(v); refreshCanvasesN(); saveCurrentNoteN();
+}
+function imgDownN(e, el, mode){
+  if(inputModeN !== 'type' || (e.button && e.button !== 0)) return;
+  const was = selImgN === el;
+  selectImgN(el);
+  try{ if(document.activeElement && document.activeElement.blur) document.activeElement.blur(); }catch(err){}
+  e.stopPropagation();
+  if(e.pointerType === 'touch' && !was && mode === 'move') return;   // first tap only selects, so the page can still be scrolled with a finger
+  e.preventDefault();
+  const im = el._im, v = el._v, W = v.sec.clientWidth || 1, z = zoomN || 1;
+  const sx = e.clientX, sy = e.clientY, o = { fx:im.fx, y:im.y, fw:im.fw };
+  try{ el.setPointerCapture(e.pointerId); }catch(err){}
+  const move = (ev)=>{
+    const dx = (ev.clientX - sx) / z, dy = (ev.clientY - sy) / z;
+    if(mode === 'move'){
+      im.fx = Math.max(0, Math.min(1 - im.fw, o.fx + dx / W));
+      im.y = Math.max(0, Math.round(o.y + dy));
+    } else {
+      im.fw = Math.max(0.08, Math.min(1 - im.fx, o.fw + dx / W));
+    }
+    placeImgElN(el, im);
+  };
+  const up = ()=>{
+    el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up);
+    autosizeViewN(v); refreshCanvasesN(); saveCurrentNoteN();
+  };
+  el.addEventListener('pointermove', move); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+}
+document.getElementById('editor-view').addEventListener('pointerdown', (e)=>{
+  if(selImgN && !e.target.closest('.note-img')) selectImgN(null);
+  const m = document.getElementById('attach-menu');
+  if(m.classList.contains('open') && !e.target.closest('#attach-menu') && !e.target.closest('#attach-btn')) toggleAttachN(false);
+}, true);
+
+function toggleAttachN(force){
+  const m = document.getElementById('attach-menu'), b = document.getElementById('attach-btn');
+  const open = force === undefined ? !m.classList.contains('open') : force;
+  m.classList.toggle('open', open); b.classList.toggle('active', open);
+  if(open){ toggleTrayN(false); toggleSettingsN(false); hideTextColorN(); }
+}
+function pickFilesN(kind){
+  toggleAttachN(false);
+  const inp = document.getElementById(kind === 'pdf' ? 'pdf-file' : (kind === 'cam' ? 'cam-file' : 'img-file'));
+  inp.value = ''; inp.click();
+}
+let busyAttachN = false;
+function flashStatusN(msg){ statusEl.className = 'editing'; statusEl.textContent = msg; }
+async function handleFilesN(files){
+  if(!currentNoteIdN || !files || !files.length || busyAttachN) return;
+  const list = Array.from(files);
+  const pdf = list.find(f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name || ''));
+  const imgs = list.filter(f => (f.type || '').indexOf('image/') === 0);
+  busyAttachN = true;
+  try{
+    if(pdf) await importPdfN(pdf);
+    else if(imgs.length) await addPhotosN(imgs);
+  } catch(e){
+    console.error('Attach failed:', e);
+    alert('Sorry, that file couldn\u2019t be added. ' + ((e && e.message) ? e.message : ''));
+    statusEl.className = 'saved'; statusEl.textContent = noteDirtyN ? 'editing…' : 'saved';
+  } finally { busyAttachN = false; }
+}
+['img-file', 'cam-file', 'pdf-file'].forEach(id => document.getElementById(id).addEventListener('change', (e)=>{ handleFilesN(e.target.files); }));
+// paste an image (screenshot, copied photo) straight into the note
+document.addEventListener('paste', (e)=>{
+  if(document.getElementById('editor-view').style.display !== 'block') return;
+  const cd = e.clipboardData; if(!cd || !cd.items) return;
+  const files = [];
+  for(const it of cd.items){ if(it.kind === 'file' && it.type.indexOf('image/') === 0){ const f = it.getAsFile(); if(f) files.push(f); } }
+  if(!files.length) return;
+  let txt = ''; try{ txt = cd.getData('text/plain') || ''; }catch(err){}
+  if(txt.trim()) return;   // copied text that happens to carry a preview picture: paste the text as usual
+  e.preventDefault(); e.stopPropagation();
+  handleFilesN(files);
+}, true);
+// drag a photo or PDF from the desktop onto the page
+sheetEl.addEventListener('dragover', (e)=>{ if(e.dataTransfer && Array.from(e.dataTransfer.types || []).indexOf('Files') >= 0) e.preventDefault(); });
+sheetEl.addEventListener('drop', (e)=>{ if(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length){ e.preventDefault(); handleFilesN(e.dataTransfer.files); } });
+
+function loadImageFromBlobN(blob){
+  return new Promise((res, rej)=>{
+    const u = URL.createObjectURL(blob), im = new Image();
+    im.onload = ()=>{ URL.revokeObjectURL(u); res(im); };
+    im.onerror = ()=>{ URL.revokeObjectURL(u); rej(new Error('That image format isn\u2019t supported.')); };
+    im.src = u;
+  });
+}
+async function compressImageN(blob, maxDim, q){
+  const im = await loadImageFromBlobN(blob), k = Math.min(1, maxDim / Math.max(im.naturalWidth, im.naturalHeight));
+  const w = Math.max(1, Math.round(im.naturalWidth * k)), h = Math.max(1, Math.round(im.naturalHeight * k));
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, w, h); x.drawImage(im, 0, 0, w, h);
+  return { src:c.toDataURL('image/jpeg', q), ar:h / w };
+}
+function newImgIdN(){ return 'i_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+async function addPhotosN(files){
+  syncAllN();
+  const pg = pagesN[curPageN], v = viewsN[curPageN]; if(!pg || !v) return;
+  flashStatusN('adding photo…');
+  let n = 0;
+  for(const f of files){
+    const r = await compressImageN(f, 1400, 0.72);
+    const fw = r.ar > 1.25 ? 0.42 : 0.6;
+    const top = Math.round(scrollElN.scrollTop / (zoomN || 1) - v.sec.offsetTop) + 90 + n * 28;
+    const im = { id:newImgIdN(), src:r.src, fx:Math.max(0, Math.min(1 - fw, (1 - fw) / 2 + n * 0.03)), y:Math.max(curPageN === 0 ? 120 : 24, top), fw, ar:r.ar };
+    (pg.imgs || (pg.imgs = [])).push(im);
+    const el = buildImgElN(v, im); v.sec.insertBefore(el, v.cv);
+    if(n === files.length - 1) selectImgN(el);
+    n++;
+  }
+  autosizeViewN(v); refreshCanvasesN(); saveCurrentNoteN();
+}
+
+let pdfLibPN = null;
+function loadPdfJsN(){
+  if(window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  if(pdfLibPN) return pdfLibPN;
+  pdfLibPN = new Promise((res, rej)=>{
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    s.onload = ()=>{ try{ window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; }catch(err){} res(window.pdfjsLib); };
+    s.onerror = ()=>{ pdfLibPN = null; rej(new Error('The PDF reader couldn\u2019t load. Check your connection and try again.')); };
+    document.head.appendChild(s);
+  });
+  return pdfLibPN;
+}
+const PDF_MAX_PAGES_N = 40;
+async function importPdfN(file){
+  flashStatusN('opening PDF…');
+  const lib = await loadPdfJsN();
+  const pdf = await lib.getDocument({ data: await file.arrayBuffer() }).promise;
+  let total = pdf.numPages;
+  if(total > PDF_MAX_PAGES_N){
+    if(!confirm('This PDF has ' + total + ' pages. Add the first ' + PDF_MAX_PAGES_N + ' (bigger notes may not save)?')) { statusEl.className = 'saved'; statusEl.textContent = noteDirtyN ? 'editing…' : 'saved'; return; }
+    total = PDF_MAX_PAGES_N;
+  }
+  const made = [];
+  for(let i = 1; i <= total; i++){
+    flashStatusN('adding PDF page ' + i + ' / ' + total + '…');
+    const page = await pdf.getPage(i), base = page.getViewport({ scale:1 });
+    const vp = page.getViewport({ scale:1000 / base.width });
+    const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+    const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height);
+    await page.render({ canvasContext:x, viewport:vp }).promise;
+    made.push({ body:'', base:'', strokes:[], paper:'blank', imgs:[{ id:newImgIdN(), src:c.toDataURL('image/jpeg', 0.7), fx:0, y:0, fw:1, ar:c.height / c.width }] });
+    try{ page.cleanup(); }catch(err){}
+    c.width = c.height = 1;
+  }
+  try{ pdf.destroy(); }catch(err){}
+  syncAllN();
+  noteTitleN = titleEl ? titleEl.value : noteTitleN;
+  if(!noteTitleN) noteTitleN = String(file.name || 'PDF').replace(/\.pdf$/i, '');
+  const at = curPageN + 1;
+  pagesN.splice(at, 0, ...made);
+  mountPagesN({ cur: at });
+  saveCurrentNoteN();
+}
 
 applyScopeN();
 refreshNotesListN();
