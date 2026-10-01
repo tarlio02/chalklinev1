@@ -15409,7 +15409,7 @@ function clearDrawingN(){
   snapPushN();
   const pg = pagesN[curPageN]; if(pg){ pg.base = ''; pg.strokes = []; }
   canvasCtx.clearRect(0, 0, canvasEl.width, canvasEl.height);
-  saveCurrentNoteN();
+  saveCurrentNoteN(true);
 }
 /* ---- Ink engine ----
    Input phase (pointer handlers): read coordinates, queue points. No drawing.
@@ -15555,7 +15555,7 @@ function stepHistN(from, to){
   const h = histOfN(pg); if(!h[from].length) return;
   h[to].push(snapOfN(pg));
   const st = h[from].pop(); pg.strokes = st.strokes; pg.base = st.base;
-  renderPageN(); updateHistBtnsN(); saveCurrentNoteN();
+  renderPageN(); updateHistBtnsN(); saveCurrentNoteN(true);
 }
 function undoN(){ stepHistN('u', 'r'); }
 function redoN(){ stepHistN('r', 'u'); }
@@ -15781,13 +15781,18 @@ function replayStrokeN(rec){
     c.lineCap = 'round'; c.lineJoin = 'round';
     if(T.a === 1 && !T.layer && !rec.shape && q.length >= 12){   // refined handwriting: smooth curve through the points, width follows pressure
       const n = q.length / 3, X = i => (q[i*3] + o) * k, Y = i => q[i*3+1] * k, W = i => T.w(q[i*3+2]) * rec.size * k;
-      let px = X(0), py = Y(0);
+      let px = X(0), py = Y(0), wRun = -1;
+      const tol = 0.35 * k;
       for(let i = 1; i < n - 1; i++){
-        const mx = (X(i) + X(i+1)) / 2, my = (Y(i) + Y(i+1)) / 2;
-        c.lineWidth = W(i); c.beginPath(); c.moveTo(px, py); c.quadraticCurveTo(X(i), Y(i), mx, my); c.stroke();
+        const mx = (X(i) + X(i+1)) / 2, my = (Y(i) + Y(i+1)) / 2, wi = W(i);
+        if(wRun < 0 || Math.abs(wi - wRun) > Math.max(tol, wRun * 0.1)){   // width changed enough to matter: finish the run, start a new one
+          if(wRun >= 0) c.stroke();
+          c.lineWidth = wi; wRun = wi; c.beginPath(); c.moveTo(px, py);
+        }
+        c.quadraticCurveTo(X(i), Y(i), mx, my);
         px = mx; py = my;
       }
-      c.lineWidth = W(n - 1); c.beginPath(); c.moveTo(px, py); c.lineTo(X(n - 1), Y(n - 1)); c.stroke();
+      c.lineTo(X(n - 1), Y(n - 1)); c.stroke();
     } else if(T.a === 1 && !T.layer){   // opaque pens (snapped shapes): width follows pressure segment by segment
       for(let i = 3; i < q.length; i += 3){
         c.lineWidth = T.w((q[i-1] + q[i+2]) / 2) * rec.size * k;
@@ -16062,7 +16067,7 @@ function endDrawN(e){
   activePointerTypeN = null;
   document.body.classList.remove('no-select-while-drawing');
   try{ window.parent.document.body.classList.remove('no-select-while-drawing'); }catch(err){}
-  saveCurrentNoteN();
+  saveCurrentNoteN(true);
 }
 onCanvasN('touchstart', (e)=>{ e.preventDefault(); }, { passive:false });
 onCanvasN('touchmove', (e)=>{ e.preventDefault(); }, { passive:false });
@@ -16630,6 +16635,7 @@ function showEditorN(){
   setModeN('type');
 }
 function closeEditorN(){
+  flushNoteSaveN();
   toggleSettingsN(false);
   clearZoomN();
   document.getElementById('editor-view').style.display = 'none';
@@ -16691,18 +16697,24 @@ function canvasToDataURLAsync(canvas){
     } catch(e){ reject(e); }
   });
 }
-function saveCurrentNoteN(){
+let pendingSaveN = null;
+const createdAtN = new Map();
+function saveCurrentNoteN(inkOnly){
   if(!currentNoteIdN || !shUserN) return;
   statusEl.className = 'editing'; statusEl.textContent = 'editing…';
   const genSnap = ++editGenN; noteDirtyN = true;
-  syncAllN();
+  if(inkOnly !== true) syncAllN();   // ink changes never touch the text, so skip re-reading every page's text
   const idSnap = currentNoteIdN, pagesSnap = pagesN, titleSnap = titleEl ? titleEl.value : noteTitleN, subjSnap = currentNoteSubjectN || notesSubject || 'Unsorted', oldKeySnap = currentNoteKeyN;
   clearTimeout(saveTimerN);
-  saveTimerN = setTimeout(async ()=>{
+  const run = async ()=>{
     try{
       const now = Date.now(), key = noteKeyN(subjSnap, idSnap);
-      const existingRaw = await window.storage.get(oldKeySnap || key, false).catch(()=>null);
-      const createdAt = existingRaw ? (JSON.parse(existingRaw.value).createdAt || now) : now;
+      let createdAt = createdAtN.get(idSnap);
+      if(!createdAt){   // read the stored copy only once per note (parsing a big ink note on every save was slow)
+        const existingRaw = await window.storage.get(oldKeySnap || key, false).catch(()=>null);
+        createdAt = existingRaw ? (JSON.parse(existingRaw.value).createdAt || now) : now;
+        createdAtN.set(idSnap, createdAt);
+      }
       const payload = {
         id: idSnap, subject: subjSnap,
         title: titleSnap, body: '', createdAt, updatedAt: now
@@ -16718,8 +16730,13 @@ function saveCurrentNoteN(){
       statusEl.className = 'saved'; statusEl.textContent = 'saved';
       document.getElementById('note-delete-btn').style.display = '';
     } catch(e){ console.error('Save note failed:', e); statusEl.textContent = 'save failed'; }
-  }, 300);
+  };
+  pendingSaveN = run;
+  saveTimerN = setTimeout(()=>{ pendingSaveN = null; run(); }, inkOnly === true ? 1200 : 600);   // while writing, wait for a real pause
 }
+function flushNoteSaveN(){ if(pendingSaveN){ clearTimeout(saveTimerN); const f = pendingSaveN; pendingSaveN = null; f(); } }
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState === 'hidden') flushNoteSaveN(); });
+window.addEventListener('pagehide', flushNoteSaveN);
 async function deleteCurrentNoteN(){
   if(!currentNoteIdN) return;
   if(!confirm('Delete this note? This can\u2019t be undone.')) return;
