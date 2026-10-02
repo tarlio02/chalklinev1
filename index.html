@@ -2187,9 +2187,9 @@ async function pullOneKey(shortKey){
       let value = got.value;
       if(typeof value === 'string' && value.indexOf(GZ_PREFIX) === 0) value = await gunzipFromB64(value);
       const sz = String(value).length;
-      const photoBytes = (String(value).match(/"src":"data:image[^"]*"/g) || []).reduce((n, m) => n + m.length, 0);
+      const photoBytes = sz > 150000 ? (String(value).match(/"src":"data:image[^"]*"/g) || []).reduce((n, m) => n + m.length, 0) : 0;
       const leanSz = sz - photoBytes;   // photos don't change while you write, so they shouldn't slow the text/ink refresh
-      liveGap = Math.max(leanSz > 400000 ? 4000 : leanSz > 100000 ? 1500 : 0, photoBytes > 300000 ? 2500 : 0);   // a ping from the other device skips this gap
+      liveGap = Math.max(leanSz > 400000 ? 2000 : leanSz > 100000 ? 700 : 0, photoBytes > 300000 ? 1500 : 0);   // a ping from the other device skips this gap
       const h = fnv(value), meta = loadSyncMeta(sub), m = meta[full];   // no await between this read and the save below
       if(!(m && m.h === h)){
         const local = localStorage.getItem(full);
@@ -15183,7 +15183,7 @@ window.addEventListener('message', (e)=>{
     return;
   }
   if(d.chalklineNoteRemote){ if(d.key === currentNoteKeyN) applyRemoteNoteN(); return; }
-  if(d.chalklineLivePing){ const go = () => { if(currentNoteIdN) pollLiveN(); else pollListN(); }; go(); setTimeout(go, 700); setTimeout(go, 2200); return; }   // re-check twice: the cloud copy can lag a moment behind the ping
+  if(d.chalklineLivePing){ const go = () => { if(currentNoteIdN) pollLiveN(); else pollListN(); }; go(); setTimeout(go, 350); setTimeout(go, 1100); return; }   // re-check twice: the cloud copy can lag a moment behind the ping
   if(d.presetSubject){ notesSubject = d.presetSubject; }
   else if(d.chalklineClearSubject){ notesSubject = null; }
   else if(d.loadNoteId){ openNoteN(d.loadNoteId); return; }
@@ -15252,7 +15252,7 @@ async function refreshNotesListN(){
 
 /* ---------------- Editor ---------------- */
 let currentNoteIdN = null;
-let saveTimerN = null;
+let saveTimerN = null, saveCostMsN = 0;
 let noteDirtyN = false, editGenN = 0, loadedStampN = 0;   // unsaved edits in flight / edit counter / updatedAt of the copy on screen
 let titleEl = null;          // the title input lives on the first page
 let bodyEl = null;           // text area of the active page
@@ -16811,8 +16811,8 @@ function saveCurrentNoteN(inkOnly){
   const genSnap = ++editGenN; noteDirtyN = true;
   if(inkOnly !== true) syncAllN();   // ink changes never touch the text, so skip re-reading every page's text
   const idSnap = currentNoteIdN, pagesSnap = pagesN, titleSnap = titleEl ? titleEl.value : noteTitleN, subjSnap = currentNoteSubjectN || notesSubject || 'Unsorted', oldKeySnap = currentNoteKeyN;
-  clearTimeout(saveTimerN);
   const run = async ()=>{
+    const runT0 = performance.now();
     try{
       const now = Date.now(), key = noteKeyN(subjSnap, idSnap);
       let createdAt = createdAtN.get(idSnap);
@@ -16836,14 +16836,27 @@ function saveCurrentNoteN(inkOnly){
       try{ parent.postMessage({ pushNote:true, key }, '*'); if(oldKeySnap && oldKeySnap !== key) parent.postMessage({ syncSoon:true }, '*'); }catch(e){}   // upload just this note right away so other devices see it fast
       statusEl.className = 'saved'; statusEl.textContent = 'saved';
       document.getElementById('note-delete-btn').style.display = '';
+      saveCostMsN = performance.now() - runT0;
     } catch(e){ console.error('Save note failed:', e);
       if(e && e.message === 'storage full'){ statusEl.textContent = 'too big to save'; if(!window.__bigNoteWarnedN){ window.__bigNoteWarnedN = true; alert('This note is too big to save on this device. Remove a photo or a few PDF pages and it will save again.'); } }
       else statusEl.textContent = 'save failed'; }
   };
   pendingSaveN = run;
-  saveTimerN = setTimeout(()=>{ pendingSaveN = null; run(); }, inkOnly === true ? 600 : 300);   // while writing, wait for a real pause
+  // Throttle, not debounce: the old code restarted the timer on every keystroke / stroke, so a note you were
+  // writing in continuously was not saved (or sent to your other devices) until you stopped. Now the first
+  // edit starts a short timer and the latest state is saved when it fires, however busy you are. Big notes
+  // get a proportionally longer gap so saving never makes the pen or keyboard stutter.
+  if(!saveTimerN){
+    const gap = Math.min(900, Math.max(inkOnly === true ? 90 : 60, saveCostMsN * 3));
+    const fire = ()=>{
+      if(drawingActiveN){ saveTimerN = setTimeout(fire, 40); return; }   // never serialise mid-stroke; the pen-up saves right away
+      saveTimerN = null;
+      const f = pendingSaveN; pendingSaveN = null; if(f) f();
+    };
+    saveTimerN = setTimeout(fire, gap);
+  }
 }
-function flushNoteSaveN(){ if(pendingSaveN){ clearTimeout(saveTimerN); const f = pendingSaveN; pendingSaveN = null; f(); } }
+function flushNoteSaveN(){ if(pendingSaveN){ clearTimeout(saveTimerN); saveTimerN = null; const f = pendingSaveN; pendingSaveN = null; f(); } }
 document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState === 'hidden') flushNoteSaveN(); });
 window.addEventListener('pagehide', flushNoteSaveN);
 async function deleteCurrentNoteN(){
@@ -16969,10 +16982,18 @@ async function applyRemoteNoteN(){
     const newPages = pagesFromItemN(item);
     const scrollTop = scrollElN.scrollTop, cur = curPageN, caret = captureCaretN(), before = snapshotForDiffN();
     let rebuilt = false;
-    const inkSame = newPages.length === pagesN.length && newPages.every((q, i) =>
-      q.base === pagesN[i].base && q.paper === pagesN[i].paper && imgsSigN(q.imgs) === imgsSigN(pagesN[i].imgs) && JSON.stringify(q.strokes) === JSON.stringify(pagesN[i].strokes || []));
-    if(inkSame && viewsN.length === newPages.length){
+    // Same pages, paper, photos: only the ink and/or text changed. Update those in place (repaint just the
+    // pages whose ink changed) instead of tearing down and rebuilding every page, which was the slow part.
+    const shellSame = newPages.length === pagesN.length && newPages.every((q, i) =>
+      q.base === pagesN[i].base && q.paper === pagesN[i].paper && imgsSigN(q.imgs) === imgsSigN(pagesN[i].imgs));
+    if(shellSame && viewsN.length === newPages.length){
       newPages.forEach((q, i) => {
+        if(JSON.stringify(q.strokes) !== JSON.stringify(pagesN[i].strokes || [])){
+          histN.delete(pagesN[i]);   // old undo steps would resurrect strokes the other device just changed
+          pagesN[i].strokes = q.strokes;
+          renderAtN(i);
+          if(i === curPageN) updateHistBtnsN();
+        }
         if((q.html || '') !== (pagesN[i].html || '') || (q.body || '') !== (pagesN[i].body || '')){
           viewsN[i].body.innerHTML = q.html ? cleanHtmlN(q.html) : textToHtmlN(q.body || ''); renderMathN(viewsN[i].body);
           pagesN[i].body = q.body; pagesN[i].html = q.html;
@@ -17000,7 +17021,7 @@ function pollLiveN(){
   try{ if(window.frameElement && window.frameElement.offsetParent === null) return; }catch(e){}
   try{ parent.postMessage({ liveNote:true, key: currentNoteKeyN }, '*'); }catch(e){}
 }
-setInterval(pollLiveN, 1500);
+setInterval(pollLiveN, 800);
 function pollListN(){   // the notes list itself: new / deleted / renamed notes from another device show up on their own
   if(!shUserN || document.hidden || currentNoteIdN) return;
   try{ if(window.frameElement && window.frameElement.offsetParent === null) return; }catch(e){}
