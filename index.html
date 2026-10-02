@@ -14875,7 +14875,7 @@ h1,h2,h3{ font-family:'Fraunces','Source Serif 4',Georgia,serif; margin:0; color
 /* every page is stacked in one vertical scroll; each has its own ruled paper, text and ink layer */
 /* pinch zoom: the wrapper is sized to the zoomed page, the stack inside is scaled from its top-left corner */
 #zoom-wrap{ --zoom:1; width:calc(var(--lw, 100%) * var(--zoom)); margin:0 auto; }
-#pages-stack{ display:flex; flex-direction:column; gap:12px; padding-bottom:calc(var(--safe-bottom) + 28px); width:calc(100% / var(--zoom)); transform-origin:0 0; }
+#pages-stack{ display:flex; flex-direction:column; gap:2px; padding-bottom:calc(var(--safe-bottom) + 28px); width:calc(100% / var(--zoom)); transform-origin:0 0; }
 #zoom-wrap.zoomed #pages-stack{ transform:scale(var(--zoom)); }
 #zoom-chip{ position:absolute; z-index:22; left:50%; transform:translateX(-50%); bottom:calc(var(--safe-bottom) + 16px); display:none;
   height:34px; padding:0 14px; border-radius:999px; font:600 12px 'JetBrains Mono',monospace; color:var(--ink); cursor:pointer; }
