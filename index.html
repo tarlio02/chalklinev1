@@ -1848,6 +1848,25 @@ async function gunzipFromB64(v){
   const w = ds.writable.getWriter(); w.write(bytes); w.close();
   return await new Response(ds.readable).text();
 }
+const clOv = (function(){
+  // Overflow store: notes too big for localStorage (~5 MB) live here (IndexedDB has far more room) and still sync to the cloud.
+  let dbp = null;
+  function db(){ if(!dbp) dbp = new Promise((res, rej) => { try{ const r = indexedDB.open('chalkline_overflow', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }catch(e){ rej(e); } }); return dbp; }
+  function tx(mode, fn){ return db().then(d => new Promise((res, rej) => { const t = d.transaction('kv', mode); const q = fn(t.objectStore('kv')); t.oncomplete = () => res(q.result); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error); })); }
+  return {
+    get: k => tx('readonly', s => s.get(k)).then(v => v === undefined ? null : v).catch(() => null),
+    set: (k, v) => tx('readwrite', s => s.put(v, k)).then(() => true).catch(() => false),
+    del: k => tx('readwrite', s => s.delete(k)).then(() => true).catch(() => false),
+    keys: () => tx('readonly', s => s.getAllKeys()).then(a => a || []).catch(() => [])
+  };
+})();
+async function lsGet(k){ const v = localStorage.getItem(k); return v !== null ? v : await clOv.get(k); }
+// Save a synced item locally; if localStorage is full, keep it in the overflow store instead.
+async function lsSet(k, v){
+  try{ localStorage.setItem(k, v); clOv.del(k); return true; }
+  catch(e){ if(await clOv.set(k, v)){ try{ localStorage.removeItem(k); }catch(_){} return true; } throw e; }
+}
+async function lsDel(k){ try{ localStorage.removeItem(k); }catch(e){} await clOv.del(k); }
 function syncKeyRegex(sub){
   const esc = String(sub).replace(/[^\w]/g,'\\$&');
   // Also synced: XP / accuracy stats / mistakes log / per-subject concept meta
@@ -1946,16 +1965,16 @@ async function pullCloud(sub, authoritative){
     }
     const h = fnv(value);
     if(authoritative){                                    // first load after sign-in/startup: the cloud copy replaces this device's
-      if(localStorage.getItem(key) !== value){ localStorage.setItem(key, value); changed = true; }
+      if((await lsGet(key)) !== value){ await lsSet(key, value); changed = true; }
       meta[key] = { h };
       continue;
     }
     const m = meta[key];
     if(m && m.h === h) continue;                          // cloud copy unchanged since last sync
-    const local = localStorage.getItem(key);
+    const local = await lsGet(key);
     if(local === null || local === value || (m && m.h === fnv(local))){
       // nothing unsynced here, so the cloud copy simply wins
-      if(local !== value){ localStorage.setItem(key, value); changed = true; }
+      if(local !== value){ await lsSet(key, value); changed = true; }
       meta[key] = { h };
     } else if(isCoursesKey(key)){
       const merged = unionCourses(local, value);
@@ -1985,8 +2004,8 @@ async function pullCloud(sub, authoritative){
   // Deleted elsewhere: gone from the cloud, untouched here since last sync.
   for(const key of Object.keys(meta)){
     if(cloudKeys.has(key) || meta[key].skip) continue;
-    const local = localStorage.getItem(key);
-    if(local !== null && meta[key].h === fnv(local)){ localStorage.removeItem(key); changed = true; }
+    const local = await lsGet(key);
+    if(local !== null && meta[key].h === fnv(local)){ await lsDel(key); changed = true; }
     delete meta[key];
   }
   saveSyncMeta(sub, meta);
@@ -1994,10 +2013,13 @@ async function pullCloud(sub, authoritative){
 }
 
 // Send local changes up (new/edited keys, and keys deleted here).
+let pushMerged = false;
 async function pushLocal(sub){
-  const meta = loadSyncMeta(sub), keys = localSyncKeys(sub), keySet = new Set(keys), jobs = [];
+  const meta = loadSyncMeta(sub), keys = localSyncKeys(sub), jobs = [];
+  { const re = syncKeyRegex(sub); for(const k of await clOv.keys()){ if(re.test(k) && keys.indexOf(k) < 0) keys.push(k); } }   // big notes kept in the overflow store
+  const keySet = new Set(keys);
   for(const k of keys){
-    const v = localStorage.getItem(k), m = meta[k];
+    const v = await lsGet(k), m = meta[k];
     if(!m || m.h !== fnv(v)) jobs.push({ k, v });
   }
   for(const k of Object.keys(meta)){
@@ -2011,6 +2033,18 @@ async function pushLocal(sub){
         delete meta[job.k];
         if(String(job.k).indexOf('chalkline:notes:') === 0) pushedNotes = true;
         return;
+      }
+      if(isProgressKey(job.k) && cloudLoadedFor === sub){
+        // Progress is merged (not overwritten) so an instant upload from this device can't wipe newer progress from another one.
+        try{
+          const got = await workerStorage('get', { key: job.k });
+          if(got && got.value != null){
+            let cv = got.value;
+            if(typeof cv === 'string' && cv.indexOf(GZ_PREFIX) === 0) cv = await gunzipFromB64(cv);
+            const merged = mergeProgress(job.k, job.v, cv);
+            if(merged !== job.v){ job.v = merged; localStorage.setItem(job.k, merged); pushMerged = true; }
+          }
+        } catch(err){ if(err && err.message === 'session expired') throw err; }
       }
       try{
         await workerStorage('set', { key: job.k, value: job.v });
@@ -2058,7 +2092,7 @@ async function syncNow(pullFirst){
     const profileChanged = applyStoredProfileToShellUser();   // pick up a profile pulled just now (or from another device)
     const pushFailed = await pushLocal(sub);
     if(pushedNotes){ pushedNotes = false; sendNotesPing(); }
-    if(changed || profileChanged) broadcastAuthState();   // pages re-read their data now that it changed
+    if(changed || profileChanged || pushMerged){ pushMerged = false; broadcastAuthState(); }   // pages re-read their data now that it changed
     const i = window.__syncInfo || {};
     if(firstLoad || changed) setSyncStatus('OK — ' + (i.matched || 0) + ' item(s) in cloud for this account (id …' + String(i.sub || '').slice(-4) + ')' + (i.total && !i.matched ? ' — account id mismatch: ' + i.sample + ' vs ' + i.sub : ''), !!(i.total && !i.matched));
     if(pushFailed && pushFailed.length) setSyncStatus(pushFailed.length + ' item(s) could not upload — ' + pushFailed.slice(0,2).join('; '), true);
@@ -2070,9 +2104,9 @@ async function syncNow(pullFirst){
     if(syncAgain){ syncAgain = false; scheduleSync(); }
   }
 }
-function scheduleSync(ms){ clearTimeout(syncTimer); syncTimer = setTimeout(() => syncNow(false), ms || 2500); }
+function scheduleSync(ms){ clearTimeout(syncTimer); syncTimer = setTimeout(() => syncNow(false), ms === undefined ? 2500 : ms); }
 
-window.addEventListener('storage', (e) => { if(e.key && e.key.indexOf('chalkline:') === 0) scheduleSync(); });
+window.addEventListener('storage', (e) => { if(e.key && e.key.indexOf('chalkline:') === 0) scheduleSync(150); });
 document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'hidden') syncNow(false); });
 window.addEventListener('online', () => syncNow(true));
 setInterval(() => syncNow(false), 60000);
@@ -2102,10 +2136,10 @@ async function applyCloudKeyN(sub, key, meta){
   if(typeof value === 'string' && value.indexOf(GZ_PREFIX) === 0) value = await gunzipFromB64(value);
   const h = fnv(value), m = meta[key];
   if(m && m.h === h) return false;
-  const local = localStorage.getItem(key);
+  const local = await lsGet(key);
   if(local === null || local === value || (m && m.h === fnv(local))){
     let ch = false;
-    if(local !== value){ localStorage.setItem(key, value); ch = true; }
+    if(local !== value){ await lsSet(key, value); ch = true; }
     meta[key] = { h };
     return ch;
   }
@@ -2124,15 +2158,17 @@ async function pullNotesList(){
     const pre = 'chalkline:notes:' + sub + ':', re = syncKeyRegex(sub);
     const cloud = (keys || []).filter(k => k.indexOf(pre) === 0 && re.test(k)), cloudSet = new Set(cloud);
     const meta = loadSyncMeta(sub);
-    const fresh = cloud.filter(k => !meta[k] || localStorage.getItem(k) === null);
-    const rest = cloud.filter(k => meta[k] && localStorage.getItem(k) !== null);
+    const ovSet = new Set(await clOv.keys());
+    const here = k => localStorage.getItem(k) !== null || ovSet.has(k);
+    const fresh = cloud.filter(k => !meta[k] || !here(k));
+    const rest = cloud.filter(k => meta[k] && here(k));
     const batch = fresh.slice(0, 12);
     for(let i = 0; i < 3 && i < rest.length; i++) batch.push(rest[nlCursor++ % rest.length]);
     for(const k of new Set(batch)){ if(await applyCloudKeyN(sub, k, meta)) changed = true; }
     for(const k of Object.keys(meta)){                     // deleted on another device, untouched here since last sync
       if(k.indexOf(pre) !== 0 || cloudSet.has(k) || (meta[k] && meta[k].skip)) continue;
-      const local = localStorage.getItem(k);
-      if(local !== null && meta[k].h === fnv(local)){ localStorage.removeItem(k); changed = true; }
+      const local = await lsGet(k);
+      if(local !== null && meta[k].h === fnv(local)){ await lsDel(k); changed = true; }
       delete meta[k];
     }
     saveSyncMeta(sub, meta);
@@ -2279,7 +2315,7 @@ async function pushOneKey(shortKey){
   try{
     do{
       st.again = false;
-      const v = localStorage.getItem(full); if(v === null) break;
+      const v = await lsGet(full); if(v === null) break;
       const m0 = loadSyncMeta(sub)[full]; if(m0 && m0.h === fnv(v)) break;
       const t0 = performance.now();
       let payload = v;
@@ -3328,7 +3364,7 @@ window.addEventListener('message', (e)=>{
   if(d.openSettings){ openSettingsModal(); }
   if(d.openAssistant){ navTo('assistant', true, { course: d.course || null }); }
   // A page just saved something worth uploading right away (lessons autosave often).
-  if(d.syncSoon) scheduleSync(1200);
+  if(d.syncSoon) scheduleSync(100);   // progress / lesson saves go straight to the cloud (tiny delay just batches a burst of writes)
   if(d.flushSync) syncNow(false);
   if(d.pushNote && typeof d.key === 'string'){ pushOneKey(d.key); }
   if(d.liveInk && typeof d.key === 'string'){ sendInk(d, 'ink'); }
@@ -4539,7 +4575,7 @@ html,body{ height:100%; overflow:hidden; }
     return {};
   }
   async function saveConceptMeta(sub, meta){
-    try{ await window.storage.set('progress:concept-meta:' + sub, JSON.stringify(meta), false); }
+    try{ await window.storage.set('progress:concept-meta:' + sub, JSON.stringify(meta), false); try{ parent.postMessage({ syncSoon:true }, '*'); }catch(e){} }
     catch(e){ console.error('concept-meta save failed:', e); }
   }
 
@@ -15172,19 +15208,39 @@ body.no-select-while-drawing,
    ------------------------------------------------------------- */
 if(!window.storage || !window.storage.__isRealBackend){
   const STORAGE_NS = 'chalkline:';
+  const clOv = (function(){
+    // Overflow store: notes too big for localStorage (~5 MB) live here (IndexedDB has far more room) and still sync to the cloud.
+    let dbp = null;
+    function db(){ if(!dbp) dbp = new Promise((res, rej) => { try{ const r = indexedDB.open('chalkline_overflow', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }catch(e){ rej(e); } }); return dbp; }
+    function tx(mode, fn){ return db().then(d => new Promise((res, rej) => { const t = d.transaction('kv', mode); const q = fn(t.objectStore('kv')); t.oncomplete = () => res(q.result); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error); })); }
+    return {
+      get: k => tx('readonly', s => s.get(k)).then(v => v === undefined ? null : v).catch(() => null),
+      set: (k, v) => tx('readwrite', s => s.put(v, k)).then(() => true).catch(() => false),
+      del: k => tx('readwrite', s => s.delete(k)).then(() => true).catch(() => false),
+      keys: () => tx('readonly', s => s.getAllKeys()).then(a => a || []).catch(() => [])
+    };
+  })();
   window.storage = {
     __isRealBackend: false,
     async get(key){
       const raw = localStorage.getItem(STORAGE_NS + key);
-      return raw === null ? null : { key, value: raw, shared: false };
+      if(raw !== null) return { key, value: raw, shared: false };
+      const big = await clOv.get(STORAGE_NS + key);
+      return big === null ? null : { key, value: big, shared: false };
     },
     async set(key, value){
-      try{ localStorage.setItem(STORAGE_NS + key, value); return { key, value, shared: false }; }
-      catch(e){ console.error('localStorage set failed:', e); return null; }
+      try{ localStorage.setItem(STORAGE_NS + key, value); clOv.del(STORAGE_NS + key); return { key, value, shared: false }; }
+      catch(e){
+        // Too big for localStorage: keep it in the larger overflow store (it still uploads to the cloud).
+        console.warn('localStorage full, saving big note to overflow store:', e);
+        if(await clOv.set(STORAGE_NS + key, value)){ try{ localStorage.removeItem(STORAGE_NS + key); }catch(_){} return { key, value, shared: false }; }
+        return null;
+      }
     },
     async delete(key){
-      const existed = localStorage.getItem(STORAGE_NS + key) !== null;
+      const existed = localStorage.getItem(STORAGE_NS + key) !== null || (await clOv.get(STORAGE_NS + key)) !== null;
       localStorage.removeItem(STORAGE_NS + key);
+      await clOv.del(STORAGE_NS + key);
       return { key, deleted: existed, shared: false };
     },
     async list(prefix){
@@ -15194,6 +15250,7 @@ if(!window.storage || !window.storage.__isRealBackend){
         const k = localStorage.key(i);
         if(k && k.startsWith(full)) keys.push(k.slice(STORAGE_NS.length));
       }
+      for(const k of await clOv.keys()){ if(k.startsWith(full) && keys.indexOf(k.slice(STORAGE_NS.length)) < 0) keys.push(k.slice(STORAGE_NS.length)); }
       return { keys, prefix, shared: false };
     }
   };
@@ -16973,7 +17030,7 @@ function saveCurrentNoteN(inkOnly){
       document.getElementById('note-delete-btn').style.display = '';
       saveCostMsN = performance.now() - runT0;
     } catch(e){ console.error('Save note failed:', e);
-      if(e && e.message === 'storage full'){ statusEl.textContent = 'too big to save'; if(!window.__bigNoteWarnedN){ window.__bigNoteWarnedN = true; alert('This note is too big to save on this device. Remove a photo or a few PDF pages and it will save again.'); } }
+      if(e && e.message === 'storage full'){ statusEl.textContent = 'too big to save'; if(!window.__bigNoteWarnedN){ window.__bigNoteWarnedN = true; alert('This note is too big to save on this device, even in extra storage. Remove a photo or a few PDF pages and it will save again.'); } }
       else statusEl.textContent = 'save failed'; }
   };
   pendingSaveN = run;
