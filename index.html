@@ -2159,8 +2159,58 @@ function ensureRealtime(){
         liveLastAt = 0; nlLastAt = 0;
         try{ frames.notes.contentWindow.postMessage({ chalklineLivePing:true }, '*'); }catch(e){}
       })
+      .on('broadcast', { event:'ink' }, (m) => { receiveInk(m && m.payload, 'ink'); })
+      .on('broadcast', { event:'text' }, (m) => { receiveInk(m && m.payload, 'text'); })
       .subscribe();
+    getLiveCryptoKey().catch(() => {});   // fetch / create the key now so the first stroke isn't delayed
   }catch(e){ rtChan = null; console.warn('Realtime unavailable:', (e && e.message) || e); }
+}
+/* Instant ink: each finished stroke is sent straight to your other devices over the same Realtime channel, encrypted
+   (AES-GCM) with a random key kept in your own cloud storage — so only your signed-in devices can read it, and the
+   open note repaints that one stroke without downloading the whole note. The normal cloud copy still follows and
+   corrects anything the fast path missed. */
+let liveKeyBox = null, inkSendChain = Promise.resolve(), inkRecvChain = Promise.resolve();
+function u8ToB64(u){ let b = ''; for(let i = 0; i < u.length; i += 0x8000) b += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(b); }
+function b64ToU8(t){ const b = atob(t), u = new Uint8Array(b.length); for(let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u; }
+function getLiveCryptoKey(){
+  if(!shellUser || !shellUser.sub || !window.crypto || !crypto.subtle) return Promise.resolve(null);
+  const sub = shellUser.sub;
+  if(liveKeyBox && liveKeyBox.sub === sub) return liveKeyBox.p;
+  const p = (async () => {
+    const cacheK = 'chalkline-livekey:' + sub, cloudK = 'chalkline:profile:' + sub + ':livekey';
+    let t = null; try{ t = localStorage.getItem(cacheK); }catch(e){}
+    if(!t){
+      try{ const g = await workerStorage('get', { key: cloudK }); if(g && g.value) t = String(g.value); }catch(e){}
+      if(!t){
+        t = u8ToB64(crypto.getRandomValues(new Uint8Array(32)));
+        await workerStorage('set', { key: cloudK, value: t });
+        try{ const g = await workerStorage('get', { key: cloudK }); if(g && g.value) t = String(g.value); }catch(e){}   // two devices racing: everyone settles on the stored one
+      }
+      try{ localStorage.setItem(cacheK, t); }catch(e){}
+    }
+    return crypto.subtle.importKey('raw', b64ToU8(t), 'AES-GCM', false, ['encrypt', 'decrypt']);
+  })();
+  liveKeyBox = { sub, p };
+  p.catch(() => { if(liveKeyBox && liveKeyBox.p === p) liveKeyBox = null; });
+  return p;
+}
+function sendInk(d, ev){
+  inkSendChain = inkSendChain.then(async () => {
+    if(!rtChan) return;
+    const k = await getLiveCryptoKey(); if(!k) return;
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = new Uint8Array(await crypto.subtle.encrypt({ name:'AES-GCM', iv }, k, new TextEncoder().encode(JSON.stringify(ev === 'text' ? { key:d.key, page:d.page, np:d.np, html:d.html, body:d.body, title:d.title } : { key:d.key, page:d.page, n:d.n, rec:d.rec }))));
+    if(ct.length > 180000) return;   // too big for a broadcast: the normal cloud copy will carry it
+    rtChan.send({ type:'broadcast', event: ev === 'text' ? 'text' : 'ink', payload:{ iv:u8ToB64(iv), ct:u8ToB64(ct) } });
+  }).catch(() => {});
+}
+function receiveInk(pl, ev){
+  inkRecvChain = inkRecvChain.then(async () => {
+    const k = await getLiveCryptoKey(); if(!k || !pl || !pl.iv || !pl.ct) return;
+    const pt = await crypto.subtle.decrypt({ name:'AES-GCM', iv:b64ToU8(pl.iv) }, k, b64ToU8(pl.ct));
+    const o = JSON.parse(new TextDecoder().decode(pt));
+    try{ frames.notes.contentWindow.postMessage(ev === 'text' ? { chalklineText:true, key:o.key, page:o.page, np:o.np, html:o.html, body:o.body, title:o.title } : { chalklineInk:true, key:o.key, page:o.page, n:o.n, rec:o.rec }, '*'); }catch(e){}
+  }).catch(() => {});
 }
 function sendNotesPing(){
   if(!rtChan) return;
@@ -3281,6 +3331,8 @@ window.addEventListener('message', (e)=>{
   if(d.syncSoon) scheduleSync(1200);
   if(d.flushSync) syncNow(false);
   if(d.pushNote && typeof d.key === 'string'){ pushOneKey(d.key); }
+  if(d.liveInk && typeof d.key === 'string'){ sendInk(d, 'ink'); }
+  if(d.liveText && typeof d.key === 'string'){ sendInk(d, 'text'); }
   if(d.liveNotesList){ pullNotesList().then(ch => { if(ch) broadcastAuthState(); }); }
   if(d.liveNote && typeof d.key === 'string'){
     const from = e.source;
@@ -15192,6 +15244,8 @@ window.addEventListener('message', (e)=>{
     return;
   }
   if(d.chalklineNoteRemote){ if(d.key === currentNoteKeyN) applyRemoteNoteN(); return; }
+  if(d.chalklineInk){ applyInkN(d); return; }
+  if(d.chalklineText){ applyTextN(d); return; }
   if(d.chalklineLivePing){ const go = () => { if(currentNoteIdN) pollLiveN(); else pollListN(); }; go(); setTimeout(go, 200); setTimeout(go, 600); setTimeout(go, 1400); return; }   // re-check twice: the cloud copy can lag a moment behind the ping
   if(d.presetSubject){ notesSubject = d.presetSubject; }
   else if(d.chalklineClearSubject){ notesSubject = null; }
@@ -15747,6 +15801,71 @@ function renderRegionN(x0, y0, x1, y1){
   }
   c.restore();
 }
+// Instant ink to your other devices: the finished stroke is handed to the shell, which encrypts and broadcasts it.
+function sendInkN(page, pg, rec){
+  try{ if(currentNoteKeyN && shUserN) parent.postMessage({ liveInk:true, key:currentNoteKeyN, page, n:(pg.strokes || []).length, rec }, '*'); }catch(e){}
+}
+// Instant text: pages whose text changed are sent (after a very short pause so fast typing is batched).
+const textDirtyN = new Set(); let textSendTimerN = 0, lastTitleSentN = null, lastDeltaAtN = 0, deferApplyTimerN = 0;
+function queueTextSendN(){
+  if(textSendTimerN) return;
+  textSendTimerN = setTimeout(() => {
+    textSendTimerN = 0;
+    if(!currentNoteKeyN || !shUserN){ textDirtyN.clear(); return; }
+    const title = titleEl ? titleEl.value : noteTitleN;
+    let titleSent = false;
+    const pages = Array.from(textDirtyN); textDirtyN.clear();
+    if(!pages.length && title !== lastTitleSentN) pages.push(0);
+    pages.forEach(i => {
+      const pg = pagesN[i]; if(!pg) return;
+      const html = pg.html || '', body = pg.body || '';
+      if(html.length + body.length > 150000) return;
+      try{ parent.postMessage({ liveText:true, key:currentNoteKeyN, page:i, np:pagesN.length, html, body, title }, '*'); }catch(e){}
+      titleSent = true;
+    });
+    if(titleSent) lastTitleSentN = title;
+  }, 70);
+}
+// Text arrived from another device: swap in just that page's text (and the title) without touching anything else.
+function applyTextN(d){
+  if(!currentNoteIdN || d.key !== currentNoteKeyN) return;
+  const pg = pagesN[d.page], v = viewsN[d.page];
+  if(!pg || !v || d.np !== pagesN.length){ pollLiveN(); return; }   // pages added / removed: fetch the whole note
+  if(noteDirtyN || drawingActiveN){ if((d.tries = (d.tries || 0) + 1) < 25) setTimeout(() => applyTextN(d), 120); return; }   // never overwrite what you are typing here
+  const before = snapshotForDiffN();
+  if((d.html || '') !== (pg.html || '') || (d.body || '') !== (pg.body || '')){
+    const caret = captureCaretN();
+    v.body.innerHTML = d.html ? cleanHtmlN(d.html) : textToHtmlN(d.body || ''); renderMathN(v.body);
+    pg.body = d.body || ''; pg.html = d.html || '';
+    colonIndentAllN(); autosizeAllN();
+    restoreCaretN(caret);
+  }
+  if(typeof d.title === 'string' && titleEl && titleEl.value !== d.title && document.activeElement !== titleEl){ titleEl.value = d.title; noteTitleN = d.title; }
+  lastDeltaAtN = Date.now();
+  try{ revealChangeN(findChangeN(before)); }catch(e){}
+}
+// A stroke arrived from another device: add just that stroke and repaint just its area.
+function applyInkN(d){
+  if(!currentNoteIdN || d.key !== currentNoteKeyN) return;
+  const pg = pagesN[d.page], v = viewsN[d.page], rec = d.rec;
+  if(!pg || !v || !rec || !Array.isArray(rec.pts) || !TOOLS[rec.tn]) return;
+  const have = (pg.strokes || []).length;
+  if(have >= d.n) return;                                   // already have it
+  if(have !== d.n - 1){ pollLiveN(); return; }              // missed something (undo, other edit): fetch the whole note
+  if(drawingActiveN){ if((d.tries = (d.tries || 0) + 1) < 40) setTimeout(() => applyInkN(d), 120); return; }   // never repaint under a stroke being drawn here
+  rec.pend = false; lastDeltaAtN = Date.now();
+  const before = snapshotForDiffN();
+  (pg.strokes = pg.strokes || []).push(rec);
+  histN.delete(pg);   // old undo steps would resurrect / remove strokes the other device just changed
+  if(v.live){
+    const prev = curPageN, T = TOOLS[rec.tn];
+    useViewN(d.page);
+    try{ const b = bbOfN(rec), pad = T.w(1) * rec.size + (rec.erase ? 60 : 12); renderRegionN(b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad); }catch(e){ renderPageN(); }
+    if(prev !== d.page) useViewN(prev);
+    if(d.page === curPageN) updateHistBtnsN();
+  }
+  try{ revealChangeN(findChangeN(before)); }catch(e){}
+}
 function commitStrokeN(){
   const rec = strokeRecN; strokeRecN = null;
   const pg = pagesN[curPageN];
@@ -15759,6 +15878,7 @@ function commitStrokeN(){
   }
   snapPushN();
   (pg.strokes = pg.strokes || []).push(rec);
+  sendInkN(curPageN, pg, rec);
   if(refined){ const b = bbOfN(rec), pad = T.w(1) * rec.size + 12; renderRegionN(b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad); }
 }
 // Re-draws a saved stroke by feeding its raw points back through the live smoothing engine.
@@ -15833,6 +15953,7 @@ function finishLineN(e){
   if((e && e.type === 'pointercancel') || !pg || Math.hypot(d.x1 - d.x0, d.y1 - d.y0) < 6) return;   // a tap or a cancelled drag places nothing
   const rec = lineRecOfN(d);
   snapPushN(); (pg.strokes = pg.strokes || []).push(rec);
+  sendInkN(curPageN, pg, rec);
   drawLineRecN(rec, canvasCtx, canvasScaleN, colOffN());
 }
 function replayStrokeN(rec){
@@ -16818,7 +16939,12 @@ function saveCurrentNoteN(inkOnly){
   if(!currentNoteIdN || !shUserN) return;
   statusEl.className = 'editing'; statusEl.textContent = 'editing…';
   const genSnap = ++editGenN; noteDirtyN = true;
-  if(inkOnly !== true) syncAllN();   // ink changes never touch the text, so skip re-reading every page's text
+  const oldSigN = inkOnly !== true ? pagesN.map(p => (p.html || '') + '\u0001' + (p.body || '')) : null;
+  if(inkOnly !== true){
+    syncAllN();   // ink changes never touch the text, so skip re-reading every page's text
+    pagesN.forEach((p, i) => { if(oldSigN[i] !== (p.html || '') + '\u0001' + (p.body || '')) textDirtyN.add(i); });
+    queueTextSendN();
+  }
   const idSnap = currentNoteIdN, pagesSnap = pagesN, titleSnap = titleEl ? titleEl.value : noteTitleN, subjSnap = currentNoteSubjectN || notesSubject || 'Unsorted', oldKeySnap = currentNoteKeyN;
   const run = async ()=>{
     const runT0 = performance.now();
@@ -16979,6 +17105,10 @@ let applyingRemoteN = false;
 async function applyRemoteNoteN(){
   if(!currentNoteIdN || !currentNoteKeyN || !shUserN || applyingRemoteN) return;
   if(noteDirtyN || drawingActiveN) return;
+  if(Date.now() - lastDeltaAtN < 2500){   // an instant update just landed: let the newest cloud copy catch up so an older one can't overwrite it
+    if(!deferApplyTimerN) deferApplyTimerN = setTimeout(() => { deferApplyTimerN = 0; applyRemoteNoteN(); }, 2600 - (Date.now() - lastDeltaAtN));
+    return;
+  }
   applyingRemoteN = true;
   try{
     const idNow = currentNoteIdN, keyNow = currentNoteKeyN;
