@@ -2170,7 +2170,16 @@ let liveLastAt = 0, liveGap = 0;   // big notes (lots of ink) are checked less o
 // Fast lane for the open note. Uploading and downloading one note no longer waits on (or hashes) every other
 // note, and it does not queue behind the background sync. Timings are printed in the console as "[live] ...".
 let liveBusy = false;
-async function pullOneKey(shortKey){
+let liveBusyP = null, liveQueued = false;
+function pullOneKey(shortKey){
+  if(liveBusy && liveBusyP){   // a newer change arrived mid-download: check again the moment this one lands instead of dropping it
+    if(liveQueued) return Promise.resolve(false);
+    liveQueued = true;
+    return liveBusyP.then(() => { liveQueued = false; liveLastAt = 0; return pullOneKeyRun(shortKey); });
+  }
+  const p = pullOneKeyRun(shortKey); liveBusyP = p.catch(() => {}); return p;
+}
+async function pullOneKeyRun(shortKey){
   if(!shellUser || !shellUser.sub || cloudLoadedFor !== shellUser.sub || liveBusy) return false;
   if(document.visibilityState !== 'visible') return false;
   if(Date.now() - liveLastAt < liveGap) return false;
@@ -2189,7 +2198,7 @@ async function pullOneKey(shortKey){
       const sz = String(value).length;
       const photoBytes = sz > 150000 ? (String(value).match(/"src":"data:image[^"]*"/g) || []).reduce((n, m) => n + m.length, 0) : 0;
       const leanSz = sz - photoBytes;   // photos don't change while you write, so they shouldn't slow the text/ink refresh
-      liveGap = Math.max(leanSz > 400000 ? 2000 : leanSz > 100000 ? 700 : 0, photoBytes > 300000 ? 1500 : 0);   // a ping from the other device skips this gap
+      liveGap = Math.max(leanSz > 400000 ? 900 : leanSz > 100000 ? 300 : 0, photoBytes > 300000 ? 1200 : 0);   // a ping from the other device skips this gap
       const h = fnv(value), meta = loadSyncMeta(sub), m = meta[full];   // no await between this read and the save below
       if(!(m && m.h === h)){
         const local = localStorage.getItem(full);
@@ -15183,7 +15192,7 @@ window.addEventListener('message', (e)=>{
     return;
   }
   if(d.chalklineNoteRemote){ if(d.key === currentNoteKeyN) applyRemoteNoteN(); return; }
-  if(d.chalklineLivePing){ const go = () => { if(currentNoteIdN) pollLiveN(); else pollListN(); }; go(); setTimeout(go, 350); setTimeout(go, 1100); return; }   // re-check twice: the cloud copy can lag a moment behind the ping
+  if(d.chalklineLivePing){ const go = () => { if(currentNoteIdN) pollLiveN(); else pollListN(); }; go(); setTimeout(go, 200); setTimeout(go, 600); setTimeout(go, 1400); return; }   // re-check twice: the cloud copy can lag a moment behind the ping
   if(d.presetSubject){ notesSubject = d.presetSubject; }
   else if(d.chalklineClearSubject){ notesSubject = null; }
   else if(d.loadNoteId){ openNoteN(d.loadNoteId); return; }
@@ -16847,7 +16856,7 @@ function saveCurrentNoteN(inkOnly){
   // edit starts a short timer and the latest state is saved when it fires, however busy you are. Big notes
   // get a proportionally longer gap so saving never makes the pen or keyboard stutter.
   if(!saveTimerN){
-    const gap = Math.min(900, Math.max(inkOnly === true ? 90 : 60, saveCostMsN * 3));
+    const gap = Math.min(450, Math.max(inkOnly === true ? 40 : 40, saveCostMsN * 1.5));
     const fire = ()=>{
       if(drawingActiveN){ saveTimerN = setTimeout(fire, 40); return; }   // never serialise mid-stroke; the pen-up saves right away
       saveTimerN = null;
@@ -17021,7 +17030,7 @@ function pollLiveN(){
   try{ if(window.frameElement && window.frameElement.offsetParent === null) return; }catch(e){}
   try{ parent.postMessage({ liveNote:true, key: currentNoteKeyN }, '*'); }catch(e){}
 }
-setInterval(pollLiveN, 800);
+setInterval(pollLiveN, 450);
 function pollListN(){   // the notes list itself: new / deleted / renamed notes from another device show up on their own
   if(!shUserN || document.hidden || currentNoteIdN) return;
   try{ if(window.frameElement && window.frameElement.offsetParent === null) return; }catch(e){}
