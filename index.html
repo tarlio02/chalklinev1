@@ -2187,7 +2187,9 @@ async function pullOneKey(shortKey){
       let value = got.value;
       if(typeof value === 'string' && value.indexOf(GZ_PREFIX) === 0) value = await gunzipFromB64(value);
       const sz = String(value).length;
-      liveGap = sz > 400000 ? 8000 : sz > 100000 ? 3000 : 0;
+      const photoBytes = (String(value).match(/"src":"data:image[^"]*"/g) || []).reduce((n, m) => n + m.length, 0);
+      const leanSz = sz - photoBytes;   // photos don't change while you write, so they shouldn't slow the text/ink refresh
+      liveGap = Math.max(leanSz > 400000 ? 4000 : leanSz > 100000 ? 1500 : 0, photoBytes > 300000 ? 2500 : 0);   // a ping from the other device skips this gap
       const h = fnv(value), meta = loadSyncMeta(sub), m = meta[full];   // no await between this read and the save below
       if(!(m && m.h === h)){
         const local = localStorage.getItem(full);
@@ -15153,7 +15155,7 @@ window.addEventListener('message', (e)=>{
     return;
   }
   if(d.chalklineNoteRemote){ if(d.key === currentNoteKeyN) applyRemoteNoteN(); return; }
-  if(d.chalklineLivePing){ const go = () => { if(currentNoteIdN) pollLiveN(); else pollListN(); }; go(); setTimeout(go, 1500); setTimeout(go, 4000); return; }   // re-check twice: the cloud copy can lag a moment behind the ping
+  if(d.chalklineLivePing){ const go = () => { if(currentNoteIdN) pollLiveN(); else pollListN(); }; go(); setTimeout(go, 700); setTimeout(go, 2200); return; }   // re-check twice: the cloud copy can lag a moment behind the ping
   if(d.presetSubject){ notesSubject = d.presetSubject; }
   else if(d.chalklineClearSubject){ notesSubject = null; }
   else if(d.loadNoteId){ openNoteN(d.loadNoteId); return; }
@@ -16789,7 +16791,7 @@ function saveCurrentNoteN(inkOnly){
       else statusEl.textContent = 'save failed'; }
   };
   pendingSaveN = run;
-  saveTimerN = setTimeout(()=>{ pendingSaveN = null; run(); }, inkOnly === true ? 1200 : 600);   // while writing, wait for a real pause
+  saveTimerN = setTimeout(()=>{ pendingSaveN = null; run(); }, inkOnly === true ? 600 : 300);   // while writing, wait for a real pause
 }
 function flushNoteSaveN(){ if(pendingSaveN){ clearTimeout(saveTimerN); const f = pendingSaveN; pendingSaveN = null; f(); } }
 document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState === 'hidden') flushNoteSaveN(); });
@@ -16948,7 +16950,7 @@ function pollLiveN(){
   try{ if(window.frameElement && window.frameElement.offsetParent === null) return; }catch(e){}
   try{ parent.postMessage({ liveNote:true, key: currentNoteKeyN }, '*'); }catch(e){}
 }
-setInterval(pollLiveN, 2500);
+setInterval(pollLiveN, 1500);
 function pollListN(){   // the notes list itself: new / deleted / renamed notes from another device show up on their own
   if(!shUserN || document.hidden || currentNoteIdN) return;
   try{ if(window.frameElement && window.frameElement.offsetParent === null) return; }catch(e){}
