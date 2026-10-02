@@ -14926,6 +14926,33 @@ h1,h2,h3{ font-family:'Fraunces','Source Serif 4',Georgia,serif; margin:0; color
   white-space:pre-wrap; overflow-wrap:break-word; -webkit-user-select:text; user-select:text;
 }
 .note-body div, .note-body p{ margin:0; }
+/* LaTeX maths: tiny atoms inside the text, drawn by KaTeX */
+.mj{ display:inline-flex; align-items:center; height:26px; vertical-align:middle; max-width:100%; margin:0 1px; padding:0 2px; border-radius:4px; cursor:pointer; white-space:nowrap; line-height:1; text-indent:0; -webkit-user-select:all; user-select:all; }
+.mj:hover{ background:rgba(46,125,190,.10); }
+.mj.editing{ outline:2px solid var(--ochre); outline-offset:1px; }
+.mj.d{ display:flex; width:100%; height:auto; margin:0; padding:0; justify-content:center; overflow-x:auto; overflow-y:hidden; scrollbar-width:none; }
+.mj.d::-webkit-scrollbar{ display:none; }
+.mj .katex{ font-size:1.08em; text-indent:0; }
+.mj .katex-display{ margin:0; width:100%; }
+.mj.bad{ color:#C0392B; }
+#math-pop{ position:fixed; z-index:60; left:50%; transform:translateX(-50%); top:calc(var(--safe-top) + 66px); width:min(560px, calc(100% - 20px)); display:none; flex-direction:column; gap:8px; padding:10px; background:#fff; border:1px solid rgba(0,0,0,.12); border-radius:16px; box-shadow:0 12px 40px rgba(0,0,0,.28); }
+#math-pop.open{ display:flex; }
+.mp-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.mp-title{ font:600 10px 'JetBrains Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
+.mp-mode{ display:flex; gap:2px; background:#F1F1F4; border-radius:9px; padding:2px; }
+.mp-mode button{ border:none; background:none; font:600 12px 'JetBrains Mono',monospace; padding:5px 10px; border-radius:7px; color:var(--muted); cursor:pointer; }
+.mp-mode button.on{ background:#fff; color:var(--ink); box-shadow:0 1px 3px rgba(0,0,0,.15); }
+.mp-prev{ min-height:54px; max-height:30vh; overflow:auto; display:flex; align-items:center; justify-content:center; background:#FAFAF7; border-radius:10px; padding:6px 10px; font-size:22px; color:var(--ink); }
+#mp-ta{ width:100%; box-sizing:border-box; resize:none; border:1px solid rgba(0,0,0,.16); border-radius:10px; padding:8px 10px; font:500 16px/1.4 'JetBrains Mono',monospace; outline:none; color:var(--ink); background:#fff; }
+#mp-ta:focus{ border-color:var(--ochre); }
+.mp-chips{ display:flex; gap:5px; overflow-x:auto; padding-bottom:2px; scrollbar-width:none; }
+.mp-chips::-webkit-scrollbar{ display:none; }
+.mp-chips button{ flex:none; min-width:34px; height:32px; border:1px solid rgba(0,0,0,.14); background:#fff; border-radius:8px; font:500 15px 'Source Serif 4',Georgia,serif; cursor:pointer; padding:0 8px; color:var(--ink); }
+.mp-actions{ display:flex; gap:6px; justify-content:flex-end; }
+.mp-actions button{ height:36px; padding:0 14px; border-radius:10px; border:1px solid rgba(0,0,0,.14); background:#fff; font:600 12px 'JetBrains Mono',monospace; cursor:pointer; color:var(--ink); }
+.mp-actions .primary{ background:var(--ochre); border-color:var(--ochre); color:#fff; }
+.mp-actions .danger{ color:#C0392B; }
+
 /* line / arrow / dotted-line drawing */
 .line-row{ display:flex; justify-content:center; align-items:center; gap:4px; flex-wrap:wrap; }
 .line-row .seg-btn{ padding:0 11px; }
@@ -15052,7 +15079,8 @@ body.no-select-while-drawing,
       <button type="button" class="menu-opt" onclick="pickFilesN('img')" role="menuitem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M21 16l-5-5-9 9"/></svg>Photo from library</button>
       <button type="button" class="menu-opt" onclick="pickFilesN('cam')" role="menuitem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Take a photo</button>
       <button type="button" class="menu-opt" onclick="pickFilesN('pdf')" role="menuitem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 13h6M9 17h6"/></svg>PDF (each page becomes a note page)</button>
-      <div class="menu-link" style="cursor:default">Tip: you can also paste or drag an image into the note.</div>
+      <button type="button" class="menu-opt" onclick="insertMathN()" role="menuitem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 5H7l6 7-6 7h11"/></svg>Equation (LaTeX)</button>
+      <div class="menu-link" style="cursor:default">Tip: type $x^2$ for inline maths or $$\frac{a}{b}$$ for a big equation. You can also paste or drag an image into the note.</div>
     </div>
     <input type="file" id="img-file" accept="image/*" multiple hidden>
     <input type="file" id="cam-file" accept="image/*" capture="environment" hidden>
@@ -16256,7 +16284,7 @@ const ioN = new IntersectionObserver((ents)=>{
 }, { root: scrollElN, rootMargin: '60% 0px' });
 
 function bodyTextN(el){ return (el.innerText || el.textContent || '').replace(/\u00a0/g, ' ').replace(/\s+$/, ''); }
-function syncAllN(){ viewsN.forEach((v, i)=>{ if(pagesN[i]){ pagesN[i].body = bodyTextN(v.body); pagesN[i].html = v.body.innerHTML; } }); }   // plain text stays in body (previews, other tools); formatting lives in html
+function syncAllN(){ viewsN.forEach((v, i)=>{ if(pagesN[i]){ pagesN[i].body = bodyTextMathN(v.body); pagesN[i].html = bodyHtmlN(v.body); } }); }   // plain text stays in body (previews, other tools); formatting lives in html
 function useViewN(i){
   const v = viewsN[i]; if(!v) return;
   curPageN = i; bodyEl = v.body; canvasEl = v.cv; canvasCtx = v.ctx; canvasScaleN = v.scale;
@@ -16328,12 +16356,21 @@ function createViewN(pg, first){
   }
   const body = document.createElement('div'); body.className = 'note-body'; body.contentEditable = inputModeN === 'type' ? 'true' : 'false';
   body.setAttribute('role', 'textbox'); body.setAttribute('aria-multiline', 'true'); body.spellcheck = true;
-  body.innerHTML = pg.html ? cleanHtmlN(pg.html) : textToHtmlN(pg.body || ''); sec.appendChild(body);
+  body.innerHTML = pg.html ? cleanHtmlN(pg.html) : textToHtmlN(pg.body || ''); renderMathN(body); sec.appendChild(body);
   body.addEventListener('paste', (e)=>{   // paste as plain text so nothing foreign sneaks in
     e.preventDefault();
     const t = (e.clipboardData || window.clipboardData).getData('text/plain');
     if(t) document.execCommand('insertText', false, t);
+    if(t && /\$|\\[(\[]/.test(t)){ loadKatexN().catch(()=>{}); if(convertAllMathN(body)){ autosizeViewN(v); saveCurrentNoteN(); } }   // pasted $...$ becomes real maths
   });
+  body.addEventListener('copy', (e)=>{   // copying maths gives back the LaTeX, not the drawn symbols
+    const sel = window.getSelection(); if(!sel || !sel.rangeCount || sel.isCollapsed) return;
+    const frag = sel.getRangeAt(0).cloneContents(); if(!frag.querySelector('.mj')) return;
+    frag.querySelectorAll('.mj').forEach(m => { const tx = m.getAttribute('data-tex') || '', d = m.hasAttribute('data-d'); m.replaceWith(document.createTextNode(d ? '$$' + tx + '$$' : '$' + tx + '$')); });
+    const kids = Array.from(frag.childNodes), blocky = kids.some(n => n.nodeType === 1 && /^(DIV|P)$/.test(n.tagName));
+    e.preventDefault(); e.clipboardData.setData('text/plain', kids.map(n => n.textContent).join(blocky ? '\n' : '').replace(/\u200B/g, ''));
+  });
+  body.addEventListener('click', (e)=>{ const m = e.target.closest && e.target.closest('.mj'); if(m && inputModeN === 'type'){ e.preventDefault(); openMathEditN(m, false); } });
   body.addEventListener('beforeinput', (e)=>{ if(e.inputType === 'insertText' || e.inputType === 'insertCompositionText') applyStickyFmtN(); });
   body.addEventListener('focus', ()=>{ try{ document.execCommand('styleWithCSS', false, true); document.execCommand('defaultParagraphSeparator', false, 'div'); }catch(err){} });
   const cv = document.createElement('canvas'); cv.className = 'note-canvas'; sec.appendChild(cv);
@@ -16341,7 +16378,13 @@ function createViewN(pg, first){
   const v = { pg, sec, title, body, cv, tag, ctx: cv.getContext('2d', { desynchronized:true }), scale:1, live:false };
   sec._v = v; cv._v = v;
   if(title){ title.addEventListener('input', saveCurrentNoteN); title.addEventListener('focus', ()=>setCurN(0)); }
-  body.addEventListener('input', ()=>{ colonIndentN(body); autosizeViewN(v); saveCurrentNoteN(); });
+  body.addEventListener('input', (e)=>{
+    if(e && (e.inputType === 'insertText' || e.inputType === 'insertCompositionText') && /[$)\]]$/.test(e.data || '')){
+      if(/\$/.test(e.data)) loadKatexN().catch(()=>{});
+      tryMathN(body);   // typing the closing $ turns $...$ into rendered maths
+    }
+    colonIndentN(body); autosizeViewN(v); saveCurrentNoteN();
+  });
   body.addEventListener('focus', ()=>{ const i = viewsN.indexOf(v); if(i >= 0 && i !== curPageN) setCurN(i); });
   // tap or click anywhere on the paper to write there (margins, empty space, blank lines, below the last line)
   sec.addEventListener('pointerdown', (e)=>{ if(inputModeN === 'type' && e.target === sec) e.preventDefault(); });   // keep the keyboard up when tapping the margin
@@ -16357,12 +16400,12 @@ function mountPagesN(opts){
   viewsN = []; titleEl = null; bodyEl = null; canvasEl = null; canvasCtx = null;
   const stack = document.getElementById('pages-stack'); stack.innerHTML = '';
   pagesN.forEach((pg, i)=>{ const v = createViewN(pg, i === 0); viewsN.push(v); stack.appendChild(v.sec); });
-  colonIndentAllN(); autosizeAllN(); renumberN();
+  viewsN.forEach(v => sizeMathInN(v.body)); colonIndentAllN(); autosizeAllN(); renumberN();
   const want = Math.max(0, Math.min(opts.cur || 0, viewsN.length - 1));
   setCurN(want);
   if(opts.cur) scrollToPageN(want, false); else scrollElN.scrollTop = 0;
   setTimeout(relayoutN, 30);
-  try{ document.fonts.ready.then(()=>{ colonIndentAllN(); relayoutN(); }); }catch(e){}
+  try{ document.fonts.ready.then(()=>{ viewsN.forEach(v => sizeMathInN(v.body)); colonIndentAllN(); relayoutN(); }); }catch(e){}
 }
 function scrollToPageN(i, smooth){
   const v = viewsN[i]; if(!v) return;
@@ -16550,6 +16593,13 @@ function cleanHtmlN(html){
       if(HTML_DROP_N[ch.tagName.toUpperCase()]){ ch.remove(); return; }
       walk(ch);
       if(!HTML_KEEP_N[ch.tagName.toUpperCase()]){ while(ch.firstChild) ch.parentNode.insertBefore(ch.firstChild, ch); ch.remove(); return; }
+      if(ch.tagName === 'SPAN' && ch.classList.contains('mj') && ch.hasAttribute('data-tex')){   // a maths atom: keep only its LaTeX
+        const tx = (ch.getAttribute('data-tex') || '').slice(0, 2000), dsp = ch.hasAttribute('data-d');
+        while(ch.firstChild) ch.removeChild(ch.firstChild);
+        Array.from(ch.attributes).forEach(a => ch.removeAttribute(a.name));
+        ch.className = 'mj'; ch.setAttribute('data-tex', tx); if(dsp) ch.setAttribute('data-d', '1');
+        return;
+      }
       const st = ch.style, keep = [];
       let col = st.color; if(!col && ch.tagName === 'FONT') col = ch.getAttribute('color') || '';
       if(col && COLOR_OK_N.test(col.trim())) keep.push('color:' + col.trim());
@@ -16924,7 +16974,7 @@ async function applyRemoteNoteN(){
     if(inkSame && viewsN.length === newPages.length){
       newPages.forEach((q, i) => {
         if((q.html || '') !== (pagesN[i].html || '') || (q.body || '') !== (pagesN[i].body || '')){
-          viewsN[i].body.innerHTML = q.html ? cleanHtmlN(q.html) : textToHtmlN(q.body || '');
+          viewsN[i].body.innerHTML = q.html ? cleanHtmlN(q.html) : textToHtmlN(q.body || ''); renderMathN(viewsN[i].body);
           pagesN[i].body = q.body; pagesN[i].html = q.html;
         }
       });
@@ -17150,6 +17200,233 @@ async function importPdfN(file){
   pagesN.splice(at, 0, ...made);
   mountPagesN({ cur: at });
   saveCurrentNoteN();
+}
+
+/* ---------------- LaTeX maths ----------------
+   Type $x^2$ (inline) or $$\frac{a}{b}$$ (big, on its own line) and it turns into rendered maths when you type the
+   closing $. Tap any equation to edit its LaTeX (with a live preview and shortcut keys). Equations are stored as
+   <span class="mj" data-tex="...">, and as $...$ in the note's plain text, so the AI tutor can read them too.
+   Drawing is done by KaTeX, loaded the first time it's needed. */
+let katexPN = null;
+function loadKatexN(){
+  if(window.katex) return Promise.resolve(window.katex);
+  if(katexPN) return katexPN;
+  const base = 'https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/';
+  const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = base + 'katex.min.css';
+  const sc = document.createElement('script'); sc.src = base + 'katex.min.js';
+  const cssP = new Promise(r => { l.onload = r; l.onerror = r; setTimeout(r, 4000); });
+  const jsP = new Promise((r, j) => { sc.onload = r; sc.onerror = () => j(new Error('KaTeX failed to load')); });
+  document.head.appendChild(l); document.head.appendChild(sc);
+  katexPN = Promise.all([cssP, jsP]).then(() => window.katex, (err) => { katexPN = null; throw err; });
+  return katexPN;
+}
+const MATH_RE_SRC = '\\$\\$([^$]+?)\\$\\$|\\\\\\[([\\s\\S]+?)\\\\\\]|\\\\\\(([\\s\\S]+?)\\\\\\)|\\$([^\\s$](?:[^$\\n]*?[^\\s$])?)\\$(?!\\d)';
+function mathMatchesN(text){
+  const re = new RegExp(MATH_RE_SRC, 'g'), out = []; let m;
+  while((m = re.exec(text))){
+    if(m[0].charAt(0) === '$' && m[0].charAt(1) !== '$' && m.index > 0 && text.charAt(m.index - 1) === '\\') continue;   // \$ is a plain dollar sign
+    const display = m[1] != null || m[2] != null;
+    const tex = String(m[1] != null ? m[1] : m[2] != null ? m[2] : m[3] != null ? m[3] : m[4]).trim();
+    if(tex) out.push({ start:m.index, end:m.index + m[0].length, tex, display });
+  }
+  return out;
+}
+function makeMathElN(tex, display){
+  const el = document.createElement('span'); el.className = 'mj'; el.setAttribute('data-tex', tex);
+  if(display) el.setAttribute('data-d', '1'); el.contentEditable = 'false'; return el;
+}
+function renderMathElN(el){
+  const tex = el.getAttribute('data-tex') || '', d = el.hasAttribute('data-d'), key = (d ? 'D' : 'I') + tex;
+  el.contentEditable = 'false'; el.classList.toggle('d', d);
+  if(el._rk === key && el.firstChild) return;
+  if(window.katex){
+    el.textContent = '';
+    try{ window.katex.render(tex, el, { displayMode:d, throwOnError:false, output:'html', strict:'ignore', maxExpand:500 }); }
+    catch(err){ el.textContent = tex; }
+    el.classList.toggle('bad', !!el.querySelector('.katex-error'));
+    el._rk = key;
+  } else {
+    el.textContent = d ? '$$' + tex + '$$' : '$' + tex + '$'; el._rk = null;
+  }
+}
+function sizeMathElN(el){   // big equations take a whole number of ruled lines so the paper lines still match up
+  if(!el.classList.contains('d') || !el.isConnected) return;
+  el.style.height = ''; el.style.height = Math.max(36, Math.ceil(el.scrollHeight / 36) * 36) + 'px';
+}
+function sizeMathInN(root){ root.querySelectorAll('.mj.d').forEach(sizeMathElN); }
+function renderMathN(root){
+  const els = Array.from(root.querySelectorAll('.mj'));
+  els.forEach(renderMathElN);
+  if(els.length && !window.katex){
+    loadKatexN().then(()=>{ renderMathN(root); if(viewsN.length) autosizeAllN(); }).catch(()=>{});   // until it loads, the raw $...$ shows
+  } else els.forEach(sizeMathElN);
+}
+function hasMathN(body){ return !!body.querySelector('.mj'); }
+function bodyHtmlN(body){
+  if(!hasMathN(body)) return body.innerHTML;
+  const c = body.cloneNode(true);
+  c.querySelectorAll('.mj').forEach(e => {
+    const tx = e.getAttribute('data-tex') || '', d = e.hasAttribute('data-d');
+    Array.from(e.attributes).forEach(a => e.removeAttribute(a.name));
+    e.className = 'mj'; e.setAttribute('data-tex', tx); if(d) e.setAttribute('data-d', '1'); e.textContent = '';
+  });
+  return c.innerHTML;
+}
+function mathPlainN(node){
+  let t = '';
+  node.childNodes.forEach(n => {
+    if(n.nodeType === 3) t += n.nodeValue;
+    else if(n.nodeType === 1){
+      if(n.classList.contains('mj')){ const tx = n.getAttribute('data-tex') || ''; t += n.hasAttribute('data-d') ? '$$' + tx + '$$' : '$' + tx + '$'; }
+      else if(n.tagName !== 'BR') t += mathPlainN(n);
+    }
+  });
+  return t;
+}
+function bodyTextMathN(body){
+  if(!hasMathN(body)) return bodyTextN(body);
+  return Array.from(body.childNodes).map(n => n.nodeType === 3 ? n.nodeValue : mathPlainN(n)).join('\n').replace(/\u00a0/g, ' ').replace(/\u200B/g, '').replace(/\s+$/, '');
+}
+function caretAfterN(node, offset){
+  const sel = window.getSelection(), r = document.createRange();
+  r.setStart(node, offset); r.collapse(true); sel.removeAllRanges(); sel.addRange(r);
+}
+function textAfterAtomN(atom){   // a text node right after the atom to park the caret in
+  let nx = atom.nextSibling;
+  if(!nx || nx.nodeType !== 3){ nx = document.createTextNode('\u200B'); atom.parentNode.insertBefore(nx, atom.nextSibling); }
+  return nx;
+}
+function tryMathN(body){   // called after the closing $ / ) / ] is typed
+  const sel = window.getSelection(); if(!sel || !sel.rangeCount || !sel.isCollapsed) return false;
+  const node = sel.anchorNode, off = sel.anchorOffset;
+  if(!node || node.nodeType !== 3 || !body.contains(node) || (node.parentElement && node.parentElement.closest('.mj'))) return false;
+  const pre = node.nodeValue.slice(0, off), ms = mathMatchesN(pre), m = ms.length ? ms[ms.length - 1] : null;
+  if(!m || m.end !== pre.length) return false;
+  const rg = document.createRange(); rg.setStart(node, m.start); rg.setEnd(node, off); rg.deleteContents();
+  const atom = makeMathElN(m.tex, m.display); rg.insertNode(atom);
+  renderMathElN(atom); sizeMathElN(atom);
+  const nx = textAfterAtomN(atom);
+  caretAfterN(nx, nx.nodeValue === '\u200B' ? 1 : 0);
+  if(!window.katex) loadKatexN().then(()=>{ renderMathN(body); autosizeAllN(); }).catch(()=>{});
+  return true;
+}
+function convertAllMathN(root){   // used after pasting: every $...$ / $$...$$ / \(...\) / \[...\] in the text becomes maths
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: n =>
+    (n.parentElement && n.parentElement.closest('.mj')) ? NodeFilter.FILTER_REJECT : (/[$\\]/.test(n.nodeValue) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT) });
+  const nodes = []; let n; while((n = walker.nextNode())) nodes.push(n);
+  let made = 0; const sel = window.getSelection();
+  nodes.forEach(node => {
+    const ms = mathMatchesN(node.nodeValue); if(!ms.length) return;
+    const text = node.nodeValue, parent = node.parentNode;
+    const tail = (sel.rangeCount && sel.anchorNode === node) ? text.length - sel.anchorOffset : -1;
+    const frag = document.createDocumentFragment(); let last = 0;
+    ms.forEach(m => {
+      if(m.start > last) frag.appendChild(document.createTextNode(text.slice(last, m.start)));
+      frag.appendChild(makeMathElN(m.tex, m.display)); last = m.end; made++;
+    });
+    const rest = text.slice(last), lastText = document.createTextNode(rest || '\u200B'); frag.appendChild(lastText);
+    parent.replaceChild(frag, node);
+    if(tail >= 0) caretAfterN(lastText, rest ? Math.max(0, rest.length - tail) : 1);
+  });
+  if(made) renderMathN(root);
+  return made;
+}
+
+/* ---- the equation editor (tap an equation, or Add > Equation) ---- */
+let mathPopN = null, mathElN = null;
+const MATH_CHIPS_N = [
+  ['a/b','\\frac{}{}',3], ['\u221A','\\sqrt{}',1], ['x\u207F','^{}',1], ['x\u2099','_{}',1], ['\u03A3','\\sum_{i=1}^{n}',0], ['\u222B','\\int_{a}^{b}',0],
+  ['lim','\\lim_{x \\to }',1], ['\u221E','\\infty',0], ['\u2264','\\le ',0], ['\u2265','\\ge ',0], ['\u2260','\\ne ',0], ['\u2248','\\approx ',0],
+  ['\u00B1','\\pm ',0], ['\u00D7','\\times ',0], ['\u00F7','\\div ',0], ['\u00B7','\\cdot ',0], ['\u2192','\\to ',0],
+  ['x\u0304','\\bar{}',1], ['\u0177','\\hat{}',1], ['v\u20D7','\\vec{}',1], ['\u2202','\\partial ',0], ['\u0394','\\Delta ',0], ['\u211D','\\mathbb{R}',0],
+  ['( )','\\left(  \\right)',8], ['\u03B1','\\alpha ',0], ['\u03B2','\\beta ',0], ['\u03B3','\\gamma ',0], ['\u03B4','\\delta ',0], ['\u03B8','\\theta ',0],
+  ['\u03BB','\\lambda ',0], ['\u03BC','\\mu ',0], ['\u03C0','\\pi ',0], ['\u03C3','\\sigma ',0], ['\u03C6','\\phi ',0], ['\u03C9','\\omega ',0]
+];
+function ensureMathPopN(){
+  if(mathPopN) return mathPopN;
+  const p = document.createElement('div'); p.id = 'math-pop'; p.setAttribute('role', 'dialog'); p.setAttribute('aria-label', 'Edit equation');
+  p.innerHTML =
+    '<div class="mp-head"><span class="mp-title">LaTeX</span><div class="mp-mode"><button type="button" data-m="i">Inline</button><button type="button" data-m="d">Display</button></div></div>' +
+    '<div class="mp-prev" id="mp-prev"></div>' +
+    '<textarea id="mp-ta" rows="2" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" placeholder="e.g. \\frac{a}{b} + \\sqrt{x}"></textarea>' +
+    '<div class="mp-chips" id="mp-chips"></div>' +
+    '<div class="mp-actions"><button type="button" class="danger" id="mp-del">Delete</button><button type="button" id="mp-plain" title="Turn back into plain text, e.g. for a price">Plain text</button><button type="button" class="primary" id="mp-done">Done</button></div>';
+  document.body.appendChild(p);
+  const ta = p.querySelector('#mp-ta'), chips = p.querySelector('#mp-chips');
+  MATH_CHIPS_N.forEach(c => { const b = document.createElement('button'); b.type = 'button'; b.textContent = c[0]; b.title = c[1].trim(); b.addEventListener('click', ()=>mathInsertN(c[1], c[2])); chips.appendChild(b); });
+  p.addEventListener('pointerdown', (e)=>{ if(e.target.tagName !== 'TEXTAREA') e.preventDefault(); });   // buttons don't steal focus, so the keyboard stays up
+  ta.addEventListener('input', mathApplyN);
+  ta.addEventListener('keydown', (e)=>{ if(e.key === 'Escape'){ e.preventDefault(); closeMathEditN(); } else if(e.key === 'Enter' && (e.metaKey || e.ctrlKey)){ e.preventDefault(); closeMathEditN(); } });
+  p.querySelectorAll('.mp-mode button').forEach(b => b.addEventListener('click', ()=>{ if(!mathElN) return; if(b.dataset.m === 'd') mathElN.setAttribute('data-d', '1'); else mathElN.removeAttribute('data-d'); mathApplyN(); }));
+  p.querySelector('#mp-done').addEventListener('click', ()=>closeMathEditN());
+  p.querySelector('#mp-del').addEventListener('click', ()=>{ const el = mathElN; if(el){ mathElN = null; const v = (el.closest('.note-page') || {})._v; el.remove(); p.classList.remove('open'); if(v){ autosizeViewN(v); refreshCanvasesN(); } saveCurrentNoteN(); } });
+  p.querySelector('#mp-plain').addEventListener('click', ()=>{
+    const el = mathElN; if(!el) return; mathElN = null;
+    const tx = el.getAttribute('data-tex') || '', d = el.hasAttribute('data-d'), v = (el.closest('.note-page') || {})._v;
+    el.replaceWith(document.createTextNode(d ? '$$' + tx + '$$' : '$' + tx + '$')); p.classList.remove('open');
+    if(v){ autosizeViewN(v); refreshCanvasesN(); } saveCurrentNoteN();
+  });
+  document.addEventListener('pointerdown', (e)=>{ if(mathElN && !e.target.closest('#math-pop') && !e.target.closest('.mj')) closeMathEditN(true); }, true);
+  mathPopN = p; return p;
+}
+function mathInsertN(text, back){
+  const ta = document.getElementById('mp-ta'); if(!ta) return;
+  const s0 = ta.selectionStart, e0 = ta.selectionEnd;
+  ta.value = ta.value.slice(0, s0) + text + ta.value.slice(e0);
+  const pos = s0 + text.length - back; ta.focus(); ta.setSelectionRange(pos, pos); mathApplyN();
+}
+function mathPreviewN(){
+  const prev = document.getElementById('mp-prev'), ta = document.getElementById('mp-ta'); if(!prev || !mathElN) return;
+  const d = mathElN.hasAttribute('data-d');
+  document.querySelectorAll('#math-pop .mp-mode button').forEach(b => b.classList.toggle('on', (b.dataset.m === 'd') === d));
+  if(!window.katex){ prev.textContent = ta.value; loadKatexN().then(mathPreviewN).catch(()=>{}); return; }
+  prev.textContent = '';
+  try{ window.katex.render(ta.value.trim() || '\\,', prev, { displayMode:d, throwOnError:false, output:'html', strict:'ignore', maxExpand:500 }); }catch(err){ prev.textContent = ta.value; }
+}
+function mathApplyN(){
+  const ta = document.getElementById('mp-ta'), el = mathElN; if(!ta || !el) return;
+  el.setAttribute('data-tex', ta.value); el._rk = null; renderMathElN(el); sizeMathElN(el); mathPreviewN();
+  const v = (el.closest('.note-page') || {})._v; if(v){ autosizeViewN(v); refreshCanvasesN(); }
+  saveCurrentNoteN();
+}
+function openMathEditN(el, isNew){
+  const p = ensureMathPopN();
+  if(mathElN && mathElN !== el) mathElN.classList.remove('editing');
+  mathElN = el; el.classList.add('editing');
+  const ta = p.querySelector('#mp-ta'); ta.value = el.getAttribute('data-tex') || '';
+  p.classList.add('open'); mathPreviewN();
+  const pr = p.getBoundingClientRect(), er = el.getBoundingClientRect();
+  if(er.top < pr.bottom + 12 || er.bottom > window.innerHeight - 12) scrollElN.scrollBy({ top: er.top - (pr.bottom + 60), behavior:'smooth' });   // keep the equation visible under the editor
+  ta.focus(); if(!isNew) ta.select();
+}
+function closeMathEditN(fromOutside){
+  const p = mathPopN, el = mathElN; if(!p) return;
+  p.classList.remove('open'); mathElN = null;
+  if(!el) return;
+  el.classList.remove('editing');
+  const v = (el.closest('.note-page') || {})._v;
+  if(!(el.getAttribute('data-tex') || '').trim()){ el.remove(); if(v){ autosizeViewN(v); refreshCanvasesN(); } saveCurrentNoteN(); return; }
+  if(!fromOutside && el.isConnected && inputModeN === 'type'){
+    try{ const body = el.closest('.note-body'); if(body){ body.focus({ preventScroll:true }); const nx = textAfterAtomN(el); caretAfterN(nx, nx.nodeValue === '\u200B' ? 1 : 0); } }catch(err){}
+  }
+}
+function insertMathN(){   // Add > Equation: drops an empty equation at the cursor and opens the editor
+  toggleAttachN(false);
+  if(inputModeN !== 'type') setModeN('type');
+  focusBodyN();
+  let body = (lastBodyN && lastBodyN.isConnected) ? lastBodyN : (viewsN[curPageN] && viewsN[curPageN].body);
+  if(!body) return;
+  const sel = window.getSelection(); let rg = null;
+  if(sel.rangeCount){ const r = sel.getRangeAt(0); if(body.contains(r.commonAncestorContainer)) rg = r; }
+  if(!rg){ normalizeBlocksN(body); const last = body.lastElementChild || body; rg = document.createRange(); rg.selectNodeContents(last); rg.collapse(false); }
+  const picked = rg.collapsed ? '' : rg.toString().trim();
+  rg.deleteContents();
+  const atom = makeMathElN(picked, false); rg.insertNode(atom);
+  const host = atom.parentElement;
+  if(host && host !== body && host.children.length === 2){ const br = Array.from(host.children).find(c => c.tagName === 'BR'); if(br) br.remove(); }   // an empty line's placeholder <br>
+  textAfterAtomN(atom); renderMathElN(atom);
+  const v = (body.closest('.note-page') || {})._v; if(v) autosizeViewN(v);
+  openMathEditN(atom, true); saveCurrentNoteN();
 }
 
 applyScopeN();
