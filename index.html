@@ -15536,9 +15536,9 @@ function toggleTrayN(force){
   t.insertAdjacentHTML('beforeend', '<div class="mode-row" style="display:flex"><button type="button" class="seg-btn" id="snap-btn" onclick="toggleSnapN()"></button></div>');
   try{ snapOnN = localStorage.getItem('chalkline:notes-snap') !== '0'; }catch(e){}
   snapOnN = !snapOnN; toggleSnapN();   // paints the button for the stored state
-  t.insertAdjacentHTML('beforeend', '<div class="mode-row" style="display:flex;align-items:center;flex-wrap:wrap;row-gap:6px"><span style="font:600 10px JetBrains Mono,monospace;color:var(--muted);margin-right:6px">Refine handwriting</span><button type="button" class="seg-btn" data-rf="off" onclick="setRefineN(\'off\')">Off</button><button type="button" class="seg-btn" data-rf="light" onclick="setRefineN(\'light\')">Light</button><button type="button" class="seg-btn" data-rf="strong" onclick="setRefineN(\'strong\')">Strong</button></div>');
+  t.insertAdjacentHTML('beforeend', '<div class="mode-row" style="display:flex;align-items:center;flex-wrap:wrap;row-gap:6px"><span style="font:600 10px JetBrains Mono,monospace;color:var(--muted);margin-right:6px">Refine handwriting</span><button type="button" class="seg-btn" data-rf="off" onclick="setRefineN(\'off\')">Off</button><button type="button" class="seg-btn" data-rf="light" onclick="setRefineN(\'light\')">Light</button><button type="button" class="seg-btn" data-rf="strong" onclick="setRefineN(\'strong\')">Strong</button><button type="button" class="seg-btn" data-rf="neat" onclick="setRefineN(\'neat\')">Font</button></div>');
   let rf = 'light'; try{ rf = localStorage.getItem('chalkline:notes-refine') || 'light'; }catch(e){}
-  setRefineN(['off','light','strong'].includes(rf) ? rf : 'light');
+  setRefineN(['off','light','strong','neat'].includes(rf) ? rf : 'light');
   let saved = null; try{ saved = JSON.parse(localStorage.getItem(PENS_KEY_N) || 'null'); }catch(e){}
   let legacy = 1; try{ legacy = parseFloat(localStorage.getItem('chalkline:notes-pen-size')) || 1; }catch(e){}
   const okSize = z => t.querySelector('.size-btn[data-size="' + z + '"]') ? z : 1;
@@ -15750,7 +15750,7 @@ document.addEventListener('keydown', (e)=>{
 /* ---- Handwriting refine: when a stroke ends it is resampled evenly and its wobble is
    smoothed away with a Gaussian filter. Sharp corners (the points of an A, the turn in a k)
    are detected first and kept, so letters stay yours but look steadier and neater. ---- */
-function refineStrokeN(f, strong){
+function refineStrokeN(f, strong, neat){   // neat = 'Font' level: steadier than Strong, plus font-like geometry (true straights, crisp verticals / horizontals, even weight)
   // 1. clean up the raw samples, then resample at an even spacing
   const P = []; for(let i = 0; i < f.length; i += 3) P.push([f[i], f[i+1], f[i+2]]);
   const Q = [P[0]];
@@ -15775,7 +15775,7 @@ function refineStrokeN(f, strong){
   if(N - 1 - anch[anch.length - 1] < k && anch.length > 1) anch.pop();
   anch.push(N - 1);
   // 3. Taubin smoothing between corners: removes wobble without shrinking loops (an 'o' stays as big as you drew it)
-  const lam = 0.5, mu = -0.53, iters = strong ? 70 : 48, O = R.map(p => [p[0], p[1], p[2]]);
+  const lam = 0.5, mu = -0.53, iters = neat ? 110 : strong ? 70 : 48, O = R.map(p => [p[0], p[1], p[2]]);
   for(let a = 0; a < anch.length - 1; a++){
     const s0 = anch[a], e0 = anch[a + 1], m = e0 - s0 + 1;
     if(m < 4) continue;
@@ -15793,8 +15793,17 @@ function refineStrokeN(f, strong){
     const A = O[s0], B = O[e0], len = Math.hypot(B[0] - A[0], B[1] - A[1]);
     if(len >= 16){
       let dev = 0; for(let i = s0; i <= e0; i++) dev = Math.max(dev, distSegN(O[i][0], O[i][1], A[0], A[1], B[0], B[1]));
-      const thr = strong ? Math.max(3.2, 0.05 * len) : Math.max(2.2, 0.03 * len), sMix = strong ? 0.7 : 0.5;
-      if(dev < thr){
+      const thr = neat ? Math.max(5, 0.08 * len) : strong ? Math.max(3.2, 0.05 * len) : Math.max(2.2, 0.03 * len), sMix = neat ? 1 : strong ? 0.7 : 0.5;
+      if(dev < thr && neat){
+        // font-like: the stretch becomes a truly straight line, and a near-vertical or near-horizontal one is made exactly vertical / horizontal
+        let dx = B[0] - A[0], dy = B[1] - A[1];
+        const ad = ((Math.atan2(dy, dx) * 180 / Math.PI) % 180 + 180) % 180;
+        if(ad < 6 || ad > 174){ dx = Math.sign(dx || 1) * len; dy = 0; }
+        else if(Math.abs(ad - 90) < 9){ dx = 0; dy = Math.sign(dy || 1) * len; }
+        const mx = (A[0] + B[0]) / 2, my = (A[1] + B[1]) / 2, ux = dx / Math.hypot(dx, dy), uy = dy / Math.hypot(dx, dy);
+        const ax = mx - ux * len / 2, ay = my - uy * len / 2;
+        for(let i = s0; i <= e0; i++){ const t = (i - s0) / (e0 - s0); O[i][0] = ax + ux * len * t; O[i][1] = ay + uy * len * t; }
+      } else if(dev < thr){
         for(let i = s0 + 1; i < e0; i++){
           const t = (i - s0) / (e0 - s0);
           O[i][0] += (A[0] + (B[0] - A[0]) * t - O[i][0]) * sMix; O[i][1] += (A[1] + (B[1] - A[1]) * t - O[i][1]) * sMix;
@@ -15805,7 +15814,7 @@ function refineStrokeN(f, strong){
   // 4b. soften the corners: a few light passes over the whole stroke so turns become rounded, not pointed
   { const X = new Float64Array(N), Y = new Float64Array(N), NX = new Float64Array(N), NY = new Float64Array(N);
     for(let i = 0; i < N; i++){ X[i] = O[i][0]; Y[i] = O[i][1]; }
-    for(let it = 0; it < (strong ? 22 : 14); it++){
+    for(let it = 0; it < (neat ? 40 : strong ? 22 : 14); it++){
       for(const w of [0.45, -0.48]){
         NX[0] = X[0]; NY[0] = Y[0]; NX[N-1] = X[N-1]; NY[N-1] = Y[N-1];
         for(let i = 1; i < N - 1; i++){ NX[i] = X[i] + w * ((X[i-1] + X[i+1]) / 2 - X[i]); NY[i] = Y[i] + w * ((Y[i-1] + Y[i+1]) / 2 - Y[i]); }
@@ -15819,7 +15828,7 @@ function refineStrokeN(f, strong){
     const ax = O[i][0] - O[i-tk][0], ay = O[i][1] - O[i-tk][1], bx = O[i+tk][0] - O[i][0], by = O[i+tk][1] - O[i][1];
     turn += Math.atan2(ax * by - ay * bx, ax * bx + ay * by);
   }
-  const gap = Math.hypot(O[N-1][0] - O[0][0], O[N-1][1] - O[0][1]), closeMax = strong ? Math.max(9, 0.18 * L) : Math.max(6, 0.10 * L);
+  const gap = Math.hypot(O[N-1][0] - O[0][0], O[N-1][1] - O[0][1]), closeMax = neat ? Math.max(12, 0.25 * L) : strong ? Math.max(9, 0.18 * L) : Math.max(6, 0.10 * L);
   if(L > 36 && Math.abs(turn) * 180 / Math.PI > 290 && gap > 0.5 && gap < closeMax){
     const mm = Math.max(4, Math.round(N * 0.28)), ox = O[0][0] - O[N-1][0], oy = O[0][1] - O[N-1][1];
     for(let j = 0; j < mm; j++){ const t = (j + 1) / mm, e = t * t * (3 - 2 * t), i = N - mm + j; O[i][0] += ox * e; O[i][1] += oy * e; }
@@ -15827,7 +15836,8 @@ function refineStrokeN(f, strong){
   // 6. pressure: smoothed so the line swells and thins gradually, with a soft pen-like taper at both ends
   let pr = O.map(p => p[2]);
   for(let pass = 0; pass < (strong ? 20 : 13); pass++){ const t = pr.slice(); for(let i = 1; i < N - 1; i++) t[i] = 0.25 * pr[i-1] + 0.5 * pr[i] + 0.25 * pr[i+1]; pr = t; }
-  const taper = Math.max(3, Math.round((strong ? 15 : 12) / step)), floor = strong ? 0.58 : 0.74;
+  if(neat){ const mean = pr.reduce((a, b) => a + b, 0) / N, even = Math.max(0.55, Math.min(0.85, mean)); pr = pr.map(v => even + (v - even) * 0.12); }   // near-even line weight, like a pen font
+  const taper = Math.max(3, Math.round((strong ? 15 : 12) / step)), floor = neat ? 0.8 : strong ? 0.58 : 0.74;
   for(let i = 0; i < taper && i < N / 2; i++){ const e = i / taper, fct = floor + (1 - floor) * e * e * (3 - 2 * e); pr[i] *= fct; pr[N-1-i] *= fct; }
   const out = []; for(let i = 0; i < N; i++) out.push(+O[i][0].toFixed(1), +O[i][1].toFixed(1), +Math.max(0.05, Math.min(1, pr[i])).toFixed(2));
   return out;
@@ -15930,7 +15940,7 @@ function commitStrokeN(){
   let refined = false;
   const T = TOOLS[rec.tn];
   if(refineN !== 'off' && !rec.poly && !rec.erase && T.a === 1 && !T.layer){
-    const r = refineStrokeN(rec.pts, refineN === 'strong');
+    const r = refineStrokeN(rec.pts, refineN === 'strong' || refineN === 'neat', refineN === 'neat');
     if(r){ rec.pts = r; rec.poly = true; refined = true; }
   }
   snapPushN();
