@@ -14976,7 +14976,7 @@ h1,h2,h3{ font-family:'Fraunces','Source Serif 4',Georgia,serif; margin:0; color
 #zoom-wrap.zoomed #pages-stack{ transform:scale(var(--zoom)); }
 #zoom-chip{ position:absolute; z-index:22; left:50%; transform:translateX(-50%); bottom:calc(var(--safe-bottom) + 16px); display:none;
   height:34px; padding:0 14px; border-radius:999px; font:600 12px 'JetBrains Mono',monospace; color:var(--ink); cursor:pointer; }
-#zoom-chip.show{ display:block; }
+#zoom-chip, #zoom-chip.show{ display:none !important; }   /* the zoom reset button is removed; pinch still works */
 .note-page{
   position:relative; flex:none; width:100%; padding:var(--lh) 0; background:var(--paper); overflow:hidden;
   box-shadow:0 1px 3px rgba(0,0,0,0.07);
