@@ -16338,8 +16338,15 @@ const stackElN = document.getElementById('pages-stack');
    When the screen gets narrower (rotating to portrait) the page is laid out at the wider width the ink needs and
    scaled down to fit, so nothing is clipped off the right edge. Notes without wide ink are untouched. */
 let fitWN = 0, lastFitWN = 0, fitStaleN = true;
+/* Same look on every screen: each note remembers the page width it was written at (layoutW). Every device lays the page out
+   at that width and scales it to fit (down on a phone / portrait iPad, up to 1.5x on a laptop), so text wraps and ink sits
+   exactly where it did on the device that wrote it. Notes from before this existed get 1150px on mouse/trackpad devices
+   (about an iPad in landscape) and keep the old behaviour on touch devices until they are saved there once. */
+let noteLayoutWN = 0;
+const MAX_UPSCALE_N = 1.5;
+function refWidthN(W){ if(noteLayoutWN) return noteLayoutWN; let coarse = false; try{ coarse = window.matchMedia('(pointer:coarse)').matches; }catch(e){} return coarse ? 0 : Math.min(W, 1150); }
 function layoutWN(){ return fitWN || scrollElN.clientWidth; }
-function baseZN(){ const W = scrollElN.clientWidth; return (fitWN && W) ? Math.min(1, W / fitWN) : 1; }
+function baseZN(){ const W = scrollElN.clientWidth; return (fitWN && W) ? Math.min(MAX_UPSCALE_N, W / fitWN) : 1; }
 function minZN(){ return Math.min(ZOOM_MIN_N, baseZN()); }
 function zoomOffXN(z){ const W = scrollElN.clientWidth; return Math.max(0, (W - layoutWN() * z) / 2); }   // the page centres itself when zoomed out
 function applyZoomN(z){
@@ -16449,7 +16456,7 @@ function setFitN(Lw){
   const W = scrollElN.clientWidth;
   fitWN = Lw || 0;
   if(fitWN) zoomWrapN.style.setProperty('--lw', fitWN + 'px'); else zoomWrapN.style.removeProperty('--lw');
-  applyZoomN(fitWN ? Math.min(1, W / fitWN) : 1);
+  applyZoomN(fitWN ? Math.min(MAX_UPSCALE_N, W / fitWN) : 1);
   rasterZoomN = 1;
   scrollElN.scrollLeft = 0;
 }
@@ -16457,8 +16464,8 @@ function autoFitN(){
   const W = scrollElN.clientWidth; if(!W) return;
   if(!fitStaleN && W === lastFitWN) return;   // only when the width really changed (rotation) or a note was opened
   fitStaleN = false; lastFitWN = W;
-  const need = inkRightN() + 24;
-  setFitN(need > W + 1 ? Math.ceil(need) : 0);
+  const need = Math.max(inkRightN() + 24, refWidthN(W));
+  setFitN(Math.abs(need - W) > 1 ? Math.ceil(need) : 0);
   viewsN.forEach((v, i)=>{ if(v.live) resizeCanvasN(false, i); });
 }
 // Only pages near the screen keep a full-resolution ink canvas; the rest are released to save memory.
@@ -16942,7 +16949,7 @@ function startNewNoteN(){
   currentNoteIdN = 'n_' + Date.now().toString(36) + Math.random().toString(36).slice(2,8);
   noteTitleN = '';
   currentNoteSubjectN = notesSubject || 'Unsorted'; currentNoteKeyN = null;
-  loadedStampN = 0; noteDirtyN = false;
+  loadedStampN = 0; noteDirtyN = false; noteLayoutWN = 0; fitStaleN = true;
   statusEl.className = 'saved'; statusEl.textContent = 'new';
   document.getElementById('note-delete-btn').style.display = 'none';
   pagesN = [{ body:'', base:'', strokes:[], paper:loadPaperDefaultN() }]; curPageN = 0;
@@ -16961,7 +16968,7 @@ async function openNoteN(id, knownKey){
     currentNoteIdN = id;
     currentNoteKeyN = key; currentNoteSubjectN = item.subject || 'Unsorted';
     noteTitleN = item.title || '';
-    loadedStampN = item.updatedAt || 0; noteDirtyN = false;
+    loadedStampN = item.updatedAt || 0; noteDirtyN = false; noteLayoutWN = item.layoutW || 0; fitStaleN = true;
     statusEl.className = 'saved'; statusEl.textContent = 'saved';
     document.getElementById('note-delete-btn').style.display = '';
     pagesN = ((item.pages && item.pages.length) ? item.pages : [{ body:item.body, drawing:item.drawing, paper:item.paper }])
@@ -17017,6 +17024,8 @@ function saveCurrentNoteN(inkOnly){
         id: idSnap, subject: subjSnap,
         title: titleSnap, body: '', createdAt, updatedAt: now
       };
+      if(!noteLayoutWN && currentNoteIdN === idSnap) noteLayoutWN = Math.round(layoutWN());   // the width this note was first written at
+      if(noteLayoutWN && currentNoteIdN === idSnap) payload.layoutW = noteLayoutWN;
       payload.pages = pagesSnap;
       payload.body = pagesSnap.map(x => x.body).join('\n\n');
       const stored = await window.storage.set(key, JSON.stringify(payload), false);
@@ -17208,6 +17217,7 @@ async function applyRemoteNoteN(){
     setTimeout(() => { try{ revealChangeN(findChangeN(before)); }catch(e){} }, rebuilt ? 120 : 20);   // scroll to the newest handwriting / text
     currentNoteSubjectN = item.subject || currentNoteSubjectN;
     loadedStampN = item.updatedAt || 0;
+    if(item.layoutW && item.layoutW !== noteLayoutWN){ noteLayoutWN = item.layoutW; fitStaleN = true; try{ autoFitN(); }catch(e){} }
     statusEl.className = 'saved'; statusEl.textContent = 'updated';
     setTimeout(() => { if(!noteDirtyN && statusEl.textContent === 'updated') statusEl.textContent = 'saved'; }, 2500);
   } finally { applyingRemoteN = false; }
