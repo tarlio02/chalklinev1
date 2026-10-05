@@ -16390,6 +16390,7 @@ onCanvasN('pointerup', touchEndN);
    very large contacts and 3+ simultaneous contacts count as a palm; a finger has to actually travel
    before it scrolls; and nothing a palm does can reach the toolbar mid-stroke. */
 let lastPenN = 0;                       // last time a pen touched or hovered over the page
+let lastPenContactN = 0;                // last time a pen actually touched the screen (hover doesn't count)
 const touchDownN = new Set();           // touch pointers currently down
 const PEN_GRACE_N = 650;                // ms after the pen leaves during which touches are treated as palm
 const FINGER_SLOP_N = 9;                // px a finger must travel before it starts scrolling
@@ -16400,9 +16401,9 @@ function palmContactN(e){
   if(e.pointerType === 'touch' && e.pressure > 0 && e.pressure === 1 && w > 24) return true;
   return false;
 }
-window.addEventListener('pointerdown', (e)=>{ if(e.pointerType === 'pen'){ lastPenN = performance.now(); } else if(e.pointerType === 'touch'){ touchDownN.add(e.pointerId); } }, true);
-window.addEventListener('pointermove', (e)=>{ if(e.pointerType === 'pen') lastPenN = performance.now(); }, { capture:true, passive:true });   // hover counts too
-['pointerup','pointercancel'].forEach(t => window.addEventListener(t, (e)=>{ if(e.pointerType === 'pen') lastPenN = performance.now(); else if(e.pointerType === 'touch') touchDownN.delete(e.pointerId); }, true));
+window.addEventListener('pointerdown', (e)=>{ if(e.pointerType === 'pen'){ lastPenN = lastPenContactN = performance.now(); } else if(e.pointerType === 'touch'){ touchDownN.add(e.pointerId); } }, true);
+window.addEventListener('pointermove', (e)=>{ if(e.pointerType === 'pen'){ lastPenN = performance.now(); if(e.buttons) lastPenContactN = lastPenN; } }, { capture:true, passive:true });   // hover counts too
+['pointerup','pointercancel'].forEach(t => window.addEventListener(t, (e)=>{ if(e.pointerType === 'pen') lastPenN = lastPenContactN = performance.now(); else if(e.pointerType === 'touch') touchDownN.delete(e.pointerId); }, true));
 window.addEventListener('blur', ()=>touchDownN.clear());
 // the moment the pen lands, any finger or palm scroll that was already underway is cancelled, so the page can't move under the nib
 window.addEventListener('pointerdown', (e)=>{ if(e.pointerType === 'pen' || e.pointerType === 'mouse'){ cancelAnimationFrame(inertiaN); tsN = null; } }, true);
@@ -16413,7 +16414,7 @@ window.addEventListener('pointerdown', (e)=>{ if(e.pointerType === 'pen' || e.po
   const inChrome = t => t && t.closest && t.closest('.topbar, .menu-pop, .tray, #math-pop');
   ev.addEventListener('pointerdown', (e)=>{
     if(e.pointerType !== 'touch' || !inChrome(e.target)) return;
-    if(penBusyN() || palmContactN(e) || touchDownN.size > 2){ mine.add(e.pointerId); e.preventDefault(); e.stopPropagation(); }
+    if(drawingActiveN || (performance.now() - lastPenContactN) < 300){ mine.add(e.pointerId); e.preventDefault(); e.stopPropagation(); }
   }, true);
   ['pointerup','pointercancel'].forEach(t => ev.addEventListener(t, (e)=>{ if(mine.delete(e.pointerId)){ swallowUntil = performance.now() + 120; e.stopPropagation(); } }, true));
   ev.addEventListener('click', (e)=>{ if(performance.now() < swallowUntil && inChrome(e.target)){ e.preventDefault(); e.stopPropagation(); } }, true);
