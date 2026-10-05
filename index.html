@@ -15092,6 +15092,101 @@ body.no-select-while-drawing,
   user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;
   -webkit-tap-highlight-color:transparent;
 }
+
+/* =====================================================================
+   Notes polish — calmer paper, nicer type, softer chrome, smoother feel
+   (layout metrics such as --lh stay untouched so ink + ruled lines align)
+   ===================================================================== */
+:root{ --paper:#FFFEFA; --rule-line:#E7E3D6; --sel:rgba(46,125,190,.22); }
+#editor-view{ -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; }
+.sheet{ background:linear-gradient(180deg,#EFEDE7 0%,#E8E6DF 100%); }
+#note-scroll{ overscroll-behavior:contain; scroll-padding-bottom:160px; scrollbar-width:thin; scrollbar-color:rgba(0,0,0,.18) transparent; }
+#note-scroll::-webkit-scrollbar{ width:8px; height:8px; }
+#note-scroll::-webkit-scrollbar-thumb{ background:rgba(0,0,0,.16); border-radius:8px; border:2px solid transparent; background-clip:padding-box; }
+#pages-stack{ gap:14px; padding-top:0; padding-bottom:calc(var(--safe-bottom) + max(200px, 34vh)); }
+.note-page{
+  background:linear-gradient(180deg,#FFFFFF 0%,var(--paper) 140px);
+  box-shadow:0 1px 2px rgba(60,50,20,.06), 0 10px 28px -14px rgba(60,50,20,.20);
+}
+.note-page.first{ box-shadow:0 1px 2px rgba(60,50,20,.06), 0 10px 28px -14px rgba(60,50,20,.20); }
+.note-page.dotted::before{
+  background-image:radial-gradient(circle at center,#CFCABB 0,#CFCABB 1.3px,transparent 1.9px);
+}
+/* soft margin line on ruled paper */
+.note-page.ruled::after{
+  content:''; position:absolute; z-index:0; top:0; bottom:0; left:calc(var(--page-m) - 7px); width:1px;
+  background:linear-gradient(to bottom, transparent 0, rgba(214,120,110,.28) 90px, rgba(214,120,110,.28) calc(100% - 30px), transparent 100%);
+  pointer-events:none;
+}
+.page-tag{ color:#C9C4B3; font-weight:500; letter-spacing:.04em; }
+
+/* type */
+.note-title{
+  font-size:29px; letter-spacing:-.012em; color:#231E0C; font-optical-sizing:auto;
+  caret-color:var(--ochre); text-overflow:ellipsis;
+}
+.note-title::placeholder{ color:#CFC9B6; font-weight:500; }
+.note-body{
+  font-size:22px; letter-spacing:.004em; color:#2B2617; caret-color:var(--ochre);
+  font-kerning:normal; text-rendering:optimizeLegibility; font-variant-ligatures:common-ligatures;
+  -webkit-tap-highlight-color:transparent; -webkit-text-size-adjust:100%; text-size-adjust:100%;
+  hyphens:manual;
+}
+.note-body b, .note-body strong{ font-weight:600; }
+.note-body ::selection, .note-body::selection, .note-title::selection{ background:var(--sel); }
+/* gentle prompt on a brand-new empty note */
+.note-page.first .note-body:has(> div:only-child > br:only-child)::before{
+  content:'Start writing…'; position:absolute; left:4px; top:0; line-height:var(--lh);
+  font-style:italic; color:#CFC9B6; pointer-events:none; -webkit-user-select:none; user-select:none;
+}
+.sheet.drawing .note-body::before{ display:none !important; }
+
+/* floating toolbar: lighter glass, softer depth, tactile buttons */
+.glass{
+  background:rgba(255,255,255,.76); -webkit-backdrop-filter:saturate(1.8) blur(22px); backdrop-filter:saturate(1.8) blur(22px);
+  border:1px solid rgba(255,255,255,.7);
+  box-shadow:0 0 0 .5px rgba(60,50,20,.10), 0 6px 20px -6px rgba(60,50,20,.22), 0 1px 2px rgba(60,50,20,.06);
+}
+.topbar{ transition:opacity .35s ease; }
+#editor-view.typing .topbar{ opacity:.38; }
+#editor-view.typing .topbar:hover, #editor-view.typing .topbar:focus-within{ opacity:1; }
+.circle-btn, .seg-btn, .tool-btn, .menu-opt, .swatch, .size-btn, .tool-opt{
+  transition:background-color .16s ease, color .16s ease, transform .14s cubic-bezier(.2,.8,.2,1), box-shadow .16s ease;
+  -webkit-tap-highlight-color:transparent;
+}
+.circle-btn:active, .seg-btn:active, .tool-btn:active, .swatch:active, .size-btn:active{ transform:scale(.93); }
+.circle-btn.back-cta{ border-width:1.2px; box-shadow:0 0 0 .5px rgba(60,50,20,.10), 0 6px 20px -6px rgba(60,50,20,.22); }
+.seg-btn.active{ box-shadow:0 4px 12px -4px rgba(61,107,147,.55), 0 1px 0 rgba(255,255,255,.25) inset; }
+.tool-btn:not(:disabled):not(.active):hover{ background:rgba(0,0,0,.045); }
+.menu-opt:hover{ background:rgba(240,185,77,.14); }
+.fmt-btn.active{ background:#FFF1CC; }
+.swatch{ box-shadow:0 0 0 1px rgba(0,0,0,.12), 0 2px 4px rgba(0,0,0,.12); }
+.swatch.active{ box-shadow:0 0 0 2.5px #fff, 0 0 0 4.5px var(--ink); }
+
+/* popovers ease in instead of snapping */
+@keyframes nPopIn{ from{ opacity:0; transform:translateY(-8px) scale(.97); } to{ opacity:1; transform:none; } }
+.menu-pop.open, .tray.open{ animation:nPopIn .18s cubic-bezier(.2,.8,.2,1); transform-origin:top right; }
+.tray.open{ transform-origin:top left; }
+.menu-pop, .tray{ box-shadow:0 0 0 .5px rgba(60,50,20,.10), 0 18px 44px -12px rgba(60,50,20,.32); }
+
+/* save status: quiet, with a soft pulse while editing */
+#note-status{ transition:color .3s ease; }
+@keyframes nPulse{ 0%,100%{ opacity:1; } 50%{ opacity:.35; } }
+#note-status.editing::before{ animation:nPulse 1s ease-in-out infinite; }
+#note-status.saved::before{ transition:color .3s ease; }
+
+/* notes list */
+.page-head{ box-shadow:0 1px 0 rgba(255,255,255,.7) inset, 0 18px 34px -22px rgba(120,90,20,.28); }
+.note-row{ transition:background .18s ease, padding-left .18s ease; }
+.note-row:hover{ padding-left:24px; }
+.note-row:active{ background:rgba(240,185,77,.18); }
+.note-row .r-title{ font-family:'Fraunces','Source Serif 4',Georgia,serif; font-size:16px; letter-spacing:-.005em; }
+.btn-primary:active{ transform:scale(.96); }
+
+@media (prefers-reduced-motion:reduce){
+  .menu-pop.open, .tray.open, #note-status.editing::before{ animation:none; }
+  .topbar, .circle-btn, .seg-btn, .tool-btn, .note-row{ transition:none; }
+}
 </style>
 </head>
 <body>
@@ -15630,7 +15725,7 @@ function eraserWidthN(dpr){ return (14 + penSizeN * 9) * dpr; }
 function applyPenN(st, dpr){
   const c = canvasCtx;
   if(st.erase){ c.globalCompositeOperation = 'destination-out'; c.lineWidth = eraserWidthN(dpr); }
-  else { c.globalCompositeOperation = 'source-over'; c.strokeStyle = st.color; c.globalAlpha = st.T.a; c.lineWidth = strokeWidthN(st.sp, dpr, st.tn); }
+  else { c.globalCompositeOperation = 'source-over'; c.strokeStyle = st.color; c.globalAlpha = st.T.a; c.lineWidth = strokeWidthN(st.sp, dpr, st.tn); c.lineCap = (st.T.a < 1 && !st.T.layer) ? 'butt' : 'round'; }
 }
 // Highlighter: the whole stroke is re-stroked as ONE translucent path over a snapshot of the
 // page, so overlapping segments never build up darker blotches.
@@ -16153,10 +16248,11 @@ function flushDrawQueueN(){
     if(dist < 0.25) continue;
     // Two-stage stabiliser: a heavier adaptive low-pass (slow, careful movement is smoothed hard, quick strokes
     // still keep up), then a second gentle pass that irons out whatever wobble is left.
-    const alpha = Math.min(0.7, 0.13 + dist * 0.028);
+    const alpha = Math.min(0.72, 0.12 + dist * 0.03);
     st.sx += dx * alpha; st.sy += dy * alpha;
-    st.tx += (st.sx - st.tx) * 0.6; st.ty += (st.sy - st.ty) * 0.6;
-    st.sp += (pt.pressure - st.sp) * 0.14;
+    const beta = Math.min(0.78, 0.46 + dist * 0.04);
+    st.tx += (st.sx - st.tx) * beta; st.ty += (st.sy - st.ty) * beta;
+    st.sp += (pt.pressure - st.sp) * 0.11;
     const nmx = (st.cx + st.tx) / 2, nmy = (st.cy + st.ty) / 2;
     if(st.T.layer){ st.path.quadraticCurveTo(st.cx, st.cy, nmx, nmy); }
     else {
@@ -16261,11 +16357,19 @@ let tsN = null, inertiaN = 0;
 function touchScrollStartN(e){
   cancelAnimationFrame(inertiaN);
   if(drawingActiveN) return;   // ignore a resting palm while a pen stroke is in progress
-  tsN = { id:e.pointerId, x:e.clientX, y:e.clientY, t:performance.now(), v:0 };
+  const now = performance.now();
+  if(penBusyN() || palmContactN(e) || touchDownN.size > 2) return;   // pen is near / big contact / too many contacts: that's a palm
+  if(tsN && now - tsN.t < 1200 && tsN.id !== e.pointerId) return;   // a second contact never steals the scroll from the first finger
+  tsN = { id:e.pointerId, x:e.clientX, y:e.clientY, t:now, v:0, x0:e.clientX, y0:e.clientY, go:false };
   try{ (e.target || canvasEl).setPointerCapture(e.pointerId); }catch(err){}
 }
 onCanvasN('pointermove', (e)=>{
   if(!tsN || e.pointerId !== tsN.id) return;
+  if(drawingActiveN || penBusyN() || touchDownN.size > 2){ tsN = null; return; }   // pen took over: stop scrolling
+  if(!tsN.go){   // a resting palm that jitters never scrolls; a finger must travel first
+    if(Math.hypot(e.clientX - tsN.x0, e.clientY - tsN.y0) < FINGER_SLOP_N){ e.preventDefault(); return; }
+    tsN.go = true; tsN.x = e.clientX; tsN.y = e.clientY; tsN.t = performance.now(); e.preventDefault(); return;
+  }
   const now = performance.now(), dy = e.clientY - tsN.y, dt = Math.max(1, now - tsN.t);
   document.getElementById('note-scroll').scrollTop -= dy;
   document.getElementById('note-scroll').scrollLeft -= e.clientX - tsN.x; tsN.x = e.clientX;
@@ -16280,6 +16384,40 @@ function touchEndN(e){
   if(Math.abs(vel) > 1) step();
 }
 onCanvasN('pointerup', touchEndN);
+
+/* ---- Palm rejection ----
+   A pen always wins. Touches are ignored while the pen is touching, hovering, or has only just lifted;
+   very large contacts and 3+ simultaneous contacts count as a palm; a finger has to actually travel
+   before it scrolls; and nothing a palm does can reach the toolbar mid-stroke. */
+let lastPenN = 0;                       // last time a pen touched or hovered over the page
+const touchDownN = new Set();           // touch pointers currently down
+const PEN_GRACE_N = 650;                // ms after the pen leaves during which touches are treated as palm
+const FINGER_SLOP_N = 9;                // px a finger must travel before it starts scrolling
+function penBusyN(){ return drawingActiveN || (performance.now() - lastPenN) < PEN_GRACE_N; }
+function palmContactN(e){
+  const w = Math.max(e.width || 0, e.height || 0);   // contact size where the browser reports it (Chrome / Android / Windows)
+  if(w > 34) return true;
+  if(e.pointerType === 'touch' && e.pressure > 0 && e.pressure === 1 && w > 24) return true;
+  return false;
+}
+window.addEventListener('pointerdown', (e)=>{ if(e.pointerType === 'pen'){ lastPenN = performance.now(); } else if(e.pointerType === 'touch'){ touchDownN.add(e.pointerId); } }, true);
+window.addEventListener('pointermove', (e)=>{ if(e.pointerType === 'pen') lastPenN = performance.now(); }, { capture:true, passive:true });   // hover counts too
+['pointerup','pointercancel'].forEach(t => window.addEventListener(t, (e)=>{ if(e.pointerType === 'pen') lastPenN = performance.now(); else if(e.pointerType === 'touch') touchDownN.delete(e.pointerId); }, true));
+window.addEventListener('blur', ()=>touchDownN.clear());
+// the moment the pen lands, any finger or palm scroll that was already underway is cancelled, so the page can't move under the nib
+window.addEventListener('pointerdown', (e)=>{ if(e.pointerType === 'pen' || e.pointerType === 'mouse'){ cancelAnimationFrame(inertiaN); tsN = null; } }, true);
+// toolbar / menus: touches that land there while the pen is busy are swallowed (a palm resting near the top used to press buttons)
+(function(){
+  const ev = document.getElementById('editor-view'); if(!ev) return;
+  const mine = new Set(); let swallowUntil = 0;
+  const inChrome = t => t && t.closest && t.closest('.topbar, .menu-pop, .tray, #math-pop');
+  ev.addEventListener('pointerdown', (e)=>{
+    if(e.pointerType !== 'touch' || !inChrome(e.target)) return;
+    if(penBusyN() || palmContactN(e) || touchDownN.size > 2){ mine.add(e.pointerId); e.preventDefault(); e.stopPropagation(); }
+  }, true);
+  ['pointerup','pointercancel'].forEach(t => ev.addEventListener(t, (e)=>{ if(mine.delete(e.pointerId)){ swallowUntil = performance.now() + 120; e.stopPropagation(); } }, true));
+  ev.addEventListener('click', (e)=>{ if(performance.now() < swallowUntil && inChrome(e.target)){ e.preventDefault(); e.stopPropagation(); } }, true);
+})();
 onCanvasN('pointermove', (e)=>{
   if(!drawingActiveN || e.pointerId !== activePointerIdN || !strokeRecN || snappedN) return;
   if(holdPtN && Math.hypot(e.clientX - holdPtN.x, e.clientY - holdPtN.y) < 3) return;   // hand jitter doesn't restart the hold
@@ -16420,6 +16558,8 @@ function clearZoomN(){ pinchN = null; fitWN = 0; lastFitWN = 0; fitStaleN = true
 function pinchInfoN(t){ return { x:(t[0].clientX + t[1].clientX) / 2, y:(t[0].clientY + t[1].clientY) / 2, d:Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY) }; }
 scrollElN.addEventListener('touchstart', (e)=>{
   if(e.touches.length !== 2 || drawingActiveN) return;   // a pen stroke in progress is never interrupted
+  if(penBusyN()) return;   // pen is hovering or just lifted: two contacts are a hand, not a pinch
+  for(const tc of e.touches){ if(Math.max(tc.radiusX || 0, tc.radiusY || 0) > 32) return; }   // palm-sized contact
   const m = pinchInfoN(e.touches); if(m.d < 40) return;
   const r = scrollElN.getBoundingClientRect(), c = contentPtN(m.x - r.left, m.y - r.top);
   cancelAnimationFrame(inertiaN); tsN = null;   // stop finger-scrolling: the two fingers are zooming now
@@ -16556,7 +16696,7 @@ function createViewN(pg, first){
   let title = null;
   if(first){
     title = document.createElement('input'); title.type = 'text'; title.autocomplete = 'off'; title.className = 'note-title';
-    title.value = noteTitleN || ''; sec.appendChild(title); titleEl = title;
+    title.placeholder = 'Untitled'; title.enterKeyHint = 'next'; title.value = noteTitleN || ''; sec.appendChild(title); titleEl = title;
   }
   const body = document.createElement('div'); body.className = 'note-body'; body.contentEditable = inputModeN === 'type' ? 'true' : 'false';
   body.setAttribute('role', 'textbox'); body.setAttribute('aria-multiline', 'true'); body.spellcheck = true;
@@ -16581,7 +16721,7 @@ function createViewN(pg, first){
   const tag = document.createElement('div'); tag.className = 'page-tag'; sec.appendChild(tag);
   const v = { pg, sec, title, body, cv, tag, ctx: cv.getContext('2d', { desynchronized:true }), scale:1, live:false };
   sec._v = v; cv._v = v;
-  if(title){ title.addEventListener('input', saveCurrentNoteN); title.addEventListener('focus', ()=>setCurN(0)); }
+  if(title){ title.addEventListener('keydown', (e)=>{ if(e.key === 'Enter' && !e.isComposing){ e.preventDefault(); try{ body.focus(); const r = document.createRange(); r.selectNodeContents(body); r.collapse(true); const sl = getSelection(); sl.removeAllRanges(); sl.addRange(r); }catch(err){} } }); title.addEventListener('input', saveCurrentNoteN); title.addEventListener('focus', ()=>setCurN(0)); }
   body.addEventListener('input', (e)=>{
     if(e && (e.inputType === 'insertText' || e.inputType === 'insertCompositionText') && /[$)\]]$/.test(e.data || '')){
       if(/\$/.test(e.data)) loadKatexN().catch(()=>{});
@@ -17668,10 +17808,65 @@ function insertMathN(){   // Add > Equation: drops an empty equation at the curs
 
 applyScopeN();
 refreshNotesListN();
+
+/* ---- Smooth writing: caret stays comfortably in view, toolbar gets out of the way while typing ---- */
+(function(){
+  const stack = document.getElementById('pages-stack'), ev = document.getElementById('editor-view');
+  if(!stack || !ev) return;
+  let raf = 0, tween = 0, target = 0, typingTimer = 0;
+  function caretRect(){
+    const sel = getSelection(); if(!sel || !sel.rangeCount || !sel.isCollapsed) return null;
+    const r = sel.getRangeAt(0); let rc = r.getClientRects()[0];
+    if(!rc || (!rc.height && !rc.width)){
+      let n = r.startContainer; n = n.nodeType === 1 ? n : n.parentNode;
+      const line = n && n.closest ? (n.closest('.note-body > div, .note-body > p') || n) : null;
+      rc = line ? line.getBoundingClientRect() : null;
+    }
+    return rc && rc.height ? rc : null;
+  }
+  function glide(){
+    const el = document.getElementById('note-scroll'); if(!el) return;
+    const step = ()=>{
+      const d = target - el.scrollTop;
+      if(Math.abs(d) < 0.6){ el.scrollTop = target; tween = 0; return; }
+      el.scrollTop += d * 0.28; tween = requestAnimationFrame(step);
+    };
+    if(!tween) tween = requestAnimationFrame(step);
+  }
+  function followCaret(){
+    raf = 0;
+    const el = document.getElementById('note-scroll'), rc = caretRect(); if(!el || !rc) return;
+    const sr = el.getBoundingClientRect(), tb = document.querySelector('.topbar');
+    const vv = window.visualViewport, vBottom = vv ? vv.offsetTop + vv.height : innerHeight;
+    const bottom = Math.min(sr.bottom, vBottom) - 110;                       // keep ~3 lines of air under the caret
+    const top = Math.max(sr.top, tb ? tb.getBoundingClientRect().bottom : sr.top) + 24;
+    let dy = 0;
+    if(rc.bottom > bottom) dy = rc.bottom - bottom; else if(rc.top < top) dy = rc.top - top;
+    if(!dy) return;
+    const base = tween ? target : el.scrollTop;
+    target = Math.max(0, Math.min(el.scrollHeight - el.clientHeight, base + dy));
+    glide();
+  }
+  stack.addEventListener('input', (e)=>{
+    if(!e.target.classList || !e.target.classList.contains('note-body')) return;
+    if(!raf) raf = requestAnimationFrame(followCaret);
+    ev.classList.add('typing'); clearTimeout(typingTimer);
+    typingTimer = setTimeout(()=>{ if(!ev.matches(':hover')) return; }, 0);
+  });
+  const wake = ()=>{ ev.classList.remove('typing'); };
+  ev.addEventListener('pointerdown', (e)=>{ if(!e.target.closest || !e.target.closest('.note-body, .note-title')) wake(); }, true);
+  ev.addEventListener('wheel', wake, { passive:true });
+  document.getElementById('note-scroll').addEventListener('touchstart', wake, { passive:true });
+  let lx = -1, ly = -1;
+  ev.addEventListener('pointermove', (e)=>{ if(e.pointerType !== 'mouse') return; if(Math.hypot(e.clientX - lx, e.clientY - ly) > 24){ if(lx >= 0) wake(); lx = e.clientX; ly = e.clientY; } });
+  document.addEventListener('selectionchange', ()=>{ if(ev.classList.contains('typing') && !(getSelection().anchorNode && stack.contains(getSelection().anchorNode))) wake(); });
+  if(window.visualViewport) visualViewport.addEventListener('resize', ()=>{ if(!raf) raf = requestAnimationFrame(followCaret); });
+})();
 <\/script>
 
 </body>
 </html>
+
 </script>
 <script type="text/plain" id="src-quiz"><!DOCTYPE html>
 <html lang="en">
