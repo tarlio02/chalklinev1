@@ -16358,14 +16358,14 @@ function touchScrollStartN(e){
   cancelAnimationFrame(inertiaN);
   if(drawingActiveN) return;   // ignore a resting palm while a pen stroke is in progress
   const now = performance.now();
-  if(penBusyN() || palmContactN(e) || touchDownN.size > 2) return;   // pen is near / big contact / too many contacts: that's a palm
+  if(penBusyN() || palmContactN(e)) return;   // pen is near, or a huge contact: that's a palm
   if(tsN && now - tsN.t < 1200 && tsN.id !== e.pointerId) return;   // a second contact never steals the scroll from the first finger
   tsN = { id:e.pointerId, x:e.clientX, y:e.clientY, t:now, v:0, x0:e.clientX, y0:e.clientY, go:false };
   try{ (e.target || canvasEl).setPointerCapture(e.pointerId); }catch(err){}
 }
 onCanvasN('pointermove', (e)=>{
   if(!tsN || e.pointerId !== tsN.id) return;
-  if(drawingActiveN || penBusyN() || touchDownN.size > 2){ tsN = null; return; }   // pen took over: stop scrolling
+  if(drawingActiveN || penBusyN()){ tsN = null; return; }   // pen took over: stop scrolling
   if(!tsN.go){   // a resting palm that jitters never scrolls; a finger must travel first
     if(Math.hypot(e.clientX - tsN.x0, e.clientY - tsN.y0) < FINGER_SLOP_N){ e.preventDefault(); return; }
     tsN.go = true; tsN.x = e.clientX; tsN.y = e.clientY; tsN.t = performance.now(); e.preventDefault(); return;
@@ -16393,13 +16393,11 @@ let lastPenN = 0;                       // last time a pen touched or hovered ov
 let lastPenContactN = 0;                // last time a pen actually touched the screen (hover doesn't count)
 const touchDownN = new Set();           // touch pointers currently down
 const PEN_GRACE_N = 650;                // ms after the pen leaves during which touches are treated as palm
-const FINGER_SLOP_N = 9;                // px a finger must travel before it starts scrolling
+const FINGER_SLOP_N = 6;                // px a finger must travel before it starts scrolling
 function penBusyN(){ return drawingActiveN || (performance.now() - lastPenN) < PEN_GRACE_N; }
 function palmContactN(e){
   const w = Math.max(e.width || 0, e.height || 0);   // contact size where the browser reports it (Chrome / Android / Windows)
-  if(w > 34) return true;
-  if(e.pointerType === 'touch' && e.pressure > 0 && e.pressure === 1 && w > 24) return true;
-  return false;
+  return w > 80;
 }
 window.addEventListener('pointerdown', (e)=>{ if(e.pointerType === 'pen'){ lastPenN = lastPenContactN = performance.now(); } else if(e.pointerType === 'touch'){ touchDownN.add(e.pointerId); } }, true);
 window.addEventListener('pointermove', (e)=>{ if(e.pointerType === 'pen'){ lastPenN = performance.now(); if(e.buttons) lastPenContactN = lastPenN; } }, { capture:true, passive:true });   // hover counts too
@@ -16560,7 +16558,7 @@ function pinchInfoN(t){ return { x:(t[0].clientX + t[1].clientX) / 2, y:(t[0].cl
 scrollElN.addEventListener('touchstart', (e)=>{
   if(e.touches.length !== 2 || drawingActiveN) return;   // a pen stroke in progress is never interrupted
   if(penBusyN()) return;   // pen is hovering or just lifted: two contacts are a hand, not a pinch
-  for(const tc of e.touches){ if(Math.max(tc.radiusX || 0, tc.radiusY || 0) > 32) return; }   // palm-sized contact
+  for(const tc of e.touches){ if(Math.max(tc.radiusX || 0, tc.radiusY || 0) > 70) return; }   // palm-sized contact
   const m = pinchInfoN(e.touches); if(m.d < 40) return;
   const r = scrollElN.getBoundingClientRect(), c = contentPtN(m.x - r.left, m.y - r.top);
   cancelAnimationFrame(inertiaN); tsN = null;   // stop finger-scrolling: the two fingers are zooming now
