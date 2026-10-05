@@ -15683,6 +15683,7 @@ function clearDrawingN(){
   snapPushN();
   const pg = pagesN[curPageN]; if(pg){ pg.base = ''; pg.strokes = []; }
   canvasCtx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+  if(pg) sendStrokesN(pg);
   saveCurrentNoteN(true);
 }
 /* ---- Ink engine ----
@@ -15829,7 +15830,7 @@ function stepHistN(from, to){
   const h = histOfN(pg); if(!h[from].length) return;
   h[to].push(snapOfN(pg));
   const st = h[from].pop(); pg.strokes = st.strokes; pg.base = st.base;
-  renderPageN(); updateHistBtnsN(); saveCurrentNoteN(true);
+  renderPageN(); updateHistBtnsN(); sendStrokesN(pg); saveCurrentNoteN(true);
 }
 function undoN(){ stepHistN('u', 'r'); }
 function redoN(){ stepHistN('r', 'u'); }
@@ -15967,6 +15968,24 @@ function renderRegionN(x0, y0, x1, y1){
 function sendInkN(page, pg, rec){
   try{ if(currentNoteKeyN && shUserN) parent.postMessage({ liveInk:true, key:currentNoteKeyN, page, n:(pg.strokes || []).length, rec }, '*'); }catch(e){}
 }
+// Erasing whole strokes, undo/redo and Clear change the stroke LIST rather than adding to it, so the
+// other device is told the new list (or, if it is too big for a broadcast, to fetch the note).
+let strokesSendRafN = 0; const strokesSendPagesN = new Set();
+function sendStrokesN(pg){
+  const i = pagesN.indexOf(pg); if(i < 0) return;
+  strokesSendPagesN.add(i);
+  if(strokesSendRafN) return;
+  strokesSendRafN = requestAnimationFrame(() => {
+    strokesSendRafN = 0;
+    const pages = Array.from(strokesSendPagesN); strokesSendPagesN.clear();
+    pages.forEach(ix => {
+      const p = pagesN[ix]; if(!p || !currentNoteKeyN || !shUserN) return;
+      const list = (p.strokes || []);
+      let rec; try{ const j = JSON.stringify(list); rec = j.length < 120000 ? { op:'set', tn:'pen', pts:[], strokes:list, nobase:!p.base } : { op:'sync', tn:'pen', pts:[] }; }catch(e){ rec = { op:'sync', tn:'pen', pts:[] }; }
+      try{ parent.postMessage({ liveInk:true, key:currentNoteKeyN, page:ix, n:list.length, rec }, '*'); }catch(e){}
+    });
+  });
+}
 // Instant text: pages whose text changed are sent (after a very short pause so fast typing is batched).
 const textDirtyN = new Set(); let textSendTimerN = 0, lastTitleSentN = null, lastDeltaAtN = 0, deferApplyTimerN = 0;
 function queueTextSendN(){
@@ -16011,6 +16030,16 @@ function applyInkN(d){
   if(!currentNoteIdN || d.key !== currentNoteKeyN) return;
   const pg = pagesN[d.page], v = viewsN[d.page], rec = d.rec;
   if(!pg || !v || !rec || !Array.isArray(rec.pts) || !TOOLS[rec.tn]) return;
+  if(rec.op === 'sync'){ pollLiveN(); return; }
+  if(rec.op === 'set'){   // the other device erased / undid / cleared: take its stroke list for this page
+    if(!Array.isArray(rec.strokes)) return;
+    if(drawingActiveN){ if((d.tries = (d.tries || 0) + 1) < 40) setTimeout(() => applyInkN(d), 120); return; }
+    lastDeltaAtN = Date.now(); histN.delete(pg);
+    pg.strokes = rec.strokes.map(r => (r.pend = false, r));
+    if(rec.nobase && pg.base) pg.base = '';   // Clear removed the flattened ink layer too
+    renderAtN(d.page); if(d.page === curPageN) updateHistBtnsN();
+    return;
+  }
   const have = (pg.strokes || []).length;
   if(have >= d.n) return;                                   // already have it
   if(have !== d.n - 1){ pollLiveN(); return; }              // missed something (undo, other edit): fetch the whole note
@@ -16218,7 +16247,7 @@ function objEraseAtN(x, y){
   const kept = pg.strokes.filter(rec => rec.erase || !strokeHitN(rec, x, y, r));
   if(kept.length !== pg.strokes.length){
     if(!objSnapDoneN){ snapPushN(); objSnapDoneN = true; }   // one undo step per erase gesture
-    pg.strokes = kept; scheduleRenderN();
+    pg.strokes = kept; scheduleRenderN(); sendStrokesN(pg);
   }
 }
 function flushDrawQueueN(){
