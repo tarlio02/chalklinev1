@@ -2184,7 +2184,11 @@ async function pullNotesList(){
 // (no note content, no names) on a Supabase Realtime channel private to your account id. Other devices signed in
 // as you react by checking right away instead of waiting for the next timer tick. If Realtime is unavailable the
 // timers below still keep everything up to date.
-let rtChan = null, rtSub = null, pushedNotes = false;
+let rtChan = null, rtSub = null, pushedNotes = false, rtOkAt = 0;
+function reviveRealtime(){ if(!shellUser || !shellUser.sub) return; rtSub = null; try{ ensureRealtime(); }catch(e){} }
+document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible' && !rtOkAt) reviveRealtime(); });
+window.addEventListener('online', () => reviveRealtime());
+setInterval(() => { if(shellUser && shellUser.sub && document.visibilityState === 'visible' && !rtOkAt) reviveRealtime(); }, 8000);
 function ensureRealtime(){
   if(!supabaseClient || !shellUser || !shellUser.sub || rtSub === shellUser.sub) return;
   try{ if(rtChan) supabaseClient.removeChannel(rtChan); }catch(e){}
@@ -2197,7 +2201,10 @@ function ensureRealtime(){
       })
       .on('broadcast', { event:'ink' }, (m) => { receiveInk(m && m.payload, 'ink'); })
       .on('broadcast', { event:'text' }, (m) => { receiveInk(m && m.payload, 'text'); })
-      .subscribe();
+      .subscribe((status) => {
+        if(status === 'SUBSCRIBED'){ rtOkAt = Date.now(); return; }
+        if(status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED'){ rtOkAt = 0; setTimeout(() => reviveRealtime(), 1500); }   // dropped: rebuild it instead of silently falling back to the slow cloud copy
+      });
     getLiveCryptoKey().catch(() => {});   // fetch / create the key now so the first stroke isn't delayed
   }catch(e){ rtChan = null; console.warn('Realtime unavailable:', (e && e.message) || e); }
 }
@@ -15398,7 +15405,7 @@ window.addEventListener('message', (e)=>{
   if(d.chalklineNoteRemote){ if(d.key === currentNoteKeyN) applyRemoteNoteN(); return; }
   if(d.chalklineInk){ applyInkN(d); return; }
   if(d.chalklineText){ applyTextN(d); return; }
-  if(d.chalklineLivePing){ const go = () => { if(currentNoteIdN) pollLiveN(); else pollListN(); }; go(); setTimeout(go, 200); setTimeout(go, 600); setTimeout(go, 1400); return; }   // re-check twice: the cloud copy can lag a moment behind the ping
+  if(d.chalklineLivePing){ const go = () => { if(currentNoteIdN) pollLiveN(); else pollListN(); }; go(); setTimeout(go, 120); setTimeout(go, 400); setTimeout(go, 1000); return; }   // re-check twice: the cloud copy can lag a moment behind the ping
   if(d.presetSubject){ notesSubject = d.presetSubject; }
   else if(d.chalklineClearSubject){ notesSubject = null; }
   else if(d.loadNoteId){ openNoteN(d.loadNoteId); return; }
@@ -16005,7 +16012,7 @@ function queueTextSendN(){
       titleSent = true;
     });
     if(titleSent) lastTitleSentN = title;
-  }, 70);
+  }, 35);
 }
 // Text arrived from another device: swap in just that page's text (and the title) without touching anything else.
 function applyTextN(d){
@@ -17349,8 +17356,8 @@ let applyingRemoteN = false;
 async function applyRemoteNoteN(){
   if(!currentNoteIdN || !currentNoteKeyN || !shUserN || applyingRemoteN) return;
   if(noteDirtyN || drawingActiveN) return;
-  if(Date.now() - lastDeltaAtN < 2500){   // an instant update just landed: let the newest cloud copy catch up so an older one can't overwrite it
-    if(!deferApplyTimerN) deferApplyTimerN = setTimeout(() => { deferApplyTimerN = 0; applyRemoteNoteN(); }, 2600 - (Date.now() - lastDeltaAtN));
+  if(Date.now() - lastDeltaAtN < 1400){   // an instant update just landed: let the newest cloud copy catch up so an older one can't overwrite it
+    if(!deferApplyTimerN) deferApplyTimerN = setTimeout(() => { deferApplyTimerN = 0; applyRemoteNoteN(); }, 1500 - (Date.now() - lastDeltaAtN));
     return;
   }
   applyingRemoteN = true;
@@ -17405,7 +17412,7 @@ function pollLiveN(){
   try{ if(window.frameElement && window.frameElement.offsetParent === null) return; }catch(e){}
   try{ parent.postMessage({ liveNote:true, key: currentNoteKeyN }, '*'); }catch(e){}
 }
-setInterval(pollLiveN, 450);
+setInterval(pollLiveN, 350);
 function pollListN(){   // the notes list itself: new / deleted / renamed notes from another device show up on their own
   if(!shUserN || document.hidden || currentNoteIdN) return;
   try{ if(window.frameElement && window.frameElement.offsetParent === null) return; }catch(e){}
