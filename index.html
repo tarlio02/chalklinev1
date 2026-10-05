@@ -15733,7 +15733,7 @@ function eraserWidthN(dpr){ return (14 + penSizeN * 9) * dpr; }
 function applyPenN(st, dpr){
   const c = canvasCtx;
   if(st.erase){ c.globalCompositeOperation = 'destination-out'; c.lineWidth = eraserWidthN(dpr); }
-  else { c.globalCompositeOperation = 'source-over'; c.strokeStyle = st.color; c.globalAlpha = st.T.a; c.lineWidth = strokeWidthN(st.sp, dpr, st.tn); c.lineCap = (st.T.a < 1 && !st.T.layer) ? 'butt' : 'round'; }
+  else { c.globalCompositeOperation = 'source-over'; c.strokeStyle = st.color; c.globalAlpha = st.T.a; c.lineWidth = strokeWidthN(st.sp, dpr, st.tn); }
 }
 // Highlighter: the whole stroke is re-stroked as ONE translucent path over a snapshot of the
 // page, so overlapping segments never build up darker blotches.
@@ -16315,11 +16315,10 @@ function flushDrawQueueN(){
     if(dist < 0.25) continue;
     // Two-stage stabiliser: a heavier adaptive low-pass (slow, careful movement is smoothed hard, quick strokes
     // still keep up), then a second gentle pass that irons out whatever wobble is left.
-    const alpha = Math.min(0.72, 0.12 + dist * 0.03);
+    const alpha = Math.min(0.7, 0.13 + dist * 0.028);
     st.sx += dx * alpha; st.sy += dy * alpha;
-    const beta = Math.min(0.78, 0.46 + dist * 0.04);
-    st.tx += (st.sx - st.tx) * beta; st.ty += (st.sy - st.ty) * beta;
-    st.sp += (pt.pressure - st.sp) * 0.11;
+    st.tx += (st.sx - st.tx) * 0.6; st.ty += (st.sy - st.ty) * 0.6;
+    st.sp += (pt.pressure - st.sp) * 0.14;
     const nmx = (st.cx + st.tx) / 2, nmy = (st.cy + st.ty) / 2;
     if(st.T.layer){ st.path.quadraticCurveTo(st.cx, st.cy, nmx, nmy); }
     else {
@@ -16425,18 +16424,13 @@ function touchScrollStartN(e){
   cancelAnimationFrame(inertiaN);
   if(drawingActiveN) return;   // ignore a resting palm while a pen stroke is in progress
   const now = performance.now();
-  if(penBusyN() || palmContactN(e)) return;   // pen is near, or a huge contact: that's a palm
   if(tsN && now - tsN.t < 1200 && tsN.id !== e.pointerId) return;   // a second contact never steals the scroll from the first finger
-  tsN = { id:e.pointerId, x:e.clientX, y:e.clientY, t:now, v:0, x0:e.clientX, y0:e.clientY, go:false };
+  tsN = { id:e.pointerId, x:e.clientX, y:e.clientY, t:now, v:0 };
   try{ (e.target || canvasEl).setPointerCapture(e.pointerId); }catch(err){}
 }
 onCanvasN('pointermove', (e)=>{
   if(!tsN || e.pointerId !== tsN.id) return;
-  if(drawingActiveN || penBusyN()){ tsN = null; return; }   // pen took over: stop scrolling
-  if(!tsN.go){   // a resting palm that jitters never scrolls; a finger must travel first
-    if(Math.hypot(e.clientX - tsN.x0, e.clientY - tsN.y0) < FINGER_SLOP_N){ e.preventDefault(); return; }
-    tsN.go = true; tsN.x = e.clientX; tsN.y = e.clientY; tsN.t = performance.now(); e.preventDefault(); return;
-  }
+  if(drawingActiveN){ tsN = null; return; }   // pen took over: stop scrolling
   const now = performance.now(), dy = e.clientY - tsN.y, dt = Math.max(1, now - tsN.t);
   document.getElementById('note-scroll').scrollTop -= dy;
   document.getElementById('note-scroll').scrollLeft -= e.clientX - tsN.x; tsN.x = e.clientX;
@@ -16452,34 +16446,18 @@ function touchEndN(e){
 }
 onCanvasN('pointerup', touchEndN);
 
-/* ---- Palm rejection ----
-   A pen always wins. Touches are ignored while the pen is touching, hovering, or has only just lifted;
-   very large contacts and 3+ simultaneous contacts count as a palm; a finger has to actually travel
-   before it scrolls; and nothing a palm does can reach the toolbar mid-stroke. */
-let lastPenN = 0;                       // last time a pen touched or hovered over the page
-let lastPenContactN = 0;                // last time a pen actually touched the screen (hover doesn't count)
-const touchDownN = new Set();           // touch pointers currently down
-const PEN_GRACE_N = 650;                // ms after the pen leaves during which touches are treated as palm
-const FINGER_SLOP_N = 6;                // px a finger must travel before it starts scrolling
-function penBusyN(){ return drawingActiveN || (performance.now() - lastPenN) < PEN_GRACE_N; }
-function palmContactN(e){
-  const w = Math.max(e.width || 0, e.height || 0);   // contact size where the browser reports it (Chrome / Android / Windows)
-  return w > 80;
-}
-window.addEventListener('pointerdown', (e)=>{ if(e.pointerType === 'pen'){ lastPenN = lastPenContactN = performance.now(); } else if(e.pointerType === 'touch'){ touchDownN.add(e.pointerId); } }, true);
-window.addEventListener('pointermove', (e)=>{ if(e.pointerType === 'pen'){ lastPenN = performance.now(); if(e.buttons) lastPenContactN = lastPenN; } }, { capture:true, passive:true });   // hover counts too
-['pointerup','pointercancel'].forEach(t => window.addEventListener(t, (e)=>{ if(e.pointerType === 'pen') lastPenN = lastPenContactN = performance.now(); else if(e.pointerType === 'touch') touchDownN.delete(e.pointerId); }, true));
-window.addEventListener('blur', ()=>touchDownN.clear());
-// the moment the pen lands, any finger or palm scroll that was already underway is cancelled, so the page can't move under the nib
+/* ---- Palm rejection (kept deliberately simple: the pen is never second-guessed) ----
+   1. Fingers and palms never draw; they can only scroll.
+   2. The moment a pen or mouse touches down, any finger scroll already underway is cancelled.
+   3. While a pen stroke is in progress, a palm can't scroll the page or press the toolbar. */
 window.addEventListener('pointerdown', (e)=>{ if(e.pointerType === 'pen' || e.pointerType === 'mouse'){ cancelAnimationFrame(inertiaN); tsN = null; } }, true);
-// toolbar / menus: touches that land there while the pen is busy are swallowed (a palm resting near the top used to press buttons)
 (function(){
   const ev = document.getElementById('editor-view'); if(!ev) return;
   const mine = new Set(); let swallowUntil = 0;
   const inChrome = t => t && t.closest && t.closest('.topbar, .menu-pop, .tray, #math-pop');
   ev.addEventListener('pointerdown', (e)=>{
-    if(e.pointerType !== 'touch' || !inChrome(e.target)) return;
-    if(drawingActiveN || (performance.now() - lastPenContactN) < 300){ mine.add(e.pointerId); e.preventDefault(); e.stopPropagation(); }
+    if(e.pointerType !== 'touch' || !drawingActiveN || !inChrome(e.target)) return;
+    mine.add(e.pointerId); e.preventDefault(); e.stopPropagation();
   }, true);
   ['pointerup','pointercancel'].forEach(t => ev.addEventListener(t, (e)=>{ if(mine.delete(e.pointerId)){ swallowUntil = performance.now() + 120; e.stopPropagation(); } }, true));
   ev.addEventListener('click', (e)=>{ if(performance.now() < swallowUntil && inChrome(e.target)){ e.preventDefault(); e.stopPropagation(); } }, true);
@@ -16624,8 +16602,6 @@ function clearZoomN(){ pinchN = null; fitWN = 0; lastFitWN = 0; fitStaleN = true
 function pinchInfoN(t){ return { x:(t[0].clientX + t[1].clientX) / 2, y:(t[0].clientY + t[1].clientY) / 2, d:Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY) }; }
 scrollElN.addEventListener('touchstart', (e)=>{
   if(e.touches.length !== 2 || drawingActiveN) return;   // a pen stroke in progress is never interrupted
-  if(penBusyN()) return;   // pen is hovering or just lifted: two contacts are a hand, not a pinch
-  for(const tc of e.touches){ if(Math.max(tc.radiusX || 0, tc.radiusY || 0) > 70) return; }   // palm-sized contact
   const m = pinchInfoN(e.touches); if(m.d < 40) return;
   const r = scrollElN.getBoundingClientRect(), c = contentPtN(m.x - r.left, m.y - r.top);
   cancelAnimationFrame(inertiaN); tsN = null;   // stop finger-scrolling: the two fingers are zooming now
