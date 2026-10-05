@@ -15993,6 +15993,10 @@ function sendStrokesN(pg){
     });
   });
 }
+// Adding / deleting a page is announced instantly (a tiny message) instead of waiting for the whole note to upload and re-download.
+function sendPageOpN(op, at, paper){
+  try{ if(currentNoteKeyN && shUserN) parent.postMessage({ liveInk:true, key:currentNoteKeyN, page:at, n:0, rec:{ op, tn:'pen', pts:[], np:pagesN.length, paper:paper || 'ruled' } }, '*'); }catch(e){}
+}
 // Instant text: pages whose text changed are sent (after a very short pause so fast typing is batched).
 const textDirtyN = new Set(); let textSendTimerN = 0, lastTitleSentN = null, lastDeltaAtN = 0, deferApplyTimerN = 0;
 function queueTextSendN(){
@@ -16033,8 +16037,35 @@ function applyTextN(d){
   try{ revealChangeN(findChangeN(before)); }catch(e){}
 }
 // A stroke arrived from another device: add just that stroke and repaint just its area.
+function applyPageOpN(d){
+  const rec = d.rec, at = d.page;
+  if(drawingActiveN){ if((d.tries = (d.tries || 0) + 1) < 40) setTimeout(() => applyPageOpN(d), 120); return; }
+  lastDeltaAtN = Date.now();
+  if(rec.op === 'addpage'){
+    if(pagesN.length === rec.np) return;                                  // already have it
+    if(pagesN.length !== rec.np - 1 || at < 1 || at > pagesN.length){ pollLiveN(); return; }   // out of step: fetch the whole note
+    syncAllN();
+    const pg = { body:'', base:'', strokes:[], paper:rec.paper || 'ruled' }, v = createViewN(pg, false);
+    const keep = curPageN;
+    pagesN.splice(at, 0, pg); viewsN.splice(at, 0, v); viewsN[at - 1].sec.after(v.sec);
+    autosizeViewN(v); renumberN();
+    curPageN = at <= keep ? keep + 1 : keep; setCurN(curPageN);
+    relayoutN();
+    return;
+  }
+  if(rec.op === 'delpage'){
+    if(pagesN.length === rec.np) return;
+    if(pagesN.length !== rec.np + 1 || at < 0 || at >= pagesN.length){ pollLiveN(); return; }
+    syncAllN();
+    const st = scrollElN.scrollTop, keep = curPageN;
+    pagesN.splice(at, 1); histN.delete(pagesN[at] || {});
+    mountPagesN({ cur: Math.max(0, Math.min(at < keep ? keep - 1 : keep, pagesN.length - 1)) });
+    scrollElN.scrollTop = st;
+  }
+}
 function applyInkN(d){
   if(!currentNoteIdN || d.key !== currentNoteKeyN) return;
+  if(d.rec && (d.rec.op === 'addpage' || d.rec.op === 'delpage')){ applyPageOpN(d); return; }
   const pg = pagesN[d.page], v = viewsN[d.page], rec = d.rec;
   if(!pg || !v || !rec || !Array.isArray(rec.pts) || !TOOLS[rec.tn]) return;
   if(rec.op === 'sync'){ pollLiveN(); return; }
@@ -16815,6 +16846,7 @@ function addPageN(){
   viewsN.splice(at, 0, v);
   viewsN[at - 1].sec.after(v.sec);
   autosizeViewN(v); renumberN(); setCurN(at);
+  sendPageOpN('addpage', at, pg.paper);
   scrollToPageN(at, true);
   if(inputModeN === 'type'){ try{ v.body.focus({ preventScroll:true }); }catch(e){} }
   saveCurrentNoteN();
@@ -16825,6 +16857,7 @@ function deletePageN(){
   noteTitleN = titleEl ? titleEl.value : noteTitleN;
   const i = curPageN;
   pagesN.splice(i, 1);
+  sendPageOpN('delpage', i);
   mountPagesN({ cur: Math.min(i, pagesN.length - 1) });
   saveCurrentNoteN();
 }
