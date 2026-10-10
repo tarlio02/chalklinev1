@@ -5632,7 +5632,11 @@ body{
   transition: opacity 200ms ease, left 380ms cubic-bezier(.4,0,.2,1), top 380ms cubic-bezier(.4,0,.2,1), width 380ms cubic-bezier(.4,0,.2,1), height 380ms cubic-bezier(.4,0,.2,1);
   will-change: transform, opacity, left, top, width, height;
 }
-#board-pointer-highlight.visible{ opacity:1; }
+#board-pointer-highlight.visible{ opacity:1; animation: ptr-pulse 1.3s ease-in-out infinite; }
+@keyframes ptr-pulse{
+  0%,100%{ box-shadow: 0 0 0 1px rgba(255,190,40,0.35), 0 2px 10px rgba(255,190,40,0.25); }
+  50%{ box-shadow: 0 0 0 3px rgba(255,190,40,0.45), 0 2px 18px rgba(255,190,40,0.5); }
+}
 #board-pointer-highlight.jumping{
   /* A jump ACROSS content that isn't the natural next word (e.g. the
      very first highlight of a new sequence, or the app scrolled to
@@ -10333,18 +10337,80 @@ function getWordIndex(){
 // written on the board, case-insensitively, e.g. findWordOnBoard('inflation').
 // This is the lookup the tutor uses for "look at the word X here" —
 // it never needs to know coordinates itself, just the word.
+function normBoardTok(t){
+  return (t||'').toLowerCase().replace(/[.,;:!?()"'\u201c\u201d\u2018\u2019*\[\]{}]/g,'');
+}
 function findWordOnBoard(needle, occurrence){
   occurrence = occurrence || 1;
-  const target = (needle||'').trim().toLowerCase();
-  if(!target) return null;
-  let seen = 0;
+  const raw = (needle||'').trim();
+  if(!raw) return null;
   const idx = getWordIndex();
-  for(let i=0;i<idx.length;i++){
-    const clean = idx[i].text.toLowerCase().replace(/[.,;:!?()"'*]/g,'');
-    if(clean === target){
-      seen++;
-      if(seen === occurrence) return idx[i];
+  const toks = raw.split(/\s+/).map(normBoardTok).filter(Boolean);
+  if(!toks.length || !idx.length) return null;
+  const norm = idx.map(w => normBoardTok(w.text));
+  // Union box of a run of words idx[a..b]. If the phrase wraps onto a
+  // second line this simply covers both lines, which is what we want.
+  const boxOf = (a, b) => {
+    let x0=Infinity, y0=Infinity, x1=-Infinity, y1=-Infinity;
+    for(let k=a;k<=b;k++){
+      const w = idx[k];
+      x0 = Math.min(x0, w.x); y0 = Math.min(y0, w.y);
+      x1 = Math.max(x1, w.x + w.w); y1 = Math.max(y1, w.y + w.h);
     }
+    return { text: raw, cmdIndex: idx[a].cmdIndex, wordIndex: idx[a].wordIndex, x:x0, y:y0, w:x1-x0, h:y1-y0 };
+  };
+  // Pass 1: the exact run of words, inside one text command.
+  let seen = 0;
+  for(let i=0; i + toks.length <= idx.length; i++){
+    let ok = true;
+    for(let k=0;k<toks.length;k++){
+      if(idx[i+k].cmdIndex !== idx[i].cmdIndex || norm[i+k] !== toks[k]){ ok = false; break; }
+    }
+    if(ok){ seen++; if(seen === occurrence) return boxOf(i, i + toks.length - 1); }
+  }
+  // Pass 2: ignore spacing, so "P=MC" still finds "P = MC" (and vice versa).
+  const squash = toks.join('');
+  if(squash.length >= 2){
+    seen = 0;
+    let i = 0;
+    while(i < idx.length){
+      let j = i;
+      while(j + 1 < idx.length && idx[j+1].cmdIndex === idx[i].cmdIndex) j++;
+      let str = ''; const starts = [];
+      for(let k=i;k<=j;k++){ starts.push(str.length); str += norm[k]; }
+      let from = 0, pos;
+      while((pos = str.indexOf(squash, from)) !== -1){
+        seen++;
+        if(seen === occurrence){
+          const endPos = pos + squash.length;
+          let a = i, b = i;
+          for(let k=0;k<starts.length;k++){ if(starts[k] <= pos) a = i + k; if(starts[k] < endPos) b = i + k; }
+          return boxOf(a, b);
+        }
+        from = pos + 1;
+      }
+      i = j + 1;
+    }
+  }
+  // Pass 3 (last resort, 2+ word phrases only): the text command that
+  // contains most of the words, so a slightly misquoted phrase still
+  // scrolls to roughly the right place instead of silently doing nothing.
+  if(toks.length >= 2){
+    const want = new Set(toks);
+    let best = null;
+    let i = 0;
+    while(i < idx.length){
+      let j = i;
+      while(j + 1 < idx.length && idx[j+1].cmdIndex === idx[i].cmdIndex) j++;
+      let first = -1, last = -1; const hit = new Set();
+      for(let k=i;k<=j;k++){
+        if(want.has(norm[k])){ hit.add(norm[k]); if(first < 0) first = k; last = k; }
+      }
+      const ratio = hit.size / want.size;
+      if(hit.size >= 2 && ratio >= 0.6 && (!best || ratio > best.ratio)) best = { ratio, first, last };
+      i = j + 1;
+    }
+    if(best) return boxOf(best.first, best.last);
   }
   return null;
 }
@@ -10399,19 +10465,24 @@ function repositionPointerOverlay(){
 // This is the "return to previously written content" scroll step — a
 // smaller/faster tween than the writing auto-follow one, since it's a
 // deliberate jump-to-reference rather than a continuous following motion.
-function scrollToWorldYIfNeeded(wy, onDone){
-  // Auto-scroll should only happen while the AI is actively writing/
-  // drawing something new — pointing at or narrating already-written
-  // content (the case this function is used for) shouldn't yank the
-  // viewport around by itself while the AI is just talking.
-  if(!drawing){ if(onDone) onDone(); return; }
+function scrollToWorldYIfNeeded(wy, onDone, force){
+  // Ordinary narration shouldn't yank the viewport around while the AI is
+  // just talking, so by default this only scrolls while something is being
+  // drawn. `force` is for the tutor's deliberate "look back at this" pointing
+  // (pointTo): there the whole point is to bring older content into view,
+  // even on a turn that writes nothing new — without it the highlight was
+  // placed off-screen and the student never saw it.
+  if(!drawing && !force){ if(onDone) onDone(); return; }
   const viewportY = worldYToViewportY(wy);
   const bbv = boardBounds();
   const margin = bbv.top + 40;
   const bottomLimit = bbv.bottom - 40;
   if(viewportY >= margin && viewportY <= bottomLimit){ if(onDone) onDone(); return; }
   const targetScrollTop = Math.max(0, wy - viewCenterWorldOffset());
-  animateScrollTo(targetScrollTop, 500, onDone);
+  // A long trip back up the page gets a little more time so it reads as a
+  // deliberate scroll rather than a jump cut.
+  const dur = Math.min(1100, Math.max(500, Math.abs(targetScrollTop - camera.y) * 0.18));
+  animateScrollTo(targetScrollTop, dur, onDone);
 }
 
 // ---- Public pointing API used by the teaching/explanation logic ----
@@ -10423,7 +10494,7 @@ function scrollToWorldYIfNeeded(wy, onDone){
 // fresh sequence), in which case it appears instantly at the new
 // position rather than visibly sweeping there across whatever sits
 // between the old and new spot (see CSS .jumping notes).
-function pointToRegion(wx, wy, ww, wh){
+function pointToRegion(wx, wy, ww, wh, force){
   const myToken = ++pointerToken;
   const hadPriorTarget = !!lastPointerWorldTarget;
   lastPointerWorldTarget = { x:wx, y:wy, w:ww||0, h:wh||0 };
@@ -10437,7 +10508,7 @@ function pointToRegion(wx, wy, ww, wh){
     // deferred past that point", with no extra state needed.
     const isJump = !calledSynchronously || !hadPriorTarget;
     if(ww && wh) showHighlightAtWorld(wx, wy, ww, wh, isJump);
-  });
+  }, !!force);
   calledSynchronously = false;
 }
 
@@ -10507,28 +10578,52 @@ function returnToCurrentWritingPosition(){
 // keeps them visually in step with the narration without overclaiming
 // precision the audio pipeline can't provide).
 let pointToSequenceToken = 0;
-function runPointToSequence(pointTo, speechMs){
+let pointingActive = false; // true while a look-back sequence is running (keeps quiz cards from popping up mid-point)
+
+// Works out, up front, what the pointTo list resolves to on the board and
+// how long the look-back will take, so the turn can schedule the new
+// writing for AFTER the highlighting. Returns null if nothing resolved.
+function planPointTo(pointTo, speechMs){
+  if(!Array.isArray(pointTo) || !pointTo.length) return null;
+  const resolved = [];
+  const seenKeys = new Set();
+  pointTo.forEach(p => {
+    const phrase = (typeof p === 'string') ? p : (p && (p.word || p.phrase || p.text));
+    const occ = (p && typeof p === 'object') ? p.occurrence : 1;
+    const hit = findWordOnBoard(phrase, occ);
+    if(!hit) return;
+    const key = Math.round(hit.x) + ':' + Math.round(hit.y) + ':' + Math.round(hit.w);
+    if(seenKeys.has(key)) return;
+    seenKeys.add(key);
+    resolved.push(hit);
+  });
+  if(!resolved.length) return null;
+  // Each target gets time to scroll into view AND to sit highlighted while
+  // the narration mentions it (no word-level audio timestamps exist, so
+  // this spaces the highlights across a share of the speech instead).
+  const budget = Math.max(2600, (speechMs || 0) * 0.6);
+  const perStepMs = Math.max(1400, Math.min(3200, budget / resolved.length));
+  return { resolved, perStepMs, totalMs: perStepMs * resolved.length + 900 };
+}
+
+// Scrolls back to each resolved target in turn, highlights it, then returns
+// to the current writing position and calls onDone (once the camera is
+// back, so new writing starts from where the student is looking).
+function runPointToSequence(plan, onDone){
   const myToken = ++pointToSequenceToken;
-  if(!Array.isArray(pointTo) || !pointTo.length) return;
-  const resolved = pointTo
-    .map(p => findWordOnBoard(p && p.word, p && p.occurrence))
-    .filter(Boolean);
-  if(!resolved.length) return; // none of the requested words are actually on the board — nothing to do
-  // Leave a little headroom at the very start/end so the first highlight
-  // doesn't flash before the student has even started listening and the
-  // last one doesn't linger oddly past the end of speech.
-  const perStepMs = Math.max(500, Math.min(2400, (speechMs || resolved.length*900) / resolved.length));
+  if(!plan){ if(onDone) onDone(); return; }
+  isUserScrolling = false; // a deliberate look-back overrides any earlier manual scroll
   let i = 0;
   function step(){
-    if(myToken !== pointToSequenceToken) return; // a newer turn/pointTo call superseded this one
-    if(i >= resolved.length){
+    if(myToken !== pointToSequenceToken){ if(onDone) onDone(); return; } // superseded by a newer turn
+    if(i >= plan.resolved.length){
       returnToCurrentWritingPosition();
+      setTimeout(()=>{ if(onDone) onDone(); }, 800);
       return;
     }
-    const w = resolved[i];
-    pointToRegion(w.x, w.y, w.w, w.h);
-    i++;
-    setTimeout(step, perStepMs);
+    const w = plan.resolved[i++];
+    pointToRegion(w.x, w.y, w.w, w.h, true);
+    setTimeout(step, plan.perStepMs);
   }
   step();
 }
@@ -10555,7 +10650,7 @@ function shuffleQuizOptions(quiz){
 // A quiz waits until the tutor has finished writing on the board.
 let boardWritePending = false;
 let pendingQuiz = null;
-function boardIsBusy(){ return boardWritePending || drawing || drawQueue.length > 0; }
+function boardIsBusy(){ return boardWritePending || pointingActive || drawing || drawQueue.length > 0; }
 function tryShowPendingQuiz(){
   if(!pendingQuiz || boardIsBusy()) return;
   const q = pendingQuiz; pendingQuiz = null;
@@ -10640,7 +10735,7 @@ TONE — BE WARM AND ENCOURAGING: you're a supportive, friendly tutor, not a sti
 You must respond with ONLY a JSON object (no markdown fences, no prose outside the JSON) with this exact shape:
 {
   "plan": "PRIVATE scratchpad, never shown to the student: 2-4 short sentences working out the exact maths/model (intercepts, equilibrium, slope, totals) and confirming the diagram self-check passes BEFORE you write the board",
-  "speech": "the spoken explanation, natural spoken lecture language for text-to-speech (spell out symbols, e.g. 'delta' not the character). HARD CAP: max ~55 words (2-4 short sentences) unless the student explicitly asked for a detailed/full explanation — see PACING RULES below.",
+  "speech": "the spoken explanation, natural spoken lecture language for text-to-speech (spell out symbols, e.g. 'delta' not the character). TARGET LENGTH: roughly 90-140 words (5-9 sentences) on an ordinary teaching turn — enough to fully explain ONE complete idea (what it is, why it works, and a concrete example), then end on your ONE question. Go longer only if the student explicitly asked for a detailed/full explanation — see PACING RULES below.",
   "board": [ ...array of drawing command objects... ],
   "quiz": null OR { "question":"...", "options":["...","...","...","..."], "correctIndex": <put the correct option's index in a genuinely random position across your quizzes, 0-3 — do NOT default to 0 or always place the right answer first>, "explanation":"..." },
   "needsLookup": null OR "a short, specific search query",
@@ -10707,7 +10802,7 @@ The student should finish each concept being able to explain the idea themselves
 
 LESSON OPENING — HOW TO START A NEW TOPIC: speak naturally and personally, like a smart Gen-Z tutor/friend helping the student study — relaxed, encouraging, playful, and conversational, but still academically accurate. Do NOT sound like a formal lecturer. Do NOT overuse slang, emojis, or catchphrases — a stray emoji or two in the opening greeting is fine, more than that reads as try-hard. Use the student's name (from the STUDENT line appended below, if given) naturally in the greeting. Natural phrases to draw on, varied each lesson rather than recited verbatim every time: "Alright, let's get into it.", "Okay, so here's the thing...", "Think about it like this...", "Let's see if you can get this one.", "You're actually onto something.", "Don't stress, we'll break it down."
 
-For the very FIRST turn of a new topic, "speech" is allowed to run longer than the usual ~55-word cap (roughly the length of the example below) since it's doing several jobs at once — greeting, framing why the topic matters, and asking the opening question — but it must still end on exactly ONE question and then stop there. Example shape, for an ANOVA lesson opening (match this tone and structure for any topic, not this exact wording):
+For the very FIRST turn of a new topic, "speech" is allowed to run longer than the usual per-turn length (roughly the length of the example below) since it's doing several jobs at once — greeting, framing why the topic matters, and asking the opening question — but it must still end on exactly ONE question and then stop there. Example shape, for an ANOVA lesson opening (match this tone and structure for any topic, not this exact wording):
 
 "Hey, [name] 👋
 
@@ -10771,7 +10866,9 @@ DIAGRAM RECIPES (compute first, then draw; all use one "plot" command; give ever
 
 WEB LOOKUP (use sparingly): set "needsLookup" ONLY when the next thing you need to teach depends on a current fact, statistic, date, or detail you are not confident you know precisely (e.g. "current US federal funds rate", "population of Lagos 2025"). When you set it, keep "board" and "speech" minimal (a brief natural "let me check that" line, no board content) — you will be given the lookup result and asked to continue for real on the next turn. Do NOT set "needsLookup" for ordinary concepts, definitions, or anything textbook-stable — that costs an extra round trip, so only spend it when accuracy genuinely requires fresh info. Leave it null almost all the time.
 
-POINTING BACK AT EARLIER CONTENT ("pointTo"): use this when explaining something you (or an earlier turn) already wrote on the board, rather than writing it again — e.g. the student asks "what does inflation mean again" and the word "inflation" is already up there, or you want to walk through a formula/diagram you drew a moment ago by calling out its parts one at a time. Set "pointTo" to an ordered list of the exact words to highlight, in the order you want them highlighted as "speech" plays — e.g. explaining the equation "P = MC" you might set "pointTo":[{"word":"P"},{"word":"MC"}] while "speech" walks through what each stands for in that order. Each entry's "word" must be copied EXACTLY (same spelling/case) from text you already wrote earlier via a "text" or "diagramLabel" board command in this session — pointTo can only highlight something already on the board, never something new. If the same word appears more than once on the board and you mean a specific occurrence (e.g. the second time "equilibrium" was written), add "occurrence":2 (1-based, defaults to 1 = the first match). Leave "pointTo" null for an ordinary new-content turn — only use it when you are specifically directing attention back to something already drawn. Do not also rewrite that content in "board" in the same turn; pointTo is for referring back, not for redrawing. After the pointTo sequence finishes, the view automatically returns to wherever you're currently writing — you don't need to handle that yourself.
+HEADINGS — ONCE PER SECTION, NOT ONCE PER TURN: a heading ("heading":true — the app draws an underline stroke beneath every heading) marks the start of a NEW SECTION of the board, never a new turn. Write a heading only (a) on the very first turn of a topic, or (b) when you genuinely move to a different sub-topic, in which case use a numbered heading such as "2. Elasticity". Never restate the topic title on a follow-up turn, never repeat a heading that is already on the board, and never put more than one heading on a turn (unless it is a numbered study-notes review). Continuation turns simply add their body lines below what is already there, with no heading and no underline.
+
+POINTING BACK AT EARLIER CONTENT ("pointTo") — USE IT OFTEN. The board is one long page and the app can scroll back up to anything already written and highlight it for the student. Whenever this turn's explanation leans on, builds on, contrasts with or answers something that is already on the board (a term, a definition, a formula, an assumption, one part of an earlier diagram or table, a number from a worked example), do NOT describe it from memory and do NOT write it out again — set "pointTo" so the app scrolls back to it and highlights it while you mention it. Typical cases: the student asks "what did that mean again?"; you are applying a formula from a few turns ago; you are comparing the new idea with an earlier one; you are checking the student's answer against something already drawn. "pointTo" is an ordered list of what to highlight, in the same order your "speech" mentions them, e.g. [{"word":"marginal cost"},{"word":"P = MC"}]. Each "word" is either a single word OR an exact phrase / short formula (up to about 8 words) copied character-for-character from text you already wrote earlier in this session via a "text" or "diagramLabel" command — it can only highlight something that is already on the board, never something new. Prefer a distinctive phrase over a very common single word so the right spot is found. If the same wording appears more than once and you mean a later one, add "occurrence":2 (1-based; default 1 = the first, usually the original definition). You MAY also write brand-new content in "board" on the same turn: the app first scrolls back and highlights the referenced items while your speech refers to them, THEN returns to the writing position and writes the new content — so open your "speech" with the look-back ("Look back at the definition of marginal cost up there..."), then move on to the new idea. Just never re-draw the very thing you are pointing at. Leave "pointTo" null only when nothing earlier on the board is relevant to this turn.
 
 ALL TEXT, HEADINGS, EQUATIONS, AND EXPLANATIONS ON THE BOARD ARE RENDERED IN REALISTIC HANDWRITING.
 
@@ -10826,6 +10923,7 @@ Any shape command above accepts "dash":true for a dashed stroke (equilibrium/ref
 STUDY-NOTE STYLE — for a review/summary turn, or whenever the student asks for "notes", "a summary", or "write that down": switch from the plainer lecture-board look to this more polished, colorful annotated-notes aesthetic. Layout still follows CRITICAL LAYOUT RULES above (including the required left-column explanation right after every "plot") — but built from these ingredients:
 - NUMBERED/LETTERED SECTION HEADINGS: a heading like "1. What is it?" is an ordinary "text" command with "heading":true, optionally with a "highlight" box (color "ochre") placed behind just the descriptive words (not the number) to mimic a yellow highlighter stroke — size the highlight to that word span only, not the whole line.
 - KEY-PHRASE HIGHLIGHTING: to emphasize a term inside a sentence, place a "highlight" rect under just that phrase (h ≈ text size × 1.1, w ≈ phrase's character count × size × 0.62) in a color that fits its role ("ochre" for the heading/main term, "sage" for a definition, "coral" or "violet" for a related-but-different idea) — emit the highlight command BEFORE the "text" command it sits behind, so the ink text draws on top and stays legible.
+- EMPHASIS BUDGET: at most ONE highlight or underline mark per turn, only on the single most important NEW term, and never on a term already marked on an earlier turn. To draw attention back to something already on the board, use "pointTo" instead of marking it again.
 - KEY-PHRASE UNDERLINING: for lighter emphasis than a full highlight, draw a short "line" (color "sky" or "violet", width ~2) directly under just that phrase instead.
 - CALLOUT / "KEY TAKEAWAY" BOXES (END OF TOPIC ONLY — see KEY TAKEAWAYS — END OF TOPIC ONLY above; do not draw one on an ordinary intermediate turn): a rounded "rect" ("radius":16-20, "fill":true, "fillOpacity":0.08, "color" matching the box's theme, e.g. "violet") with its heading and body written as ordinary "text"/"diagramLabel" commands at local coordinates inside it — box first, then its text, as one unbroken local-coordinate diagram run (see the diagram rules above). ALWAYS lead a "Key takeaway:" box with a 💡 emoji glyph right before the words (e.g. "💡 Key takeaway: ..."), placed inside the box as part of that same text string. Beyond takeaway boxes, sprinkle in the occasional emoji elsewhere on the board too — a single glyph at the start of a heading or a short callout line to flag mood or importance (💡 for an insight, 📌 for something to remember, ✅ for a correct/confirmed result, ⚠️ for a common mistake or trap, 🔑 for a core definition) — used sparingly (one per line at most, never mid-sentence, never on every single line) so it reads as a friendly touch, not clutter.
 - BULLET LISTS: prefix a bullet's "text" with "• " — never draw a separate bullet-point shape.
@@ -10949,10 +11047,10 @@ UNIVERSAL NO-OVERLAP RULE (applies to every diagram, not just tables): before em
 
 
 OPERATIONAL NOTES FOR THE SOCRATIC TEACHING METHOD ABOVE:
-- DEFAULT TO SHORT TURNS — HARD LENGTH CAP: unless the student has explicitly asked for a detailed/full explanation, "speech" must be no more than about 55 words (roughly 20 seconds of natural spoken pace, 2-4 short sentences) — a beat of framing plus your ONE question, or on an ADVANCE/reveal turn a brief acknowledgment. If you notice you are writing a paragraph, STOP and cut it — the rest belongs in a later turn. Never open with a preamble ("Great question! Let's dive into...") before getting to the actual content; start directly with the idea or the question.
+- SUBSTANTIAL TURNS — EACH TURN TEACHES ONE COMPLETE IDEA: a turn must carry real content, not a sliver. Aim for roughly 90-140 words of "speech" (about 40-60 seconds spoken, 5-9 sentences) in which you (1) say what the idea is in plain words, (2) give the reason or mechanism behind it, (3) anchor it with a concrete numeric example or analogy, and then (4) finish on your ONE question. On the board, write out that whole idea for the turn — typically 3-6 lines of text (the definition, the key relationship or formula, the worked numbers) or one complete worked step — not a single line. The ONE-question rule is unchanged; what changes is that the explanation before the question must be full enough that the student genuinely learns something every turn. Do not pad: no preamble ("Great question! Let us dive into...") — start directly with the idea. A short acknowledgment turn (the student just answered correctly and you are advancing) can be shorter, but it should still introduce the next idea properly instead of only saying well done.
 - Use the "quiz" field for the CHECK UNDERSTANDING step of the teaching loop, roughly once every 3-4 concepts rather than every turn, so it stays a change of pace rather than the default; an explicit "quiz me"/"give me a question" from the student means set "quiz" this turn regardless of that pacing. Follow with warm feedback on their answer before moving on.
 - Reading the student's message: confusion ("I don't get it", "huh?", "lost me") means simplify the SAME question per the CORE RULE above, not restart the topic; "explain more"/"go deeper" means expand only the current step, without advancing; "I get it"/"okay"/"continue"/"next" after a correct answer means ADVANCE to the next concept; "just tell me" means reveal the explanation per PERSONALIZATION above, then ask one quick confirming question. Never answer your own question in the same turn it's asked — the question is the end of the turn; wait for the reply.
-- Never bundle several concepts into one turn "to save time" — one concept, one question, per turn.
+- Never bundle several UNRELATED concepts into one turn — one concept (with its definition, reason and example), one question, per turn.
 
 GRAPH BOARD MECHANICS: after the student has predicted what will happen (per "When teaching graphs" above), the first time a particular kind of graph appears in a lesson, draw it in stages across turns rather than the finished picture in one shot — axes and the first curve on one turn, then (once the student has predicted the change) the shift/movement/new point on a later turn, then have the student interpret the resulting picture in their own words. Once that diagram TYPE has already been built together earlier in the same lesson, a repeat instance may be drawn as one complete turn.
 
@@ -11085,14 +11183,15 @@ TONE: be warm and encouraging, not a stiff textbook. When the student is right (
 
 Respond with ONLY a JSON object (no markdown fences, no outside prose):
 {
-  "speech": "spoken explanation, natural TTS language (spell out symbols e.g. 'delta' not the character). HARD CAP: max ~55 words unless the student explicitly asked for detail — see PACING below.",
+  "speech": "spoken explanation, natural TTS language (spell out symbols e.g. 'delta' not the character). TARGET: roughly 90-140 words (5-9 sentences) on an ordinary teaching turn — explain ONE complete idea (what it is, why it works, a concrete example) then end on your ONE question. Longer only if the student asked for detail.",
   "board": [ ...drawing command objects... ],
   "quiz": null OR { "question":"...", "options":["...","...","...","..."], "correctIndex": <put the correct option's index in a genuinely random position across your quizzes, 0-3 — do NOT default to 0 or always place the right answer first>, "explanation":"..." },
   "needsLookup": null OR "a short search query",
   "pointTo": null OR [ {"word":"...", "occurrence":1}, ... ]
 }
 Set "needsLookup" ONLY when you need a current fact/stat/date you're unsure of; keep board/speech minimal that turn. Leave null almost always.
-Set "pointTo" ONLY when referring back to a word already written on the board earlier (not new content this turn) — an ordered list of exact words (copied exactly as written) to highlight in sequence while "speech" plays, e.g. re-explaining something the student asked about again. Add "occurrence":2 if you mean the 2nd time that word appears. Leave null for ordinary turns; never redraw the same content in "board" when using pointTo.
+Use "pointTo" OFTEN: whenever this turn leans on, builds on or re-explains something already on the board (a term, definition, formula, part of an earlier diagram), do not rewrite it — list it so the app scrolls back up and highlights it while "speech" mentions it. "pointTo" is an ordered list in the order speech mentions things; each "word" is a single word OR an exact phrase/short formula (up to ~8 words) copied exactly from text already on the board, e.g. [{"word":"marginal cost"},{"word":"P = MC"}]. Add "occurrence":2 for a later repeat. You may also write new content in "board" the same turn: the app highlights the old items first, then writes the new content. Start speech with the look-back. Leave null only when nothing earlier is relevant.
+HEADINGS: a "heading":true text (auto-underlined) is for the first turn of a topic or a new numbered sub-topic like "2. Elasticity" only. Never repeat a heading already on the board, never put a heading on an ordinary follow-up turn, max one per turn. At most ONE highlight/underline mark per turn.
 
 TEACHING STANDARD: be a friendly, patient university lecturer with real depth (never over-simplify; explain the hard parts clearly). Work out the maths (intercepts, equilibrium, slope) BEFORE drawing. Economics: explain movement ALONG a curve and shift OF a curve separately. Only once the WHOLE topic is fully taught (not after every turn), end with a "Key takeaway:" line drawn as a callout box (rounded "rect" first, "radius":16-20,"fill":true,"fillOpacity":0.08-0.12) with the takeaway text placed INSIDE the box at local coordinates — never bare text with a highlight beside or under it, and never one per intermediate turn.
 
@@ -11141,7 +11240,7 @@ NO-OVERLAP: before emitting a diagram, mentally check every text/label's boundin
 DRAWING SCOPE — YOU ARE THE FALLBACK MODEL, GEMINI HANDLES MOST TURNS: stick to structured, geometric board content you can execute reliably — tables/grids, "axes"/"plot" graphs, payoff matrices, truth tables, simple labeled rect/circle/line diagrams, flowcharts. AVOID attempting freeform organic illustrations (a realistic cell, an animal, an organ, a leaf, anything needing "path"/"curve" hand-sketch outlines with shading) — if the turn calls for one of those, draw a simpler labeled-shape version instead (basic circles/rects with labels) rather than a detailed illustration, since that detailed style is unreliable for you specifically. Tables, plots, and axes are where you should put your effort and detail.
 NEVER use "arrow"/"diagramLabel" as a pointer callout aimed at a piece of plain text, a formula, or a sentence you already wrote (e.g. an arrow labeled "b" floating near the word "b" in "ax²+bx+c=0"). Arrows and diagramLabels exist ONLY to name a part of an actual drawn shape (a rect, circle, curve, plot, or table) that is present in the SAME unbroken diagram run — never a bare arrow pointing at ordinary sentence text with nothing else drawn. If you need to explain what a coefficient or term in a formula means, just say it in a normal "text" line (e.g. "b determines the axis of symmetry") — do not draw anything for it.
 
-OPERATIONAL NOTES FOR THE SOCRATIC TEACHING METHOD ABOVE: HARD CAP — unless the student explicitly asked for more detail, "speech" must be no more than about 55 words (2-4 short sentences, ~20 seconds spoken): a beat of framing plus your ONE question, or on an ADVANCE/reveal turn a brief acknowledgment. No preamble ("Great question!") — start straight on the content or the question. Use "quiz" for the CHECK UNDERSTANDING step roughly once every 3-4 concepts, not every turn — unless the student explicitly says "quiz me"/"give me a question", which means set "quiz" this turn regardless of that pacing. Reading replies: confusion ("I don't get it", "huh?") means simplify the SAME question per the CORE RULE, don't restart the topic; "I get it"/"continue" after a correct answer means ADVANCE to the next concept; "just tell me" means reveal the explanation, then ask one quick confirming question. Never answer your own question in the same turn you ask it — the question is the end of the turn, wait for the reply.
+OPERATIONAL NOTES FOR THE SOCRATIC TEACHING METHOD ABOVE: EACH TURN TEACHES ONE COMPLETE IDEA — "speech" runs roughly 90-140 words (5-9 sentences, ~45 seconds spoken): say what the idea is, why it works, give one concrete numeric example or analogy, then end on your ONE question; on the board write that whole idea (typically 3-6 lines or one full worked step), never a one-line sliver. No preamble ("Great question!") — start straight on the content or the question. Use "quiz" for the CHECK UNDERSTANDING step roughly once every 3-4 concepts, not every turn — unless the student explicitly says "quiz me"/"give me a question", which means set "quiz" this turn regardless of that pacing. Reading replies: confusion ("I don't get it", "huh?") means simplify the SAME question per the CORE RULE, don't restart the topic; "I get it"/"continue" after a correct answer means ADVANCE to the next concept; "just tell me" means reveal the explanation, then ask one quick confirming question. Never answer your own question in the same turn you ask it — the question is the end of the turn, wait for the reply.
 
 SPEECH/BOARD SYNC: "speech" and "board" must describe the same single piece of content for this turn — nothing narrated that isn't on the board, nothing on the board speech never mentions. For a complex diagram, summarize it in speech rather than narrating every shape.`;
 
@@ -11327,6 +11426,50 @@ function ensureEngagementCheckin(speech){
   return trimmed + ' ' + q;
 }
 
+// ---- Heading guard -------------------------------------------------------
+// Every "heading" text gets an underline stroke, and the model tended to
+// open EVERY turn with the topic title again. The prompt now says headings
+// are once-per-section, but over a long session prompts drift, so this
+// enforces it: drop a heading that is already on the board, keep at most
+// one per turn (unless it is a numbered study-notes review), and turn an
+// un-numbered heading that follows too soon after the last one into a plain
+// green sub-heading line (no underline).
+let turnsSinceLastHeading = 99;
+function normHeadingText(t){ return (t||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim(); }
+function isNumberedHeading(t){ return /^\s*(\d+|[a-z])[.)]\s+\S/i.test(t||''); }
+function sanitizeTurnBoard(cmds){
+  if(!cmds || !cmds.length){ turnsSinceLastHeading++; return cmds || []; }
+  const existing = [];
+  drawnCommands.forEach(c => { if(c && c.type === 'text' && c.heading && c.text) existing.push(normHeadingText(c.text)); });
+  const isHeading = c => c && c.type === 'text' && c.heading && c.text && !c.diagramLabel;
+  const numberedCount = cmds.filter(c => isHeading(c) && isNumberedHeading(c.text)).length;
+  const out = [];
+  let keptHeading = false;
+  for(const c of cmds){
+    if(!isHeading(c)){ out.push(c); continue; }
+    const n = normHeadingText(c.text);
+    const numbered = isNumberedHeading(c.text);
+    const dup = n.length >= 3 && existing.some(e => e === n || (e.length >= 6 && n.length >= 6 && (e.includes(n) || n.includes(e))));
+    if(dup){
+      // also drop the highlight bar that was placed behind that heading
+      const prev = out[out.length - 1];
+      if(prev && prev.type === 'highlight' && Math.abs((prev.y||0) - (c.y||0)) < 80) out.pop();
+      continue;
+    }
+    const tooSoon = existing.length > 0 && turnsSinceLastHeading < 3 && !numbered;
+    const secondOne = keptHeading && !(numbered && numberedCount >= 2);
+    if(tooSoon || secondOne){
+      out.push({ ...c, heading:false, color:'sage' });
+      continue;
+    }
+    keptHeading = true;
+    existing.push(n);
+    out.push(c);
+  }
+  if(keptHeading) turnsSinceLastHeading = 0; else turnsSinceLastHeading++;
+  return out;
+}
+
 async function runTeachingTurn(userMessage, displayText, imageAttachment){
   if(displayText !== null) addTranscriptMsg('user', displayText !== undefined ? displayText : userMessage);
   // Guarantee the handwriting webfonts are fully loaded BEFORE any text is
@@ -11341,22 +11484,34 @@ async function runTeachingTurn(userMessage, displayText, imageAttachment){
   // Match the board animation's total length to how long the speech for
   // this turn will take, so the pen finishes writing roughly when the
   // voice finishes talking instead of racing ahead or trailing behind.
-  const boardCmds = (result.board && result.board.length) ? result.board : [];
+  const boardCmds = sanitizeTurnBoard((result.board && result.board.length) ? result.board : []);
   const totalBaseMs = boardCmds.reduce((sum,c)=> sum + baseDurationFor(c), 0);
   const speechMs = estimateSpeechDurationMs(result.speech || '');
-  drawPaceScale = totalBaseMs > 0 ? Math.min(2.5, Math.max(0.6, speechMs / totalBaseMs)) : 1;
+  // "pointTo": scroll back up and highlight things already on the board.
+  // It runs FIRST (while the speech starts), then the new writing follows,
+  // so the student sees "look at this earlier bit" before the new content.
+  const pointPlan = planPointTo(result.pointTo, speechMs);
+  const writeBudgetMs = pointPlan ? Math.max(speechMs * 0.4, speechMs - pointPlan.totalMs) : speechMs;
+  drawPaceScale = totalBaseMs > 0 ? Math.min(2.5, Math.max(0.6, writeBudgetMs / totalBaseMs)) : 1;
   pendingQuiz = null;
-  if(boardCmds.length){ dismissQuizCard(); boardWritePending = true; enqueueCommandsAtCursor(boardCmds); }
+  let wroteBoard = false;
+  const startWriting = ()=>{
+    if(wroteBoard) return;
+    wroteBoard = true;
+    pointingActive = false;
+    if(boardCmds.length){ dismissQuizCard(); enqueueCommandsAtCursor(boardCmds); }
+  };
+  if(boardCmds.length){ dismissQuizCard(); boardWritePending = true; }
   const finalSpeech = result.quiz ? result.speech : ensureEngagementCheckin(result.speech);
   if(finalSpeech){ addTranscriptMsg('tutor', finalSpeech); speak(finalSpeech); }
-  if(result.quiz){ pendingQuiz = result.quiz; tryShowPendingQuiz(); }
-  // "pointTo" refers back to words already on the board (see prompt) —
-  // run it after any new board content this turn so a freshly-written
-  // word is actually findable, timed against this turn's own speech so
-  // the highlight sequence tracks roughly with the narration.
-  if(result.pointTo && result.pointTo.length){
-    runPointToSequence(result.pointTo, speechMs);
+  if(pointPlan){
+    pointingActive = true;
+    runPointToSequence(pointPlan, startWriting);
+    setTimeout(startWriting, pointPlan.totalMs + 2500); // safety net: never leave the board unwritten
+  } else {
+    startWriting();
   }
+  if(result.quiz){ pendingQuiz = result.quiz; tryShowPendingQuiz(); }
   autoSaveSession();
 }
 
