@@ -7104,8 +7104,13 @@ function lineHeightFor(sizeWorld){
 // New text uses a tight 1.12 × size pitch on a fine 5-unit grid; older saved commands keep the
 // original behaviour so existing lessons look exactly as before.
 function lineHeightForCmd(cmd, sizeWorld){
-  if(cmd && cmd.hm) return Math.max(20, Math.ceil(sizeWorld * 1.12 / 5) * 5);
-  return lineHeightFor(sizeWorld);
+  let lh = (cmd && cmd.hm) ? Math.max(20, Math.ceil(sizeWorld * 1.12 / 5) * 5) : lineHeightFor(sizeWorld);
+  // Lines with stacked fractions / roots need real vertical room so they never touch their neighbours.
+  if(cmd && cmd.type === 'text' && hasMath(cmd.text)){
+    const need = mathLineNeed(cmd, sizeWorld);
+    if(need > lh){ const unit = cmd.hm ? 5 : RULE_LINE_SPACING; lh = Math.ceil(need / unit) * unit; }
+  }
+  return lh;
 }
 
 const TOP_MARGIN = 80; // must be a whole multiple of RULE_LINE_SPACING so the
@@ -7776,14 +7781,224 @@ function redrawAllExcept(skipCmd){
 
 function sw(n){ return n * camera.scale; }
 
+/* =====================================================================
+   MATH TYPESETTER — real stacked fractions, full-width square roots,
+   powers and subscripts on the handwriting board.
+   Markup inside any board "text":  frac{num}{den}   sqrt{expr}   ^{sup}   _{sub}
+   (LaTeX-style \frac{}{} / \sqrt{} are accepted too, and √(expr) / √x are
+   typeset with the root bar covering the whole radicand.)
+   Plain text without any of this markup goes through the old fillText path
+   completely unchanged.
+   ===================================================================== */
+var _mmCtx = null;
+function mathMeasureCtx(){ return _mmCtx || (_mmCtx = document.createElement('canvas').getContext('2d')); }
+const MATH_RE = /\\(?:d|t)?frac|\\sqrt|(?:^|[^A-Za-z])(?:frac|sqrt)\s*\{|√|[\^_]\{/;
+function hasMath(s){ return typeof s === 'string' && s.length > 1 && MATH_RE.test(s); }
+
+const MATH_SYMS = {cdot:'·',times:'×',div:'÷',pm:'±',mp:'∓',leq:'≤',le:'≤',geq:'≥',ge:'≥',neq:'≠',ne:'≠',approx:'≈',infty:'∞',
+  pi:'π',theta:'θ',alpha:'α',beta:'β',gamma:'γ',delta:'δ',Delta:'Δ',sigma:'σ',Sigma:'Σ',mu:'μ',lambda:'λ',omega:'ω',Omega:'Ω',
+  phi:'φ',rho:'ρ',epsilon:'ε',tau:'τ',rightarrow:'→',to:'→',leftarrow:'←',int:'∫',sum:'Σ',prod:'∏',ldots:'…',dots:'…',degree:'°',circ:'°'};
+function mathNormalize(s){
+  return String(s)
+    .replace(/\\[()\[\]]/g, '')
+    .replace(/\$+/g, '')
+    .replace(/\\(?:left|right|big|Big|bigg|Bigg)(?![A-Za-z])\s*/g, '')
+    .replace(/\\[,;:! ]/g, ' ')
+    .replace(/\\(?:text|mathrm|mathbf|operatorname)\{([^{}]*)\}/g, '$1')
+    .replace(/\\([A-Za-z]+)/g, (m, n) => (n === 'frac' || n === 'dfrac' || n === 'tfrac' || n === 'sqrt') ? '\\' + n : (MATH_SYMS[n] !== undefined ? MATH_SYMS[n] : n));
+}
+
+function mathParse(src){
+  src = mathNormalize(src);
+  let i = 0; const n = src.length;
+  const prevIsLetter = () => i > 0 && /[A-Za-z]/.test(src[i - 1]);
+  function skipWs(){ while(i < n && src[i] === ' ') i++; }
+  function parseGroup(){
+    skipWs();
+    if(src[i] !== '{') return { t:'seq', items:[] };
+    i++;
+    const node = parseSeq('}');
+    if(src[i] === '}') i++;
+    return node;
+  }
+  function parseSeq(stop){
+    const items = []; let buf = ''; let depth = 0;
+    const flush = () => { if(buf){ items.push({ t:'txt', s:buf }); buf = ''; } };
+    while(i < n){
+      const ch = src[i];
+      if(stop === '}' && ch === '}') break;
+      if(stop === ')'){
+        if(ch === '('){ depth++; }
+        else if(ch === ')'){ if(depth > 0) depth--; else break; }
+      }
+      if(ch === '\\' || /[A-Za-z]/.test(ch)){
+        const tail = src.slice(i, i + 14);
+        let m = /^(\\?)(?:d|t)?frac\s*\{/.exec(tail);
+        if(m && (m[1] || !prevIsLetter())){
+          flush(); i += m[0].length - 1;
+          const num = parseGroup(); const den = parseGroup();
+          items.push({ t:'frac', n:num, d:den }); continue;
+        }
+        m = /^(\\?)sqrt\s*(?:\[[^\]]*\])?\s*\{/.exec(tail);
+        if(m && (m[1] || !prevIsLetter())){
+          flush(); i += m[0].length - 1;
+          items.push({ t:'sqrt', c:parseGroup() }); continue;
+        }
+      }
+      if(ch === '√'){
+        flush(); i++;
+        if(src[i] === '('){ i++; const c = parseSeq(')'); if(src[i] === ')') i++; items.push({ t:'sqrt', c }); }
+        else if(src[i] === '{'){ items.push({ t:'sqrt', c:parseGroup() }); }
+        else {
+          let run = ''; while(i < n && /[A-Za-z0-9.]/.test(src[i])){ run += src[i]; i++; }
+          if(run) items.push({ t:'sqrt', c:{ t:'seq', items:[{ t:'txt', s:run }] } }); else items.push({ t:'txt', s:'√' });
+        }
+        continue;
+      }
+      if((ch === '^' || ch === '_') && src[i + 1] === '{'){
+        flush(); i++; items.push({ t:(ch === '^' ? 'sup' : 'sub'), c:parseGroup() }); continue;
+      }
+      if(ch === '^' && /[0-9]/.test(src[i + 1] || '')){
+        flush(); items.push({ t:'sup', c:{ t:'seq', items:[{ t:'txt', s:src[i + 1] }] } }); i += 2; continue;
+      }
+      if(ch === '{' || ch === '}'){ i++; continue; }
+      buf += ch; i++;
+    }
+    flush();
+    return { t:'seq', items };
+  }
+  return parseSeq(null);
+}
+
+function mathLayout(c, node, px, F, root){
+  switch(node.t){
+    case 'txt': {
+      c.font = F(px);
+      const s = node.s, w = c.measureText(s).width;
+      const emoji = /\p{Extended_Pictographic}/u.test(s);
+      const a = px * (emoji ? 0.95 : 0.76);
+      const d = px * (emoji || /[gjpqyQ,;()\[\]|∫]/.test(s) ? 0.23 : 0.05);
+      return { w, a, d, draw:(cc, x, y) => { cc.font = F(px); cc.fillText(s, x, y); } };
+    }
+    case 'seq': {
+      const bs = node.items.map(it => mathLayout(c, it, px, F, root));
+      let w = 0, a = 0, d = 0;
+      bs.forEach(b => { w += b.w; a = Math.max(a, b.a); d = Math.max(d, b.d); });
+      return { w, a, d, draw:(cc, x, y) => { let cx = x; bs.forEach(b => { b.draw(cc, cx, y); cx += b.w; }); } };
+    }
+    case 'frac': {
+      const cp = Math.max(px * 0.84, root * 0.55);
+      const nb = mathLayout(c, node.n, cp, F, root), db = mathLayout(c, node.d, cp, F, root);
+      const pad = px * 0.16, gap = px * 0.14, axis = px * 0.27, th = Math.max(1.2, px * 0.06);
+      const w = Math.max(nb.w, db.w) + pad * 2;
+      const nUp = axis + th / 2 + gap + nb.d;          // numerator baseline above the line baseline
+      const dDown = th / 2 + gap + db.a - axis;        // denominator baseline below the line baseline
+      return {
+        w, a: nUp + nb.a, d: Math.max(px * 0.2, dDown + db.d),
+        draw:(cc, x, y) => {
+          cc.save(); cc.lineWidth = th; cc.lineCap = 'butt';
+          cc.beginPath(); cc.moveTo(x + pad * 0.35, y - axis); cc.lineTo(x + w - pad * 0.35, y - axis); cc.stroke(); cc.restore();
+          nb.draw(cc, x + (w - nb.w) / 2, y - nUp);
+          db.draw(cc, x + (w - db.w) / 2, y + dDown);
+        }
+      };
+    }
+    case 'sqrt': {
+      const cb = mathLayout(c, node.c, px, F, root);
+      const gap = px * 0.17, th = Math.max(1.3, px * 0.065);
+      const ca = Math.max(cb.a, px * 0.76), cd = Math.max(cb.d, px * 0.2);
+      const rw = px * 0.66, rpad = px * 0.12;
+      const w = rw + cb.w + rpad;
+      return {
+        w, a: ca + gap + th, d: cd,
+        draw:(cc, x, y) => {
+          const topY = y - ca - gap, botY = y + cd, H = botY - topY;
+          cc.save(); cc.lineWidth = th; cc.lineJoin = 'round'; cc.lineCap = 'round';
+          cc.beginPath();
+          cc.moveTo(x + rw * 0.02, topY + H * 0.60);
+          cc.lineTo(x + rw * 0.17, topY + H * 0.52);
+          cc.lineTo(x + rw * 0.42, botY);
+          cc.lineTo(x + rw * 0.94, topY);
+          cc.lineTo(x + w, topY);                 // the bar runs over the WHOLE radicand
+          cc.stroke(); cc.restore();
+          cb.draw(cc, x + rw, y);
+        }
+      };
+    }
+    case 'sup': {
+      const cp = Math.max(px * 0.64, root * 0.45), b = mathLayout(c, node.c, cp, F, root), sh = px * 0.42;
+      return { w:b.w + px * 0.03, a:b.a + sh, d:Math.max(0, b.d - sh), draw:(cc, x, y) => b.draw(cc, x + px * 0.02, y - sh) };
+    }
+    case 'sub': {
+      const cp = Math.max(px * 0.64, root * 0.45), b = mathLayout(c, node.c, cp, F, root), sh = px * 0.18;
+      return { w:b.w + px * 0.03, a:Math.max(0, b.a - sh), d:b.d + sh, draw:(cc, x, y) => b.draw(cc, x + px * 0.02, y + sh) };
+    }
+  }
+  return { w:0, a:0, d:0, draw:() => {} };
+}
+
+const _mathBoxCache = new Map();
+function mathBox(c, str){
+  const f = c.font, key = f + '\u0001' + str;
+  let b = _mathBoxCache.get(key);
+  if(b) return b;
+  const m = /^(.*?)(\d+(?:\.\d+)?)px(.*)$/.exec(f);
+  const pre = m ? m[1] : '500 ', post = m ? m[3] : ' serif', px = m ? parseFloat(m[2]) : 26;
+  const F = p => pre + p + 'px' + post;
+  const box = mathLayout(c, mathParse(str), px, F, px);
+  c.font = f;
+  b = { w:box.w, a:box.a, d:box.d, px, shift:Math.max(0, box.d - px * 0.22), draw:box.draw };
+  if(_mathBoxCache.size > 500) _mathBoxCache.clear();
+  _mathBoxCache.set(key, b);
+  return b;
+}
+function richWidth(c, str){ return hasMath(str) ? mathBox(c, str).w : c.measureText(str).width; }
+function richAscent(c, str){ if(!hasMath(str)) return 0; const b = mathBox(c, str); return b.a + b.shift; }
+// Draws a line at baseline y. `frac` (0..1) reveals only the left part, for the pen animation.
+function richFill(c, str, x, y, frac){
+  if(!hasMath(str)){ c.fillText(str, x, y); return; }
+  const b = mathBox(c, str), yy = y - b.shift;
+  c.save(); c.textAlign = 'left'; c.textBaseline = 'alphabetic';
+  if(frac != null && frac < 1){
+    c.beginPath(); c.rect(x - 4, yy - b.a - b.px, Math.max(0, b.w * frac) + 4, b.a + b.d + b.px * 2); c.clip();
+  }
+  b.draw(c, x, yy);
+  c.restore();
+}
+// Word splitter that never breaks inside {…} or √(…) so a whole fraction/root stays on one row.
+function splitMathWords(text, keepSpace){
+  const s = String(text || ''), out = []; let cur = '', curSp = false, br = 0, pr = 0;
+  for(let i = 0; i < s.length; i++){
+    const ch = s[i];
+    if(ch === '{') br++; else if(ch === '}') br = Math.max(0, br - 1);
+    else if(ch === '(' && (s[i - 1] === '√' || pr > 0)) pr++;
+    else if(ch === ')' && pr > 0) pr--;
+    const sp = /\s/.test(ch) && br === 0 && pr === 0;
+    if(keepSpace){
+      if(cur && sp !== curSp){ out.push(cur); cur = ''; }
+      curSp = sp; cur += ch;
+    } else if(sp){ if(cur){ out.push(cur); cur = ''; } }
+    else cur += ch;
+  }
+  if(cur) out.push(cur);
+  return out;
+}
+// How much vertical room a text command needs per line when it contains maths (world units).
+function mathLineNeed(cmd, sizeWorld){
+  const c = mathMeasureCtx();
+  c.font = (cmd.weight || 500) + ' ' + sizeWorld + "px 'Source Serif 4', Georgia, 'Times New Roman', serif";
+  const b = mathBox(c, cmd.text);
+  return b.a + b.shift + sizeWorld * 0.55;
+}
+
 function wrapTextToLines(text, maxWidthPx, customCtx){
-  const words = (text||'').split(/\s+/).filter(Boolean);
+  const words = hasMath(text) ? splitMathWords(text) : (text||'').split(/\s+/).filter(Boolean);
   const lines = [];
   let cur = '';
   const context = customCtx || ctx;
   words.forEach(w => {
     const test = cur ? cur + ' ' + w : w;
-    if(cur && context.measureText(test).width > maxWidthPx){
+    if(cur && richWidth(context, test) > maxWidthPx){
       lines.push(cur);
       cur = w;
     } else {
@@ -7850,11 +8065,11 @@ function commandScreenBBox(cmd){
       if(cmd.maxWidth){
         const lines = wrapTextToLines(cmd.text||'', sw(cmd.maxWidth));
         const lineHeight = sw(lineHeightForCmd(cmd, size));
-        const width = Math.max(0, ...lines.map(l=>ctx.measureText(l).width));
-        return pad(sx, sy - sw(size)*1.05, sx + width, sy + lineHeight*(lines.length-1) + sw(size)*0.25);
+        const width = Math.max(0, ...lines.map(l=>richWidth(ctx, l)));
+        return pad(sx, sy - Math.max(sw(size)*1.05, richAscent(ctx, cmd.text||'')), sx + width, sy + lineHeight*(lines.length-1) + sw(size)*0.25);
       }
-      const width = ctx.measureText(cmd.text||'').width;
-      return pad(sx, sy - sw(size)*1.05, sx + width, sy + sw(size)*0.25);
+      const width = richWidth(ctx, cmd.text||'');
+      return pad(sx, sy - Math.max(sw(size)*1.05, richAscent(ctx, cmd.text||'')), sx + width, sy + sw(size)*0.25);
     }
     case 'line': case 'arrow': {
       const [x1,y1] = worldToScreen(cmd.x1,cmd.y1); const [x2,y2] = worldToScreen(cmd.x2,cmd.y2);
@@ -8001,11 +8216,11 @@ function renderCommand(cmd){
       // overrunning the grid line next to it.
       if(cmd.diagramLabel && cmd.maxWidth){
         const minSize = Math.max(11, size*0.55);
-        let measured = ctx.measureText(cmd.text||'').width;
+        let measured = richWidth(ctx, cmd.text||'');
         while(measured > sw(cmd.maxWidth) && size > minSize){
           size -= 1;
           ctx.font = `${weight} ${sw(size)}px ${fam}`;
-          measured = ctx.measureText(cmd.text||'').width;
+          measured = richWidth(ctx, cmd.text||'');
         }
       }
       if(cmd.maxWidth && !cmd.diagramLabel){
@@ -8013,12 +8228,12 @@ function renderCommand(cmd){
         const lineHeight = sw(lineHeightForCmd(cmd, size));
         lines.forEach((line,i) => {
           const ly = sy + i*lineHeight;
-          ctx.fillText(line, sx, ly);
-          drawHeadingUnderline(sx, ly, ctx.measureText(line).width, size, color, underlineCount(cmd));
+          richFill(ctx, line, sx, ly);
+          drawHeadingUnderline(sx, ly, richWidth(ctx, line), size, color, underlineCount(cmd));
         });
       } else {
-        ctx.fillText(cmd.text, sx, sy);
-        drawHeadingUnderline(sx, sy, ctx.measureText(cmd.text||'').width, size, color, underlineCount(cmd));
+        richFill(ctx, cmd.text, sx, sy);
+        drawHeadingUnderline(sx, sy, richWidth(ctx, cmd.text||''), size, color, underlineCount(cmd));
       }
       break;
     }
@@ -9175,11 +9390,11 @@ function enqueueCommandsAtCursor(commands){
             tCtx.font = `${c.weight || 500} ${size}px ${fam}`;
 
             const measureLines = (maxWidth) => {
-                const words = (c.text || '').split(/\s+/).filter(Boolean);
+                const words = hasMath(c.text) ? splitMathWords(c.text) : (c.text || '').split(/\s+/).filter(Boolean);
                 let lines = 1, cur = '';
                 words.forEach(w => {
                     const test = cur ? cur + ' ' + w : w;
-                    if(tCtx.measureText(test).width > maxWidth){ lines++; cur = w; }
+                    if(richWidth(tCtx, test) > maxWidth){ lines++; cur = w; }
                     else { cur = test; }
                 });
                 return { lines, words };
@@ -9226,6 +9441,7 @@ function enqueueCommandsAtCursor(commands){
                 // already on the board above it (no pointless gap at the very
                 // top of a fresh page).
                 if(c.heading && globalCursorY > TOP_MARGIN) globalCursorY += RULE_LINE_SPACING/2;
+                else if(!c.diagramLabel && !c.cell && c.color === 'sage' && globalCursorY > TOP_MARGIN) globalCursorY += RULE_LINE_SPACING/4;   // small gap before each new labelled block
                 // Baseline sits exactly ON the rule line at the bottom of this
                 // first allotted line-space (not floating near the top of it),
                 // so the handwriting visually rests on the ruled paper the way
@@ -9435,11 +9651,11 @@ function renderPartialCommand(cmd, t){
       // cell/box even mid-animation, not just once fully drawn.
       if(cmd.diagramLabel && cmd.maxWidth){
         const minSize = Math.max(11, size*0.55);
-        let measured = ctx.measureText(full).width;
+        let measured = richWidth(ctx, full);
         while(measured > sw(cmd.maxWidth) && size > minSize){
           size -= 1;
           ctx.font = `${weight} ${sw(size)}px ${fam}`;
-          measured = ctx.measureText(full).width;
+          measured = richWidth(ctx, full);
         }
       }
       if(cmd.maxWidth && !cmd.diagramLabel){
@@ -9453,12 +9669,14 @@ function renderPartialCommand(cmd, t){
           const take = Math.max(0, Math.min(lineG.length, charsLeft));
           const partial = lineG.slice(0, take).join('');
           const ly = sy + i*lineHeight;
-          ctx.fillText(partial, sx, ly);
+          const lineIsMath = hasMath(line);
+          const lineFrac = lineG.length ? take/lineG.length : 1;
+          if(lineIsMath) richFill(ctx, line, sx, ly, lineFrac); else ctx.fillText(partial, sx, ly);
           // Only underline a heading line once it's fully written — the
           // underline stroke happens after the words, like a real tutor
           // finishing a heading and then drawing a line under it.
-          if(take >= lineG.length) drawHeadingUnderline(sx, ly, ctx.measureText(line).width, size, color, underlineCount(cmd));
-          lastX = sx + ctx.measureText(partial).width;
+          if(take >= lineG.length) drawHeadingUnderline(sx, ly, richWidth(ctx, line), size, color, underlineCount(cmd));
+          lastX = sx + (lineIsMath ? richWidth(ctx, line)*lineFrac : ctx.measureText(partial).width);
           lastY = ly;
           charsLeft -= take + 1;
           if(charsLeft <= 0) break;
@@ -9468,9 +9686,10 @@ function renderPartialCommand(cmd, t){
         const fullG = splitGraphemes(full);
         const nChars = Math.max(1, Math.round(fullG.length*t));
         const partial = fullG.slice(0,nChars).join('');
-        ctx.fillText(partial, sx, sy);
-        const w = ctx.measureText(partial).width;
-        if(nChars >= fullG.length) drawHeadingUnderline(sx, sy, w, size, color, underlineCount(cmd));
+        let w;
+        if(hasMath(full)){ const fr = nChars/fullG.length; richFill(ctx, full, sx, sy, fr); w = richWidth(ctx, full)*fr; }
+        else { ctx.fillText(partial, sx, sy); w = ctx.measureText(partial).width; }
+        if(nChars >= fullG.length) drawHeadingUnderline(sx, sy, hasMath(full) ? richWidth(ctx, full) : w, size, color, underlineCount(cmd));
         drawPen(sx+w, sy, -Math.PI/2);
       }
       break;
@@ -10318,9 +10537,9 @@ function wordBoxesForTextCommand(cmd){
   lines.forEach((line, li) => {
     const ly = cmd.y + li*lineHeight;
     let cursorX = cmd.x;
-    const words = line.split(/(\s+)/); // keep whitespace tokens so cursorX tracks real spacing
+    const words = hasMath(line) ? splitMathWords(line, true) : line.split(/(\s+)/); // keep whitespace tokens so cursorX tracks real spacing
     words.forEach(tok => {
-      const w = ctx.measureText(tok).width;
+      const w = richWidth(ctx, tok);
       if(tok.trim().length){
         boxes.push({
           text: tok,
@@ -10767,6 +10986,13 @@ You must respond with ONLY a JSON object (no markdown fences, no prose outside t
   "pointTo": null OR [ {"word":"...", "occurrence":1}, ... ]
 }
 
+LESSON PLAN, ERASING AND REWRITING (extra optional top-level keys, plus two extra board commands)
+Every user message ends with a CONTEXT block giving the LESSON PLAN progress and a BOARD INDEX (the ids of what is currently on the board).
+1. LESSON PLAN: if CONTEXT says "LESSON PLAN: none yet", you MUST add a top-level key "lessonPlan": {"title":"...","steps":[{"goal":"short concrete goal","check":"one question that proves the student got it"}, ...]} with 4-7 ordered steps that cover the WHOLE topic, from intuition to application. The board for that turn covers step 1 only. On later turns teach ONLY the current step named in CONTEXT. Add top-level "stepDone": true ONLY on the turn where the student has clearly shown they understood the current step (e.g. answered its check correctly); the next turn then starts the next step. If the student struggles, stay on the step and simplify instead of advancing. If the student changes direction you may send a fresh "lessonPlan" (same shape), which replaces the old one.
+2. ERASE: {"type":"erase","target":"t12"} wipes that item off the board with an eraser. target may also be an array of ids, or "last" for the last thing written. Use it when something is wrong, cluttered, or no longer needed.
+3. REWRITE IN PLACE: {"type":"replace","target":"t12","text":"corrected text"} erases that line and writes the new text in the same spot (keep it about the same length or shorter). Use it to fix a mistake or update a worked example, and say so in "speech" (e.g. "let me fix that").
+Only use ids that appear in the BOARD INDEX. Do not erase correct content for no reason. Put erase/replace commands FIRST in "board": they are performed before any new writing in the same turn.
+
 UNIVERSITY LECTURER STANDARD — this section defines HOW YOU TEACH. The rules further down define HOW THE BOARD IS DRAWN. Follow both.
 
 WHO YOU ARE: a brilliant, friendly university lecturer sitting next to the student — an economist, mathematician, finance/accounting lecturer and scientific illustrator in one, working on a digital whiteboard. You are patient, curious, encouraging, confident and conversational — talk like a genuinely chill, likeable Gen Z tutor-friend, not a stiff professor: casual, warm, a little playful, still sharp and accurate. Never robotic, never a textbook. Use natural, relaxed phrases: "Okay, let's slow this down.", "Here's the important part.", "Notice what happened here.", "This is where people usually get tripped up.", "Okay so basically...", "Think about it like this...", "Now let's connect this to the graph.", "Wait, but why does that happen though?", "Yeah so this is actually kind of a big deal." Keep it genuinely warm and encouraging, not slangy for its own sake — casual tone, still university-accurate content, no jargon-dropping just to sound cool.
@@ -10891,7 +11117,7 @@ DIAGRAM RECIPES (compute first, then draw; all use one "plot" command; give ever
 
 WEB LOOKUP (use sparingly): set "needsLookup" ONLY when the next thing you need to teach depends on a current fact, statistic, date, or detail you are not confident you know precisely (e.g. "current US federal funds rate", "population of Lagos 2025"). When you set it, keep "board" and "speech" minimal (a brief natural "let me check that" line, no board content) — you will be given the lookup result and asked to continue for real on the next turn. Do NOT set "needsLookup" for ordinary concepts, definitions, or anything textbook-stable — that costs an extra round trip, so only spend it when accuracy genuinely requires fresh info. Leave it null almost all the time.
 
-BOARD ORGANISATION — WRITE LIKE NEAT, STRUCTURED NOTES, NEVER PARAGRAPHS: every turn the board must look like a tidy page of lecture notes. (1) One idea per line, each line short (about 12 words or fewer); never a block paragraph. (2) Use a consistent shape for the turn: a short sage lead-in label such as "Definition:", "Formula:", "Why:", "Example:", "Step 1:", "Step 2:", "So:" at the start of its own line, with the content directly beneath or after it. (3) Lists of parts, assumptions or steps are written one per line starting with "- " or "1." "2." "3." in order, never run together in a sentence. (4) Equations and calculations go one step per line, one under the other, with the = signs and units kept consistent. (5) Keep related lines together and in logical order: definition, then relationship or formula, then worked example, then result or interpretation. (6) 3-7 lines per turn is ideal; if you need more, you are covering too much, so keep the rest for the next turn. (7) Do not decorate: no random colours, no scattered marks, nothing that is not part of the structure.\n\nWRITE FIRST, THEN EXPLAIN — KNOW EXACTLY WHAT YOU ARE WRITING: the app writes your whole "board" first and only starts speaking "speech" once the writing is finished, so the student hears your explanation while looking at the finished lines. Therefore: (1) in "plan", list the exact lines/formulas you will put on the board, then write "speech" as an explanation of THOSE lines, in the order they appear, using the same terms and numbers that are written; (2) speak as if the content is already up there ("So here we have...", "Look at this second line..."), never "I am writing" or "let me write"; (3) never explain something that is not on the board this turn (unless it is earlier content you point to with "pointTo"), and never leave a written line unexplained.\n\nHEADINGS — ONCE PER SECTION, NOT ONCE PER TURN: a heading ("heading":true — the app draws an underline stroke beneath every heading) marks the start of a NEW SECTION of the board, never a new turn. Write a heading only (a) on the very first turn of a topic, or (b) when you genuinely move to a different sub-topic, in which case use a numbered heading such as "2. Elasticity". Never restate the topic title on a follow-up turn, never repeat a heading that is already on the board, and never put more than one heading on a turn (unless it is a numbered study-notes review). Continuation turns simply add their body lines below what is already there, with no heading and no underline.
+BOARD ORGANISATION — WRITE LIKE NEAT, STRUCTURED NOTES, NEVER PARAGRAPHS: every turn the board must look like a tidy page of lecture notes. (1) One idea per line, each line short (about 12 words or fewer); never a block paragraph. (2) Use a consistent shape for the turn: a short sage lead-in label such as "Definition:", "Formula:", "Why:", "Example:", "Step 1:", "Step 2:", "So:" at the start of its own line, with the content directly beneath or after it. (3) Lists of parts, assumptions or steps are written one per line starting with "- " or "1." "2." "3." in order, never run together in a sentence. (4) Equations and calculations go one step per line, one under the other, with the = signs and units kept consistent. (5) Keep related lines together and in logical order: definition, then relationship or formula, then worked example, then result or interpretation. (6) 3-7 lines per turn is ideal; if you need more, you are covering too much, so keep the rest for the next turn. (7) Do not decorate: no random colours, no scattered marks, nothing that is not part of the structure. (8) Follow one fixed page template for anything new: a sage label line ("Definition:", "Formula:", "Example:", "Step 1:"...), then ONE short line stating the idea, then the formula or working with one step per line, then a result line starting "So:" or "Answer:". (9) Number multi-step working "Step 1:", "Step 2:", ... strictly in order, and keep the same wording pattern for every step. (10) Never put two ideas on one line and never end a line mid-thought and carry on in the next command; every line must fit on ONE row of the board (roughly 60 characters, or 40 if it contains a stacked fraction) — split anything longer into two lines. (11) Only the heading, the sage labels and the result line stand out; everything else is plain ink and aligned to the same left edge.\n\nWRITE FIRST, THEN EXPLAIN — KNOW EXACTLY WHAT YOU ARE WRITING: the app writes your whole "board" first and only starts speaking "speech" once the writing is finished, so the student hears your explanation while looking at the finished lines. Therefore: (1) in "plan", list the exact lines/formulas you will put on the board, then write "speech" as an explanation of THOSE lines, in the order they appear, using the same terms and numbers that are written; (2) speak as if the content is already up there ("So here we have...", "Look at this second line..."), never "I am writing" or "let me write"; (3) never explain something that is not on the board this turn (unless it is earlier content you point to with "pointTo"), and never leave a written line unexplained.\n\nHEADINGS — ONCE PER SECTION, NOT ONCE PER TURN: a heading ("heading":true — the app draws an underline stroke beneath every heading) marks the start of a NEW SECTION of the board, never a new turn. Write a heading only (a) on the very first turn of a topic, or (b) when you genuinely move to a different sub-topic, in which case use a numbered heading such as "2. Elasticity". Never restate the topic title on a follow-up turn, never repeat a heading that is already on the board, and never put more than one heading on a turn (unless it is a numbered study-notes review). Continuation turns simply add their body lines below what is already there, with no heading and no underline.
 
 POINTING BACK AT EARLIER CONTENT ("pointTo") — USE IT OFTEN. The board is one long page and the app can scroll back up to anything already written and highlight it for the student. Whenever this turn's explanation leans on, builds on, contrasts with or answers something that is already on the board (a term, a definition, a formula, an assumption, one part of an earlier diagram or table, a number from a worked example), do NOT describe it from memory and do NOT write it out again — set "pointTo" so the app scrolls back to it and highlights it while you mention it. Typical cases: the student asks "what did that mean again?"; you are applying a formula from a few turns ago; you are comparing the new idea with an earlier one; you are checking the student's answer against something already drawn. "pointTo" is an ordered list of what to highlight, in the same order your "speech" mentions them, e.g. [{"word":"marginal cost"},{"word":"P = MC"}]. Each "word" is either a single word OR an exact phrase / short formula (up to about 8 words) copied character-for-character from text you already wrote earlier in this session via a "text" or "diagramLabel" command — it can only highlight something that is already on the board, never something new. Prefer a distinctive phrase over a very common single word so the right spot is found. If the same wording appears more than once and you mean a later one, add "occurrence":2 (1-based; default 1 = the first, usually the original definition). You MAY also write brand-new content in "board" on the same turn: the app writes the new content first, then, as your speech plays, scrolls back up and highlights the referenced items in order and returns to the writing position — so in "speech" mention each earlier item at the point you want it highlighted ("and remember the definition of marginal cost up there..."). Just never re-draw the very thing you are pointing at. Leave "pointTo" null only when nothing earlier on the board is relevant to this turn.
 
@@ -10904,7 +11130,7 @@ STRICT TEXT COLOR RULE — this is a hard rule, not a stylistic suggestion, and 
 - Do NOT use "ochre", "brick", "teal", "violet", or "coral" on plain "text" commands anymore. Those colors are reserved for diagram shapes/shading/highlighting only (rect, curve, path, polygon, halo, highlight, etc.) — never for handwriting text. A board should never look rainbow-colored: three text colors total (sky/sage/ink), used consistently by role, is the whole palette for text.
 - Do not use color to randomly emphasize scattered "key terms" mid-sentence anymore — that is what produced a messy multi-color board. If a single term truly needs emphasis, use the "highlight" command (a soft box behind it) rather than recoloring the word itself.
 - diagramLabel text (labels naming a part of a diagram) is exempt from this rule and may use "ink" or a color matching the structure it's labeling, since diagram color is a separate visual system from handwriting hierarchy.
-EMOJI RULE — USE AS MANY EMOJIS AS POSSIBLE ON THE BOARD: every "text" command on the board (headings, sub-headings, definitions, bullets, equations' captions, explanations) should carry relevant emojis, ideally 1-3 per line, placed at the start and/or end of the line (e.g. "1. What is gearing? 🏦📊", "Key idea: debt is cheaper than equity 💡💰"). Pick emojis that match the meaning (money 💰, graphs 📈, time ⏳, warning ⚠️, idea 💡, exam 📝, star ⭐ for key points, ✅/❌ for right/wrong). This overrides any earlier advice to avoid emojis, but ONLY for board text. Never put emojis inside the spoken "speech" field (it is read aloud), inside table cells, or inside diagramLabel text. Keep emojis outside math expressions so equations stay readable.
+EMOJI RULE — USE AS MANY EMOJIS AS POSSIBLE ON THE BOARD: every "text" command on the board (headings, sub-headings, definitions, bullets, equations' captions, explanations) should carry relevant emojis, ALWAYS 2-3 per line on EVERY single line (headings and sub-headings too, never a bare line), placed at the end and/or start of the line (e.g. "1. What is gearing? 🏦📊", "Key idea: debt is cheaper than equity 💡💰"). Pick emojis that match the meaning (money 💰, graphs 📈, time ⏳, warning ⚠️, idea 💡, exam 📝, star ⭐ for key points, ✅/❌ for right/wrong). This overrides any earlier advice to avoid emojis, but ONLY for board text. Never put emojis inside the spoken "speech" field (it is read aloud), inside table cells, or inside diagramLabel text. Keep emojis outside math expressions so equations stay readable.
 UNDERLINE RULE — the app underlines automatically, do not draw underlines yourself: blue headings (heading:true, color "sky") are DOUBLE-underlined and green sub-headings (color "sage") are SINGLE-underlined. Keep blue for real headings and green for sub-headings only.
 
 CRITICAL LAYOUT RULES - THE APP WILL OVERRIDE YOUR COORDINATES:
@@ -10920,17 +11146,13 @@ REQUIRED — EVERY GRAPH GETS A RIGHT-SIDE EXPLANATION: every single time you dr
 
 TEXT ON THE BOARD MUST USE REAL SYMBOLS, NOT SPELLED-OUT WORDS: π, θ, β, α, γ, Δ, Σ, ∫, √, ∞, ≤, ≥, ≈, ×, ÷, →, ², ³, ₁, ₂, etc. directly inside "text" strings. Use "mono":true for alignment if drawing equations.
 
-NEVER WRITE LaTeX/TeX MARKUP ON THE BOARD. There is no math typesetting engine — the canvas draws "text" strings literally, character for character, so any LaTeX syntax appears as raw garbled text (e.g. "\(\frac{d}{dx}\)" would be painted exactly like that, backslashes and all). This means:
-- NEVER use \( \), \[ \], $ $, or $$ $$ delimiters.
-- NEVER use \frac{a}{b} — instead write it inline as "a/b" or "a ÷ b".
-- NEVER use \cdot, \pm, \sqrt{}, \lim_{}, \sum_{}, ^{...}, _{...}, or any other backslash/brace TeX commands.
-- Instead use the real Unicode symbols and characters directly: write x² not x^{2}, write x₁ not x_{1}, write √(x) not \sqrt{x}, write × or · not \cdot, write ± not \pm, write lim (h→0) not \lim_{h\to0}, write Σ not \sum.
-- Example — WRONG: "f'(x)=lim_{h→0}\frac{f(x+h)-f(x)}{h}"
-  Example — CORRECT: "f'(x) = lim (h→0) [f(x+h) − f(x)] / h"
-- Example — WRONG: "FV = 1000(1+0.1)^{2}"
-  Example — CORRECT: "FV = 1000(1 + 0.1)²"
-This rule applies to every "text" command, including headings, definitions, and worked equations — plain readable notation only, exactly like natural handwriting on a real whiteboard.
-
+MATH TYPESETTING — FRACTIONS, ROOTS AND POWERS ARE DRAWN LIKE REAL MATHS. The board has a built-in maths typesetter, so inside any "text" command (never in table cells, plot labels or "speech") write:
+- FRACTIONS as frac{numerator}{denominator}. The board draws them stacked: numerator on top, a horizontal bar, denominator underneath, exactly like a textbook. Examples: "Slope = frac{y₂ − y₁}{x₂ − x₁}", "P(A) = frac{favourable outcomes}{total outcomes}", "f'(x) = lim (h→0) frac{f(x+h) − f(x)}{h}". Fractions can be nested and can contain roots and powers. Use frac{}{} for EVERY real fraction (a ratio, a formula, a probability, a quotient of expressions). Never write such a fraction as a/b, a ÷ b or (a)/(b) on the board; plain slashes are only for units like "km/h" or "and/or".
+- SQUARE ROOTS as sqrt{whole expression}. The board draws the root sign with its top bar stretched over EVERYTHING inside the braces, so always put the complete radicand inside, e.g. sqrt{b² − 4ac}, sqrt{frac{a}{b}}, sqrt{x² + y²}. A single symbol such as √2 or √x is also fine, but anything longer MUST use sqrt{...}.
+- POWERS AND SUBSCRIPTS that unicode cannot show cleanly as ^{...} or _{...}, e.g. e^{−x²/2}, x^{n+1}, a_{ij}. Simple ones still use ² ³ ₁ ₂ directly.
+- Everything else stays plain unicode symbols (π θ α β Δ Σ ∫ ∞ ≤ ≥ ≈ × ÷ → ±). Never use dollar signs, LaTeX bracket delimiters, or any backslash LaTeX command: only frac{}{}, sqrt{}, ^{} and _{} are understood.
+- LAYOUT OF MATHS: every displayed formula or calculation step goes on ITS OWN line (a stacked fraction needs vertical room). Put a short sage label such as "Formula:", "Step 1:", "So:" on the line above it. Keep the = signs in the same order from step to step. Keep emojis OUTSIDE the maths: after the expression or on the label line, never inside it. Do not cram more than one stacked fraction on a line unless it is a simple equation like frac{1}{2} = frac{2}{4}.
+- In "speech" say the maths in words ("b squared minus four a c, all over two a") — never read out braces or the words frac and sqrt.
 Available command types:
 - {"type":"text","x":..,"y":..,"text":"...","size":26,"color":"ink|sage|sky","mono":false,"weight":500,"maxWidth":800,"heading":false,"diagramLabel":false} — keep body/paragraph text a lighter, natural handwriting weight (NOT bold — 500 is the normal default; reserve 700 for a genuine emphasis moment, not everyday prose) and easy to read from a distance: use "size" around 24-28 for normal notes, and 18-20 for a diagram's small "diagramLabel" part-labels. For plain (non-diagramLabel) text, "color" must be "ink" (body text, the default/majority case), "sage" (a short sub-heading lead-in), or "sky" (heading:true text only) — see STRICT TEXT COLOR RULE above; do not use any other color value here. Set "diagramLabel":true when this text labels a part of a diagram rather than being paragraph prose (see diagram rules above) — diagramLabel text is exempt from the 3-color rule and may use any color; otherwise leave it false/omitted. Set "heading":true ONLY for a section/topic title (e.g. "2. The Friedman-Phelps Critique"). The app automatically underlines heading text and inserts a blank ruled line above it, so DO NOT manually add a blank line or a "---"/underscore divider before a heading yourself — just set "heading":true and let the app handle the spacing and underline. Use a noticeably larger "size" (e.g. 32-36, NOT 40+) for headings — keep everything compact rather than oversized, but "heading":true is what actually triggers the underline and spacing, not the size alone. FOR ANY diagramLabel THAT SITS INSIDE A KNOWN BOUNDED SPACE — a table/matrix cell, a small shape it must stay inside — ALWAYS also set "maxWidth" to that space's inner width (e.g. a table cell's columnWidth − 2×padding, see the tables section below): the app will auto-shrink that one label's font just enough to guarantee it never visually spills past the boundary you gave it, even if your own width estimate was slightly optimistic. This is a required safety net for every table cell, not an optional extra — get the sizing right per the tables section AND always set "maxWidth" on top of that.
 - {"type":"halo","x":..,"y":..,"r":50,"color":"halo|ochre|sage|teal|violet|sky|coral"}
@@ -10952,7 +11174,7 @@ STUDY-NOTE STYLE — for a review/summary turn, or whenever the student asks for
 - KEY-PHRASE HIGHLIGHTING: to emphasize a term inside a sentence, place a "highlight" rect under just that phrase (h ≈ text size × 1.1, w ≈ phrase's character count × size × 0.62) in a color that fits its role ("ochre" for the heading/main term, "sage" for a definition, "coral" or "violet" for a related-but-different idea) — emit the highlight command BEFORE the "text" command it sits behind, so the ink text draws on top and stays legible.
 - EMPHASIS BUDGET: at most ONE highlight or underline mark per turn, only on the single most important NEW term, and never on a term already marked on an earlier turn. To draw attention back to something already on the board, use "pointTo" instead of marking it again.
 - KEY-PHRASE UNDERLINING: for lighter emphasis than a full highlight, draw a short "line" (color "sky" or "violet", width ~2) directly under just that phrase instead.
-- CALLOUT / "KEY TAKEAWAY" BOXES (END OF TOPIC ONLY — see KEY TAKEAWAYS — END OF TOPIC ONLY above; do not draw one on an ordinary intermediate turn): a rounded "rect" ("radius":16-20, "fill":true, "fillOpacity":0.08, "color" matching the box's theme, e.g. "violet") with its heading and body written as ordinary "text"/"diagramLabel" commands at local coordinates inside it — box first, then its text, as one unbroken local-coordinate diagram run (see the diagram rules above). ALWAYS lead a "Key takeaway:" box with a 💡 emoji glyph right before the words (e.g. "💡 Key takeaway: ..."), placed inside the box as part of that same text string. Beyond takeaway boxes, sprinkle in the occasional emoji elsewhere on the board too — a single glyph at the start of a heading or a short callout line to flag mood or importance (💡 for an insight, 📌 for something to remember, ✅ for a correct/confirmed result, ⚠️ for a common mistake or trap, 🔑 for a core definition) — used sparingly (one per line at most, never mid-sentence, never on every single line) so it reads as a friendly touch, not clutter.
+- CALLOUT / "KEY TAKEAWAY" BOXES (END OF TOPIC ONLY — see KEY TAKEAWAYS — END OF TOPIC ONLY above; do not draw one on an ordinary intermediate turn): a rounded "rect" ("radius":16-20, "fill":true, "fillOpacity":0.08, "color" matching the box's theme, e.g. "violet") with its heading and body written as ordinary "text"/"diagramLabel" commands at local coordinates inside it — box first, then its text, as one unbroken local-coordinate diagram run (see the diagram rules above). ALWAYS lead a "Key takeaway:" box with a 💡 emoji glyph right before the words (e.g. "💡 Key takeaway: ..."), placed inside the box as part of that same text string. Beyond takeaway boxes, sprinkle in the occasional emoji elsewhere on the board too — a single glyph at the start of a heading or a short callout line to flag mood or importance (💡 for an insight, 📌 for something to remember, ✅ for a correct/confirmed result, ⚠️ for a common mistake or trap, 🔑 for a core definition) — and keep following the EMOJI RULE above on top of that: every board line carries 2-3 relevant emojis at its start and/or end (never mid-sentence and never inside a formula), so the whole board feels lively and colourful.
 - BULLET LISTS: prefix a bullet's "text" with "• " — never draw a separate bullet-point shape.
 - COLORFUL GRAPH CALLOUTS: to explain what part of a curve MEANS (not just to name it), give the "plot" an "arrows" entry with a short "label" (e.g. "Lower unemployment → higher inflation") and a "color" (e.g. "coral") pointing at the relevant spot on the curve — the renderer auto-places that label clear of the curve/axes/other labels, exactly like naming a curve or marking a point, so it is safe and precise (never invent a separately-positioned annotation off the plot's own coordinate system).
 Save this richer look for consolidating material already taught — a brand-new concept's first pass still uses the plainer WHITEBOARD ORGANISATION/PACING look above so the board doesn't turn visually busy while the idea is still landing.
@@ -11142,6 +11364,217 @@ function recentHistoryForApi(maxTurns){
   return conversationHistory.slice(-MAX_TURNS);
 }
 
+
+/* =========================================================
+   HUMAN-TUTOR UPGRADE: lesson plan, board ids, erase & rewrite
+   ========================================================= */
+let lessonPlan = null;            // { title, steps:[{goal, check}], current }
+let currentTurnContext = '';      // appended to the newest user message for the API call only
+let boardIdSeq = 0;
+
+function nextBoardId(){
+  if(!boardIdSeq){
+    drawnCommands.forEach(c => { const n = parseInt(String((c && c.id) || '').replace(/\D/g,''), 10); if(n > boardIdSeq) boardIdSeq = n; });
+  }
+  return 't' + (++boardIdSeq);
+}
+
+function lessonPlanContext(){
+  if(!lessonPlan || !lessonPlan.steps || !lessonPlan.steps.length){
+    return conversationHistory.length > 1
+      ? 'LESSON PLAN: none yet — create one now covering what is left of this topic.'
+      : 'LESSON PLAN: none yet';
+  }
+  const st = lessonPlan.steps, n = st.length, i = lessonPlan.current;
+  if(i >= n) return 'LESSON PLAN "' + lessonPlan.title + '": all ' + n + ' steps are complete. Give a short recap and offer where to go next.';
+  const overview = st.map((s,k) => (k+1) + (k < i ? '(done)' : '') + '. ' + s.goal).join(' | ');
+  return 'LESSON PLAN "' + lessonPlan.title + '": ' + overview + '\nCURRENT STEP ' + (i+1) + ' of ' + n + ': ' + st[i].goal + (st[i].check ? ' (check question: ' + st[i].check + ')' : '');
+}
+
+function boardIndexLines(){
+  const lines = [];
+  for(let i = drawnCommands.length - 1; i >= 0 && lines.length < 16; i--){
+    const c = drawnCommands[i];
+    if(!c) continue;
+    let label = null;
+    if(c.type === 'text' && !c.cell && !c.diagramLabel && typeof c.text === 'string' && c.text.trim()) label = '"' + c.text.replace(/\s+/g,' ').trim().slice(0,70) + '"';
+    else if((c.type === 'plot' || c.type === 'axes')) label = '(graph' + (c.title ? ': ' + String(c.title).slice(0,50) : '') + ')';
+    if(!label) continue;
+    if(!c.id) c.id = nextBoardId();
+    lines.push('[' + c.id + '] ' + label);
+  }
+  return lines.reverse();
+}
+
+function buildTurnContext(){
+  const idx = boardIndexLines();
+  return '--- CONTEXT (provided by the app, not the student) ---\n' + lessonPlanContext() +
+         '\nBOARD INDEX (ids you may erase/replace):\n' + (idx.length ? idx.join('\n') : '(board is empty)') + '\n---';
+}
+
+function withTurnContext(msgs){
+  if(!currentTurnContext || !msgs || !msgs.length) return msgs;
+  const out = msgs.slice();
+  const last = out[out.length-1];
+  if(last && last.role === 'user') out[out.length-1] = { ...last, content: last.content + '\n\n' + currentTurnContext };
+  return out;
+}
+
+function applyPlanFromResult(r){
+  try{
+    const lp = r && r.lessonPlan;
+    if(lp && Array.isArray(lp.steps) && lp.steps.length >= 2){
+      lessonPlan = {
+        title: String(lp.title || currentTopicLabel || 'Lesson').slice(0,80),
+        steps: lp.steps.slice(0,10).map(s => ({ goal: String((s && s.goal) || s || '').slice(0,160), check: String((s && s.check) || '').slice(0,200) })),
+        current: 0
+      };
+    } else if(lessonPlan && r && r.stepDone === true){
+      lessonPlan.current = Math.min(lessonPlan.steps.length, lessonPlan.current + 1);
+    }
+  }catch(e){ console.warn('lesson plan update failed', e); }
+}
+
+function planStatus(){
+  if(!lessonPlan || !lessonPlan.steps) return 'idle';
+  return lessonPlan.current >= lessonPlan.steps.length ? 'idle · lesson complete' : 'idle · step ' + (lessonPlan.current + 1) + '/' + lessonPlan.steps.length;
+}
+
+// ---- finding what the model wants erased ----
+function findEraseTargets(target, claimed){
+  const free = d => !(claimed && claimed.has(d));
+  const out = [];
+  (Array.isArray(target) ? target : [target]).forEach(t => {
+    if(t === null || t === undefined) return;
+    let c = null;
+    if(t === 'last'){
+      for(let i = drawnCommands.length - 1; i >= 0; i--){ const d = drawnCommands[i]; if(d && free(d) && d.type === 'text' && !d.cell && !d.diagramLabel){ c = d; break; } }
+    } else {
+      const s = String(t);
+      c = drawnCommands.find(d => d && d.id === s && free(d)) || null;
+      if(!c && s.length >= 4){
+        const q = s.toLowerCase();
+        for(let i = drawnCommands.length - 1; i >= 0; i--){ const d = drawnCommands[i]; if(d && free(d) && d.type === 'text' && String(d.text || '').toLowerCase().includes(q)){ c = d; break; } }
+      }
+    }
+    if(c && !out.includes(c)){
+      out.push(c);
+      // a heading's highlight bar goes with it
+      if(c.type === 'text' && c.heading && typeof c.y === 'number'){
+        drawnCommands.forEach(h => {
+          if(h && (h.type === 'highlight' || h.type === 'highlight-marker') && typeof h.y === 'number' && h.y <= c.y + 4 && h.y >= c.y - 60 && !out.includes(h)) out.push(h);
+        });
+      }
+    }
+  });
+  return out;
+}
+
+// Splits the model's board list into erase/replace operations and ordinary write commands.
+function splitBoardOps(cmds){
+  const ops = [], rest = [], claimed = new Set();
+  (cmds || []).forEach(c => {
+    if(!c || (c.type !== 'erase' && c.type !== 'replace')){ rest.push(c); return; }
+    const targets = findEraseTargets(c.target, claimed);
+    targets.forEach(t => claimed.add(t));
+    if(c.type === 'erase'){ if(targets.length) ops.push({ kind:'erase', targets }); return; }
+    const old = targets[0];
+    const txt = typeof c.text === 'string' ? c.text.trim() : '';
+    if(!txt) return;
+    if(!old || old.type !== 'text'){ rest.push({ type:'text', text: txt, color: c.color || 'ink' }); return; }
+    const neu = Object.assign({}, old, { text: txt, id: old.id });
+    if(c.color) neu.color = c.color;
+    let fits = true;
+    try{ const a = commandScreenBBox(old), b = commandScreenBBox(neu); fits = (b[3] - b[1]) <= (a[3] - a[1]) + 6; }catch(e){}
+    if(fits){ ops.push({ kind:'replace', old, neu }); }
+    else {
+      // too long to fit the old line: wipe it and write the new version at the cursor instead
+      ops.push({ kind:'erase', targets:[old] });
+      const n2 = Object.assign({}, old, { text: txt });
+      delete n2.x; delete n2.y; delete n2.id;
+      rest.push(n2);
+    }
+  });
+  return { ops, rest };
+}
+
+// Animated eraser: scrolls to the item, then wipes it left to right.
+function eraseAnimate(cmd, done){
+  let finished = false;
+  const finish = () => {
+    if(finished) return; finished = true;
+    const i = drawnCommands.indexOf(cmd); if(i >= 0) drawnCommands.splice(i, 1);
+    wordIndexCache = null;
+    redrawAll(); done();
+  };
+  const anchor = commandWorldAnchor(cmd);
+  const go = () => {
+    let bb = null;
+    try{ bb = commandScreenBBox(cmd); }catch(e){}
+    if(!bb || (bb[0] === 0 && bb[1] === 0 && bb[2] === 0 && bb[3] === 0)){ finish(); return; }
+    const bx0 = bb[0], by0 = bb[1], bx1 = bb[2], by1 = bb[3];
+    const bw = Math.max(1, bx1 - bx0);
+    const dur = Math.min(1400, Math.max(600, bw * 1.4));
+    const start = performance.now();
+    function frame(now){
+      try{
+        const t = Math.min(1, (now - start) / dur);
+        const e = t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2) / 2;
+        const ex = bx0 + e * bw;
+        redrawAllExcept(cmd);
+        const clipped = clipToBoard();
+        ctx.save(); ctx.beginPath(); ctx.rect(ex, by0 - 6, Math.max(0, bx1 - ex) + 6, (by1 - by0) + 12); ctx.clip();
+        renderCommand(cmd);
+        ctx.restore();
+        const ew = 34, eh = Math.min(Math.max(by1 - by0, 30), 66);
+        const ey = (by0 + by1) / 2 - eh / 2 + Math.sin(t * Math.PI * 9) * 3;
+        ctx.save();
+        roundRectPath(ctx, ex - ew * 0.6, ey, ew, eh, 7);
+        ctx.fillStyle = '#f1e9e2'; ctx.fill();
+        ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(70,55,50,0.55)'; ctx.stroke();
+        ctx.fillStyle = 'rgba(150,95,85,0.55)'; ctx.fillRect(ex - ew * 0.6 + 3, ey + eh * 0.66, ew - 6, eh * 0.28);
+        ctx.restore();
+        if(clipped) ctx.restore();
+        if(t < 1) requestAnimationFrame(frame); else finish();
+      }catch(err){ console.warn('erase animation failed', err); finish(); }
+    }
+    requestAnimationFrame(frame);
+  };
+  try{ scrollToWorldYIfNeeded(anchor ? anchor[1] : (cmd.y || 0), go, true); }catch(e){ go(); }
+}
+
+// Runs erase/replace operations one after another, then calls done().
+function runBoardOps(ops, done){
+  let over = false;
+  const end = () => {
+    if(over) return; over = true;
+    clearTimeout(watchdog);
+    drawing = false; boardWritePending = false;
+    try{ redrawAll(); }catch(e){}
+    done();
+  };
+  const watchdog = setTimeout(end, 15000 + ops.length * 6000);
+  drawing = true; boardWritePending = true;
+  let i = 0;
+  const next = () => {
+    if(over) return;
+    if(i >= ops.length){ end(); return; }
+    const op = ops[i++];
+    try{
+      if(op.kind === 'erase'){
+        let k = 0;
+        const step = () => { if(over) return; if(k >= op.targets.length){ next(); return; } eraseAnimate(op.targets[k++], () => setTimeout(step, 120)); };
+        step();
+      } else {
+        eraseAnimate(op.old, () => setTimeout(() => {
+          animateCommand(op.neu, () => { drawnCommands.push(op.neu); wordIndexCache = null; setTimeout(next, 150); });
+        }, 120));
+      }
+    }catch(err){ console.warn('board op failed', err); next(); }
+  };
+  next();
+}
+
 async function callTutor(userMessage, imageAttachment){
   setStatus('thinking…');
   lastBackendDebug = [];
@@ -11158,6 +11591,7 @@ async function callTutor(userMessage, imageAttachment){
   const fullUserContent = contextParts.join('\n\n---\n\n');
   conversationHistory.push({role:'user', content: fullUserContent});
   currentTurnImage = imageAttachment || null;
+  try{ currentTurnContext = buildTurnContext(); }catch(e){ console.warn('context build failed', e); currentTurnContext = ''; }
 
   let result = null;
   const backendChain = getBackendChain();
@@ -11174,6 +11608,7 @@ async function callTutor(userMessage, imageAttachment){
     console.warn(`${engine.name} failed, falling back to the next AI backend:`, result.status);
   }
   currentTurnImage = null;
+  currentTurnContext = '';
 
   if(!result.ok){
     conversationHistory.pop();
@@ -11185,7 +11620,8 @@ async function callTutor(userMessage, imageAttachment){
   try{
     const parsed = JSON.parse(result.raw);
     conversationHistory.push({role:'assistant', content: result.raw});
-    setStatus('idle');
+    applyPlanFromResult(parsed);
+    setStatus(planStatus());
     return parsed;
   } catch(jsonErr){
     console.error('Model output was not valid JSON. Raw text:', result.raw);
@@ -11218,7 +11654,9 @@ Respond with ONLY a JSON object (no markdown fences, no outside prose):
 }
 Set "needsLookup" ONLY when you need a current fact/stat/date you're unsure of; keep board/speech minimal that turn. Leave null almost always.
 Use "pointTo" OFTEN: whenever this turn leans on, builds on or re-explains something already on the board (a term, definition, formula, part of an earlier diagram), do not rewrite it — list it so the app scrolls back up and highlights it while "speech" mentions it. "pointTo" is an ordered list in the order speech mentions things; each "word" is a single word OR an exact phrase/short formula (up to ~8 words) copied exactly from text already on the board, e.g. [{"word":"marginal cost"},{"word":"P = MC"}]. Add "occurrence":2 for a later repeat. You may also write new content in "board" the same turn: the app writes the new content first, then highlights the old items in order as "speech" plays. Leave null only when nothing earlier is relevant.
-EMOJI RULE: use as many relevant emojis as possible in board "text" commands (headings, sub-headings, bullets), 1-3 per line at the start or end of the line; this overrides any earlier advice to avoid emojis, but ONLY for board text — never in "speech", table cells or diagramLabel text. UNDERLINES are automatic: blue headings (color "sky") get a DOUBLE underline, green sub-headings (color "sage") a SINGLE underline.
+EMOJI RULE: use as many relevant emojis as possible in board "text" commands (headings, sub-headings, bullets, equation captions) — ALWAYS 2-3 per line on EVERY line, at the start and/or end of the line (never inside a formula); this overrides any earlier advice to avoid emojis, but ONLY for board text — never in "speech", table cells or diagramLabel text. UNDERLINES are automatic: blue headings (color "sky") get a DOUBLE underline, green sub-headings (color "sage") a SINGLE underline.
+LESSON PLAN / ERASE (extra): each user message ends with a CONTEXT block (lesson plan progress + BOARD INDEX of ids on the board). If it says "LESSON PLAN: none yet", add top-level "lessonPlan":{"title":"..","steps":[{"goal":"..","check":"one question"}]} with 4-7 steps covering the whole topic; that turn's board covers step 1 only. Later, teach ONLY the current step; add top-level "stepDone":true only when the student has shown they understood it. To fix the board use {"type":"erase","target":"t12"} (id, array of ids, or "last") or {"type":"replace","target":"t12","text":"new text"} (same spot, same length or shorter), listed FIRST in "board". Only use ids from the BOARD INDEX.
+
 HEADINGS: a "heading":true text (auto-underlined) is for the first turn of a topic or a new numbered sub-topic like "2. Elasticity" only. Never repeat a heading already on the board, never put a heading on an ordinary follow-up turn, max one per turn. At most ONE highlight/underline mark per turn.
 
 TEACHING STANDARD: be a friendly, patient university lecturer with real depth (never over-simplify; explain the hard parts clearly). Work out the maths (intercepts, equilibrium, slope) BEFORE drawing. Economics: explain movement ALONG a curve and shift OF a curve separately. Only once the WHOLE topic is fully taught (not after every turn), end with a "Key takeaway:" line drawn as a callout box (rounded "rect" first, "radius":16-20,"fill":true,"fillOpacity":0.08-0.12) with the takeaway text placed INSIDE the box at local coordinates — never bare text with a highlight beside or under it, and never one per intermediate turn.
@@ -11231,7 +11669,8 @@ TABLES: {"type":"table","columns":["Item","Amount (R)"],"rows":[["Sales","120,00
 LAYOUT: For a diagram (path/curve/circle/rect/line/arrow/halo/highlight), use a small self-contained local coordinate box near (0,0) (e.g. x:0-300,y:0-300) — the app auto-places the whole block on the page. Emit ALL of one diagram's shapes as one unbroken run in "board" (heading text before, then all shapes+labels together, then resume normal text after). Any text labeling a diagram PART must have "diagramLabel":true with local coords so it moves with the diagram. SIDE BY SIDE: the app draws a diagram (not a table) in a left column, so the very next command(s) after it must be 1-3 short plain "text" paragraphs (non-heading, about 20-60 words each) explaining that diagram — they appear in a right column beside it. Give these right-column paragraphs a smaller size than normal body text (around 18-20, not 24-28) and a bold weight (700, not 500). Put any heading BEFORE the diagram, keep the diagram's local box compact (about 450 wide or less), and never put a heading, another diagram or a table right after it.
 GRAPHS — LEFT COLUMN + REQUIRED RIGHT-SIDE EXPLANATION: a "plot"/"axes" command always draws in a left-hand column. REQUIRED: the very next command(s) after it in "board" must be a few short plain "text" bullets (non-heading, one short sentence each) explaining what the graph shows — axes, what each curve means, what a marked point/shift represents — so the app places them beside the graph in a right notes column. Give these bullets a smaller size (around 18-20) and bold weight (700) rather than normal body sizing/weight. Every one of those bullets must be about THIS graph specifically, not a segue to the next topic or a general remark. Never put a heading, a long paragraph, or another diagram/table directly after a plot — that ends the column early and pushes the explanation below the graph instead of beside it.
 
-MATH: use real unicode symbols directly in text (π θ β Δ Σ ∫ √ ∞ ≤ ≥ ≈ × ÷ → ² ³). NEVER output LaTeX/TeX (\frac, \cdot, $ $, \sqrt{}, ^{}, _{}) — the canvas prints strings literally. Write x² not x^{2}, a/b not \frac{a}{b}.
+MATH TYPESETTING: the board has a built-in typesetter. In board "text" commands (not table cells, plot labels or speech) write every real fraction as frac{numerator}{denominator} (drawn stacked with a bar, like a textbook), every square root as sqrt{whole expression} (the root bar covers everything inside the braces, so put the full radicand inside), and awkward powers/subscripts as ^{...} / _{...}, e.g. "x = frac{−b ± sqrt{b² − 4ac}}{2a}". Simple ones still use unicode (² ³ ₁ ₂ π θ Δ Σ ∫ ∞ ≤ ≥ ≈ × ÷ → ±). Never use dollar signs or backslash LaTeX; never write a real fraction as a/b. Put each formula/step on its OWN line under a short label ("Formula:", "Step 1:", "So:"), emojis after the maths not inside it. Say maths in words in "speech".
+ORGANISATION: neat lecture notes, never paragraphs — one idea per line (about 60 characters max, 40 with a fraction), a sage label line then the statement, then working one step per line, then a "So:"/"Answer:" line; number steps in order.
 
 COMMAND TYPES:
 - {"type":"text","x":..,"y":..,"text":"...","size":26,"color":"ink|sage|sky","mono":false,"weight":500,"maxWidth":800,"heading":false,"diagramLabel":false} — plain body text color MUST be "ink" (default/majority), "sage" (short sub-heading lead-in), or "sky" (heading:true only). Keep body text at a lighter, natural handwriting weight — 500 is the normal default, NOT bold; only use 700 for genuine emphasis. diagramLabel text is exempt and may use any color. heading:true only for a section title (app auto-underlines it; don't add your own divider). Body size 24-28, diagramLabel size 18-20, heading size 32-36. Any diagramLabel inside a table cell MUST also set "maxWidth" to that cell's inner width (columnWidth − 2×padding) — required safety net against text spilling past the grid line.
@@ -11287,7 +11726,7 @@ async function callGroq(){
         max_tokens:3600,
         messages: [
           { role:"system", content: SYSTEM_PROMPT_GROQ + studentContextLine() },
-          ...recentHistoryForApi(4)
+          ...withTurnContext(recentHistoryForApi(4))
         ]
       })
     });
@@ -11377,7 +11816,7 @@ async function callGemini(){
     return { ok:false, status:'proxy not configured', errorSpeech:"The AI proxy hasn't been set up yet." };
   }
   const geminiContents = conversationHistory.map((m,idx) => {
-    const parts = [{ text: m.content }];
+    const parts = [{ text: m.content + ((idx === conversationHistory.length-1 && m.role === 'user' && currentTurnContext) ? '\n\n' + currentTurnContext : '') }];
     // Only the newest user turn can carry real image bytes — earlier
     // turns keep just the "[Attached image: ...]" text note already
     // folded into their content.
@@ -11490,14 +11929,25 @@ function pickEmoji(text){
   for(const [re,e] of EMOJI_KEYWORDS) if(re.test(text)) return e;
   return EMOJI_POOL[(_emojiPoolIdx++) % EMOJI_POOL.length];
 }
+const EMOJI_G = /\p{Extended_Pictographic}/gu;
+function pickEmojis(text, n){
+  const out = [];
+  for(const [re,e] of EMOJI_KEYWORDS){ if(re.test(text) && !out.includes(e)){ out.push(e); if(out.length >= n) break; } }
+  while(out.length < n){ const e = EMOJI_POOL[(_emojiPoolIdx++) % EMOJI_POOL.length]; if(!out.includes(e)) out.push(e); }
+  return out;
+}
 function emojifyCmd(c){
   if(!c || c.type !== 'text' || typeof c.text !== 'string') return c;
-  if(c.diagramLabel || c.cell || c.mono) return c;
+  if(c.diagramLabel || c.cell) return c;
   const t = c.text.trim();
-  if(t.length < 2 || EMOJI_RE.test(t)) return c;
-  const e = pickEmoji(t);
-  // always APPEND (never prepend) so the tutor's pointTo word indexes stay valid
-  return { ...c, text: c.text.replace(/\s+$/,'') + ' ' + e };
+  if(t.length < 2) return c;
+  // LOTS of emojis: every board line ends up with at least 2 (headings 3), always APPENDED after the
+  // text/maths (never prepended, never inside a formula) so pointTo phrase matching stays valid.
+  const target = c.heading ? 3 : 2;
+  const have = (t.match(EMOJI_G) || []).length;
+  if(have >= target) return c;
+  const add = pickEmojis(t, target - have).join('');
+  return { ...c, text: c.text.replace(/\s+$/,'') + ' ' + add };
 }
 
 let turnsSinceLastHeading = 99;
@@ -11515,8 +11965,8 @@ function sanitizeTurnBoard(cmds){
     if(!isHeading(c)){
       // Organisation guard: a long plain paragraph becomes one sentence per
       // line (stacked by the layout engine) so the board reads as notes.
-      if(c && c.type === 'text' && !c.heading && !c.diagramLabel && !c.cell && typeof c.text === 'string' && c.text.length > 150){
-        const parts = c.text.split(/(?<=[.!?])\s+(?=[A-Z0-9])/).map(t => t.trim()).filter(Boolean);
+      if(c && c.type === 'text' && !c.heading && !c.diagramLabel && !c.cell && typeof c.text === 'string' && c.text.length > 70){
+        const parts = c.text.split(/(?<=[.!?])\s+(?=[A-Z0-9√(])|(?<=;)\s+/).map(t => t.trim()).filter(Boolean);
         if(parts.length >= 2){ parts.forEach(t => out.push({ ...c, text:t })); continue; }
       }
       out.push(c); continue;
@@ -11559,7 +12009,10 @@ async function runTeachingTurn(userMessage, displayText, imageAttachment){
   // this turn will take, so the pen finishes writing roughly when the
   // voice finishes talking instead of racing ahead or trailing behind.
   const boardCmds = sanitizeTurnBoard((result.board && result.board.length) ? result.board : []);
-  const totalBaseMs = boardCmds.reduce((sum,c)=> sum + baseDurationFor(c), 0);
+  const __split = splitBoardOps(boardCmds);
+  const writeCmds = __split.rest, boardOps = __split.ops;
+  writeCmds.forEach(c => { if(c && typeof c === 'object') c.id = nextBoardId(); });
+  const totalBaseMs = writeCmds.reduce((sum,c)=> sum + baseDurationFor(c), 0);
   const speechMs = estimateSpeechDurationMs(result.speech || '');
   // WRITE FIRST, THEN EXPLAIN: the board is written in full, and only once
   // the pen has finished does the tutor speak (and, if "pointTo" is set,
@@ -11589,20 +12042,32 @@ async function runTeachingTurn(userMessage, displayText, imageAttachment){
       setTimeout(()=>{ pointingActive = false; }, pointPlan.totalMs + 2500);
     }
   };
-  if(boardCmds.length){
+  const startWriting = ()=>{
+    if(writeCmds.length){
+      dismissQuizCard();
+      boardWritePending = true;
+      pointingActive = true; // hold any quiz card back until the explanation has started
+      enqueueCommandsAtCursor(writeCmds);
+      if(syncMode){ narrate(); }
+      const waitStart = Date.now();
+      const maxWaitMs = totalBaseMs * 1.2 + 15000;
+      const poll = setInterval(()=>{
+        const idle = !boardWritePending && !drawing && drawQueue.length === 0;
+        if(idle || Date.now() - waitStart > maxWaitMs){ clearInterval(poll); setTimeout(narrate, 350); }
+      }, 150);
+    } else {
+      narrate();
+      tryShowPendingQuiz();
+    }
+  };
+  // Erasing / rewriting happens first (the tutor scrolls to the spot and wipes it),
+  // then any new writing, and only then does the tutor talk.
+  if(boardOps.length){
     dismissQuizCard();
-    boardWritePending = true;
-    pointingActive = true; // hold any quiz card back until the explanation has started
-    enqueueCommandsAtCursor(boardCmds);
-    if(syncMode){ narrate(); }
-    const waitStart = Date.now();
-    const maxWaitMs = totalBaseMs * 1.2 + 15000;
-    const poll = setInterval(()=>{
-      const idle = !boardWritePending && !drawing && drawQueue.length === 0;
-      if(idle || Date.now() - waitStart > maxWaitMs){ clearInterval(poll); setTimeout(narrate, 350); }
-    }, 150);
+    pointingActive = true;
+    runBoardOps(boardOps, startWriting);
   } else {
-    narrate();
+    startWriting();
   }
   if(result.quiz){ pendingQuiz = result.quiz; tryShowPendingQuiz(); }
   autoSaveSession();
@@ -11891,7 +12356,7 @@ function resetTutorBoardState(){
   currentSessionId = 'session_' + Date.now(); currentSessionTitle = null; currentSubject = '';
   sessionQuizCount = 0;
   pdfText=''; pdfFileName='';
-  conversationHistory=[]; drawQueue=[]; drawnCommands=[];
+  conversationHistory=[]; drawQueue=[]; drawnCommands=[]; lessonPlan=null; boardIdSeq=0; currentTurnContext='';
   camera.x=500; camera.scale=1;
   resetRegionCursors(); currentTopicLabel='Topic';
   clearBoard();
@@ -12018,7 +12483,7 @@ async function persistSession(){
     savedAt: Date.now(),
     quizCount: sessionQuizCount,
     pdfFileName, pdfText: pdfText ? pdfText.slice(0,15000) : '',
-    conversationHistory, drawnCommands, camera,
+    conversationHistory, drawnCommands, lessonPlan, camera,
     globalCursorY, currentTopicLabel, columnMode,
     transcriptHtml: transcriptToHtmlSnapshot()
   };
@@ -12044,7 +12509,7 @@ async function persistSession(){
 // changed (board, transcript, quizzes) — so a lesson survives the app being closed mid-turn.
 let lastAutosaveSig = '';
 function lessonSignature(){
-  return [drawnCommands.length, conversationHistory.length, sessionQuizCount, transcriptEl.childElementCount, currentSessionTitle || '', currentSubject || ''].join('|');
+  return [drawnCommands.length, conversationHistory.length, lessonPlan ? lessonPlan.current : '', sessionQuizCount, transcriptEl.childElementCount, currentSessionTitle || '', currentSubject || ''].join('|');
 }
 setInterval(()=>{
   if(!currentUser || conversationHistory.length === 0) return;
@@ -12153,6 +12618,7 @@ function loadSession(item){
   pdfFileName = item.pdfFileName || ''; pdfText = item.pdfText || '';
   conversationHistory = item.conversationHistory || [];
   drawnCommands = item.drawnCommands || [];
+  lessonPlan = item.lessonPlan || null; boardIdSeq = 0;
   // Only x/scale are meaningful camera fields now (see camera model
   // notes above) — an old save's camera.y, if present, is simply
   // ignored rather than restored, since there's no pan position left
