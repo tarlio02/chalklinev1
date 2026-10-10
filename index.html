@@ -1863,10 +1863,35 @@ const clOv = (function(){
 async function lsGet(k){ const v = localStorage.getItem(k); return v !== null ? v : await clOv.get(k); }
 // Save a synced item locally; if localStorage is full, keep it in the overflow store instead.
 async function lsSet(k, v){
+  if(/^chalkline:(?:session|summary|quiz|notes):/.test(k) || (typeof v === 'string' && v.length > 200000)){
+    if(await clOv.set(k, v)){ try{ localStorage.removeItem(k); }catch(_){} return true; }
+  }
   try{ localStorage.setItem(k, v); clOv.del(k); return true; }
   catch(e){ if(await clOv.set(k, v)){ try{ localStorage.removeItem(k); }catch(_){} return true; } throw e; }
 }
 async function lsDel(k){ try{ localStorage.removeItem(k); }catch(e){} await clOv.del(k); }
+// ---- Make storage practically unlimited ----------------------------------------------------------
+// 1) Ask the browser to treat this site's storage as persistent (never auto-evicted).
+try{ if(navigator.storage && navigator.storage.persist) navigator.storage.persist(); }catch(e){}
+// 2) Lessons/summaries/quizzes/notes live in IndexedDB (limit = a big share of free disk space, not 5 MB).
+//    Move anything still sitting in localStorage over once, which also frees that 5 MB for small settings.
+window.__ovSubjects = {};
+(async function migrateBigKeysToIndexedDb(){
+  try{
+    const re = /^chalkline:(?:session|summary|quiz|notes):/;
+    const keys = [];
+    for(let i=0;i<localStorage.length;i++){ const k = localStorage.key(i); if(k && re.test(k)) keys.push(k); }
+    for(const k of keys){
+      const v = localStorage.getItem(k);
+      if(v === null) continue;
+      if(await clOv.set(k, v) && (await clOv.get(k)) === v) localStorage.removeItem(k);
+    }
+    for(const k of await clOv.keys()){
+      if(!re.test(k)) continue;
+      try{ const item = JSON.parse(await clOv.get(k)); window.__ovSubjects[k] = (item && item.subject) || 'Unsorted'; }catch(e){}
+    }
+  }catch(e){ console.warn('storage migration skipped', e); }
+})();
 function syncKeyRegex(sub){
   const esc = String(sub).replace(/[^\w]/g,'\\$&');
   // Also synced: XP / accuracy stats / mistakes log / per-subject concept meta
@@ -1993,10 +2018,11 @@ async function pullCloud(sub, authoritative){
     // Only drop items that were synced before and are now gone from the cloud (deleted on another
     // device). Anything never uploaded (e.g. a lesson the worker rejected) stays and is pushed below,
     // instead of being wiped the next time the app opens.
-    for(const k of localSyncKeys(sub)){
-      const wasSynced = meta[k] && !meta[k].skip;
-      if(!cloudKeys.has(k) && wasSynced){ localStorage.removeItem(k); changed = true; }
-    }
+    { const allKeys = localSyncKeys(sub); const re = syncKeyRegex(sub); for(const k of await clOv.keys()){ if(re.test(k) && allKeys.indexOf(k) < 0) allKeys.push(k); }
+      for(const k of allKeys){
+        const wasSynced = meta[k] && !meta[k].skip;
+        if(!cloudKeys.has(k) && wasSynced){ await lsDel(k); changed = true; }
+      } }
     for(const k of Object.keys(meta)){ if(!cloudKeys.has(k) && !(meta[k] && meta[k].skip)) delete meta[k]; }
     saveSyncMeta(sub, meta);
     return changed;
@@ -2582,6 +2608,10 @@ function countShellCourses(sub){
         catch(e){ /* skip corrupt entry */ }
       }
     }
+  }
+  for(const kind of ['session','summary','quiz','notes']){
+    const prefix = NS + kind + ':' + sub + ':';
+    for(const k in (window.__ovSubjects || {})){ if(k.startsWith(prefix)) names.add(window.__ovSubjects[k]); }
   }
   names.delete('Unsorted');
   return names.size;
@@ -4469,33 +4499,58 @@ html,body{ height:100%; overflow:hidden; }
      localStorage, so course data actually persists once deployed.
      ------------------------------------------------------------- */
   if(!window.storage || !window.storage.__isRealBackend){
-    const STORAGE_NS = 'chalkline:';
-    window.storage = {
-      __isRealBackend: false,
-      async get(key){
-        const raw = localStorage.getItem(STORAGE_NS + key);
-        return raw === null ? null : { key, value: raw, shared: false };
-      },
-      async set(key, value){
-        try{ localStorage.setItem(STORAGE_NS + key, value); return { key, value, shared: false }; }
-        catch(e){ console.error('localStorage set failed:', e); return null; }
-      },
-      async delete(key){
-        const existed = localStorage.getItem(STORAGE_NS + key) !== null;
-        localStorage.removeItem(STORAGE_NS + key);
-        return { key, deleted: existed, shared: false };
-      },
-      async list(prefix){
-        const keys = [];
-        const full = STORAGE_NS + (prefix || '');
-        for(let i=0;i<localStorage.length;i++){
-          const k = localStorage.key(i);
-          if(k && k.startsWith(full)) keys.push(k.slice(STORAGE_NS.length));
-        }
-        return { keys, prefix, shared: false };
-      }
+  const STORAGE_NS = 'chalkline:';
+  const clOv = (function(){
+    // Overflow store: notes too big for localStorage (~5 MB) live here (IndexedDB has far more room) and still sync to the cloud.
+    let dbp = null;
+    function db(){ if(!dbp) dbp = new Promise((res, rej) => { try{ const r = indexedDB.open('chalkline_overflow', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }catch(e){ rej(e); } }); return dbp; }
+    function tx(mode, fn){ return db().then(d => new Promise((res, rej) => { const t = d.transaction('kv', mode); const q = fn(t.objectStore('kv')); t.oncomplete = () => res(q.result); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error); })); }
+    return {
+      get: k => tx('readonly', s => s.get(k)).then(v => v === undefined ? null : v).catch(() => null),
+      set: (k, v) => tx('readwrite', s => s.put(v, k)).then(() => true).catch(() => false),
+      del: k => tx('readwrite', s => s.delete(k)).then(() => true).catch(() => false),
+      keys: () => tx('readonly', s => s.getAllKeys()).then(a => a || []).catch(() => [])
     };
-  }
+  })();
+  window.storage = {
+    __isRealBackend: false,
+    async get(key){
+      const raw = localStorage.getItem(STORAGE_NS + key);
+      if(raw !== null) return { key, value: raw, shared: false };
+      const big = await clOv.get(STORAGE_NS + key);
+      return big === null ? null : { key, value: big, shared: false };
+    },
+    async set(key, value){
+      // Lessons, summaries, quizzes and notes are stored in IndexedDB (hundreds of MB+), never in the 5 MB localStorage.
+      if(/^(?:session|summary|quiz|notes):/.test(key) || (typeof value === 'string' && value.length > 200000)){
+        if(await clOv.set(STORAGE_NS + key, value)){ try{ localStorage.removeItem(STORAGE_NS + key); }catch(_){} return { key, value, shared: false }; }
+      }
+      try{ localStorage.setItem(STORAGE_NS + key, value); clOv.del(STORAGE_NS + key); return { key, value, shared: false }; }
+      catch(e){
+        // Too big for localStorage: keep it in the larger overflow store (it still uploads to the cloud).
+        console.warn('localStorage full, saving big note to overflow store:', e);
+        if(await clOv.set(STORAGE_NS + key, value)){ try{ localStorage.removeItem(STORAGE_NS + key); }catch(_){} return { key, value, shared: false }; }
+        return null;
+      }
+    },
+    async delete(key){
+      const existed = localStorage.getItem(STORAGE_NS + key) !== null || (await clOv.get(STORAGE_NS + key)) !== null;
+      localStorage.removeItem(STORAGE_NS + key);
+      await clOv.del(STORAGE_NS + key);
+      return { key, deleted: existed, shared: false };
+    },
+    async list(prefix){
+      const keys = [];
+      const full = STORAGE_NS + (prefix || '');
+      for(let i=0;i<localStorage.length;i++){
+        const k = localStorage.key(i);
+        if(k && k.startsWith(full)) keys.push(k.slice(STORAGE_NS.length));
+      }
+      for(const k of await clOv.keys()){ if(k.startsWith(full) && keys.indexOf(k.slice(STORAGE_NS.length)) < 0) keys.push(k.slice(STORAGE_NS.length)); }
+      return { keys, prefix, shared: false };
+    }
+  };
+}
 
   const shell = document.getElementById('app-shell');
   const sbScrim = document.getElementById('sidebar-scrim');
@@ -6874,19 +6929,43 @@ body:not(.panel-open) .sidebar-toggle{ left:0 !important; }
    ------------------------------------------------------------- */
 if(!window.storage || !window.storage.__isRealBackend){
   const STORAGE_NS = 'chalkline:';
+  const clOv = (function(){
+    // Overflow store: notes too big for localStorage (~5 MB) live here (IndexedDB has far more room) and still sync to the cloud.
+    let dbp = null;
+    function db(){ if(!dbp) dbp = new Promise((res, rej) => { try{ const r = indexedDB.open('chalkline_overflow', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }catch(e){ rej(e); } }); return dbp; }
+    function tx(mode, fn){ return db().then(d => new Promise((res, rej) => { const t = d.transaction('kv', mode); const q = fn(t.objectStore('kv')); t.oncomplete = () => res(q.result); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error); })); }
+    return {
+      get: k => tx('readonly', s => s.get(k)).then(v => v === undefined ? null : v).catch(() => null),
+      set: (k, v) => tx('readwrite', s => s.put(v, k)).then(() => true).catch(() => false),
+      del: k => tx('readwrite', s => s.delete(k)).then(() => true).catch(() => false),
+      keys: () => tx('readonly', s => s.getAllKeys()).then(a => a || []).catch(() => [])
+    };
+  })();
   window.storage = {
     __isRealBackend: false,
     async get(key){
       const raw = localStorage.getItem(STORAGE_NS + key);
-      return raw === null ? null : { key, value: raw, shared: false };
+      if(raw !== null) return { key, value: raw, shared: false };
+      const big = await clOv.get(STORAGE_NS + key);
+      return big === null ? null : { key, value: big, shared: false };
     },
     async set(key, value){
-      try{ localStorage.setItem(STORAGE_NS + key, value); return { key, value, shared: false }; }
-      catch(e){ console.error('localStorage set failed:', e); return null; }
+      // Lessons, summaries, quizzes and notes are stored in IndexedDB (hundreds of MB+), never in the 5 MB localStorage.
+      if(/^(?:session|summary|quiz|notes):/.test(key) || (typeof value === 'string' && value.length > 200000)){
+        if(await clOv.set(STORAGE_NS + key, value)){ try{ localStorage.removeItem(STORAGE_NS + key); }catch(_){} return { key, value, shared: false }; }
+      }
+      try{ localStorage.setItem(STORAGE_NS + key, value); clOv.del(STORAGE_NS + key); return { key, value, shared: false }; }
+      catch(e){
+        // Too big for localStorage: keep it in the larger overflow store (it still uploads to the cloud).
+        console.warn('localStorage full, saving big note to overflow store:', e);
+        if(await clOv.set(STORAGE_NS + key, value)){ try{ localStorage.removeItem(STORAGE_NS + key); }catch(_){} return { key, value, shared: false }; }
+        return null;
+      }
     },
     async delete(key){
-      const existed = localStorage.getItem(STORAGE_NS + key) !== null;
+      const existed = localStorage.getItem(STORAGE_NS + key) !== null || (await clOv.get(STORAGE_NS + key)) !== null;
       localStorage.removeItem(STORAGE_NS + key);
+      await clOv.del(STORAGE_NS + key);
       return { key, deleted: existed, shared: false };
     },
     async list(prefix){
@@ -6896,6 +6975,7 @@ if(!window.storage || !window.storage.__isRealBackend){
         const k = localStorage.key(i);
         if(k && k.startsWith(full)) keys.push(k.slice(STORAGE_NS.length));
       }
+      for(const k of await clOv.keys()){ if(k.startsWith(full) && keys.indexOf(k.slice(STORAGE_NS.length)) < 0) keys.push(k.slice(STORAGE_NS.length)); }
       return { keys, prefix, shared: false };
     }
   };
@@ -13267,19 +13347,43 @@ html,body{ height:100%; overflow:hidden; }
    ------------------------------------------------------------- */
 if(!window.storage || !window.storage.__isRealBackend){
   const STORAGE_NS = 'chalkline:';
+  const clOv = (function(){
+    // Overflow store: notes too big for localStorage (~5 MB) live here (IndexedDB has far more room) and still sync to the cloud.
+    let dbp = null;
+    function db(){ if(!dbp) dbp = new Promise((res, rej) => { try{ const r = indexedDB.open('chalkline_overflow', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }catch(e){ rej(e); } }); return dbp; }
+    function tx(mode, fn){ return db().then(d => new Promise((res, rej) => { const t = d.transaction('kv', mode); const q = fn(t.objectStore('kv')); t.oncomplete = () => res(q.result); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error); })); }
+    return {
+      get: k => tx('readonly', s => s.get(k)).then(v => v === undefined ? null : v).catch(() => null),
+      set: (k, v) => tx('readwrite', s => s.put(v, k)).then(() => true).catch(() => false),
+      del: k => tx('readwrite', s => s.delete(k)).then(() => true).catch(() => false),
+      keys: () => tx('readonly', s => s.getAllKeys()).then(a => a || []).catch(() => [])
+    };
+  })();
   window.storage = {
     __isRealBackend: false,
     async get(key){
       const raw = localStorage.getItem(STORAGE_NS + key);
-      return raw === null ? null : { key, value: raw, shared: false };
+      if(raw !== null) return { key, value: raw, shared: false };
+      const big = await clOv.get(STORAGE_NS + key);
+      return big === null ? null : { key, value: big, shared: false };
     },
     async set(key, value){
-      try{ localStorage.setItem(STORAGE_NS + key, value); return { key, value, shared: false }; }
-      catch(e){ console.error('localStorage set failed:', e); return null; }
+      // Lessons, summaries, quizzes and notes are stored in IndexedDB (hundreds of MB+), never in the 5 MB localStorage.
+      if(/^(?:session|summary|quiz|notes):/.test(key) || (typeof value === 'string' && value.length > 200000)){
+        if(await clOv.set(STORAGE_NS + key, value)){ try{ localStorage.removeItem(STORAGE_NS + key); }catch(_){} return { key, value, shared: false }; }
+      }
+      try{ localStorage.setItem(STORAGE_NS + key, value); clOv.del(STORAGE_NS + key); return { key, value, shared: false }; }
+      catch(e){
+        // Too big for localStorage: keep it in the larger overflow store (it still uploads to the cloud).
+        console.warn('localStorage full, saving big note to overflow store:', e);
+        if(await clOv.set(STORAGE_NS + key, value)){ try{ localStorage.removeItem(STORAGE_NS + key); }catch(_){} return { key, value, shared: false }; }
+        return null;
+      }
     },
     async delete(key){
-      const existed = localStorage.getItem(STORAGE_NS + key) !== null;
+      const existed = localStorage.getItem(STORAGE_NS + key) !== null || (await clOv.get(STORAGE_NS + key)) !== null;
       localStorage.removeItem(STORAGE_NS + key);
+      await clOv.del(STORAGE_NS + key);
       return { key, deleted: existed, shared: false };
     },
     async list(prefix){
@@ -13289,6 +13393,7 @@ if(!window.storage || !window.storage.__isRealBackend){
         const k = localStorage.key(i);
         if(k && k.startsWith(full)) keys.push(k.slice(STORAGE_NS.length));
       }
+      for(const k of await clOv.keys()){ if(k.startsWith(full) && keys.indexOf(k.slice(STORAGE_NS.length)) < 0) keys.push(k.slice(STORAGE_NS.length)); }
       return { keys, prefix, shared: false };
     }
   };
@@ -14155,19 +14260,43 @@ html,body{ height:100%; overflow:hidden; }
    ------------------------------------------------------------- */
 if(!window.storage || !window.storage.__isRealBackend){
   const STORAGE_NS = 'chalkline:';
+  const clOv = (function(){
+    // Overflow store: notes too big for localStorage (~5 MB) live here (IndexedDB has far more room) and still sync to the cloud.
+    let dbp = null;
+    function db(){ if(!dbp) dbp = new Promise((res, rej) => { try{ const r = indexedDB.open('chalkline_overflow', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }catch(e){ rej(e); } }); return dbp; }
+    function tx(mode, fn){ return db().then(d => new Promise((res, rej) => { const t = d.transaction('kv', mode); const q = fn(t.objectStore('kv')); t.oncomplete = () => res(q.result); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error); })); }
+    return {
+      get: k => tx('readonly', s => s.get(k)).then(v => v === undefined ? null : v).catch(() => null),
+      set: (k, v) => tx('readwrite', s => s.put(v, k)).then(() => true).catch(() => false),
+      del: k => tx('readwrite', s => s.delete(k)).then(() => true).catch(() => false),
+      keys: () => tx('readonly', s => s.getAllKeys()).then(a => a || []).catch(() => [])
+    };
+  })();
   window.storage = {
     __isRealBackend: false,
     async get(key){
       const raw = localStorage.getItem(STORAGE_NS + key);
-      return raw === null ? null : { key, value: raw, shared: false };
+      if(raw !== null) return { key, value: raw, shared: false };
+      const big = await clOv.get(STORAGE_NS + key);
+      return big === null ? null : { key, value: big, shared: false };
     },
     async set(key, value){
-      try{ localStorage.setItem(STORAGE_NS + key, value); return { key, value, shared: false }; }
-      catch(e){ console.error('localStorage set failed:', e); return null; }
+      // Lessons, summaries, quizzes and notes are stored in IndexedDB (hundreds of MB+), never in the 5 MB localStorage.
+      if(/^(?:session|summary|quiz|notes):/.test(key) || (typeof value === 'string' && value.length > 200000)){
+        if(await clOv.set(STORAGE_NS + key, value)){ try{ localStorage.removeItem(STORAGE_NS + key); }catch(_){} return { key, value, shared: false }; }
+      }
+      try{ localStorage.setItem(STORAGE_NS + key, value); clOv.del(STORAGE_NS + key); return { key, value, shared: false }; }
+      catch(e){
+        // Too big for localStorage: keep it in the larger overflow store (it still uploads to the cloud).
+        console.warn('localStorage full, saving big note to overflow store:', e);
+        if(await clOv.set(STORAGE_NS + key, value)){ try{ localStorage.removeItem(STORAGE_NS + key); }catch(_){} return { key, value, shared: false }; }
+        return null;
+      }
     },
     async delete(key){
-      const existed = localStorage.getItem(STORAGE_NS + key) !== null;
+      const existed = localStorage.getItem(STORAGE_NS + key) !== null || (await clOv.get(STORAGE_NS + key)) !== null;
       localStorage.removeItem(STORAGE_NS + key);
+      await clOv.del(STORAGE_NS + key);
       return { key, deleted: existed, shared: false };
     },
     async list(prefix){
@@ -14177,6 +14306,7 @@ if(!window.storage || !window.storage.__isRealBackend){
         const k = localStorage.key(i);
         if(k && k.startsWith(full)) keys.push(k.slice(STORAGE_NS.length));
       }
+      for(const k of await clOv.keys()){ if(k.startsWith(full) && keys.indexOf(k.slice(STORAGE_NS.length)) < 0) keys.push(k.slice(STORAGE_NS.length)); }
       return { keys, prefix, shared: false };
     }
   };
@@ -14784,19 +14914,43 @@ html,body{ height:100%; overflow:hidden; }
    ------------------------------------------------------------- */
 if(!window.storage || !window.storage.__isRealBackend){
   const STORAGE_NS = 'chalkline:';
+  const clOv = (function(){
+    // Overflow store: notes too big for localStorage (~5 MB) live here (IndexedDB has far more room) and still sync to the cloud.
+    let dbp = null;
+    function db(){ if(!dbp) dbp = new Promise((res, rej) => { try{ const r = indexedDB.open('chalkline_overflow', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }catch(e){ rej(e); } }); return dbp; }
+    function tx(mode, fn){ return db().then(d => new Promise((res, rej) => { const t = d.transaction('kv', mode); const q = fn(t.objectStore('kv')); t.oncomplete = () => res(q.result); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error); })); }
+    return {
+      get: k => tx('readonly', s => s.get(k)).then(v => v === undefined ? null : v).catch(() => null),
+      set: (k, v) => tx('readwrite', s => s.put(v, k)).then(() => true).catch(() => false),
+      del: k => tx('readwrite', s => s.delete(k)).then(() => true).catch(() => false),
+      keys: () => tx('readonly', s => s.getAllKeys()).then(a => a || []).catch(() => [])
+    };
+  })();
   window.storage = {
     __isRealBackend: false,
     async get(key){
       const raw = localStorage.getItem(STORAGE_NS + key);
-      return raw === null ? null : { key, value: raw, shared: false };
+      if(raw !== null) return { key, value: raw, shared: false };
+      const big = await clOv.get(STORAGE_NS + key);
+      return big === null ? null : { key, value: big, shared: false };
     },
     async set(key, value){
-      try{ localStorage.setItem(STORAGE_NS + key, value); return { key, value, shared: false }; }
-      catch(e){ console.error('localStorage set failed:', e); return null; }
+      // Lessons, summaries, quizzes and notes are stored in IndexedDB (hundreds of MB+), never in the 5 MB localStorage.
+      if(/^(?:session|summary|quiz|notes):/.test(key) || (typeof value === 'string' && value.length > 200000)){
+        if(await clOv.set(STORAGE_NS + key, value)){ try{ localStorage.removeItem(STORAGE_NS + key); }catch(_){} return { key, value, shared: false }; }
+      }
+      try{ localStorage.setItem(STORAGE_NS + key, value); clOv.del(STORAGE_NS + key); return { key, value, shared: false }; }
+      catch(e){
+        // Too big for localStorage: keep it in the larger overflow store (it still uploads to the cloud).
+        console.warn('localStorage full, saving big note to overflow store:', e);
+        if(await clOv.set(STORAGE_NS + key, value)){ try{ localStorage.removeItem(STORAGE_NS + key); }catch(_){} return { key, value, shared: false }; }
+        return null;
+      }
     },
     async delete(key){
-      const existed = localStorage.getItem(STORAGE_NS + key) !== null;
+      const existed = localStorage.getItem(STORAGE_NS + key) !== null || (await clOv.get(STORAGE_NS + key)) !== null;
       localStorage.removeItem(STORAGE_NS + key);
+      await clOv.del(STORAGE_NS + key);
       return { key, deleted: existed, shared: false };
     },
     async list(prefix){
@@ -14806,6 +14960,7 @@ if(!window.storage || !window.storage.__isRealBackend){
         const k = localStorage.key(i);
         if(k && k.startsWith(full)) keys.push(k.slice(STORAGE_NS.length));
       }
+      for(const k of await clOv.keys()){ if(k.startsWith(full) && keys.indexOf(k.slice(STORAGE_NS.length)) < 0) keys.push(k.slice(STORAGE_NS.length)); }
       return { keys, prefix, shared: false };
     }
   };
@@ -15333,19 +15488,43 @@ html,body{ height:100%; overflow:hidden; }
    ------------------------------------------------------------- */
 if(!window.storage || !window.storage.__isRealBackend){
   const STORAGE_NS = 'chalkline:';
+  const clOv = (function(){
+    // Overflow store: notes too big for localStorage (~5 MB) live here (IndexedDB has far more room) and still sync to the cloud.
+    let dbp = null;
+    function db(){ if(!dbp) dbp = new Promise((res, rej) => { try{ const r = indexedDB.open('chalkline_overflow', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }catch(e){ rej(e); } }); return dbp; }
+    function tx(mode, fn){ return db().then(d => new Promise((res, rej) => { const t = d.transaction('kv', mode); const q = fn(t.objectStore('kv')); t.oncomplete = () => res(q.result); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error); })); }
+    return {
+      get: k => tx('readonly', s => s.get(k)).then(v => v === undefined ? null : v).catch(() => null),
+      set: (k, v) => tx('readwrite', s => s.put(v, k)).then(() => true).catch(() => false),
+      del: k => tx('readwrite', s => s.delete(k)).then(() => true).catch(() => false),
+      keys: () => tx('readonly', s => s.getAllKeys()).then(a => a || []).catch(() => [])
+    };
+  })();
   window.storage = {
     __isRealBackend: false,
     async get(key){
       const raw = localStorage.getItem(STORAGE_NS + key);
-      return raw === null ? null : { key, value: raw, shared: false };
+      if(raw !== null) return { key, value: raw, shared: false };
+      const big = await clOv.get(STORAGE_NS + key);
+      return big === null ? null : { key, value: big, shared: false };
     },
     async set(key, value){
-      try{ localStorage.setItem(STORAGE_NS + key, value); return { key, value, shared: false }; }
-      catch(e){ console.error('localStorage set failed:', e); return null; }
+      // Lessons, summaries, quizzes and notes are stored in IndexedDB (hundreds of MB+), never in the 5 MB localStorage.
+      if(/^(?:session|summary|quiz|notes):/.test(key) || (typeof value === 'string' && value.length > 200000)){
+        if(await clOv.set(STORAGE_NS + key, value)){ try{ localStorage.removeItem(STORAGE_NS + key); }catch(_){} return { key, value, shared: false }; }
+      }
+      try{ localStorage.setItem(STORAGE_NS + key, value); clOv.del(STORAGE_NS + key); return { key, value, shared: false }; }
+      catch(e){
+        // Too big for localStorage: keep it in the larger overflow store (it still uploads to the cloud).
+        console.warn('localStorage full, saving big note to overflow store:', e);
+        if(await clOv.set(STORAGE_NS + key, value)){ try{ localStorage.removeItem(STORAGE_NS + key); }catch(_){} return { key, value, shared: false }; }
+        return null;
+      }
     },
     async delete(key){
-      const existed = localStorage.getItem(STORAGE_NS + key) !== null;
+      const existed = localStorage.getItem(STORAGE_NS + key) !== null || (await clOv.get(STORAGE_NS + key)) !== null;
       localStorage.removeItem(STORAGE_NS + key);
+      await clOv.del(STORAGE_NS + key);
       return { key, deleted: existed, shared: false };
     },
     async list(prefix){
@@ -15355,6 +15534,7 @@ if(!window.storage || !window.storage.__isRealBackend){
         const k = localStorage.key(i);
         if(k && k.startsWith(full)) keys.push(k.slice(STORAGE_NS.length));
       }
+      for(const k of await clOv.keys()){ if(k.startsWith(full) && keys.indexOf(k.slice(STORAGE_NS.length)) < 0) keys.push(k.slice(STORAGE_NS.length)); }
       return { keys, prefix, shared: false };
     }
   };
@@ -16046,6 +16226,10 @@ if(!window.storage || !window.storage.__isRealBackend){
       return big === null ? null : { key, value: big, shared: false };
     },
     async set(key, value){
+      // Lessons, summaries, quizzes and notes are stored in IndexedDB (hundreds of MB+), never in the 5 MB localStorage.
+      if(/^(?:session|summary|quiz|notes):/.test(key) || (typeof value === 'string' && value.length > 200000)){
+        if(await clOv.set(STORAGE_NS + key, value)){ try{ localStorage.removeItem(STORAGE_NS + key); }catch(_){} return { key, value, shared: false }; }
+      }
       try{ localStorage.setItem(STORAGE_NS + key, value); clOv.del(STORAGE_NS + key); return { key, value, shared: false }; }
       catch(e){
         // Too big for localStorage: keep it in the larger overflow store (it still uploads to the cloud).
@@ -19205,19 +19389,43 @@ function quizAuthHeaders(){
    ------------------------------------------------------------- */
 if(!window.storage || !window.storage.__isRealBackend){
   const STORAGE_NS = 'chalkline:';
+  const clOv = (function(){
+    // Overflow store: notes too big for localStorage (~5 MB) live here (IndexedDB has far more room) and still sync to the cloud.
+    let dbp = null;
+    function db(){ if(!dbp) dbp = new Promise((res, rej) => { try{ const r = indexedDB.open('chalkline_overflow', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }catch(e){ rej(e); } }); return dbp; }
+    function tx(mode, fn){ return db().then(d => new Promise((res, rej) => { const t = d.transaction('kv', mode); const q = fn(t.objectStore('kv')); t.oncomplete = () => res(q.result); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error); })); }
+    return {
+      get: k => tx('readonly', s => s.get(k)).then(v => v === undefined ? null : v).catch(() => null),
+      set: (k, v) => tx('readwrite', s => s.put(v, k)).then(() => true).catch(() => false),
+      del: k => tx('readwrite', s => s.delete(k)).then(() => true).catch(() => false),
+      keys: () => tx('readonly', s => s.getAllKeys()).then(a => a || []).catch(() => [])
+    };
+  })();
   window.storage = {
     __isRealBackend: false,
     async get(key){
       const raw = localStorage.getItem(STORAGE_NS + key);
-      return raw === null ? null : { key, value: raw, shared: false };
+      if(raw !== null) return { key, value: raw, shared: false };
+      const big = await clOv.get(STORAGE_NS + key);
+      return big === null ? null : { key, value: big, shared: false };
     },
     async set(key, value){
-      try{ localStorage.setItem(STORAGE_NS + key, value); return { key, value, shared: false }; }
-      catch(e){ console.error('localStorage set failed:', e); return null; }
+      // Lessons, summaries, quizzes and notes are stored in IndexedDB (hundreds of MB+), never in the 5 MB localStorage.
+      if(/^(?:session|summary|quiz|notes):/.test(key) || (typeof value === 'string' && value.length > 200000)){
+        if(await clOv.set(STORAGE_NS + key, value)){ try{ localStorage.removeItem(STORAGE_NS + key); }catch(_){} return { key, value, shared: false }; }
+      }
+      try{ localStorage.setItem(STORAGE_NS + key, value); clOv.del(STORAGE_NS + key); return { key, value, shared: false }; }
+      catch(e){
+        // Too big for localStorage: keep it in the larger overflow store (it still uploads to the cloud).
+        console.warn('localStorage full, saving big note to overflow store:', e);
+        if(await clOv.set(STORAGE_NS + key, value)){ try{ localStorage.removeItem(STORAGE_NS + key); }catch(_){} return { key, value, shared: false }; }
+        return null;
+      }
     },
     async delete(key){
-      const existed = localStorage.getItem(STORAGE_NS + key) !== null;
+      const existed = localStorage.getItem(STORAGE_NS + key) !== null || (await clOv.get(STORAGE_NS + key)) !== null;
       localStorage.removeItem(STORAGE_NS + key);
+      await clOv.del(STORAGE_NS + key);
       return { key, deleted: existed, shared: false };
     },
     async list(prefix){
@@ -19227,6 +19435,7 @@ if(!window.storage || !window.storage.__isRealBackend){
         const k = localStorage.key(i);
         if(k && k.startsWith(full)) keys.push(k.slice(STORAGE_NS.length));
       }
+      for(const k of await clOv.keys()){ if(k.startsWith(full) && keys.indexOf(k.slice(STORAGE_NS.length)) < 0) keys.push(k.slice(STORAGE_NS.length)); }
       return { keys, prefix, shared: false };
     }
   };
