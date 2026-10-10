@@ -11563,10 +11563,11 @@ function buildTurnContext(){
 }
 
 function withTurnContext(msgs){
-  if(!currentTurnContext || !msgs || !msgs.length) return msgs;
+  if(!msgs || !msgs.length) return msgs;
   const out = msgs.slice();
   const last = out[out.length-1];
-  if(last && last.role === 'user') out[out.length-1] = { ...last, content: last.content + '\n\n' + currentTurnContext };
+  const tail = (currentTurnContext ? currentTurnContext + '\n\n' : '') + effortDirective().trim();
+  if(last && last.role === 'user') out[out.length-1] = { ...last, content: last.content + '\n\n' + tail };
   return out;
 }
 
@@ -11726,6 +11727,48 @@ function runBoardOps(ops, done){
 }
 
 // ---------------------------------------------------------------------
+// CONVERSATION MEMORY + CACHE-FRIENDLY REQUESTS
+// APIs are stateless, so the model can only "know" earlier turns if they are in the request. Instead of
+// resending (or dropping) the whole history, older turns are folded into a short MEMORY note and only the
+// last 5-8 messages are sent verbatim. The cut point moves in steps of 4 messages, so between steps the
+// whole prefix (system prompt + memory + recent messages) is byte-identical from one request to the next —
+// which is exactly what provider prompt caching (Groq / Gemini implicit / OpenAI-style) needs to hit.
+// Anything that changes every turn (effort directive, lesson-plan/board context) goes at the very END.
+// ---------------------------------------------------------------------
+function _oneLine(t, max){
+  t = String(t || '').replace(/\s+/g, ' ').trim();
+  return t.length > max ? t.slice(0, max - 1).trimEnd() + '…' : t;
+}
+function buildConversationMemory(old){
+  const lines = [];
+  let pendingUser = '';
+  old.forEach(m => {
+    if(m.role === 'user'){
+      const parts = String(m.content || '').split('\n\n---\n\n');
+      pendingUser = _oneLine(parts[parts.length - 1], 140);
+    } else {
+      let say = '';
+      try{ say = (JSON.parse(m.content) || {}).speech || ''; }catch(e){ say = m.content; }
+      lines.push('- Student: ' + (pendingUser || '(continued)') + ' → Tutor: ' + _oneLine(say, 170));
+      pendingUser = '';
+    }
+  });
+  let out = lines.join('\n');
+  if(out.length > 1800) out = '(earlier turns omitted)\n' + out.slice(out.length - 1800).replace(/^[^\n]*\n/, '');
+  return out;
+}
+function historyView(){
+  const h = conversationHistory, n = h.length;
+  let cut = n > 8 ? 4 * Math.ceil((n - 8) / 4) : 0;
+  while(cut > 0 && cut < n - 1 && h[cut].role !== 'user') cut++;
+  return { memory: cut ? buildConversationMemory(h.slice(0, cut)) : '', msgs: h.slice(cut) };
+}
+function memoryBlock(view){
+  if(!view || !view.memory) return '';
+  return "\n\nCONVERSATION MEMORY — what you and the student already covered earlier in this lesson (older turns, summarized; the recent turns follow as normal messages). Treat it as already said and known; build on it, do not repeat it:\n" + view.memory;
+}
+
+// ---------------------------------------------------------------------
 // ADAPTIVE EFFORT — spend tokens in proportion to how hard the turn really is.
 // 1) assessTurnComplexity() makes a cheap local first guess (easy / medium / hard) that sets the
 //    output-token budget (and Groq's reasoning effort). 2) effortDirective() tells the AI the
@@ -11740,6 +11783,10 @@ const TIER_BUDGET = {
   hard:   { groq: 3600, big: 14000 }
 };
 function tierBudget(kind){ return (TIER_BUDGET[currentTurnTier] || TIER_BUDGET.hard)[kind]; }
+// The big input cost is the ~9.5k-token system prompt + the resent history, not the reply. Easy turns
+// use the condensed prompt (~1.5k tokens) and a short history window on EVERY engine.
+function tierPrompt(fullPrompt){ return currentTurnTier === 'easy' ? SYSTEM_PROMPT_GROQ : fullPrompt; }
+function tierHistoryTurns(full){ return currentTurnTier === 'easy' ? 4 : (currentTurnTier === 'medium' ? Math.min(full, 8) : full); }
 function tierReasoningEffort(){ return currentTurnTier === 'easy' ? 'low' : null; }   // null = provider default
 
 function assessTurnComplexity(userMessage, imageAttachment, firstTurn){
@@ -11923,6 +11970,7 @@ async function callGroq(){
   }
   let response, data;
   try{
+    const view = historyView();
     response = await fetch(`${PROXY_URL}/groq`, {
       method:"POST",
       headers:Object.assign({"Content-Type":"application/json"}, chalklineAuthHeaders()),
@@ -11932,8 +11980,8 @@ async function callGroq(){
         max_tokens: tierBudget('groq'),
         ...(tierReasoningEffort() ? { reasoning_effort: tierReasoningEffort() } : {}),
         messages: [
-          { role:"system", content: SYSTEM_PROMPT_GROQ + studentContextLine() + effortDirective() },
-          ...withTurnContext(recentHistoryForApi(4))
+          { role:"system", content: SYSTEM_PROMPT_GROQ + studentContextLine() + memoryBlock(view) },
+          ...withTurnContext(view.msgs)
         ]
       })
     });
@@ -11964,18 +12012,20 @@ async function callApinex(){
   if(PROXY_URL.includes('YOUR-WORKER-SUBDOMAIN')){
     return { ok:false, status:'proxy not configured', errorSpeech:"The AI proxy hasn't been set up yet." };
   }
-  const history = recentHistoryForApi(12);
+  const view = historyView();
+  const history = view.msgs;
+  const tail = '\n\n' + effortDirective().trim();
   const messages = history.map((m, idx) => {
     if(idx === history.length-1 && currentTurnImage){
       return {
         role: m.role,
         content: [
-          { type:"text", text: m.content },
+          { type:"text", text: m.content + tail },
           { type:"image_url", image_url:{ url:`data:${currentTurnImage.mimeType};base64,${currentTurnImage.base64}` } }
         ]
       };
     }
-    return { role: m.role, content: m.content };
+    return { role: m.role, content: (idx === history.length-1 && m.role === 'user') ? m.content + tail : m.content };
   });
 
   let response, data;
@@ -11990,7 +12040,7 @@ async function callApinex(){
         response_format:{ type:"json_object" },
         max_tokens: tierBudget('big'),
         messages: [
-          { role:"system", content: SYSTEM_PROMPT + studentContextLine() + effortDirective() },
+          { role:"system", content: tierPrompt(SYSTEM_PROMPT) + studentContextLine() + memoryBlock(view) },
           ...messages
         ]
       })
@@ -12022,12 +12072,15 @@ async function callGemini(){
   if(PROXY_URL.includes('YOUR-WORKER-SUBDOMAIN')){
     return { ok:false, status:'proxy not configured', errorSpeech:"The AI proxy hasn't been set up yet." };
   }
-  const geminiContents = conversationHistory.map((m,idx) => {
-    const parts = [{ text: m.content + ((idx === conversationHistory.length-1 && m.role === 'user' && currentTurnContext) ? '\n\n' + currentTurnContext : '') }];
+  const view = historyView();
+  let gHist = view.msgs;
+  while(gHist.length > 1 && gHist[0].role !== 'user') gHist = gHist.slice(1);   // Gemini wants the first turn to be the user's
+  const geminiContents = gHist.map((m,idx) => {
+    const parts = [{ text: m.content + ((idx === gHist.length-1 && m.role === 'user') ? '\n\n' + (currentTurnContext ? currentTurnContext + '\n\n' : '') + effortDirective().trim() : '') }];
     // Only the newest user turn can carry real image bytes — earlier
     // turns keep just the "[Attached image: ...]" text note already
     // folded into their content.
-    if(idx === conversationHistory.length-1 && currentTurnImage){
+    if(idx === gHist.length-1 && currentTurnImage){
       parts.push({ inline_data: { mime_type: currentTurnImage.mimeType, data: currentTurnImage.base64 } });
     }
     return { role: m.role === 'assistant' ? 'model' : 'user', parts };
@@ -12039,7 +12092,7 @@ async function callGemini(){
       method:"POST",
       headers:Object.assign({"Content-Type":"application/json"}, chalklineAuthHeaders()),
       body: JSON.stringify({
-        system_instruction: { parts: [{ text: SYSTEM_PROMPT + studentContextLine() + effortDirective() }] },
+        system_instruction: { parts: [{ text: tierPrompt(SYSTEM_PROMPT) + studentContextLine() + memoryBlock(view) }] },
         contents: geminiContents,
         generationConfig: {
           response_mime_type: "application/json",
