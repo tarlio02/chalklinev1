@@ -7160,10 +7160,10 @@ const RULE_LINE_SPACING = 40;
 
 // The multiplier that converts an author-specified "size" into the actual
 // world-unit font size used for handwriting. Readable but still compact.
-const HAND_SIZE_MULT = 0.8464;
+const HAND_SIZE_MULT = 0.7618; // was 0.8464 (-10%)
 // Paragraph / heading text is written bigger. The multiplier is stamped onto each command
 // (cmd.hm) when it is placed, so lessons saved before this change keep their original size.
-const HAND_TEXT_MULT = 1.242;
+const HAND_TEXT_MULT = 1.1178; // was 1.242 (-10%)
 function handSize(cmd){ return (cmd.size || 26) * (cmd.diagramLabel ? HAND_SIZE_MULT : (cmd.hm || HAND_SIZE_MULT)); }
 // Line height for a block of text at a given (already-multiplied) world
 // font size, snapped to a whole number of ruled-paper lines so every line
@@ -7184,7 +7184,10 @@ function lineHeightFor(sizeWorld){
 // New text uses a tight 1.12 × size pitch on a fine 5-unit grid; older saved commands keep the
 // original behaviour so existing lessons look exactly as before.
 function lineHeightForCmd(cmd, sizeWorld){
-  let lh = (cmd && cmd.hm) ? Math.max(20, Math.ceil(sizeWorld * 1.12 / 5) * 5) : lineHeightFor(sizeWorld);
+  // Text was shrunk 10% (HAND_*_MULT) but line spacing must stay as it was, so size the
+  // pitch from the pre-shrink size. Lessons saved with the old hm (1.242) already used it.
+  const spacingSize = (cmd && cmd.hm === 1.242) ? sizeWorld : sizeWorld / 0.9;
+  let lh = (cmd && cmd.hm) ? Math.max(20, Math.ceil(spacingSize * 1.12 / 5) * 5) : lineHeightFor(spacingSize);
   // Lines with stacked fractions / roots need real vertical room so they never touch their neighbours.
   if(cmd && cmd.type === 'text' && hasMath(cmd.text)){
     const need = mathLineNeed(cmd, sizeWorld);
