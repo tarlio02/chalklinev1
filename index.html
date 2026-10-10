@@ -7798,18 +7798,41 @@ function wrapTextToLines(text, maxWidthPx, customCtx){
 // with a touch of hand-drawn imperfection (a slight downward bow, like a
 // pen underline) rather than a perfectly straight ruled line — so it reads
 // as "the tutor underlined this" rather than a UI decoration.
-function drawHeadingUnderline(sx, baselineY, widthPx, sizeWorld, color){
-  if(widthPx <= 0) return;
-  const y = baselineY + sw(sizeWorld*0.16);
-  const bow = sw(sizeWorld*0.03);
+function drawHeadingUnderline(sx, baselineY, widthPx, sizeWorld, color, count){
+  if(widthPx <= 0 || !count) return;
+  const strokes = count === 2 ? 2 : 1;
   ctx.save();
   ctx.strokeStyle = color;
   ctx.lineWidth = sw(Math.max(1.5, sizeWorld*0.045));
-  ctx.beginPath();
-  ctx.moveTo(sx, y);
-  ctx.quadraticCurveTo(sx + widthPx/2, y + bow, sx + widthPx, y);
-  ctx.stroke();
+  for(let i=0;i<strokes;i++){
+    // second stroke of a double underline sits a little lower and is
+    // bowed/offset slightly differently, so it looks pen-drawn.
+    const y = baselineY + sw(sizeWorld*(0.16 + i*0.11));
+    const bow = sw(sizeWorld*(0.03 + i*0.012));
+    const inset = i ? widthPx*0.015 : 0;
+    ctx.beginPath();
+    ctx.moveTo(sx + inset, y);
+    ctx.quadraticCurveTo(sx + widthPx/2, y + bow, sx + widthPx - inset, y);
+    ctx.stroke();
+  }
   ctx.restore();
+}
+
+// Underline style by role: BLUE headings (color sky) get a DOUBLE underline,
+// GREEN headings / sub-headings (color sage) get a SINGLE underline.
+// Returns 0 (none), 1 (single) or 2 (double).
+function underlineCount(cmd){
+  if(!cmd || cmd.type !== 'text') return 0;
+  if(cmd.heading) return cmd.color === 'sky' ? 2 : 1;
+  if(cmd.color === 'sage' && !cmd.diagramLabel && !cmd.cell) return 1;
+  return 0;
+}
+
+// Grapheme-safe splitting so the pen animation never cuts an emoji in half.
+const _graphemeSeg = (typeof Intl !== 'undefined' && Intl.Segmenter) ? new Intl.Segmenter(undefined, {granularity:'grapheme'}) : null;
+function splitGraphemes(str){
+  str = String(str == null ? '' : str);
+  return _graphemeSeg ? Array.from(_graphemeSeg.segment(str), x => x.segment) : Array.from(str);
 }
 
 function commandScreenBBox(cmd){
@@ -7991,11 +8014,11 @@ function renderCommand(cmd){
         lines.forEach((line,i) => {
           const ly = sy + i*lineHeight;
           ctx.fillText(line, sx, ly);
-          if(cmd.heading) drawHeadingUnderline(sx, ly, ctx.measureText(line).width, size, color);
+          drawHeadingUnderline(sx, ly, ctx.measureText(line).width, size, color, underlineCount(cmd));
         });
       } else {
         ctx.fillText(cmd.text, sx, sy);
-        if(cmd.heading) drawHeadingUnderline(sx, sy, ctx.measureText(cmd.text||'').width, size, color);
+        drawHeadingUnderline(sx, sy, ctx.measureText(cmd.text||'').width, size, color, underlineCount(cmd));
       }
       break;
     }
@@ -9422,18 +9445,19 @@ function renderPartialCommand(cmd, t){
       if(cmd.maxWidth && !cmd.diagramLabel){
         const lines = wrapTextToLines(full, sw(cmd.maxWidth));
         const lineHeight = sw(lineHeightForCmd(cmd, size));
-        let charsLeft = Math.max(1, Math.round(full.length*t));
+        let charsLeft = Math.max(1, Math.round(splitGraphemes(full).length*t));
         let lastX = sx, lastY = sy;
         for(let i=0;i<lines.length;i++){
           const line = lines[i];
-          const take = Math.max(0, Math.min(line.length, charsLeft));
-          const partial = line.slice(0, take);
+          const lineG = splitGraphemes(line);
+          const take = Math.max(0, Math.min(lineG.length, charsLeft));
+          const partial = lineG.slice(0, take).join('');
           const ly = sy + i*lineHeight;
           ctx.fillText(partial, sx, ly);
           // Only underline a heading line once it's fully written — the
           // underline stroke happens after the words, like a real tutor
           // finishing a heading and then drawing a line under it.
-          if(cmd.heading && take >= line.length) drawHeadingUnderline(sx, ly, ctx.measureText(line).width, size, color);
+          if(take >= lineG.length) drawHeadingUnderline(sx, ly, ctx.measureText(line).width, size, color, underlineCount(cmd));
           lastX = sx + ctx.measureText(partial).width;
           lastY = ly;
           charsLeft -= take + 1;
@@ -9441,11 +9465,12 @@ function renderPartialCommand(cmd, t){
         }
         drawPen(lastX, lastY, -Math.PI/2);
       } else {
-        const nChars = Math.max(1, Math.round(full.length*t));
-        const partial = full.slice(0,nChars);
+        const fullG = splitGraphemes(full);
+        const nChars = Math.max(1, Math.round(fullG.length*t));
+        const partial = fullG.slice(0,nChars).join('');
         ctx.fillText(partial, sx, sy);
         const w = ctx.measureText(partial).width;
-        if(cmd.heading && nChars >= full.length) drawHeadingUnderline(sx, sy, w, size, color);
+        if(nChars >= fullG.length) drawHeadingUnderline(sx, sy, w, size, color, underlineCount(cmd));
         drawPen(sx+w, sy, -Math.PI/2);
       }
       break;
@@ -10800,7 +10825,7 @@ Adapt question difficulty based on the student's responses. If they answer corre
 GOAL:
 The student should finish each concept being able to explain the idea themselves, not merely recognize the answer.
 
-LESSON OPENING — HOW TO START A NEW TOPIC: speak naturally and personally, like a smart Gen-Z tutor/friend helping the student study — relaxed, encouraging, playful, and conversational, but still academically accurate. Do NOT sound like a formal lecturer. Do NOT overuse slang, emojis, or catchphrases — a stray emoji or two in the opening greeting is fine, more than that reads as try-hard. Use the student's name (from the STUDENT line appended below, if given) naturally in the greeting. Natural phrases to draw on, varied each lesson rather than recited verbatim every time: "Alright, let's get into it.", "Okay, so here's the thing...", "Think about it like this...", "Let's see if you can get this one.", "You're actually onto something.", "Don't stress, we'll break it down."
+LESSON OPENING — HOW TO START A NEW TOPIC: speak naturally and personally, like a smart Gen-Z tutor/friend helping the student study — relaxed, encouraging, playful, and conversational, but still academically accurate. Do NOT sound like a formal lecturer. Do NOT overuse slang or catchphrases, and keep emojis out of the spoken speech — a stray emoji or two in the opening greeting is fine. Emojis belong on the BOARD text, where you should use plenty (see EMOJI RULE). Use the student's name (from the STUDENT line appended below, if given) naturally in the greeting. Natural phrases to draw on, varied each lesson rather than recited verbatim every time: "Alright, let's get into it.", "Okay, so here's the thing...", "Think about it like this...", "Let's see if you can get this one.", "You're actually onto something.", "Don't stress, we'll break it down."
 
 For the very FIRST turn of a new topic, "speech" is allowed to run longer than the usual per-turn length (roughly the length of the example below) since it's doing several jobs at once — greeting, framing why the topic matters, and asking the opening question — but it must still end on exactly ONE question and then stop there. Example shape, for an ANOVA lesson opening (match this tone and structure for any topic, not this exact wording):
 
@@ -10879,6 +10904,8 @@ STRICT TEXT COLOR RULE — this is a hard rule, not a stylistic suggestion, and 
 - Do NOT use "ochre", "brick", "teal", "violet", or "coral" on plain "text" commands anymore. Those colors are reserved for diagram shapes/shading/highlighting only (rect, curve, path, polygon, halo, highlight, etc.) — never for handwriting text. A board should never look rainbow-colored: three text colors total (sky/sage/ink), used consistently by role, is the whole palette for text.
 - Do not use color to randomly emphasize scattered "key terms" mid-sentence anymore — that is what produced a messy multi-color board. If a single term truly needs emphasis, use the "highlight" command (a soft box behind it) rather than recoloring the word itself.
 - diagramLabel text (labels naming a part of a diagram) is exempt from this rule and may use "ink" or a color matching the structure it's labeling, since diagram color is a separate visual system from handwriting hierarchy.
+EMOJI RULE — USE AS MANY EMOJIS AS POSSIBLE ON THE BOARD: every "text" command on the board (headings, sub-headings, definitions, bullets, equations' captions, explanations) should carry relevant emojis, ideally 1-3 per line, placed at the start and/or end of the line (e.g. "1. What is gearing? 🏦📊", "Key idea: debt is cheaper than equity 💡💰"). Pick emojis that match the meaning (money 💰, graphs 📈, time ⏳, warning ⚠️, idea 💡, exam 📝, star ⭐ for key points, ✅/❌ for right/wrong). This overrides any earlier advice to avoid emojis, but ONLY for board text. Never put emojis inside the spoken "speech" field (it is read aloud), inside table cells, or inside diagramLabel text. Keep emojis outside math expressions so equations stay readable.
+UNDERLINE RULE — the app underlines automatically, do not draw underlines yourself: blue headings (heading:true, color "sky") are DOUBLE-underlined and green sub-headings (color "sage") are SINGLE-underlined. Keep blue for real headings and green for sub-headings only.
 
 CRITICAL LAYOUT RULES - THE APP WILL OVERRIDE YOUR COORDINATES:
 1. Everything is stacked vertically in a single column by the engine, with ONE automatic exception: right after a "plot"/"axes" command, the engine draws the graph in a left-hand column and opens a narrower right-hand notes column beside it, and short "text" commands that immediately follow flow into that column instead of being pushed below the whole graph — exactly like a page of annotated notes with the graph on one side. The same applies to a hand-drawn diagram (a run of shapes + diagramLabels — not a table): the app draws it in the left column and the short "text" commands right after it flow into the right column beside it. This closes itself automatically (back to the normal single full-width column) the moment a heading, a genuinely long paragraph, or a hand-drawn diagram/table appears, or once the notes run out of room next to the graph. You do not control any of this with coordinates — just emit a "plot"/"axes" command, then the required short "text" bullets described next.
@@ -11191,12 +11218,13 @@ Respond with ONLY a JSON object (no markdown fences, no outside prose):
 }
 Set "needsLookup" ONLY when you need a current fact/stat/date you're unsure of; keep board/speech minimal that turn. Leave null almost always.
 Use "pointTo" OFTEN: whenever this turn leans on, builds on or re-explains something already on the board (a term, definition, formula, part of an earlier diagram), do not rewrite it — list it so the app scrolls back up and highlights it while "speech" mentions it. "pointTo" is an ordered list in the order speech mentions things; each "word" is a single word OR an exact phrase/short formula (up to ~8 words) copied exactly from text already on the board, e.g. [{"word":"marginal cost"},{"word":"P = MC"}]. Add "occurrence":2 for a later repeat. You may also write new content in "board" the same turn: the app writes the new content first, then highlights the old items in order as "speech" plays. Leave null only when nothing earlier is relevant.
+EMOJI RULE: use as many relevant emojis as possible in board "text" commands (headings, sub-headings, bullets), 1-3 per line at the start or end of the line; this overrides any earlier advice to avoid emojis, but ONLY for board text — never in "speech", table cells or diagramLabel text. UNDERLINES are automatic: blue headings (color "sky") get a DOUBLE underline, green sub-headings (color "sage") a SINGLE underline.
 HEADINGS: a "heading":true text (auto-underlined) is for the first turn of a topic or a new numbered sub-topic like "2. Elasticity" only. Never repeat a heading already on the board, never put a heading on an ordinary follow-up turn, max one per turn. At most ONE highlight/underline mark per turn.
 
 TEACHING STANDARD: be a friendly, patient university lecturer with real depth (never over-simplify; explain the hard parts clearly). Work out the maths (intercepts, equilibrium, slope) BEFORE drawing. Economics: explain movement ALONG a curve and shift OF a curve separately. Only once the WHOLE topic is fully taught (not after every turn), end with a "Key takeaway:" line drawn as a callout box (rounded "rect" first, "radius":16-20,"fill":true,"fillOpacity":0.08-0.12) with the takeaway text placed INSIDE the box at local coordinates — never bare text with a highlight beside or under it, and never one per intermediate turn.
 
 SOCRATIC TEACHING METHOD (PRIMARY): never give the answer immediately if the student could work it out. Ask ONE focused question, wait, then: correct answer -> acknowledge briefly and advance to the next concept; partially correct -> ask a smaller guiding question; incorrect -> name the misconception without revealing the answer, then ask an easier question. Break hard reasoning into progressively smaller questions. Only reveal the answer after reasonable attempts or if the student explicitly asks for it. Never ask more than one question per turn. Keep explanations short — the student should be thinking, not reading. If the student is struggling: give a simple intuition or analogy, ask a very easy question, then increase difficulty gradually. For quantitative subjects: let the student do the calculation — ask what formula/principle applies and what each number represents, don't calculate it for them. For graphs: ask what they expect to happen BEFORE you draw it, then draw the result. On a mistake, never say "Wrong, the answer is X" — say something like "You're close — what happens to X when Y increases?" Adapt difficulty to their track record: several correct in a row -> harder questions; repeated struggle -> easier questions, smaller hints. If they say "just tell me", explain, then ask one quick question to confirm understanding. Goal: the student can explain each concept themselves, not just recognize the answer.
-LESSON OPENING: speak naturally and personally — like a smart Gen-Z tutor/friend, relaxed, encouraging, playful, still academically accurate. Not a formal lecturer. Don't overuse slang/emojis/catchphrases (a stray emoji or two in the opening greeting is fine, no more). Use the student's name from STUDENT context below if given. Natural phrases to draw from (vary them, don't recite the same ones every lesson): "Alright, let's get into it.", "Okay, so here's the thing...", "Think about it like this...", "Let's see if you can get this one.", "You're actually onto something.", "Don't stress, we'll break it down." For the FIRST turn of a new topic only, "speech" may run longer than the usual 55-word cap: greet by name, frame in a sentence or two why the topic matters or what it's really asking, say you're not just going to hand them the definition, then end on exactly ONE opening question and STOP (e.g. for ANOVA: "...What do you think ANOVA is actually trying to help us find out?"). Wait for their reply before teaching anything further — same CORE RULE as always. The board for this opening turn should stay minimal (e.g. just a topic heading), since nothing has been taught yet. Every later turn in the lesson returns to the normal 55-word cap and the ordinary teaching loop.
+LESSON OPENING: speak naturally and personally — like a smart Gen-Z tutor/friend, relaxed, encouraging, playful, still academically accurate. Not a formal lecturer. Don't overuse slang or catchphrases, and keep emojis out of the spoken speech (a stray emoji or two in the opening greeting is fine) — emojis belong on the board text, where you should use plenty (see EMOJI RULE). Use the student's name from STUDENT context below if given. Natural phrases to draw from (vary them, don't recite the same ones every lesson): "Alright, let's get into it.", "Okay, so here's the thing...", "Think about it like this...", "Let's see if you can get this one.", "You're actually onto something.", "Don't stress, we'll break it down." For the FIRST turn of a new topic only, "speech" may run longer than the usual 55-word cap: greet by name, frame in a sentence or two why the topic matters or what it's really asking, say you're not just going to hand them the definition, then end on exactly ONE opening question and STOP (e.g. for ANOVA: "...What do you think ANOVA is actually trying to help us find out?"). Wait for their reply before teaching anything further — same CORE RULE as always. The board for this opening turn should stay minimal (e.g. just a topic heading), since nothing has been taught yet. Every later turn in the lesson returns to the normal 55-word cap and the ordinary teaching loop.
 PLOT EXTRAS: a plot curve may use a formula instead of points: {"gen":{"type":"poly","coeffs":[c0,c1,c2]}} (also line{m,c}, power{a,b}, hyperbola{k,h,v}, exp{a,b}, normal{mean,sd,peak}, tangent{of:{gen},at,half}). A plot may have "marks":[{"x":..,"y":..,"label":"E","xText":"Q*","yText":"P*"}] and "arrows":[{"from":[x,y],"to":[x,y],"label":"shift"}] in data coordinates; curve options "area":true, "scatter":true. Numeric ticks sit at their true values; the app keeps labels from overlapping.
 TABLES: {"type":"table","columns":["Item","Amount (R)"],"rows":[["Sales","120,000"],["Costs","-72,000"],{"cells":["Profit","48,000"],"grand":true}]} — the app sizes columns, aligns numbers and rules totals; never build tables from lines.
 
@@ -11433,7 +11461,45 @@ function ensureEngagementCheckin(speech){
 // enforces it: drop a heading that is already on the board, keep at most
 // one per turn (unless it is a numbered study-notes review), and turn an
 // un-numbered heading that follows too soon after the last one into a plain
-// green sub-heading line (no underline).
+// green sub-heading line (single underline; real headings get a double one).
+// ---- Emoji pass ----------------------------------------------------------
+// The tutor prompt asks for lots of emojis on the board. This is the safety
+// net: any heading / sub-heading / body line the model left emoji-free gets
+// one (keyword-matched where possible), so the board is always emoji-rich.
+const EMOJI_RE = /\p{Extended_Pictographic}/u;
+const EMOJI_KEYWORDS = [
+  [/profit|revenue|income|cash|money|price|cost|dollar|rand|\bR\s?\d|budget|pay/i,'💰'],
+  [/lease|loan|debt|gearing|leverage|interest|bond|credit/i,'🏦'],
+  [/graph|curve|plot|axis|axes|slope|trend|distribution/i,'📈'],
+  [/table|ledger|statement|balance|journal|account/i,'📒'],
+  [/time|year|period|timeline|future|present value|\bPV\b|\bFV\b/i,'⏳'],
+  [/risk|danger|warning|careful|trap|mistake/i,'⚠️'],
+  [/example|worked|calculate|solve|answer|result/i,'🧮'],
+  [/idea|intuition|concept|think|why|insight/i,'💡'],
+  [/definition|define|means|what is|meaning/i,'📖'],
+  [/exam|test|question|quiz/i,'📝'],
+  [/key|important|remember|takeaway|summary/i,'⭐'],
+  [/cell|dna|gene|bio|organ|body|heart|brain/i,'🧬'],
+  [/force|energy|motion|speed|physics|wave|light/i,'⚡'],
+  [/market|supply|demand|equilibrium|economy|trade/i,'🛒'],
+  [/code|program|algorithm|function|data/i,'💻']
+];
+const EMOJI_POOL = ['✨','📌','🚀','🎯','🔎','🧠','✅','💫','🌟','📚','🔥','🎓'];
+let _emojiPoolIdx = 0;
+function pickEmoji(text){
+  for(const [re,e] of EMOJI_KEYWORDS) if(re.test(text)) return e;
+  return EMOJI_POOL[(_emojiPoolIdx++) % EMOJI_POOL.length];
+}
+function emojifyCmd(c){
+  if(!c || c.type !== 'text' || typeof c.text !== 'string') return c;
+  if(c.diagramLabel || c.cell || c.mono) return c;
+  const t = c.text.trim();
+  if(t.length < 2 || EMOJI_RE.test(t)) return c;
+  const e = pickEmoji(t);
+  // always APPEND (never prepend) so the tutor's pointTo word indexes stay valid
+  return { ...c, text: c.text.replace(/\s+$/,'') + ' ' + e };
+}
+
 let turnsSinceLastHeading = 99;
 function normHeadingText(t){ return (t||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim(); }
 function isNumberedHeading(t){ return /^\s*(\d+|[a-z])[.)]\s+\S/i.test(t||''); }
@@ -11475,7 +11541,7 @@ function sanitizeTurnBoard(cmds){
     out.push(c);
   }
   if(keptHeading) turnsSinceLastHeading = 0; else turnsSinceLastHeading++;
-  return out;
+  return out.map(emojifyCmd);
 }
 
 async function runTeachingTurn(userMessage, displayText, imageAttachment){
@@ -11501,7 +11567,14 @@ async function runTeachingTurn(userMessage, displayText, imageAttachment){
   // That way the explanation always describes something the student can
   // already see, instead of racing the pen.
   const pointPlan = planPointTo(result.pointTo, speechMs);
-  drawPaceScale = totalBaseMs > 0 ? 0.85 : 1;
+  // SYNC MODE: if the board is text only (no diagram/graph/table), the pen
+  // and the voice run together — the pen is paced to the speech length and
+  // the tutor starts talking as it starts writing. If ANY diagram is drawn,
+  // keep the old behaviour: finish drawing first, then talk.
+  const hasDiagram = boardCmds.some(c => c && !['text','highlight','highlight-marker'].includes(c.type));
+  // a turn that points back at earlier content always uses write-then-talk so the look-back scroll/highlight plays while speaking
+  const syncMode = boardCmds.length > 0 && !hasDiagram && speechMs > 0 && totalBaseMs > 0 && !pointPlan;
+  drawPaceScale = syncMode ? Math.min(3, Math.max(0.6, speechMs / totalBaseMs)) : (totalBaseMs > 0 ? 0.85 : 1);
   pendingQuiz = null;
   const finalSpeech = result.quiz ? result.speech : ensureEngagementCheckin(result.speech);
   let narrated = false;
@@ -11510,7 +11583,7 @@ async function runTeachingTurn(userMessage, displayText, imageAttachment){
     narrated = true;
     pointingActive = false;
     if(finalSpeech){ addTranscriptMsg('tutor', finalSpeech); speak(finalSpeech); }
-    if(pointPlan){
+    if(pointPlan && !syncMode){
       pointingActive = true;
       runPointToSequence(pointPlan, ()=>{ pointingActive = false; });
       setTimeout(()=>{ pointingActive = false; }, pointPlan.totalMs + 2500);
@@ -11521,6 +11594,7 @@ async function runTeachingTurn(userMessage, displayText, imageAttachment){
     boardWritePending = true;
     pointingActive = true; // hold any quiz card back until the explanation has started
     enqueueCommandsAtCursor(boardCmds);
+    if(syncMode){ narrate(); }
     const waitStart = Date.now();
     const maxWaitMs = totalBaseMs * 1.2 + 15000;
     const poll = setInterval(()=>{
