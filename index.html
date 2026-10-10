@@ -7332,26 +7332,81 @@ function animateScrollTo(targetCameraY, duration, onDone){
 // these are the only source of user-driven vertical movement. Both
 // paths just adjust camera.y directly and redraw; noteManualScrollActivity()
 // marks the gesture as manual so auto-follow steps aside for it.
-let dragPan = null; // { pointerId, lastY } while a touch/mouse drag is active
+let dragPan = null; // { pointerId, lastY, lastT, vel } while a touch/mouse drag is active
+
+// Cheap version of noteManualScrollActivity(): marks the gesture as manual and cancels any
+// auto-follow animation, but does NOT clamp + redraw synchronously (that used to run on every
+// single pointer/wheel event, on top of the per-frame redraw, and caused stutter).
+function markManualScroll(){
+  isUserScrolling = true;
+  panToken++;
+}
+
+// One shared per-frame loop drives both fling momentum (touch/mouse release) and eased wheel
+// scrolling. Everything is time-based (dt), so it feels the same on 60/120/144 Hz screens.
+const scrollAnim = { raf:0, vel:0, wheelTarget:null, token:0, last:0 };
+function stopScrollAnim(){
+  if(scrollAnim.raf){ cancelAnimationFrame(scrollAnim.raf); scrollAnim.raf = 0; }
+  scrollAnim.vel = 0; scrollAnim.wheelTarget = null;
+}
+function scrollAnimFrame(now){
+  scrollAnim.raf = 0;
+  // A programmatic pan (auto-follow, reset…) took over — never fight it.
+  if(panToken !== scrollAnim.token){ scrollAnim.vel = 0; scrollAnim.wheelTarget = null; return; }
+  const dt = Math.min(48, Math.max(1, now - scrollAnim.last)); scrollAnim.last = now;
+  const before = camera.y;
+  let active = false;
+  if(scrollAnim.wheelTarget !== null){
+    // Critically-damped-style easing toward the wheel target (~90ms time constant).
+    const k = 1 - Math.exp(-dt / 90);
+    const rem = scrollAnim.wheelTarget - camera.y;
+    if(Math.abs(rem) * camera.scale < 0.3){ camera.y = scrollAnim.wheelTarget; scrollAnim.wheelTarget = null; }
+    else { camera.y += rem * k; active = true; }
+  }
+  if(Math.abs(scrollAnim.vel) > 0.02){            // px/ms of finger travel
+    camera.y -= (scrollAnim.vel * dt) / camera.scale;
+    scrollAnim.vel *= Math.exp(-dt / 325);        // friction: glides ~1s, like native scrolling
+    active = true;
+  } else scrollAnim.vel = 0;
+  const wanted = camera.y;
+  clampCamera();
+  if(camera.y !== wanted){ scrollAnim.vel = 0; scrollAnim.wheelTarget = null; active = false; }  // hit an edge
+  if(camera.y !== before) redrawAll();
+  if(active){ scrollAnim.raf = requestAnimationFrame(scrollAnimFrame); }
+}
+function kickScrollAnim(){
+  scrollAnim.token = panToken;
+  if(!scrollAnim.raf){ scrollAnim.last = performance.now(); scrollAnim.raf = requestAnimationFrame(scrollAnimFrame); }
+}
 
 boardWrap.addEventListener('pointerdown', (e)=>{
   if(drawing && drawQueue.length){ /* still allow grabbing control mid-write */ }
-  dragPan = { pointerId: e.pointerId, lastY: e.clientY };
+  stopScrollAnim();   // touching the board stops any glide, like native scrolling
+  dragPan = { pointerId: e.pointerId, lastY: e.clientY, lastT: e.timeStamp, vel: 0 };
   try{ boardWrap.setPointerCapture(e.pointerId); }catch(err){}
 });
 boardWrap.addEventListener('pointermove', (e)=>{
   if(!dragPan || e.pointerId !== dragPan.pointerId) return;
   const dy = e.clientY - dragPan.lastY;
-  dragPan.lastY = e.clientY;
   if(dy === 0) return;
-  noteManualScrollActivity();
+  const dtm = Math.max(1, e.timeStamp - dragPan.lastT);
+  // Smoothed finger velocity (px/ms) for the fling on release.
+  dragPan.vel = dragPan.vel * 0.6 + (dy / dtm) * 0.4;
+  dragPan.lastY = e.clientY; dragPan.lastT = e.timeStamp;
+  markManualScroll();
   setCameraYProgrammatically(camera.y - dy / camera.scale);
   clampCamera();
   scheduleRedraw();
 });
 function endDragPan(e){
   if(!dragPan || (e && e.pointerId !== dragPan.pointerId)) return;
-  dragPan = null;
+  const d = dragPan; dragPan = null;
+  // Only fling if the finger/mouse was still moving at release (not held still, not cancelled).
+  const idle = (e && e.timeStamp ? e.timeStamp : performance.now()) - d.lastT;
+  if(e && e.type === 'pointerup' && idle < 80 && Math.abs(d.vel) > 0.15){
+    scrollAnim.vel = Math.max(-4, Math.min(4, d.vel));
+    kickScrollAnim();
+  }
 }
 boardWrap.addEventListener('pointerup', endDragPan);
 boardWrap.addEventListener('pointercancel', endDragPan);
@@ -7359,10 +7414,15 @@ boardWrap.addEventListener('pointerleave', endDragPan);
 
 boardWrap.addEventListener('wheel', (e)=>{
   e.preventDefault();
-  noteManualScrollActivity();
-  setCameraYProgrammatically(camera.y + e.deltaY / camera.scale);
-  clampCamera();
-  scheduleRedraw();
+  markManualScroll();
+  // Normalise units: pixels, lines or pages.
+  let dy = e.deltaY;
+  if(e.deltaMode === 1) dy *= 16; else if(e.deltaMode === 2) dy *= viewH;
+  scrollAnim.vel = 0;   // a wheel tick cancels any touch-style glide
+  const base = (scrollAnim.wheelTarget !== null) ? scrollAnim.wheelTarget : camera.y;
+  const maxY = Math.max(0, getMaxYWorld() + 400 - viewH/camera.scale);
+  scrollAnim.wheelTarget = Math.max(0, Math.min(maxY, base + dy / camera.scale));
+  kickScrollAnim();
 }, {passive:false});
 
 // Auto-follow entry point: scroll so that world-y `targetY` sits at a
