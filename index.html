@@ -7634,7 +7634,8 @@ const CORAL = '#E67E22';
 const HALO = '#8FA6FF';
 const HILITE = '#FCE896';
 const CHECKPOINT = '#E8431A';   // red-orange, used only for "checkpoint" headings
-const COLORS = { checkpoint:CHECKPOINT, chalk:INK, ink:INK, ochre:OCHRE, sage:SAGE, brick:BRICK, teal:TEAL, violet:VIOLET, sky:SKY, coral:CORAL, halo:HALO, highlight:HILITE };
+const FORMULA = '#D40F1C';   // bold red for formulas / key results
+const COLORS = { formula:FORMULA, checkpoint:CHECKPOINT, chalk:INK, ink:INK, ochre:OCHRE, sage:SAGE, brick:BRICK, teal:TEAL, violet:VIOLET, sky:SKY, coral:CORAL, halo:HALO, highlight:HILITE };
 
 function hexToRgba(hex, alpha){
   const h = hex.replace('#','');
@@ -9530,6 +9531,8 @@ function enqueueCommandsAtCursor(commands){
         if (c.type === 'text') {
             const fam = "'Source Serif 4', Georgia, 'Times New Roman', serif";
             c.hm = HAND_TEXT_MULT;
+            if(c.important && !c.diagramLabel && !c.cell && !c.heading && !c.checkpoint){ c.color = 'formula'; c.weight = 700; }
+            else c.important = false;
             if(c.checkpoint){ c.color = 'checkpoint'; c.heading = false; c.diagramLabel = false; c.weight = c.weight || 700; }
             const size = handSize(c);
             tCtx.font = `${c.weight || 500} ${size}px ${fam}`;
@@ -9560,9 +9563,9 @@ function enqueueCommandsAtCursor(commands){
                 const wordLimit = columnMode.diagram
                     ? (firstBlock ? DIAGRAM_COLUMN_FIRST_BLOCK_WORDS : DIAGRAM_COLUMN_LONG_PARAGRAPH_WORDS)
                     : COLUMN_LONG_PARAGRAPH_WORDS;
-                const longParagraph = !c.heading && !c.checkpoint && words.length > wordLimit;
+                const longParagraph = !c.heading && !c.checkpoint && !c.important && words.length > wordLimit;
                 const noRoomLeft = !firstBlock && columnMode.leftY + RULE_LINE_SPACING > columnMode.rightBottom;
-                if(c.heading || c.checkpoint || longParagraph || noRoomLeft) endColumnMode();
+                if(c.heading || c.checkpoint || c.important || longParagraph || noRoomLeft) endColumnMode();
             }
 
             if(columnMode){
@@ -9576,8 +9579,8 @@ function enqueueCommandsAtCursor(commands){
                 columnMode.textStarted = true;
                 globalCursorY = Math.max(globalCursorY, columnMode.leftY);
             } else {
-                c.x = 16;          // start at the far left of the board
-                c.maxWidth = 968;  // and run to the far right before wrapping
+                c.x = c.important ? 56 : 16;          // formulas are indented a little so they stand apart
+                c.maxWidth = c.important ? 888 : 968;  // and run to the far right before wrapping
                 const { lines } = measureLines(c.maxWidth);
                 const lh = lineHeightForCmd(c, size);
                 // A heading skips one blank ruled line before it starts, so it
@@ -9585,7 +9588,8 @@ function enqueueCommandsAtCursor(commands){
                 // against whatever came before — but only if something is
                 // already on the board above it (no pointless gap at the very
                 // top of a fresh page).
-                if((c.heading || c.checkpoint) && globalCursorY > TOP_MARGIN) globalCursorY += RULE_LINE_SPACING/2;
+                if(c.important && globalCursorY > TOP_MARGIN) globalCursorY += RULE_LINE_SPACING;   // a full blank line of free space ABOVE a formula
+                else if((c.heading || c.checkpoint) && globalCursorY > TOP_MARGIN) globalCursorY += RULE_LINE_SPACING/2;
                 else if(!c.diagramLabel && !c.cell && c.color === 'sage' && globalCursorY > TOP_MARGIN) globalCursorY += RULE_LINE_SPACING/4;   // small gap before each new labelled block
                 // Baseline sits exactly ON the rule line at the bottom of this
                 // first allotted line-space (not floating near the top of it),
@@ -9601,6 +9605,7 @@ function enqueueCommandsAtCursor(commands){
                 // block and the next) still lands on a whole rule-line boundary
                 // because `lh` is always a whole multiple of RULE_LINE_SPACING.
                 globalCursorY += lines * lh;
+                if(c.important) globalCursorY += RULE_LINE_SPACING;   // ...and a full blank line BELOW it
             }
 
         } else if (c.type === 'plot' || c.type === 'axes') {
@@ -11276,7 +11281,7 @@ STRICT TEXT COLOR RULE — this is a hard rule, not a stylistic suggestion, and 
 - Do not use color to randomly emphasize scattered "key terms" mid-sentence anymore — that is what produced a messy multi-color board. If a single term truly needs emphasis, use the "highlight" command (a soft box behind it) rather than recoloring the word itself.
 - diagramLabel text (labels naming a part of a diagram) is exempt from this rule and may use "ink" or a color matching the structure it's labeling, since diagram color is a separate visual system from handwriting hierarchy.
 EMOJI RULE — USE AS MANY EMOJIS AS POSSIBLE ON THE BOARD: every "text" command on the board (headings, sub-headings, definitions, bullets, equations' captions, explanations) should carry relevant emojis, on headings, sub-headings, labels, key points and result lines (about every second or third line, 1-3 emojis each), placed at the end and/or start of the line; plain working lines and equations stay clean (e.g. "1. What is gearing? 🏦📊", "Key idea: debt is cheaper than equity 💡💰"). Pick emojis that match the meaning (money 💰, graphs 📈, time ⏳, warning ⚠️, idea 💡, exam 📝, star ⭐ for key points, ✅/❌ for right/wrong). This overrides any earlier advice to avoid emojis, but ONLY for board text. Never put emojis inside the spoken "speech" field (it is read aloud), inside table cells, or inside diagramLabel text. Keep emojis outside math expressions so equations stay readable.
-CHECKPOINT HEADING — after a LONG stretch of teaching (roughly 4+ lines/blocks or a full sub-topic since the last heading or checkpoint), write ONE checkpoint heading to pause and recap: {\"type\":\"text\",\"text\":\"Checkpoint ✅ ...\",\"checkpoint\":true,\"size\":32}. Set \"checkpoint\":true and leave \"heading\" false — the app draws it RED-ORANGE and UNDERLINED automatically (do not set a color or draw an underline). Put the checkpoint heading AFTER the long section, then follow it with a quick recap line or a check-for-understanding question. Never use it for short explanations, never twice in a row, and it does not replace normal blue headings. \nUNDERLINE RULE — the app underlines automatically, do not draw underlines yourself: blue headings (heading:true, color "sky") and green sub-headings (color "sage") are both SINGLE-underlined. Keep blue for real headings and green for sub-headings only.
+CHECKPOINT HEADING — after a LONG stretch of teaching (roughly 4+ lines/blocks or a full sub-topic since the last heading or checkpoint), write ONE checkpoint heading to pause and recap: {\"type\":\"text\",\"text\":\"Checkpoint ✅ ...\",\"checkpoint\":true,\"size\":32}. Set \"checkpoint\":true and leave \"heading\" false — the app draws it RED-ORANGE and UNDERLINED automatically (do not set a color or draw an underline). Put the checkpoint heading AFTER the long section, then follow it with a quick recap line or a check-for-understanding question. Never use it for short explanations, never twice in a row, and it does not replace normal blue headings. \nFORMULA / KEY-RESULT RULE — every formula, key equation, definition-equation or other must-remember result goes on its OWN line, never stashed inside a sentence or squeezed between body text: write it as its own text command with \"important\":true (and heading false). The app gives it a full blank line of free space above and below, indents it, and draws it BOLD in RED automatically (do not set a color or weight). Keep the sentence that introduces it as a separate normal line, put only the formula itself in the important line (e.g. \"MPC = ΔC / ΔY\"), and use this only for the few things that really matter — ordinary working steps stay normal ink. \nUNDERLINE RULE — the app underlines automatically, do not draw underlines yourself: blue headings (heading:true, color "sky") and green sub-headings (color "sage") are both SINGLE-underlined. Keep blue for real headings and green for sub-headings only.
 
 CRITICAL LAYOUT RULES - THE APP WILL OVERRIDE YOUR COORDINATES:
 1. Everything is stacked vertically in a single column by the engine, with ONE automatic exception: right after a "plot"/"axes" command, the engine draws the graph in a left-hand column and opens a narrower right-hand notes column beside it, and short "text" commands that immediately follow flow into that column instead of being pushed below the whole graph — exactly like a page of annotated notes with the graph on one side. The same applies to a hand-drawn diagram (a run of shapes + diagramLabels — not a table): the app draws it in the left column and the short "text" commands right after it flow into the right column beside it. This closes itself automatically (back to the normal single full-width column) the moment a heading, a genuinely long paragraph, or a hand-drawn diagram/table appears, or once the notes run out of room next to the graph. You do not control any of this with coordinates — just emit a "plot"/"axes" command, then the required short "text" bullets described next.
@@ -11799,7 +11804,7 @@ Respond with ONLY a JSON object (no markdown fences, no outside prose):
 }
 Set "needsLookup" ONLY when you need a current fact/stat/date you're unsure of; keep board/speech minimal that turn. Leave null almost always.
 Use "pointTo" OFTEN: whenever this turn leans on, builds on or re-explains something already on the board (a term, definition, formula, part of an earlier diagram), do not rewrite it — list it so the app scrolls back up and highlights it while "speech" mentions it. "pointTo" is an ordered list in the order speech mentions things; each "word" is a single word OR an exact phrase/short formula (up to ~8 words) copied exactly from text already on the board, e.g. [{"word":"marginal cost"},{"word":"P = MC"}]. Add "occurrence":2 for a later repeat. You may also write new content in "board" the same turn: the app writes the new content first, then highlights the old items in order as "speech" plays. Leave null only when nothing earlier is relevant.
-EMOJI RULE: use as many relevant emojis as possible in board "text" commands (headings, sub-headings, bullets, equation captions) — 1-3 on headings, sub-headings, labels, key points and result lines (about every second or third line), at the start and/or end of the line; plain working lines and equations stay clean; never inside a formula; this overrides any earlier advice to avoid emojis, but ONLY for board text — never in "speech", table cells or diagramLabel text. CHECKPOINT: after a long stretch of teaching, write one {\"type\":\"text\",\"checkpoint\":true,\"heading\":false,\"size\":32,\"text\":\"Checkpoint ✅ ...\"} line (app colors it red-orange + underlines it) followed by a recap or quick question; not for short explanations. UNDERLINES are automatic: blue headings (color "sky") and green sub-headings (color "sage") both get a SINGLE underline.
+EMOJI RULE: use as many relevant emojis as possible in board "text" commands (headings, sub-headings, bullets, equation captions) — 1-3 on headings, sub-headings, labels, key points and result lines (about every second or third line), at the start and/or end of the line; plain working lines and equations stay clean; never inside a formula; this overrides any earlier advice to avoid emojis, but ONLY for board text — never in "speech", table cells or diagramLabel text. CHECKPOINT: after a long stretch of teaching, write one {\"type\":\"text\",\"checkpoint\":true,\"heading\":false,\"size\":32,\"text\":\"Checkpoint ✅ ...\"} line (app colors it red-orange + underlines it) followed by a recap or quick question; not for short explanations. FORMULAS: put each key formula/result on its own text command with \"important\":true (app adds blank space above/below and draws it bold red; no color/weight needed) instead of burying it in a sentence. UNDERLINES are automatic: blue headings (color "sky") and green sub-headings (color "sage") both get a SINGLE underline.
 LESSON PLAN / ERASE (extra): each user message ends with a CONTEXT block (lesson plan progress + BOARD INDEX of ids on the board). If it says "LESSON PLAN: none yet", add top-level "lessonPlan":{"title":"..","steps":[{"goal":"..","check":"one question"}]} with 4-7 steps covering the whole topic; that turn's board covers step 1 only. Later, teach ONLY the current step; add top-level "stepDone":true only when the student has shown they understood it. To fix the board use {"type":"erase","target":"t12"} (id, array of ids, or "last") or {"type":"replace","target":"t12","text":"new text"} (same spot, same length or shorter), listed FIRST in "board". Only use ids from the BOARD INDEX.
 
 HEADINGS: a "heading":true text (auto-underlined) is for the first turn of a topic or a FRESH concept (the lesson plan moves to its next step) or a new numbered sub-topic like "2. Elasticity" only. Every turn, decide: continuation (reacting to the student's answer, correcting, next step of the same example, a hint or follow-up) = NO heading, start straight on the first body line; fresh concept = one heading. Most turns are continuations. Never repeat a heading already on the board, never put a heading on an ordinary follow-up turn, max one per turn; the app removes headings on continuation turns. At most ONE highlight/underline mark per turn.
@@ -12083,7 +12088,7 @@ function pickEmojis(text, n){
 }
 function emojifyCmd(c){
   if(!c || c.type !== 'text' || typeof c.text !== 'string') return c;
-  if(c.diagramLabel || c.cell) return c;
+  if(c.diagramLabel || c.cell || c.important) return c;
   const t = c.text.trim();
   if(t.length < 2) return c;
   // Emojis go on headings (2), sage labels and key/result lines (1) only. Plain working lines stay clean.
@@ -12112,7 +12117,7 @@ function sanitizeTurnBoard(cmds){
     if(!isHeading(c)){
       // Organisation guard: a long plain paragraph becomes one sentence per
       // line (stacked by the layout engine) so the board reads as notes.
-      if(c && c.type === 'text' && !c.heading && !c.diagramLabel && !c.cell && typeof c.text === 'string' && c.text.length > 70){
+      if(c && c.type === 'text' && !c.heading && !c.important && !c.diagramLabel && !c.cell && typeof c.text === 'string' && c.text.length > 70){
         const parts = c.text.split(/(?<=[.!?])\s+(?=[A-Z0-9√(])|(?<=;)\s+/).map(t => t.trim()).filter(Boolean);
         if(parts.length >= 2){ parts.forEach(t => out.push({ ...c, text:t })); continue; }
       }
