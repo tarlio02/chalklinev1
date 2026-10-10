@@ -11725,6 +11725,46 @@ function runBoardOps(ops, done){
   next();
 }
 
+// ---------------------------------------------------------------------
+// ADAPTIVE EFFORT — spend tokens in proportion to how hard the turn really is.
+// 1) assessTurnComplexity() makes a cheap local first guess (easy / medium / hard) that sets the
+//    output-token budget (and Groq's reasoning effort). 2) effortDirective() tells the AI the
+//    guess and lets it DECIDE for itself (it reports "complexity" as its first JSON key and sizes
+//    speech/board to match). 3) If a capped turn comes back cut off / unparseable, callTutor
+//    re-runs it once at the full 'hard' budget, so saving tokens never costs a broken answer.
+// ---------------------------------------------------------------------
+let currentTurnTier = 'hard';
+const TIER_BUDGET = {
+  easy:   { groq: 2000, big: 4500 },
+  medium: { groq: 3000, big: 9000 },
+  hard:   { groq: 3600, big: 14000 }
+};
+function tierBudget(kind){ return (TIER_BUDGET[currentTurnTier] || TIER_BUDGET.hard)[kind]; }
+function tierReasoningEffort(){ return currentTurnTier === 'easy' ? 'low' : null; }   // null = provider default
+
+function assessTurnComplexity(userMessage, imageAttachment, firstTurn){
+  const t = String(userMessage || '').trim();
+  const low = t.toLowerCase();
+  const hardRe = /\b(derive|derivation|prove|proof|graph|plot|sketch|diagram|draw|table|compare|contrast|versus|vs\.?|step[- ]by[- ]step|solve|calculate|work out|integrate|differentiate|detailed|in depth|in detail|everything|summar(y|ise|ize)|revision|revise|walk me through|worked example|past paper|essay|analy[sz]e|evaluate)\b/;
+  const easyRe = /^(ok(ay)?|k|yes|yeah|yep|yup|no|nope|got it|i get it|i see|makes sense|thanks?( you)?|thank you|cool|nice|great|sure|right|true|false|hi|hello|hey|why\??|what\??|huh\??|really\??)[.!? ]*$/i;
+  const calcRe = /\d\s*[-+*/^=×÷]\s*\d/;
+  const qCount = (t.match(/\?/g) || []).length;
+  if(imageAttachment || (firstTurn && pdfText) || t.length > 240 || hardRe.test(low) || qCount >= 2) return 'hard';
+  if(firstTurn) return 'medium';
+  if(t.indexOf('[Quiz answer]') === 0 && t.length < 200) return 'easy';
+  if(easyRe.test(t)) return 'easy';
+  if(t.length <= 40 && !calcRe.test(t) && !/^(what|how|why|explain|define|describe|teach|show|tell)\b/.test(low) && !/\b(continue|next|go on|ready|more|another|example)\b/.test(low)) return 'easy';
+  return 'medium';
+}
+function effortDirective(){
+  return "\n\nEFFORT / COMPLEXITY — OVERRIDES every length target above. Output tokens are expensive, so judge how hard THIS turn really is and spend only what it needs. " +
+    "Put \"complexity\":\"easy\"|\"medium\"|\"hard\" as the FIRST key of your JSON. " +
+    "EASY (acknowledgement, yes/no, a quick fact, a one-step clarification, simple quiz feedback): \"speech\" at most ~40 words (1-3 sentences), \"board\" 0-3 short lines, NO diagram/table/plot/axes, no recap, minimal thinking. " +
+    "MEDIUM (explaining one concept, one short worked example): \"speech\" ~60-110 words, 3-6 board lines, at most one small visual. " +
+    "HARD (derivations, multi-step calculations, graphs/tables/diagrams, multi-part questions, uploaded images or documents, brand-new topics): full detail as the rules above allow. " +
+    "Never pad — if a short answer is enough, stop. The app's quick first estimate for this turn is \"" + currentTurnTier + "\"; trust your own judgment if it is wrong.";
+}
+
 async function callTutor(userMessage, imageAttachment){
   setStatus('thinking…');
   lastBackendDebug = [];
@@ -11739,24 +11779,40 @@ async function callTutor(userMessage, imageAttachment){
     if(m && m.indexOf('[Quiz answer]') !== 0) currentTopicLabel = m.length > 60 ? m.slice(0,57) + '\u2026' : m;
   }
   const fullUserContent = contextParts.join('\n\n---\n\n');
+  currentTurnTier = assessTurnComplexity(userMessage, imageAttachment, conversationHistory.length === 0);
   conversationHistory.push({role:'user', content: fullUserContent});
   currentTurnImage = imageAttachment || null;
   try{ currentTurnContext = buildTurnContext(); }catch(e){ console.warn('context build failed', e); currentTurnContext = ''; }
 
-  let result = null;
-  const backendChain = getBackendChain();
-  for(const engine of backendChain){
-    setStatus(backendChain.indexOf(engine)===0 ? 'thinking…' : `thinking… (trying ${engine.name})`);
-    try{
-      result = await engine.call();
-    } catch(e){
-      console.error(`${engine.name} threw unexpectedly:`, e);
-      result = { ok:false, status:`${engine.name} error`, errorSpeech:`${engine.name} failed unexpectedly.` };
+  async function runChain(){
+    let result = null;
+    const backendChain = getBackendChain();
+    for(const engine of backendChain){
+      setStatus(backendChain.indexOf(engine)===0 ? 'thinking…' : `thinking… (trying ${engine.name})`);
+      try{
+        result = await engine.call();
+      } catch(e){
+        console.error(`${engine.name} threw unexpectedly:`, e);
+        result = { ok:false, status:`${engine.name} error`, errorSpeech:`${engine.name} failed unexpectedly.` };
+      }
+      lastBackendDebug.push({ name: engine.name, ok: result.ok, status: result.status || '', detail: result.errorSpeech || '', tier: currentTurnTier });
+      if(result.ok) break;
+      console.warn(`${engine.name} failed, falling back to the next AI backend:`, result.status);
     }
-    lastBackendDebug.push({ name: engine.name, ok: result.ok, status: result.status || '', detail: result.errorSpeech || '' });
-    if(result.ok) break;
-    console.warn(`${engine.name} failed, falling back to the next AI backend:`, result.status);
+    return result;
   }
+  let result = await runChain();
+  // Safety net: a reduced-budget turn that came back cut off / unparseable is re-run once at full budget.
+  if(result && result.ok && currentTurnTier !== 'hard'){
+    let parsedOk = true;
+    try{ JSON.parse(result.raw); }catch(e){ parsedOk = false; }
+    if(!parsedOk){
+      console.warn('Reduced-budget reply was unusable — retrying at full budget.');
+      currentTurnTier = 'hard';
+      result = await runChain();
+    }
+  }
+  currentTurnTier = 'hard';
   currentTurnImage = null;
   currentTurnContext = '';
 
@@ -11873,9 +11929,10 @@ async function callGroq(){
       body: JSON.stringify({
         model:"openai/gpt-oss-120b",
         response_format:{ type:"json_object" },
-        max_tokens:3600,
+        max_tokens: tierBudget('groq'),
+        ...(tierReasoningEffort() ? { reasoning_effort: tierReasoningEffort() } : {}),
         messages: [
-          { role:"system", content: SYSTEM_PROMPT_GROQ + studentContextLine() },
+          { role:"system", content: SYSTEM_PROMPT_GROQ + studentContextLine() + effortDirective() },
           ...withTurnContext(recentHistoryForApi(4))
         ]
       })
@@ -11931,9 +11988,9 @@ async function callApinex(){
       headers:Object.assign({"Content-Type":"application/json"}, chalklineAuthHeaders()),
       body: JSON.stringify({
         response_format:{ type:"json_object" },
-        max_tokens:14000,
+        max_tokens: tierBudget('big'),
         messages: [
-          { role:"system", content: SYSTEM_PROMPT + studentContextLine() },
+          { role:"system", content: SYSTEM_PROMPT + studentContextLine() + effortDirective() },
           ...messages
         ]
       })
@@ -11982,11 +12039,11 @@ async function callGemini(){
       method:"POST",
       headers:Object.assign({"Content-Type":"application/json"}, chalklineAuthHeaders()),
       body: JSON.stringify({
-        system_instruction: { parts: [{ text: SYSTEM_PROMPT + studentContextLine() }] },
+        system_instruction: { parts: [{ text: SYSTEM_PROMPT + studentContextLine() + effortDirective() }] },
         contents: geminiContents,
         generationConfig: {
           response_mime_type: "application/json",
-          maxOutputTokens: 14000,
+          maxOutputTokens: tierBudget('big'),
           thinkingConfig: { thinkingLevel: "low" }
         }
       })
