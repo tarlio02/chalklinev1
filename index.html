@@ -5575,7 +5575,7 @@ body{
 #board-welcome.intro .bw-logo-svg{ opacity:0; transform:scale(.92); animation:bwLogoIn .7s cubic-bezier(.22,.8,.25,1) forwards; }
 @keyframes bwLogoIn{ to{ opacity:.14; transform:scale(1); } }
 #board-welcome .bw-tagline{
-  font-family:'Kalam','Caveat',cursive; font-weight:700;
+  font-family:'Source Serif 4', Georgia, 'Times New Roman', serif; font-weight:700;
   font-size:clamp(20px, 2.6vw, 28px); line-height:1.3;
   color:#2A2410; opacity:.55; min-height:1.3em;
 }
@@ -5586,7 +5586,7 @@ body{
 #board-welcome.typing .bw-caret{ opacity:.6; animation:bwCaretBlink .9s steps(1) infinite; }
 @keyframes bwCaretBlink{ 50%{ opacity:0; } }
 #board-welcome .bw-text{
-  font-family:'Kalam','Caveat',cursive; font-weight:700;
+  font-family:'Source Serif 4', Georgia, 'Times New Roman', serif; font-weight:700;
   font-size:clamp(22px, 3.4vw, 34px); line-height:1.25;
   color:#2A2410; opacity:.6; max-width:min(640px, 90%);
 }
@@ -6192,7 +6192,7 @@ body{
    panel reads as part of the same app instead of a differently
    themed drawer. */
 .sidebar-brand{
-  font-family:'Caveat', cursive; font-weight:700; font-size:26px;
+  font-family:'Source Serif 4', Georgia, 'Times New Roman', serif; font-weight:700; font-size:26px;
   color:var(--shell-ink); text-decoration:none; display:flex; align-items:center; gap:8px;
 }
 .sidebar-brand .dot{
@@ -7055,7 +7055,7 @@ function idealCameraX(scale){ return PAGE_W / 2; }
 // the fonts are already cached and text-measurement metrics are accurate
 // from turn one. See the matching `await document.fonts.ready` in
 // runTeachingTurn for why this matters.
-['700 40px Kalam','400 40px Kalam','700 40px Caveat','400 40px Caveat'].forEach(f=>{
+['700 40px "Source Serif 4"','600 40px "Source Serif 4"','400 40px "Source Serif 4"'].forEach(f=>{
   document.fonts.load(f).catch(()=>{});
 });
 
@@ -7819,7 +7819,7 @@ function commandScreenBBox(cmd){
   }
   switch(cmd.type){
     case 'text': {
-      const fam = "'Kalam', 'Caveat', cursive";
+      const fam = "'Source Serif 4', Georgia, 'Times New Roman', serif";
       const weight = cmd.weight || 500;
       const size = handSize(cmd);
       ctx.font = `${weight} ${sw(size)}px ${fam}`;
@@ -7958,7 +7958,7 @@ function renderCommand(cmd){
 
   switch(cmd.type){
     case 'text': {
-      const fam = "'Kalam', 'Caveat', cursive";
+      const fam = "'Source Serif 4', Georgia, 'Times New Roman', serif";
       const weight = cmd.weight || 500;
       let size = handSize(cmd);
       ctx.font = `${weight} ${sw(size)}px ${fam}`;
@@ -8236,7 +8236,7 @@ function drawAxesGrid(ox, oy, w, h, cmd){
 
 function drawAxesTicksAndLabels(ox, oy, w, h, cmd, color){
   ctx.save();
-  ctx.font = `${sw(14)}px 'Caveat', cursive`;
+  ctx.font = `${sw(14)}px 'Source Serif 4', Georgia, 'Times New Roman', serif`;
   ctx.fillStyle = color;
   const xf = axisFractions(cmd, 'x'), yf = axisFractions(cmd, 'y');
   const isZero = l => /^\s*[R$€£¥]?\s*0(\.0+)?\s*$/.test(String(l));
@@ -8261,10 +8261,10 @@ function drawAxesTicksAndLabels(ox, oy, w, h, cmd, color){
     });
   }
   ctx.textAlign = 'left';
-  ctx.font = `${sw(16)}px 'Caveat', cursive`;
+  ctx.font = `${sw(16)}px 'Source Serif 4', Georgia, 'Times New Roman', serif`;
   if(cmd.xlabel){ ctx.textAlign = 'right'; ctx.fillText(cmd.xlabel, ox+w, oy+sw(30)); }
   if(cmd.ylabel){ ctx.save(); ctx.translate(ox-sw(28), oy-h); ctx.textAlign = 'left'; ctx.fillText(cmd.ylabel,0,0); ctx.restore(); }
-  if(cmd.title){ ctx.textAlign = 'center'; ctx.font = `700 ${sw(20)}px 'Caveat', cursive`; ctx.fillText(cmd.title, ox+w/2, oy-h-sw(16)); }
+  if(cmd.title){ ctx.textAlign = 'center'; ctx.font = `700 ${sw(20)}px 'Source Serif 4', Georgia, 'Times New Roman', serif`; ctx.fillText(cmd.title, ox+w/2, oy-h-sw(16)); }
   ctx.restore();
 }
 
@@ -8625,7 +8625,7 @@ function scaleDiagramCmd(c, k){
 // Reposition diagram labels so no label sits on another label or on a drawn line/curve.
 // Labels that have their own leader arrow only make small moves that keep the arrow attached.
 function resolveClusterLayout(cluster){
-  const fam = "'Kalam', 'Caveat', cursive";
+  const fam = "'Source Serif 4', Georgia, 'Times New Roman', serif";
   const labels = cluster.filter(c => c.type === 'text' && c.diagramLabel && String(c.text || '').trim());
   if(!labels.length) return;
   const segs = [], owners = [];
@@ -8695,7 +8695,7 @@ function resolveClusterLayout(cluster){
 // Column widths are measured from the real text, cells wrap inside their column, numbers are
 // right-aligned, negatives are shown as (1,200) in red, totals are shaded with a double rule.
 function expandTableCommand(cmd, tCtx){
-  const fam = "'Kalam', 'Caveat', cursive";
+  const fam = "'Source Serif 4', Georgia, 'Times New Roman', serif";
   const rawCols = Array.isArray(cmd.columns) ? cmd.columns : [];
   const rows = (Array.isArray(cmd.rows) ? cmd.rows : []).map(r => Array.isArray(r) ? { cells: r } : Object.assign({}, r, { cells: r.cells || [] }));
   const cols = rawCols.map(c => (c && typeof c === 'object') ? { header: String(c.header == null ? '' : c.header), align: c.align } : { header: String(c == null ? '' : c) });
@@ -8877,7 +8877,7 @@ function plotLabelLayout(cmd){
   if(hit && hit.sig === sig) return hit.lay;
   const [sx, sy] = plotScalers(cmd.x, cmd.y, cmd.w, cmd.h, cmd);        // WORLD units
   const ox = cmd.x, oy = cmd.y, w = cmd.w, h = cmd.h;
-  const FS = 18, fam = "'Caveat', cursive";
+  const FS = 18, fam = "'Source Serif 4', Georgia, 'Times New Roman', serif";
   const region = [ox + 4, oy - h + 4, ox + w + 96, oy - 4];
   const boxes = [], segs = [];
   (cmd.curves || []).forEach(cv => {
@@ -8988,7 +8988,7 @@ function drawPlotExtras(cmd, ox, oy, w, h, scaleX, scaleY, color){
     ctx.restore();
   });
   ctx.save();
-  ctx.font = '700 ' + sw(18) + "px 'Caveat', cursive";
+  ctx.font = '700 ' + sw(18) + "px 'Source Serif 4', Georgia, 'Times New Roman', serif";
   ctx.textAlign = 'left';
   const put = (l, col) => { const p = worldToScreen(l.x, l.y); ctx.fillStyle = col; ctx.fillText(l.text, p[0], p[1]); };
   lay.curves.forEach(l => put(l, COLORS[cmd.curves[l.i].color] || color));
@@ -9146,7 +9146,7 @@ function enqueueCommandsAtCursor(commands){
         flushDiagram();
 
         if (c.type === 'text') {
-            const fam = "'Kalam', 'Caveat', cursive";
+            const fam = "'Source Serif 4', Georgia, 'Times New Roman', serif";
             c.hm = HAND_TEXT_MULT;
             const size = handSize(c);
             tCtx.font = `${c.weight || 500} ${size}px ${fam}`;
@@ -9402,7 +9402,7 @@ function renderPartialCommand(cmd, t){
   switch(cmd.type){
     case 'text': {
       const full = cmd.text || '';
-      const fam = "'Kalam', 'Caveat', cursive";
+      const fam = "'Source Serif 4', Georgia, 'Times New Roman', serif";
       const weight = cmd.weight || 500;
       let size = handSize(cmd);
       ctx.font = `${weight} ${sw(size)}px ${fam}`;
@@ -9613,7 +9613,7 @@ function renderPartialCommand(cmd, t){
             if(curve.label && !curve.dash){
               const ll = plotLabelLayout(cmd).curves.find(q => q.i === i);
               ctx.fillStyle = COLORS[curve.color] || color;
-              ctx.font = `700 ${sw(18)}px 'Caveat', cursive`;
+              ctx.font = `700 ${sw(18)}px 'Source Serif 4', Georgia, 'Times New Roman', serif`;
               ctx.textAlign = 'left';
               if(ll){ const lp = worldToScreen(ll.x, ll.y); ctx.fillText(curve.label, lp[0], lp[1]); }
               else ctx.fillText(curve.label, cx+sw(8), cy+sw(4));
@@ -10279,7 +10279,7 @@ function dismissQuizCard(){
 // used by commandScreenBBox for consistency with hover hit-testing.
 function wordBoxesForTextCommand(cmd){
   if(cmd.type !== 'text' || !cmd.text) return [];
-  const fam = "'Kalam', 'Caveat', cursive";
+  const fam = "'Source Serif 4', Georgia, 'Times New Roman', serif";
   const weight = cmd.weight || 500;
   const size = handSize(cmd);
   // Measure in WORLD units (scale=1 font) so results are resolution-
@@ -10866,9 +10866,9 @@ DIAGRAM RECIPES (compute first, then draw; all use one "plot" command; give ever
 
 WEB LOOKUP (use sparingly): set "needsLookup" ONLY when the next thing you need to teach depends on a current fact, statistic, date, or detail you are not confident you know precisely (e.g. "current US federal funds rate", "population of Lagos 2025"). When you set it, keep "board" and "speech" minimal (a brief natural "let me check that" line, no board content) — you will be given the lookup result and asked to continue for real on the next turn. Do NOT set "needsLookup" for ordinary concepts, definitions, or anything textbook-stable — that costs an extra round trip, so only spend it when accuracy genuinely requires fresh info. Leave it null almost all the time.
 
-HEADINGS — ONCE PER SECTION, NOT ONCE PER TURN: a heading ("heading":true — the app draws an underline stroke beneath every heading) marks the start of a NEW SECTION of the board, never a new turn. Write a heading only (a) on the very first turn of a topic, or (b) when you genuinely move to a different sub-topic, in which case use a numbered heading such as "2. Elasticity". Never restate the topic title on a follow-up turn, never repeat a heading that is already on the board, and never put more than one heading on a turn (unless it is a numbered study-notes review). Continuation turns simply add their body lines below what is already there, with no heading and no underline.
+WRITE FIRST, THEN EXPLAIN — KNOW EXACTLY WHAT YOU ARE WRITING: the app writes your whole "board" first and only starts speaking "speech" once the writing is finished, so the student hears your explanation while looking at the finished lines. Therefore: (1) in "plan", list the exact lines/formulas you will put on the board, then write "speech" as an explanation of THOSE lines, in the order they appear, using the same terms and numbers that are written; (2) speak as if the content is already up there ("So here we have...", "Look at this second line..."), never "I am writing" or "let me write"; (3) never explain something that is not on the board this turn (unless it is earlier content you point to with "pointTo"), and never leave a written line unexplained.\n\nHEADINGS — ONCE PER SECTION, NOT ONCE PER TURN: a heading ("heading":true — the app draws an underline stroke beneath every heading) marks the start of a NEW SECTION of the board, never a new turn. Write a heading only (a) on the very first turn of a topic, or (b) when you genuinely move to a different sub-topic, in which case use a numbered heading such as "2. Elasticity". Never restate the topic title on a follow-up turn, never repeat a heading that is already on the board, and never put more than one heading on a turn (unless it is a numbered study-notes review). Continuation turns simply add their body lines below what is already there, with no heading and no underline.
 
-POINTING BACK AT EARLIER CONTENT ("pointTo") — USE IT OFTEN. The board is one long page and the app can scroll back up to anything already written and highlight it for the student. Whenever this turn's explanation leans on, builds on, contrasts with or answers something that is already on the board (a term, a definition, a formula, an assumption, one part of an earlier diagram or table, a number from a worked example), do NOT describe it from memory and do NOT write it out again — set "pointTo" so the app scrolls back to it and highlights it while you mention it. Typical cases: the student asks "what did that mean again?"; you are applying a formula from a few turns ago; you are comparing the new idea with an earlier one; you are checking the student's answer against something already drawn. "pointTo" is an ordered list of what to highlight, in the same order your "speech" mentions them, e.g. [{"word":"marginal cost"},{"word":"P = MC"}]. Each "word" is either a single word OR an exact phrase / short formula (up to about 8 words) copied character-for-character from text you already wrote earlier in this session via a "text" or "diagramLabel" command — it can only highlight something that is already on the board, never something new. Prefer a distinctive phrase over a very common single word so the right spot is found. If the same wording appears more than once and you mean a later one, add "occurrence":2 (1-based; default 1 = the first, usually the original definition). You MAY also write brand-new content in "board" on the same turn: the app first scrolls back and highlights the referenced items while your speech refers to them, THEN returns to the writing position and writes the new content — so open your "speech" with the look-back ("Look back at the definition of marginal cost up there..."), then move on to the new idea. Just never re-draw the very thing you are pointing at. Leave "pointTo" null only when nothing earlier on the board is relevant to this turn.
+POINTING BACK AT EARLIER CONTENT ("pointTo") — USE IT OFTEN. The board is one long page and the app can scroll back up to anything already written and highlight it for the student. Whenever this turn's explanation leans on, builds on, contrasts with or answers something that is already on the board (a term, a definition, a formula, an assumption, one part of an earlier diagram or table, a number from a worked example), do NOT describe it from memory and do NOT write it out again — set "pointTo" so the app scrolls back to it and highlights it while you mention it. Typical cases: the student asks "what did that mean again?"; you are applying a formula from a few turns ago; you are comparing the new idea with an earlier one; you are checking the student's answer against something already drawn. "pointTo" is an ordered list of what to highlight, in the same order your "speech" mentions them, e.g. [{"word":"marginal cost"},{"word":"P = MC"}]. Each "word" is either a single word OR an exact phrase / short formula (up to about 8 words) copied character-for-character from text you already wrote earlier in this session via a "text" or "diagramLabel" command — it can only highlight something that is already on the board, never something new. Prefer a distinctive phrase over a very common single word so the right spot is found. If the same wording appears more than once and you mean a later one, add "occurrence":2 (1-based; default 1 = the first, usually the original definition). You MAY also write brand-new content in "board" on the same turn: the app writes the new content first, then, as your speech plays, scrolls back up and highlights the referenced items in order and returns to the writing position — so in "speech" mention each earlier item at the point you want it highlighted ("and remember the definition of marginal cost up there..."). Just never re-draw the very thing you are pointing at. Leave "pointTo" null only when nothing earlier on the board is relevant to this turn.
 
 ALL TEXT, HEADINGS, EQUATIONS, AND EXPLANATIONS ON THE BOARD ARE RENDERED IN REALISTIC HANDWRITING.
 
@@ -11190,7 +11190,7 @@ Respond with ONLY a JSON object (no markdown fences, no outside prose):
   "pointTo": null OR [ {"word":"...", "occurrence":1}, ... ]
 }
 Set "needsLookup" ONLY when you need a current fact/stat/date you're unsure of; keep board/speech minimal that turn. Leave null almost always.
-Use "pointTo" OFTEN: whenever this turn leans on, builds on or re-explains something already on the board (a term, definition, formula, part of an earlier diagram), do not rewrite it — list it so the app scrolls back up and highlights it while "speech" mentions it. "pointTo" is an ordered list in the order speech mentions things; each "word" is a single word OR an exact phrase/short formula (up to ~8 words) copied exactly from text already on the board, e.g. [{"word":"marginal cost"},{"word":"P = MC"}]. Add "occurrence":2 for a later repeat. You may also write new content in "board" the same turn: the app highlights the old items first, then writes the new content. Start speech with the look-back. Leave null only when nothing earlier is relevant.
+Use "pointTo" OFTEN: whenever this turn leans on, builds on or re-explains something already on the board (a term, definition, formula, part of an earlier diagram), do not rewrite it — list it so the app scrolls back up and highlights it while "speech" mentions it. "pointTo" is an ordered list in the order speech mentions things; each "word" is a single word OR an exact phrase/short formula (up to ~8 words) copied exactly from text already on the board, e.g. [{"word":"marginal cost"},{"word":"P = MC"}]. Add "occurrence":2 for a later repeat. You may also write new content in "board" the same turn: the app writes the new content first, then highlights the old items in order as "speech" plays. Leave null only when nothing earlier is relevant.
 HEADINGS: a "heading":true text (auto-underlined) is for the first turn of a topic or a new numbered sub-topic like "2. Elasticity" only. Never repeat a heading already on the board, never put a heading on an ordinary follow-up turn, max one per turn. At most ONE highlight/underline mark per turn.
 
 TEACHING STANDARD: be a friendly, patient university lecturer with real depth (never over-simplify; explain the hard parts clearly). Work out the maths (intercepts, equilibrium, slope) BEFORE drawing. Economics: explain movement ALONG a curve and shift OF a curve separately. Only once the WHOLE topic is fully taught (not after every turn), end with a "Key takeaway:" line drawn as a callout box (rounded "rect" first, "radius":16-20,"fill":true,"fillOpacity":0.08-0.12) with the takeaway text placed INSIDE the box at local coordinates — never bare text with a highlight beside or under it, and never one per intermediate turn.
@@ -11242,7 +11242,7 @@ NEVER use "arrow"/"diagramLabel" as a pointer callout aimed at a piece of plain 
 
 OPERATIONAL NOTES FOR THE SOCRATIC TEACHING METHOD ABOVE: EACH TURN TEACHES ONE COMPLETE IDEA — "speech" runs roughly 90-140 words (5-9 sentences, ~45 seconds spoken): say what the idea is, why it works, give one concrete numeric example or analogy, then end on your ONE question; on the board write that whole idea (typically 3-6 lines or one full worked step), never a one-line sliver. No preamble ("Great question!") — start straight on the content or the question. Use "quiz" for the CHECK UNDERSTANDING step roughly once every 3-4 concepts, not every turn — unless the student explicitly says "quiz me"/"give me a question", which means set "quiz" this turn regardless of that pacing. Reading replies: confusion ("I don't get it", "huh?") means simplify the SAME question per the CORE RULE, don't restart the topic; "I get it"/"continue" after a correct answer means ADVANCE to the next concept; "just tell me" means reveal the explanation, then ask one quick confirming question. Never answer your own question in the same turn you ask it — the question is the end of the turn, wait for the reply.
 
-SPEECH/BOARD SYNC: "speech" and "board" must describe the same single piece of content for this turn — nothing narrated that isn't on the board, nothing on the board speech never mentions. For a complex diagram, summarize it in speech rather than narrating every shape.`;
+WRITE FIRST, THEN EXPLAIN: the app writes the whole "board" first and speaks "speech" only after the writing is finished — so first decide the exact lines you will write, then explain exactly those lines in order, as if they are already up there ("Look at this line..."), never "I am writing". SPEECH/BOARD SYNC: "speech" and "board" must describe the same single piece of content for this turn — nothing narrated that isn't on the board, nothing on the board speech never mentions. For a complex diagram, summarize it in speech rather than narrating every shape.`;
 
 async function callGroq(){
   if(PROXY_URL.includes('YOUR-WORKER-SUBDOMAIN')){
@@ -11487,29 +11487,40 @@ async function runTeachingTurn(userMessage, displayText, imageAttachment){
   const boardCmds = sanitizeTurnBoard((result.board && result.board.length) ? result.board : []);
   const totalBaseMs = boardCmds.reduce((sum,c)=> sum + baseDurationFor(c), 0);
   const speechMs = estimateSpeechDurationMs(result.speech || '');
-  // "pointTo": scroll back up and highlight things already on the board.
-  // It runs FIRST (while the speech starts), then the new writing follows,
-  // so the student sees "look at this earlier bit" before the new content.
+  // WRITE FIRST, THEN EXPLAIN: the board is written in full, and only once
+  // the pen has finished does the tutor speak (and, if "pointTo" is set,
+  // scroll back up and highlight earlier items as the speech mentions them).
+  // That way the explanation always describes something the student can
+  // already see, instead of racing the pen.
   const pointPlan = planPointTo(result.pointTo, speechMs);
-  const writeBudgetMs = pointPlan ? Math.max(speechMs * 0.4, speechMs - pointPlan.totalMs) : speechMs;
-  drawPaceScale = totalBaseMs > 0 ? Math.min(2.5, Math.max(0.6, writeBudgetMs / totalBaseMs)) : 1;
+  drawPaceScale = totalBaseMs > 0 ? 0.85 : 1;
   pendingQuiz = null;
-  let wroteBoard = false;
-  const startWriting = ()=>{
-    if(wroteBoard) return;
-    wroteBoard = true;
-    pointingActive = false;
-    if(boardCmds.length){ dismissQuizCard(); enqueueCommandsAtCursor(boardCmds); }
-  };
-  if(boardCmds.length){ dismissQuizCard(); boardWritePending = true; }
   const finalSpeech = result.quiz ? result.speech : ensureEngagementCheckin(result.speech);
-  if(finalSpeech){ addTranscriptMsg('tutor', finalSpeech); speak(finalSpeech); }
-  if(pointPlan){
-    pointingActive = true;
-    runPointToSequence(pointPlan, startWriting);
-    setTimeout(startWriting, pointPlan.totalMs + 2500); // safety net: never leave the board unwritten
+  let narrated = false;
+  const narrate = ()=>{
+    if(narrated) return;
+    narrated = true;
+    pointingActive = false;
+    if(finalSpeech){ addTranscriptMsg('tutor', finalSpeech); speak(finalSpeech); }
+    if(pointPlan){
+      pointingActive = true;
+      runPointToSequence(pointPlan, ()=>{ pointingActive = false; });
+      setTimeout(()=>{ pointingActive = false; }, pointPlan.totalMs + 2500);
+    }
+  };
+  if(boardCmds.length){
+    dismissQuizCard();
+    boardWritePending = true;
+    pointingActive = true; // hold any quiz card back until the explanation has started
+    enqueueCommandsAtCursor(boardCmds);
+    const waitStart = Date.now();
+    const maxWaitMs = totalBaseMs * 1.2 + 15000;
+    const poll = setInterval(()=>{
+      const idle = !boardWritePending && !drawing && drawQueue.length === 0;
+      if(idle || Date.now() - waitStart > maxWaitMs){ clearInterval(poll); setTimeout(narrate, 350); }
+    }, 150);
   } else {
-    startWriting();
+    narrate();
   }
   if(result.quiz){ pendingQuiz = result.quiz; tryShowPendingQuiz(); }
   autoSaveSession();
