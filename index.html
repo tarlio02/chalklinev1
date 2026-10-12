@@ -17690,8 +17690,13 @@ let stackHN = 0;   // height of the page stack, cached so pinching never forces 
 try{ new ResizeObserver(()=>{ stackHN = stackElN.offsetHeight; if(zoomN !== 1) zoomWrapN.style.height = Math.ceil(stackHN * zoomN) + 'px'; }).observe(stackElN); }catch(e){}
 let rerasterGenN = 0;
 function scaleForN(w, needH){   // canvas pixels per page pixel: sharper when zoomed in, but capped so the canvas stays a sane size
-  const dpr = (window.devicePixelRatio || 1) * Math.min(2.5, Math.max(1, zoomN));
-  return Math.min(dpr, 3.5, Math.sqrt(10e6 / (w * needH)));
+  // Ink is supersampled at 2x even on 1x screens (smoother edges), keeps sharpening all the way up to the max zoom,
+  // and gets a bigger pixel budget. Touch devices stay lower: iPad/iPhone Safari caps one canvas at ~16.7M px and
+  // several pages are alive at once.
+  let coarse = false; try{ coarse = window.matchMedia('(pointer:coarse)').matches; }catch(e){}
+  const dpr = Math.max(2, window.devicePixelRatio || 1) * Math.min(ZOOM_MAX_N, Math.max(1, zoomN));
+  const budget = coarse ? 12e6 : 16e6;
+  return Math.min(dpr, 4, Math.sqrt(budget / (w * needH)));
 }
 function scheduleRerasterN(){
   clearTimeout(rerasterTimerN); rerasterGenN++;
