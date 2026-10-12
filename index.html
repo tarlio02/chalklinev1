@@ -17966,7 +17966,7 @@ function spaceWidthN(body){
   }catch(e){}
   return (parseFloat(cs.fontSize) || 22) * 0.25;
 }
-function widthToCharN(el, n){   // rendered width of the first n characters of a line (0 if it can't be measured on one line)
+function widthToCharN(el, n, scale){   // rendered width of the first n characters of a line (0 if it can't be measured on one line)
   const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
   let node, left = n;
   while((node = w.nextNode())){
@@ -17974,7 +17974,7 @@ function widthToCharN(el, n){   // rendered width of the first n characters of a
       try{
         const r = document.createRange(); r.setStart(el, 0); r.setEnd(node, left);
         const b = r.getBoundingClientRect();
-        return (b.height > 0 && b.height < 54) ? b.width : 0;   // taller than one line: the label itself wrapped
+        return (b.height > 0 && b.height / (scale || 1) < 54) ? b.width : 0;   // taller than one line: the label itself wrapped (measured in unzoomed px, so pinch-zoom / auto-fit upscaling no longer reads as 'wrapped')
       }catch(e){ return 0; }
     }
     left -= node.nodeValue.length;
@@ -17993,7 +17993,7 @@ function colonIndentN(body){
     if(!txt.trim()){ plan.push([el, W, 0]); W = 0; continue; }   // an empty line under a colon line keeps the caret aligned, then the block ends
     const m = txt.match(/^\s*[^\s:][^:\n]{0,38}:(?=\s|$)/);       // "Label:" — not times (10:30) or links (https://)
     if(m){
-      const w = widthToCharN(el, m[0].length);
+      const w = widthToCharN(el, m[0].length, scale);
       if(w > 0){ W = Math.round(Math.min(w / scale + sp, maxW) * 10) / 10; plan.push([el, W, -W]); continue; }
     }
     plan.push([el, W, 0]);
