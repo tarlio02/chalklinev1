@@ -16652,6 +16652,13 @@ let drawingActiveN = false;
 const PAGE_COL_N = Infinity;   // full-width page: ink offset is 0
 let canvasScaleN = 1;
 function colOffN(){ const w = sheetEl.clientWidth; return Math.max(0, (w - Math.min(w, PAGE_COL_N)) / 2); }
+(function(){   // focusing a note field never scrolls by itself; the caret follower keeps the caret in view while typing
+  const f = HTMLElement.prototype.focus;
+  HTMLElement.prototype.focus = function(o){
+    if(this.classList && (this.classList.contains('note-body') || this.classList.contains('note-title'))) o = Object.assign({}, o || {}, { preventScroll:true });
+    return f.call(this, o);
+  };
+})();
 let scrollDirN = 'v';   // 'v' = pages stacked top to bottom, 'h' = pages side by side
 try{ if(localStorage.getItem('chalkline:notes-scroll-dir') === 'h') scrollDirN = 'h'; }catch(e){}
 const HGAP_N = 14;
@@ -17996,6 +18003,8 @@ function pageMinHN(){
 function autosizeViewN(v){
   const lh = 36, cs = getComputedStyle(v.sec);
   const pad = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0), titleH = v.title ? lh : 0;
+  const keepH = v.sec.offsetHeight, stTop = scrollElN.scrollTop, stLeft = scrollElN.scrollLeft;
+  v.sec.style.minHeight = (cs.boxSizing === 'border-box' ? keepH : Math.max(0, keepH - pad)) + 'px';   // hold the page open while measuring
   v.body.style.height = 'auto';
   let fill = Math.max(lh * 4, Math.floor((pageMinHN() - pad - titleH) / lh) * lh);
   let ib = 0; v.sec.querySelectorAll('.note-img').forEach(e => { ib = Math.max(ib, e.offsetTop + e.offsetHeight); });
@@ -18003,6 +18012,9 @@ function autosizeViewN(v){
   if(!spillBusyN) spillOverflowN(v, fill);   // text that doesn't fit on this A4 sheet continues on the next one
   const need = Math.ceil(v.body.scrollHeight / lh) * lh;   // whole number of lines so the last ruled line lines up
   v.body.style.height = Math.max(need, fill) + 'px';
+  v.sec.style.minHeight = '';
+  if(Math.abs(scrollElN.scrollTop - stTop) > 1) scrollElN.scrollTop = stTop;   // sizing never moves the view
+  if(Math.abs(scrollElN.scrollLeft - stLeft) > 1) scrollElN.scrollLeft = stLeft;
 }
 /* A page is one A4 sheet: lines that no longer fit are moved to the top of the next page (a new page is added if
    this was the last one), and the caret follows them. */
