@@ -18924,7 +18924,7 @@ async function addPhotosN(files){
   flashStatusN('adding photo…');
   let n = 0;
   for(const f of files){
-    const r = await compressImageN(f, 1400, 0.72);
+    const r = await compressImageN(f, 1200, 0.7);
     const fw = r.ar > 1.25 ? 0.42 : 0.6;
     const top = Math.round(scrollElN.scrollTop / (zoomN || 1) - v.sec.offsetTop) + 90 + n * 28;
     const im = { id:newImgIdN(), src:r.src, fx:Math.max(0, Math.min(1 - fw, (1 - fw) / 2 + n * 0.03)), y:Math.max(curPageN === 0 ? 120 : 24, top), fw, ar:r.ar };
@@ -18934,6 +18934,7 @@ async function addPhotosN(files){
     n++;
   }
   autosizeViewN(v); refreshCanvasesN(); saveCurrentNoteN();
+  flushNoteSaveN();   // photos go to your other devices straight away, not after the save timer
 }
 
 let pdfLibPN = null;
@@ -18979,6 +18980,7 @@ async function importPdfN(file){
   pagesN.splice(at, 0, ...made);
   mountPagesN({ cur: at });
   saveCurrentNoteN();
+  flushNoteSaveN();
 }
 
 /* ---------------- LaTeX maths ----------------
