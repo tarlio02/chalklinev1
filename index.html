@@ -16264,6 +16264,7 @@ body.no-select-while-drawing,
 .topbar{ transition:opacity .35s ease; }
 #editor-view.typing .topbar{ opacity:.38; }
 #editor-view.typing .topbar:hover, #editor-view.typing .topbar:focus-within{ opacity:1; }
+#editor-view.tb-idle .topbar{ opacity:0; pointer-events:none; transition:opacity .8s ease; }
 .circle-btn, .seg-btn, .tool-btn, .menu-opt, .swatch, .size-btn, .tool-opt{
   transition:background-color .16s ease, color .16s ease, transform .14s cubic-bezier(.2,.8,.2,1), box-shadow .16s ease;
   -webkit-tap-highlight-color:transparent;
@@ -19298,6 +19299,36 @@ refreshNotesListN();
   ev.addEventListener('pointermove', (e)=>{ if(e.pointerType !== 'mouse') return; if(Math.hypot(e.clientX - lx, e.clientY - ly) > 24){ if(lx >= 0) wake(); lx = e.clientX; ly = e.clientY; } });
   document.addEventListener('selectionchange', ()=>{ if(ev.classList.contains('typing') && !(getSelection().anchorNode && stack.contains(getSelection().anchorNode))) wake(); });
   if(window.visualViewport) visualViewport.addEventListener('resize', ()=>{ if(!raf) raf = requestAnimationFrame(followCaret); });
+})();
+
+/* Auto-hide toolbar: the top toolbar fades away after 5s of no use so the page is clear. Tap / hover the top edge, or touch the toolbar, to bring it back. */
+(function(){
+  const ev = document.getElementById('editor-view'), tb = ev && ev.querySelector('.topbar');
+  if(!ev || !tb) return;
+  const DELAY = 5000, ZONE = 96;
+  let timer = 0, wasShown = false;
+  const shown = () => !!ev.offsetParent;
+  const busy = () => tb.matches(':hover') || tb.contains(document.activeElement) ||
+    !!ev.querySelector('.menu-pop.open, .tray.open, #math-pop.open, #page-strip.open, #page-strip.show');
+  function arm(){
+    clearTimeout(timer);
+    timer = setTimeout(()=>{ if(!shown()) return; if(busy()){ arm(); return; } ev.classList.add('tb-idle'); }, DELAY);
+  }
+  function wake(){ ev.classList.remove('tb-idle'); arm(); }
+  const inZone = e => e.clientY <= ZONE;
+  // a tap on the hidden toolbar area only brings the toolbar back (no stray ink under it); a pen still draws
+  ev.addEventListener('pointerdown', e=>{
+    if(tb.contains(e.target)){ wake(); return; }
+    if(!inZone(e)) return;
+    if(ev.classList.contains('tb-idle') && e.pointerType !== 'pen'){ e.stopPropagation(); e.preventDefault(); }
+    wake();
+  }, true);
+  ev.addEventListener('pointermove', e=>{ if(e.pointerType === 'mouse' && inZone(e)) wake(); }, true);
+  tb.addEventListener('focusin', wake);
+  tb.addEventListener('keydown', wake);
+  // show it fresh whenever the note editor opens
+  setInterval(()=>{ const s = shown(); if(s && !wasShown) wake(); wasShown = s; }, 600);
+  wake();
 })();
 <\/script>
 
