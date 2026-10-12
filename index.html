@@ -17103,7 +17103,8 @@ document.addEventListener('keydown', (e)=>{
 /* ---- Handwriting refine: when a stroke ends it is resampled evenly and its wobble is
    smoothed away with a Gaussian filter. Sharp corners (the points of an A, the turn in a k)
    are detected first and kept, so letters stay yours but look steadier and neater. ---- */
-function refineStrokeN(f, strong, neat){   // neat = 'Font' level: steadier than Strong, plus font-like geometry (true straights, crisp verticals / horizontals, even weight)
+function refineStrokeN(f, strong, neat){   // neat = 'Font' level: steadier than Strong, plus gentle font-like geometry (near-true straights, upright verticals / horizontals, even weight)
+  const lvl = neat ? 2 : strong ? 1 : 0;
   // 1. clean up the raw samples, then resample at an even spacing
   const P = []; for(let i = 0; i < f.length; i += 3) P.push([f[i], f[i+1], f[i+2]]);
   const Q = [P[0]];
@@ -17112,23 +17113,29 @@ function refineStrokeN(f, strong, neat){   // neat = 'Font' level: steadier than
   let L = 0; for(let i = 1; i < Q.length; i++) L += Math.hypot(Q[i][0] - Q[i-1][0], Q[i][1] - Q[i-1][1]);
   if(L < 12) return null;
   const step = strong ? 3 : 2, R = resampleN(Q, Math.max(8, Math.ceil(L / step) + 1)), N = R.length;
-  // 2. find the real corners (points of an A, the turn in a k) by how sharply the path bends over ~8px each side
-  const k = Math.max(2, Math.round(8 / step)), cornerDeg = strong ? 92 : 102, ang = new Array(N).fill(0);
+  // 2. find the real corners (the apex of an A, the turn in a k). A round bend (o, c, s, e) turns gradually, so it is only a
+  //    corner if the path ALSO turns sharply over a very short distance. Measuring at two scales keeps curves from being cut up.
+  const k = Math.max(2, Math.round(6 / step)), ks = Math.max(1, Math.round(3 / step));
+  const cornerDeg = [100, 95, 90][lvl], ang = new Array(N).fill(0);
+  const turnAt = (i, w) => {
+    const ax = R[i][0] - R[i-w][0], ay = R[i][1] - R[i-w][1], bx = R[i+w][0] - R[i][0], by = R[i+w][1] - R[i][1];
+    const la = Math.hypot(ax, ay), lb = Math.hypot(bx, by); if(la < 0.5 || lb < 0.5) return 0;
+    return Math.acos(Math.max(-1, Math.min(1, (ax * bx + ay * by) / (la * lb)))) * 180 / Math.PI;
+  };
   for(let i = k; i < N - k; i++){
-    const ax = R[i][0] - R[i-k][0], ay = R[i][1] - R[i-k][1], bx = R[i+k][0] - R[i][0], by = R[i+k][1] - R[i][1];
-    const la = Math.hypot(ax, ay), lb = Math.hypot(bx, by); if(la < 1 || lb < 1) continue;
-    ang[i] = Math.acos(Math.max(-1, Math.min(1, (ax * bx + ay * by) / (la * lb)))) * 180 / Math.PI;
+    const big = turnAt(i, k);
+    if(big >= cornerDeg && turnAt(i, ks) >= cornerDeg * 0.75) ang[i] = big;
   }
   const anch = [0];
   for(let i = k; i < N - k; i++){
-    if(ang[i] < cornerDeg) continue;
+    if(!ang[i]) continue;
     let top = true; for(let j = i - k; j <= i + k; j++) if(ang[j] > ang[i]) top = false;
     if(top && i - anch[anch.length - 1] >= k) anch.push(i);
   }
   if(N - 1 - anch[anch.length - 1] < k && anch.length > 1) anch.pop();
   anch.push(N - 1);
   // 3. Taubin smoothing between corners: removes wobble without shrinking loops (an 'o' stays as big as you drew it)
-  const lam = 0.5, mu = -0.53, iters = neat ? 110 : strong ? 70 : 48, O = R.map(p => [p[0], p[1], p[2]]);
+  const lam = 0.5, mu = -0.53, iters = [40, 52, 66][lvl], O = R.map(p => [p[0], p[1], p[2]]);
   for(let a = 0; a < anch.length - 1; a++){
     const s0 = anch[a], e0 = anch[a + 1], m = e0 - s0 + 1;
     if(m < 4) continue;
@@ -17142,20 +17149,21 @@ function refineStrokeN(f, strong, neat){   // neat = 'Font' level: steadier than
       }
     }
     for(let i = 0; i < m; i++){ O[s0 + i][0] = X[i]; O[s0 + i][1] = Y[i]; }
-    // 4. a stretch that was meant to be straight (the stem of an l, the bar of a t) is drawn straight
+    // 4. a stretch that was clearly meant to be straight (the stem of an l, the bar of a t) is eased toward straight.
+    //    The tolerance is tight on purpose: a gentle curve must stay a curve, only a genuinely straight stem is tidied.
     const A = O[s0], B = O[e0], len = Math.hypot(B[0] - A[0], B[1] - A[1]);
-    if(len >= 16){
+    if(len >= 20){
       let dev = 0; for(let i = s0; i <= e0; i++) dev = Math.max(dev, distSegN(O[i][0], O[i][1], A[0], A[1], B[0], B[1]));
-      const thr = neat ? Math.max(5, 0.08 * len) : strong ? Math.max(3.2, 0.05 * len) : Math.max(2.2, 0.03 * len), sMix = neat ? 1 : strong ? 0.7 : 0.5;
+      const thr = [Math.max(1.4, 0.02 * len), Math.max(2, 0.03 * len), Math.max(3, 0.045 * len)][lvl], sMix = [0.35, 0.55, 0.85][lvl];
       if(dev < thr && neat){
         // font-like: the stretch becomes a truly straight line, and a near-vertical or near-horizontal one is made exactly vertical / horizontal
         let dx = B[0] - A[0], dy = B[1] - A[1];
         const ad = ((Math.atan2(dy, dx) * 180 / Math.PI) % 180 + 180) % 180;
-        if(ad < 6 || ad > 174){ dx = Math.sign(dx || 1) * len; dy = 0; }
-        else if(Math.abs(ad - 90) < 9){ dx = 0; dy = Math.sign(dy || 1) * len; }
+        if(ad < 4 || ad > 176){ dx = Math.sign(dx || 1) * len; dy = 0; }
+        else if(Math.abs(ad - 90) < 6){ dx = 0; dy = Math.sign(dy || 1) * len; }
         const mx = (A[0] + B[0]) / 2, my = (A[1] + B[1]) / 2, ux = dx / Math.hypot(dx, dy), uy = dy / Math.hypot(dx, dy);
         const ax = mx - ux * len / 2, ay = my - uy * len / 2;
-        for(let i = s0; i <= e0; i++){ const t = (i - s0) / (e0 - s0); O[i][0] = ax + ux * len * t; O[i][1] = ay + uy * len * t; }
+        for(let i = s0; i <= e0; i++){ const t = (i - s0) / (e0 - s0); O[i][0] += (ax + ux * len * t - O[i][0]) * sMix; O[i][1] += (ay + uy * len * t - O[i][1]) * sMix; }
       } else if(dev < thr){
         for(let i = s0 + 1; i < e0; i++){
           const t = (i - s0) / (e0 - s0);
@@ -17164,17 +17172,40 @@ function refineStrokeN(f, strong, neat){   // neat = 'Font' level: steadier than
       }
     }
   }
-  // 4b. soften the corners: a few light passes over the whole stroke so turns become rounded, not pointed
-  { const X = new Float64Array(N), Y = new Float64Array(N), NX = new Float64Array(N), NY = new Float64Array(N);
-    for(let i = 0; i < N; i++){ X[i] = O[i][0]; Y[i] = O[i][1]; }
-    for(let it = 0; it < (neat ? 40 : strong ? 22 : 14); it++){
-      for(const w of [0.45, -0.48]){
+  // 4b. round off the corners and join the segments: a few light passes over the whole stroke so turns flow instead of snapping
+  const soft = (A, passes, wa, wb) => {
+    const X = new Float64Array(N), Y = new Float64Array(N), NX = new Float64Array(N), NY = new Float64Array(N);
+    for(let i = 0; i < N; i++){ X[i] = A[i][0]; Y[i] = A[i][1]; }
+    for(let it = 0; it < passes; it++){
+      for(const w of [wa, wb]){
         NX[0] = X[0]; NY[0] = Y[0]; NX[N-1] = X[N-1]; NY[N-1] = Y[N-1];
         for(let i = 1; i < N - 1; i++){ NX[i] = X[i] + w * ((X[i-1] + X[i+1]) / 2 - X[i]); NY[i] = Y[i] + w * ((Y[i-1] + Y[i+1]) / 2 - Y[i]); }
         X.set(NX); Y.set(NY);
       }
     }
-    for(let i = 0; i < N; i++){ O[i][0] = X[i]; O[i][1] = Y[i]; } }
+    for(let i = 0; i < N; i++){ A[i][0] = X[i]; A[i][1] = Y[i]; }
+  };
+  soft(O, [18, 26, 34][lvl], 0.45, -0.48);
+  // 4b2. real corners (the foot of an n, the apex of an A) get a small pen-like radius instead of a spike: extra smoothing only near them
+  if(anch.length > 2){
+    const kk = Math.max(3, Math.round(6 / step)), cw = new Float64Array(N);
+    for(let a = 1; a < anch.length - 1; a++) for(let j = -kk; j <= kk; j++){ const i = anch[a] + j; if(i > 0 && i < N - 1) cw[i] = Math.max(cw[i], 1 - Math.abs(j) / (kk + 1)); }
+    const X = new Float64Array(N), Y = new Float64Array(N), NX = new Float64Array(N), NY = new Float64Array(N);
+    for(let i = 0; i < N; i++){ X[i] = O[i][0]; Y[i] = O[i][1]; }
+    for(let it = 0; it < [10, 14, 18][lvl]; it++){
+      for(const w of [0.5, -0.53]){
+        NX[0] = X[0]; NY[0] = Y[0]; NX[N-1] = X[N-1]; NY[N-1] = Y[N-1];
+        for(let i = 1; i < N - 1; i++){ const g = w * cw[i]; NX[i] = X[i] + g * ((X[i-1] + X[i+1]) / 2 - X[i]); NY[i] = Y[i] + g * ((Y[i-1] + Y[i+1]) / 2 - Y[i]); }
+        X.set(NX); Y.set(NY);
+      }
+    }
+    for(let i = 0; i < N; i++){ O[i][0] = X[i]; O[i][1] = Y[i]; }
+  }
+  // 4c. keep your own hand in it: blend back a lightly smoothed copy of what you actually drew, so the letter keeps its natural roundness
+  //     and rhythm instead of looking machine-cut. (Higher levels keep less of the original.)
+  const base = R.map(p => [p[0], p[1], p[2]]); soft(base, 26, 0.5, -0.53);
+  const keep = [0.25, 0.15, 0.07][lvl];
+  for(let i = 1; i < N - 1; i++){ O[i][0] += (base[i][0] - O[i][0]) * keep; O[i][1] += (base[i][1] - O[i][1]) * keep; }
   // 5. a loop that almost meets itself (o, a, e, 6, 0) is closed
   const tk = Math.max(2, Math.round(6 / step)); let turn = 0;
   for(let i = tk; i < N - tk; i += tk){
@@ -17189,7 +17220,7 @@ function refineStrokeN(f, strong, neat){   // neat = 'Font' level: steadier than
   // 6. pressure: smoothed so the line swells and thins gradually, with a soft pen-like taper at both ends
   let pr = O.map(p => p[2]);
   for(let pass = 0; pass < (strong ? 20 : 13); pass++){ const t = pr.slice(); for(let i = 1; i < N - 1; i++) t[i] = 0.25 * pr[i-1] + 0.5 * pr[i] + 0.25 * pr[i+1]; pr = t; }
-  if(neat){ const mean = pr.reduce((a, b) => a + b, 0) / N, even = Math.max(0.55, Math.min(0.85, mean)); pr = pr.map(v => even + (v - even) * 0.12); }   // near-even line weight, like a pen font
+  if(neat){ const mean = pr.reduce((a, b) => a + b, 0) / N, even = Math.max(0.55, Math.min(0.85, mean)); pr = pr.map(v => even + (v - even) * 0.2); }   // near-even line weight, like a pen font
   const taper = Math.max(3, Math.round((strong ? 15 : 12) / step)), floor = neat ? 0.8 : strong ? 0.58 : 0.74;
   for(let i = 0; i < taper && i < N / 2; i++){ const e = i / taper, fct = floor + (1 - floor) * e * e * (3 - 2 * e); pr[i] *= fct; pr[N-1-i] *= fct; }
   const out = []; for(let i = 0; i < N; i++) out.push(+O[i][0].toFixed(1), +O[i][1].toFixed(1), +Math.max(0.05, Math.min(1, pr[i])).toFixed(2));
