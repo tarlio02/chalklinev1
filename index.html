@@ -12632,6 +12632,10 @@ function resetTutorBoardState(){
   pdfText=''; pdfFileName='';
   conversationHistory=[]; drawQueue=[]; drawnCommands=[]; lessonPlan=null; boardIdSeq=0; currentTurnContext='';
   camera.x=500; camera.scale=1;
+  // A new session must start at the TOP of the board. camera.y used to be left where the previous
+  // lesson ended (usually near the bottom), and any glide/auto-follow still running kept pulling it there.
+  stopScrollAnim(); panToken++; isUserScrolling = false; dragPan = null;
+  camera.y = 0; lastAutoFollowTargetY = TOP_MARGIN;
   resetRegionCursors(); currentTopicLabel='Topic';
   clearBoard();
   playBoardWelcomeIntro();
@@ -18241,7 +18245,18 @@ function startNewNoteN(){
   pagesN = [{ body:'', base:'', strokes:[], paper:loadPaperDefaultN() }]; curPageN = 0;
   showEditorN();
   mountPagesN();
-  if(titleEl) titleEl.focus();
+  // A new note must open at the TOP. Stop any leftover caret glide, reset every scroller (the note area AND the
+  // page itself, which keeps the list view's scroll), and focus the title WITHOUT letting the browser scroll.
+  const topN = () => {
+    try{ if(window.stopCaretGlideN) window.stopCaretGlideN(); }catch(e){}
+    scrollElN.scrollTop = 0; scrollElN.scrollLeft = 0;
+    try{ window.scrollTo(0, 0); document.documentElement.scrollTop = 0; document.body.scrollTop = 0; }catch(e){}
+  };
+  topN();
+  if(titleEl) titleEl.focus({ preventScroll:true });
+  // The layout settles after the first frame (auto-fit at ~30ms, fonts): re-pin to the top while the note is still untouched.
+  const idNew = currentNoteIdN;
+  [40, 120, 350].forEach(ms => setTimeout(() => { if(currentNoteIdN === idNew && !noteDirtyN && !drawingActiveN) topN(); }, ms));
 }
 async function openNoteN(id, knownKey){
   if(!shUserN) return;
@@ -18950,6 +18965,8 @@ refreshNotesListN();
   const stack = document.getElementById('pages-stack'), ev = document.getElementById('editor-view');
   if(!stack || !ev) return;
   let raf = 0, tween = 0, target = 0, typingTimer = 0;
+  // Lets startNewNoteN cancel a caret-follow glide left over from the previous note (it kept easing the new note toward the old note's scroll target).
+  window.stopCaretGlideN = function(){ if(tween){ cancelAnimationFrame(tween); tween = 0; } if(raf){ cancelAnimationFrame(raf); raf = 0; } };
   function caretRect(){
     const sel = getSelection(); if(!sel || !sel.rangeCount || !sel.isCollapsed) return null;
     const r = sel.getRangeAt(0); let rc = r.getClientRects()[0];
