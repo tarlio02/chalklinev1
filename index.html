@@ -17452,6 +17452,7 @@ function onCanvasN(type, fn, opts){ canvasHandlersN.push([type, fn, opts]); }
 function wireCanvasN(cv){ for(const h of canvasHandlersN) cv.addEventListener(h[0], h[1], h[2]); }
 let activePointerIdN = null;
 let activePointerTypeN = null;
+let lastPenActivityN = 0, strokeRectN = null;   // last pen down/up time (to keep heavy work out of writing bursts) / canvas rect cached for the stroke in progress
 // Stylus-first input: once a pen has touched the canvas in this Draw session,
 // finger/palm touches stop drawing. A resting palm (or a second contact) was
 // starting its own strokes and dragging lines across the page while writing
@@ -17478,7 +17479,7 @@ onCanvasN('pointerdown', (e)=>{
   if(e.pointerType === 'touch' && (penSeenN || drawingActiveN)){ e.preventDefault(); return; }
   try{ const sel = window.getSelection(); if(sel && sel.rangeCount) sel.removeAllRanges(); }catch(err){}
   try{ if(document.activeElement && document.activeElement !== document.body) document.activeElement.blur(); }catch(err){}
-  drawingActiveN = true;
+  drawingActiveN = true; lastPenActivityN = performance.now(); strokeRectN = null;
   activePointerIdN = e.pointerId;
   activePointerTypeN = e.pointerType;
   document.body.classList.add('no-select-while-drawing');
@@ -17580,7 +17581,7 @@ onCanvasN('pointermove', (e)=>{
   // Input phase only: one rect read per event, every coalesced sample queued
   // (nothing throttled or discarded), drawing deferred to the rAF flush.
   if(lineDragN){ updateLineN(e); e.preventDefault(); return; }
-  const r = canvasEl.getBoundingClientRect();
+  const r = strokeRectN || (strokeRectN = canvasEl.getBoundingClientRect());
   const dpr = canvasScaleN;
   const coalesced = (typeof e.getCoalescedEvents === 'function') ? e.getCoalescedEvents() : [];
   const samples = coalesced.length ? coalesced : [e];
@@ -17611,6 +17612,7 @@ function endDrawN(e){
   activePointerTypeN = null;
   document.body.classList.remove('no-select-while-drawing');
   try{ window.parent.document.body.classList.remove('no-select-while-drawing'); }catch(err){}
+  lastPenActivityN = performance.now(); strokeRectN = null;
   saveCurrentNoteN(true);
 }
 onCanvasN('touchstart', (e)=>{ e.preventDefault(); }, { passive:false });
@@ -17627,6 +17629,7 @@ let curPageN = 0;          // the page you last touched / are looking at: pen, u
 let viewsN = [];           // one view (DOM + ink canvas) per page, same order as pagesN
 let noteTitleN = '';
 const scrollElN = document.getElementById('note-scroll');
+scrollElN.addEventListener('scroll', ()=>{ strokeRectN = null; }, { passive:true });
 /* ---- Two-finger pinch zoom (also ctrl + scroll wheel / trackpad pinch) ---- */
 const ZOOM_MIN_N = 0.5, ZOOM_MAX_N = 4;
 let zoomN = 1, rasterZoomN = 1, pinchN = null, rerasterTimerN = null;
@@ -18309,6 +18312,7 @@ function canvasToDataURLAsync(canvas){
   });
 }
 let pendingSaveN = null;
+let saveFirstAtN = 0, saveWantsIdleN = false;
 const createdAtN = new Map();
 function saveCurrentNoteN(inkOnly){
   if(!currentNoteIdN || !shUserN) return;
@@ -18354,6 +18358,8 @@ function saveCurrentNoteN(inkOnly){
       else statusEl.textContent = 'save failed'; }
   };
   pendingSaveN = run;
+  if(!saveTimerN){ saveFirstAtN = performance.now(); saveWantsIdleN = true; }
+  if(inkOnly !== true) saveWantsIdleN = false;   // typing still saves right away
   // Throttle, not debounce: the old code restarted the timer on every keystroke / stroke, so a note you were
   // writing in continuously was not saved (or sent to your other devices) until you stopped. Now the first
   // edit starts a short timer and the latest state is saved when it fires, however busy you are. Big notes
@@ -18361,7 +18367,11 @@ function saveCurrentNoteN(inkOnly){
   if(!saveTimerN){
     const gap = Math.min(450, Math.max(inkOnly === true ? 40 : 40, saveCostMsN * 1.5));
     const fire = ()=>{
-      if(drawingActiveN){ saveTimerN = setTimeout(fire, 40); return; }   // never serialise mid-stroke; the pen-up saves right away
+      if(drawingActiveN){ saveTimerN = setTimeout(fire, 40); return; }   // never serialise mid-stroke
+      // Ink-only saves wait for a short writing pause (max 4 s): serialising the whole note takes tens to hundreds of ms
+      // and used to land in the gap between two strokes, which is exactly when the next one starts -> stutter. Your other
+      // devices already get each stroke instantly over the live channel; this is only the durable copy.
+      if(saveWantsIdleN && performance.now() - lastPenActivityN < 600 && performance.now() - saveFirstAtN < 4000){ saveTimerN = setTimeout(fire, 120); return; }
       saveTimerN = null;
       const f = pendingSaveN; pendingSaveN = null; if(f) f();
     };
@@ -18535,7 +18545,7 @@ async function applyRemoteNoteN(){
 }
 function pollLiveN(){
   if(!currentNoteIdN || !currentNoteKeyN || !shUserN || document.hidden) return;
-  if(noteDirtyN || drawingActiveN) return;   // remote copies are never applied mid-edit anyway; downloading now only slows our own upload
+  if(noteDirtyN || drawingActiveN || performance.now() - lastPenActivityN < 2500) return;   // remote copies are never applied mid-edit anyway; a whole-note download + hash on this thread makes the pen stutter
   try{ if(window.frameElement && window.frameElement.offsetParent === null) return; }catch(e){}
   try{ parent.postMessage({ liveNote:true, key: currentNoteKeyN }, '*'); }catch(e){}
 }
