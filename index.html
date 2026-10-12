@@ -16367,7 +16367,9 @@ body.no-select-while-drawing,
         <button type="button" class="tool-btn" id="add-page-btn" onclick="addPageN()" aria-label="Add page" title="Add a page after this one"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Page</button>
         <span class="sep"></span>
         <button type="button" class="tool-btn" id="strip-btn" onclick="toggleStripN()" aria-label="Page preview" title="Preview pages and scroll through them quickly"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="7" height="16" rx="1.5"/><rect x="14" y="4" width="7" height="16" rx="1.5"/></svg></button>
+        <button type="button" class="tool-btn" id="pg-prev" onclick="goPageN(curPageN - 1)" aria-label="Previous page" title="Previous page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
         <span id="pg-label">1 / 1</span>
+        <button type="button" class="tool-btn" id="pg-next" onclick="goPageN(curPageN + 1)" aria-label="Next page" title="Next page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
         <button type="button" class="tool-btn danger" id="pg-del" onclick="deletePageN()" aria-label="Delete this page" title="Delete this page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
       </div>
 
@@ -17960,6 +17962,8 @@ function setCurN(i){ if(i < 0 || i >= viewsN.length) return; useViewN(i); update
 function updatePagerN(){
   document.getElementById('pg-label').textContent = (curPageN + 1) + ' / ' + pagesN.length;
   document.getElementById('pg-del').disabled = pagesN.length < 2;
+  document.getElementById('pg-prev').disabled = curPageN <= 0;
+  document.getElementById('pg-next').disabled = curPageN >= pagesN.length - 1;
   const p = pagesN[curPageN]; if(p) setPaperN(p.paper || 'ruled', { silent:true });
   updateHistBtnsN(); stripSyncN();
 }
