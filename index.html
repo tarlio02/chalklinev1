@@ -11979,27 +11979,48 @@ OPERATIONAL NOTES FOR THE SOCRATIC TEACHING METHOD ABOVE: EACH TURN TEACHES ONE 
 
 ORGANISED BOARD: write neat structured notes, never paragraphs — one short idea per line (about 12 words max), sage lead-in labels on their own line ("Definition:", "Formula:", "Example:", "Step 1:", "So:"), lists as "- " or "1." "2." lines, calculations one step per line, 3-7 lines per turn in logical order (definition, formula, worked example, result). WRITE FIRST, THEN EXPLAIN: the app writes the whole "board" first and speaks "speech" only after the writing is finished — so first decide the exact lines you will write, then explain exactly those lines in order, as if they are already up there ("Look at this line..."), never "I am writing". SPEECH/BOARD SYNC: "speech" and "board" must describe the same single piece of content for this turn — nothing narrated that isn't on the board, nothing on the board speech never mentions. For a complex diagram, summarize it in speech rather than narrating every shape.`;
 
+// Groq's on-demand tier counts prompt + requested max_tokens against an 8000 tokens-per-minute cap, so one oversized request
+// fails with 413 even when it is the only call that minute. Fit each request under the cap: drop the oldest turns first,
+// then trim the memory block, and finally lower max_tokens. `tight` is used for the automatic retry after a 413.
+const GROQ_TPM_BUDGET = 7200;
+function groqEstTokens(str){ return Math.ceil(String(str || '').length / 3); }   // deliberately pessimistic (maths and JSON tokenise densely)
+function buildGroqBodyN(tight){
+  const view = historyView();
+  const budget = tight ? 5600 : GROQ_TPM_BUDGET;
+  let sys = SYSTEM_PROMPT_GROQ + studentContextLine();
+  let mem = memoryBlock(view) || '';
+  let msgs = withTurnContext(view.msgs).slice();
+  let maxTok = tierBudget('groq');
+  const size = () => groqEstTokens(sys) + groqEstTokens(mem) + msgs.reduce((n, m) => n + groqEstTokens(typeof m.content === 'string' ? m.content : JSON.stringify(m.content)), 0);
+  const minOut = 1200;
+  // 1. oldest turns go first (the newest message always stays)
+  while(msgs.length > 1 && size() + maxTok > budget) msgs.shift();
+  while(msgs.length > 1 && msgs[0].role !== 'user') msgs.shift();   // the conversation must start with a user turn
+  // 2. then trim the memory block
+  if(size() + maxTok > budget && mem.length > 600) mem = mem.slice(0, Math.max(600, mem.length - (size() + maxTok - budget) * 3));
+  // 3. finally ask for a shorter answer rather than failing
+  if(size() + maxTok > budget) maxTok = Math.max(minOut, budget - size());
+  return {
+    model:"openai/gpt-oss-120b",
+    response_format:{ type:"json_object" },
+    max_tokens: maxTok,
+    ...(tierReasoningEffort() ? { reasoning_effort: tierReasoningEffort() } : {}),
+    messages: [ { role:"system", content: sys + mem }, ...msgs ]
+  };
+}
 async function callGroq(){
   if(PROXY_URL.includes('YOUR-WORKER-SUBDOMAIN')){
     return { ok:false, status:'proxy not configured', errorSpeech:"The AI proxy hasn't been set up yet." };
   }
   let response, data;
+  const send = async (tight) => fetch(`${PROXY_URL}/groq`, {
+    method:"POST",
+    headers:Object.assign({"Content-Type":"application/json"}, chalklineAuthHeaders()),
+    body: JSON.stringify(buildGroqBodyN(tight))
+  });
   try{
-    const view = historyView();
-    response = await fetch(`${PROXY_URL}/groq`, {
-      method:"POST",
-      headers:Object.assign({"Content-Type":"application/json"}, chalklineAuthHeaders()),
-      body: JSON.stringify({
-        model:"openai/gpt-oss-120b",
-        response_format:{ type:"json_object" },
-        max_tokens: tierBudget('groq'),
-        ...(tierReasoningEffort() ? { reasoning_effort: tierReasoningEffort() } : {}),
-        messages: [
-          { role:"system", content: SYSTEM_PROMPT_GROQ + studentContextLine() + memoryBlock(view) },
-          ...withTurnContext(view.msgs)
-        ]
-      })
-    });
+    response = await send(false);
+    if(response.status === 413) response = await send(true);   // still too big: retry once with a much smaller request
   } catch(networkErr){
     console.error('Network failure calling proxy (Groq):', networkErr);
     return { ok:false, status:'network error', errorSpeech:"The request never reached the proxy." };
