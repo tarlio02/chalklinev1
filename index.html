@@ -2040,11 +2040,16 @@ async function pullCloud(sub, authoritative){
 
 // Send local changes up (new/edited keys, and keys deleted here).
 let pushMerged = false;
+// True while pushOneKey() is mid-upload for this note. The background sync used to see the note as "changed"
+// (its hash is only recorded when the upload lands) and upload the same multi-MB note a second time in parallel,
+// which fought the fast lane for bandwidth and made the cross-device copy arrive later.
+function liveUploadBusy(k){ try{ const st = pnState[k]; return !!(st && st.busy); }catch(e){ return false; } }
 async function pushLocal(sub){
   const meta = loadSyncMeta(sub), keys = localSyncKeys(sub), jobs = [];
   { const re = syncKeyRegex(sub); for(const k of await clOv.keys()){ if(re.test(k) && keys.indexOf(k) < 0) keys.push(k); } }   // big notes kept in the overflow store
   const keySet = new Set(keys);
   for(const k of keys){
+    if(liveUploadBusy(k)) continue;   // the fast lane is uploading this note right now: the next pass will confirm it
     const v = await lsGet(k), m = meta[k];
     if(!m || m.h !== fnv(v)) jobs.push({ k, v });
   }
@@ -17527,29 +17532,50 @@ document.addEventListener('selectstart', (e)=>{
 try{ window.parent.document.addEventListener('selectstart', (e)=>{ if(drawingActiveN) e.preventDefault(); }); }catch(err){}
 // ---- Finger = scroll (with momentum). Only a pen or mouse can draw. ----
 let tsN = null, inertiaN = 0;
+// Finger scroll over the drawing layer (native scrolling is off there so a pen never scrolls the page).
+// Feels like a native scroller: the page follows the finger 1:1, the release velocity comes from the last ~100 ms
+// of movement (not the last event), the glide decays by elapsed TIME (same on 60 Hz and 120 Hz screens),
+// it runs on both axes, and it stops dead at the page edge instead of grinding against it.
 function touchScrollStartN(e){
   cancelAnimationFrame(inertiaN);
   if(drawingActiveN) return;   // ignore a resting palm while a pen stroke is in progress
   const now = performance.now();
   if(tsN && now - tsN.t < 1200 && tsN.id !== e.pointerId) return;   // a second contact never steals the scroll from the first finger
-  tsN = { id:e.pointerId, x:e.clientX, y:e.clientY, t:now, v:0 };
+  tsN = { id:e.pointerId, x:e.clientX, y:e.clientY, t:now, s:[{ t:now, x:e.clientX, y:e.clientY }] };
   try{ (e.target || canvasEl).setPointerCapture(e.pointerId); }catch(err){}
 }
 onCanvasN('pointermove', (e)=>{
   if(!tsN || e.pointerId !== tsN.id) return;
   if(drawingActiveN){ tsN = null; return; }   // pen took over: stop scrolling
-  const now = performance.now(), dy = e.clientY - tsN.y, dt = Math.max(1, now - tsN.t);
-  document.getElementById('note-scroll').scrollTop -= dy;
-  document.getElementById('note-scroll').scrollLeft -= e.clientX - tsN.x; tsN.x = e.clientX;
-  tsN.v = 0.7 * tsN.v + 0.3 * (dy / dt); tsN.y = e.clientY; tsN.t = now;
+  const sc = scrollElN, now = performance.now();
+  sc.scrollTop -= e.clientY - tsN.y;
+  sc.scrollLeft -= e.clientX - tsN.x;
+  tsN.x = e.clientX; tsN.y = e.clientY; tsN.t = now;
+  const s = tsN.s; s.push({ t:now, x:e.clientX, y:e.clientY });
+  while(s.length > 2 && now - s[0].t > 100) s.shift();   // keep only the last ~100 ms for the release velocity
   e.preventDefault();
 });
 function touchEndN(e){
   if(!tsN || e.pointerId !== tsN.id) return;
-  let vel = tsN.v * 16; tsN = null;
-  const sc = document.getElementById('note-scroll');
-  const step = ()=>{ sc.scrollTop -= vel; vel *= 0.95; if(Math.abs(vel) > 0.4) inertiaN = requestAnimationFrame(step); };
-  if(Math.abs(vel) > 1) step();
+  const s = tsN.s, now = performance.now(); tsN = null;
+  if(e.type !== 'pointerup' || s.length < 2) return;
+  const a = s[0], b = s[s.length - 1], span = b.t - a.t;
+  if(now - b.t > 90 || span < 8) return;   // the finger rested before lifting: no fling
+  const MAXV = 6;   // px per ms
+  let vy = Math.max(-MAXV, Math.min(MAXV, -(b.y - a.y) / span)), vx = Math.max(-MAXV, Math.min(MAXV, -(b.x - a.x) / span));
+  if(Math.hypot(vx, vy) < 0.12) return;
+  const sc = scrollElN, TAU = 325;   // ms: how quickly the glide dies away
+  let prev = performance.now();
+  const step = (ts)=>{
+    const t = ts || performance.now(), dt = Math.min(40, Math.max(1, t - prev)); prev = t;
+    const t0 = sc.scrollTop, l0 = sc.scrollLeft, dy = vy * dt, dx = vx * dt;
+    sc.scrollTop = t0 + dy; sc.scrollLeft = l0 + dx;
+    if(Math.abs(dy) > 1 && sc.scrollTop === t0) vy = 0;   // hit the top / bottom
+    if(Math.abs(dx) > 1 && sc.scrollLeft === l0) vx = 0;  // hit the left / right edge
+    const f = Math.exp(-dt / TAU); vy *= f; vx *= f;
+    if(Math.hypot(vx, vy) > 0.02) inertiaN = requestAnimationFrame(step);
+  };
+  inertiaN = requestAnimationFrame(step);
 }
 onCanvasN('pointerup', touchEndN);
 
