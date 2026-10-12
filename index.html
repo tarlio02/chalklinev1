@@ -17859,17 +17859,57 @@ function renderAtN(i){
 /* ---- text area sizing: each page is at least one sheet tall; its ruled lines run to the bottom ---- */
 function pageMinHN(){
   const w = layoutWN(), h = sheetEl.clientHeight / (baseZN() || 1);
-  return Math.max(Math.round(w * 1.294), Math.round(h * 0.85));
+  return Math.round(w * 1.4142);   // A4 proportions (297 / 210): every page is one A4 sheet tall
 }
 function autosizeViewN(v){
   const lh = 36, cs = getComputedStyle(v.sec);
   const pad = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0), titleH = v.title ? lh : 0;
   v.body.style.height = 'auto';
-  const need = Math.ceil(v.body.scrollHeight / lh) * lh;   // whole number of lines so the last ruled line lines up
   let fill = Math.max(lh * 4, Math.floor((pageMinHN() - pad - titleH) / lh) * lh);
   let ib = 0; v.sec.querySelectorAll('.note-img').forEach(e => { ib = Math.max(ib, e.offsetTop + e.offsetHeight); });
   if(ib) fill = Math.max(fill, Math.ceil((ib - pad - titleH) / lh) * lh);   // the page grows to fit its photos / PDF page
+  if(!spillBusyN) spillOverflowN(v, fill);   // text that doesn't fit on this A4 sheet continues on the next one
+  const need = Math.ceil(v.body.scrollHeight / lh) * lh;   // whole number of lines so the last ruled line lines up
   v.body.style.height = Math.max(need, fill) + 'px';
+}
+/* A page is one A4 sheet: lines that no longer fit are moved to the top of the next page (a new page is added if
+   this was the last one), and the caret follows them. */
+let spillBusyN = false;
+function spillOverflowN(v, fill){
+  if(inputModeN !== 'type') return;
+  const body = v.body;
+  if(body.scrollHeight <= fill + 1 || body.childNodes.length < 2) return;
+  const i = viewsN.indexOf(v); if(i < 0) return;
+  spillBusyN = true;
+  try{
+    const moved = [];
+    while(body.scrollHeight > fill + 1 && body.childNodes.length > 1){ moved.unshift(body.lastChild); body.removeChild(body.lastChild); }
+    if(!moved.length) return;
+    const sel = window.getSelection();
+    let caretNode = null, caretOff = 0;
+    if(sel && sel.rangeCount && sel.isCollapsed){ const a = sel.anchorNode; if(a && moved.some(n => n === a || n.contains(a))){ caretNode = a; caretOff = sel.anchorOffset; } }
+    if(!viewsN[i + 1]){
+      syncAllN();
+      const pg = { body:'', base:'', strokes:[], paper:(pagesN[i] && pagesN[i].paper) || paperN };
+      pagesN.splice(i + 1, 0, pg);
+      const nv = createViewN(pg, false);
+      viewsN.splice(i + 1, 0, nv);
+      v.sec.after(nv.sec);
+      sendPageOpN('addpage', i + 1, pg.paper);
+      nv.body.innerHTML = '';
+    }
+    const next = viewsN[i + 1];
+    const firstOld = next.body.firstChild;
+    const emptyStart = firstOld && next.body.childNodes.length === 1 && !(next.body.textContent || '').replace(/\u200B/g, '').trim() && !next.body.querySelector('.mj');
+    if(emptyStart) next.body.removeChild(firstOld);
+    moved.slice().reverse().forEach(n => next.body.insertBefore(n, next.body.firstChild));
+    autosizeViewN(next);
+    renumberN();
+    if(caretNode){
+      try{ next.body.focus({ preventScroll:true }); const r = document.createRange(); r.setStart(caretNode, caretOff); r.collapse(true); sel.removeAllRanges(); sel.addRange(r); }catch(e){}
+      const k = viewsN.indexOf(next); if(k >= 0){ setCurN(k); scrollToPageN(k, false); }
+    }
+  } finally { spillBusyN = false; }
 }
 function autosizeAllN(){ viewsN.forEach(autosizeViewN); }
 
