@@ -2084,7 +2084,9 @@ async function pushLocal(sub){
       if(String(job.k).indexOf('chalkline:notes:') === 0) pushedNotes = true;
     } catch(e){
       if(e && e.message === 'session expired') throw e;    // stop the batch, don't mark as skip
-      meta[job.k] = { h: fnv(job.v), skip:true };
+      // Only park an item for good when the worker refused it (too big / invalid). Offline, timeouts and 5xx errors
+      // leave it un-synced so the next sync cycle retries it instead of silently never uploading that note.
+      if(/\((?:400|413|422)\)/.test(String((e && e.message) || ''))) meta[job.k] = { h: fnv(job.v), skip:true };
       failed.push(String(job.k).split(':').slice(2).join(':').slice(-14) + ' (' + ((e && e.message) || 'error') + ')');
       console.warn('Not synced (rejected by worker):', job.k, e);
     }
@@ -3409,7 +3411,15 @@ window.addEventListener('message', (e)=>{
   if(d.liveNotesList){ pullNotesList().then(ch => { if(ch) broadcastAuthState(); }); }
   if(d.liveNote && typeof d.key === 'string'){
     const from = e.source;
-    pullOneKey(d.key).then(ch => { if(ch && from){ try{ from.postMessage({ chalklineNoteRemote:true, key:d.key }, '*'); }catch(err){} } });
+    // The notes page asks every ~350 ms. Each ask downloads the WHOLE note, which fights our own upload for bandwidth
+    // (the main reason edits reached the other device late). So: no download while this note's upload is in flight, and
+    // while realtime is healthy a ping from the other device (which resets liveLastAt) triggers the pull instead of a 3x/second poll.
+    const stN = pnState['chalkline:' + d.key];
+    const uploading = !!(stN && stN.busy);
+    const rtCovers = !!rtOkAt && (Date.now() - liveLastAt) < 1000;
+    if(!uploading && !rtCovers){
+      pullOneKey(d.key).then(ch => { if(ch && from){ try{ from.postMessage({ chalklineNoteRemote:true, key:d.key }, '*'); }catch(err){} } });
+    }
   }
   if(d.requestBackground && e.source) sendBgState(e.source);
   if(typeof d.setBackground === 'string') setTutorBg(d.setBackground);
@@ -18525,6 +18535,7 @@ async function applyRemoteNoteN(){
 }
 function pollLiveN(){
   if(!currentNoteIdN || !currentNoteKeyN || !shUserN || document.hidden) return;
+  if(noteDirtyN || drawingActiveN) return;   // remote copies are never applied mid-edit anyway; downloading now only slows our own upload
   try{ if(window.frameElement && window.frameElement.offsetParent === null) return; }catch(e){}
   try{ parent.postMessage({ liveNote:true, key: currentNoteKeyN }, '*'); }catch(e){}
 }
