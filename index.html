@@ -16305,6 +16305,33 @@ body.no-select-while-drawing,
 #note-sheet.horiz #zoom-wrap{ width:calc(var(--stackw, 100%) * var(--zoom)); }
 #note-sheet.horiz #pages-stack{ flex-direction:row; align-items:flex-start; width:var(--stackw, 100%); }
 #note-sheet.horiz .note-page{ width:var(--pgw, 100%); }
+/* page-turn animation when you change page */
+@keyframes nTurnFwd{ from{ transform:perspective(1400px) translateX(7%) rotateY(-16deg); opacity:.35; } to{ transform:none; opacity:1; } }
+@keyframes nTurnBack{ from{ transform:perspective(1400px) translateX(-7%) rotateY(16deg); opacity:.35; } to{ transform:none; opacity:1; } }
+@keyframes nTurnUp{ from{ transform:translateY(6%); opacity:.35; } to{ transform:none; opacity:1; } }
+@keyframes nTurnDown{ from{ transform:translateY(-6%); opacity:.35; } to{ transform:none; opacity:1; } }
+.note-page.turn-fwd{ transform-origin:left center; animation:nTurnFwd .42s cubic-bezier(.2,.8,.2,1) both; }
+.note-page.turn-back{ transform-origin:right center; animation:nTurnBack .42s cubic-bezier(.2,.8,.2,1) both; }
+#note-sheet:not(.horiz) .note-page.turn-fwd{ animation-name:nTurnUp; }
+#note-sheet:not(.horiz) .note-page.turn-back{ animation-name:nTurnDown; }
+@media (prefers-reduced-motion:reduce){ .note-page.turn-fwd, .note-page.turn-back{ animation:none; } }
+/* page preview strip: floats over the page, so the page keeps the whole screen */
+#page-strip{ position:absolute; z-index:24; left:10px; right:10px; bottom:calc(var(--safe-bottom) + 10px); display:none; flex-direction:column; gap:6px;
+  padding:8px 12px 10px; border-radius:20px; max-width:760px; margin:0 auto; }
+#page-strip.open{ display:flex; animation:nPopIn .18s cubic-bezier(.2,.8,.2,1); }
+#page-strip .ps-top{ display:flex; align-items:center; gap:10px; font:600 12px 'JetBrains Mono',monospace; color:var(--ink); }
+#ps-count{ min-width:52px; }
+#ps-range{ flex:1; min-width:0; accent-color:var(--gold-deep); height:28px; touch-action:none; }
+#ps-row{ display:flex; gap:10px; overflow-x:auto; padding:3px 2px 4px; scrollbar-width:none; overscroll-behavior:contain; }
+#ps-row::-webkit-scrollbar{ display:none; }
+.ps-thumb{ flex:none; position:relative; width:64px; aspect-ratio:210/297; padding:0; overflow:hidden; border-radius:5px; background:#fff; cursor:pointer;
+  border:2px solid transparent; box-shadow:0 1px 4px rgba(60,50,20,.28); }
+.ps-thumb.cur{ border-color:var(--gold-deep); box-shadow:0 0 0 2px rgba(201,138,43,.28), 0 2px 8px rgba(60,50,20,.3); }
+.ps-thumb .ps-inner{ position:absolute; left:0; top:0; transform-origin:0 0; pointer-events:none; background:#fff; }
+.ps-thumb .ps-inner .note-page{ margin:0; }
+.ps-thumb .ps-ink{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+.ps-thumb .ps-num{ position:absolute; right:3px; bottom:2px; font:700 9px 'JetBrains Mono',monospace; color:#6b6650; background:rgba(255,255,255,.8); border-radius:4px; padding:0 3px; }
+.tool-btn.on{ background:#FFF1CC; }
 </style>
 </head>
 <body>
@@ -16339,6 +16366,7 @@ body.no-select-while-drawing,
       <div class="glass pill" id="page-tools" aria-label="Pages">
         <button type="button" class="tool-btn" id="add-page-btn" onclick="addPageN()" aria-label="Add page" title="Add a page after this one"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Page</button>
         <span class="sep"></span>
+        <button type="button" class="tool-btn" id="strip-btn" onclick="toggleStripN()" aria-label="Page preview" title="Preview pages and scroll through them quickly"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="7" height="16" rx="1.5"/><rect x="14" y="4" width="7" height="16" rx="1.5"/></svg></button>
         <span id="pg-label">1 / 1</span>
         <button type="button" class="tool-btn danger" id="pg-del" onclick="deletePageN()" aria-label="Delete this page" title="Delete this page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
       </div>
@@ -16399,6 +16427,10 @@ body.no-select-while-drawing,
     <div class="glass menu-pop" id="text-color-pop" role="menu" aria-label="Text colour"><div class="menu-sec">Text colour</div><div class="color-row" id="text-color-row"></div></div>
     <button type="button" class="glass" id="zoom-chip" onclick="resetZoomN()">100%</button>
 
+    <div class="glass" id="page-strip" aria-label="Page preview">
+      <div class="ps-top"><span id="ps-count">1 / 1</span><input type="range" id="ps-range" min="1" max="1" value="1" aria-label="Scrub through pages"><button type="button" class="tool-btn" onclick="toggleStripN(false)" aria-label="Close preview">✕</button></div>
+      <div id="ps-row"></div>
+    </div>
     <div class="glass menu-pop" id="settings-menu" role="menu" aria-label="Note settings">
     <div class="menu-sec">Paper <span id="menu-paper-pg"></span></div>
     <button type="button" class="menu-opt" data-paper="ruled" role="menuitemradio" aria-checked="false" onclick="setPaperN('ruled')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>Ruled<svg class="menu-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg></button>
@@ -16645,6 +16677,71 @@ function setScrollDirN(dir){
   syncScrollMenuN(); layoutHorizN();
   if(viewsN.length){ applyZoomN(zoomN); relayoutN(); scrollToPageN(curPageN, false); }
 }
+/* ---- page preview strip + page-turn animation ---- */
+let stripOpenN = false, stripTimerN = 0;
+const STRIP_W_N = 64;
+function animateTurnN(i, dir){
+  const v = viewsN[i]; if(!v) return;
+  try{ if(window.matchMedia('(prefers-reduced-motion:reduce)').matches) return; }catch(e){}
+  const c = dir < 0 ? 'turn-back' : 'turn-fwd';
+  v.sec.classList.remove('turn-fwd', 'turn-back'); void v.sec.offsetWidth; v.sec.classList.add(c);
+  clearTimeout(v._tt); v._tt = setTimeout(()=>v.sec.classList.remove(c), 480);
+}
+function toggleStripN(force){
+  stripOpenN = force === undefined ? !stripOpenN : !!force;
+  document.getElementById('page-strip').classList.toggle('open', stripOpenN);
+  document.getElementById('strip-btn').classList.toggle('on', stripOpenN);
+  if(stripOpenN) buildStripN(true);
+}
+function buildStripN(force){
+  if(!stripOpenN) return;
+  const row = document.getElementById('ps-row');
+  if(force || row.children.length !== viewsN.length){
+    row.innerHTML = '';
+    viewsN.forEach((v, i)=>{
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'ps-thumb'; b.setAttribute('aria-label', 'Page ' + (i + 1));
+      b.addEventListener('click', ()=>goPageN(i));
+      row.appendChild(b);
+    });
+    viewsN.forEach((v, i)=>paintThumbN(i));
+  }
+  stripSyncN();
+}
+function paintThumbN(i){
+  const b = document.getElementById('ps-row').children[i], v = viewsN[i]; if(!b || !v) return;
+  const w = v.sec.clientWidth || 1, h = v.sec.clientHeight || 1;
+  b.innerHTML = '';
+  const inner = document.createElement('div'); inner.className = 'ps-inner';
+  inner.style.width = w + 'px'; inner.style.transform = 'scale(' + (STRIP_W_N / w) + ')';
+  const c = v.sec.cloneNode(true);
+  c.classList.remove('turn-fwd', 'turn-back'); c.style.width = w + 'px'; c.style.height = h + 'px'; c.style.animation = 'none';
+  c.querySelectorAll('canvas, .page-tag').forEach(x => x.remove());
+  c.querySelectorAll('[contenteditable]').forEach(x => x.removeAttribute('contenteditable'));
+  inner.appendChild(c); b.appendChild(inner);
+  if(v.live && v.cv.width > 4){   // ink is copied from the page's live canvas (pages far from the screen show text only)
+    const k = document.createElement('canvas'); k.className = 'ps-ink'; k.width = STRIP_W_N * 2; k.height = Math.round(STRIP_W_N * 2 * 297 / 210);
+    try{ k.getContext('2d').drawImage(v.cv, 0, 0, v.cv.width, Math.min(v.cv.height, Math.round(v.cv.width * 297 / 210)), 0, 0, k.width, k.height); }catch(e){}
+    b.appendChild(k);
+  }
+  const n = document.createElement('span'); n.className = 'ps-num'; n.textContent = String(i + 1); b.appendChild(n);
+}
+function stripSyncN(){
+  if(!stripOpenN) return;
+  const row = document.getElementById('ps-row'), n = viewsN.length;
+  if(row.children.length !== n){ buildStripN(true); return; }
+  Array.from(row.children).forEach((b, i)=>b.classList.toggle('cur', i === curPageN));
+  const rg = document.getElementById('ps-range'); rg.min = 1; rg.max = Math.max(1, n); rg.value = curPageN + 1; rg.style.visibility = n > 1 ? '' : 'hidden';
+  document.getElementById('ps-count').textContent = (curPageN + 1) + ' / ' + n;
+  const cur = row.children[curPageN];
+  if(cur) row.scrollTo({ left: Math.max(0, cur.offsetLeft - (row.clientWidth - cur.offsetWidth) / 2), behavior: 'smooth' });
+}
+function repaintCurThumbN(){ if(!stripOpenN) return; clearTimeout(stripTimerN); stripTimerN = setTimeout(()=>paintThumbN(curPageN), 450); }
+document.getElementById('ps-range').addEventListener('input', (e)=>{   // drag the slider to fly through pages
+  const i = (+e.target.value) - 1; if(i === curPageN || i < 0 || i >= viewsN.length) return;
+  scrollToPageN(i, false, true); setCurN(i);
+});
+document.getElementById('pages-stack').addEventListener('input', repaintCurThumbN, true);
+document.getElementById('note-scroll').addEventListener('pointerup', repaintCurThumbN, true);
 function relayoutN(){
   if(document.getElementById('editor-view').style.display === 'none') return;
   autoFitN(); autosizeAllN(); refreshCanvasesN();
@@ -17621,7 +17718,7 @@ window.addEventListener('pointerdown', (e)=>{ if(e.pointerType === 'pen' || e.po
 (function(){
   const ev = document.getElementById('editor-view'); if(!ev) return;
   const mine = new Set(); let swallowUntil = 0;
-  const inChrome = t => t && t.closest && t.closest('.topbar, .menu-pop, .tray, #math-pop');
+  const inChrome = t => t && t.closest && t.closest('.topbar, .menu-pop, .tray, #math-pop, #page-strip');
   ev.addEventListener('pointerdown', (e)=>{
     if(e.pointerType !== 'touch' || !drawingActiveN || !inChrome(e.target)) return;
     mine.add(e.pointerId); e.preventDefault(); e.stopPropagation();
@@ -17855,9 +17952,9 @@ function updatePagerN(){
   document.getElementById('pg-label').textContent = (curPageN + 1) + ' / ' + pagesN.length;
   document.getElementById('pg-del').disabled = pagesN.length < 2;
   const p = pagesN[curPageN]; if(p) setPaperN(p.paper || 'ruled', { silent:true });
-  updateHistBtnsN();
+  updateHistBtnsN(); stripSyncN();
 }
-function renumberN(){ viewsN.forEach((v, i)=>{ v.tag.textContent = String(i + 1); }); layoutHorizN(); }
+function renumberN(){ viewsN.forEach((v, i)=>{ v.tag.textContent = String(i + 1); }); layoutHorizN(); stripSyncN(); }
 
 /* ---- ink canvas of one page ---- */
 function resizeCanvasN(force, idx){
@@ -18008,17 +18105,19 @@ function mountPagesN(opts){
   setTimeout(relayoutN, 30);
   try{ document.fonts.ready.then(()=>{ viewsN.forEach(v => sizeMathInN(v.body)); colonIndentAllN(); relayoutN(); }); }catch(e){}
 }
-function scrollToPageN(i, smooth){
+function scrollToPageN(i, smooth, anim){
   const v = viewsN[i]; if(!v) return;
+  const turn = smooth || anim, dir = i - curPageN;   // a page change plays the page-turn animation instead of a long glide
+  if(turn) animateTurnN(i, dir);
   const tb = document.querySelector('.topbar');
   const clear = i === 0 ? 0 : Math.max(0, tb.getBoundingClientRect().bottom - scrollElN.getBoundingClientRect().top + 6);   // keep the page top just below the toolbar
   if(scrollDirN === 'h'){   // centre the page horizontally, start at its top
     const sr = scrollElN.getBoundingClientRect(), pr = v.sec.getBoundingClientRect();
     const left = scrollElN.scrollLeft + (pr.left - sr.left) - Math.max(0, (sr.width - pr.width) / 2);
-    scrollElN.scrollTo({ left: Math.max(0, left), top: 0, behavior: smooth ? 'smooth' : 'auto' });
+    scrollElN.scrollTo({ left: Math.max(0, left), top: 0, behavior: 'auto' });
     return;
   }
-  scrollElN.scrollTo({ top: Math.max(0, v.sec.offsetTop * zoomN - clear), behavior: smooth ? 'smooth' : 'auto' });
+  scrollElN.scrollTo({ top: Math.max(0, v.sec.offsetTop * zoomN - clear), behavior: 'auto' });
 }
 // The page under the middle of the screen becomes the current one as you scroll.
 function pickCurN(){
@@ -18033,7 +18132,7 @@ function pickCurN(){
   scrollElN.addEventListener('scroll', ()=>{ if(q) return; q = true; requestAnimationFrame(()=>{ q = false; pickCurN(); }); }, { passive:true });
 })();
 
-function goPageN(i){ if(i >= 0 && i < pagesN.length) scrollToPageN(i, true); }
+function goPageN(i){ if(i >= 0 && i < pagesN.length){ scrollToPageN(i, true); setCurN(i); } }
 function addPageN(){
   if(!viewsN.length) return;
   syncAllN();
