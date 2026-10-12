@@ -16892,7 +16892,7 @@ function toggleTrayN(force){
   t.insertAdjacentHTML('beforeend', '<div class="mode-row" style="display:flex"><button type="button" class="seg-btn" id="snap-btn" onclick="toggleSnapN()"></button></div>');
   try{ snapOnN = localStorage.getItem('chalkline:notes-snap') !== '0'; }catch(e){}
   snapOnN = !snapOnN; toggleSnapN();   // paints the button for the stored state
-  t.insertAdjacentHTML('beforeend', '<div class="mode-row" style="display:flex;align-items:center;flex-wrap:wrap;row-gap:6px"><span style="font:600 10px JetBrains Mono,monospace;color:var(--muted);margin-right:6px">Refine handwriting</span><button type="button" class="seg-btn" data-rf="off" onclick="setRefineN(\'off\')">Off</button><button type="button" class="seg-btn" data-rf="light" onclick="setRefineN(\'light\')">Light</button><button type="button" class="seg-btn" data-rf="strong" onclick="setRefineN(\'strong\')">Strong</button><button type="button" class="seg-btn" data-rf="neat" onclick="setRefineN(\'neat\')">Font</button></div>');
+  t.insertAdjacentHTML('beforeend', '<div class="mode-row" style="display:flex;align-items:center;flex-wrap:wrap;row-gap:6px"><span style="font:600 10px JetBrains Mono,monospace;color:var(--muted);margin-right:6px">Auto Refine</span><button type="button" class="seg-btn" data-rf="off" onclick="setRefineN(\'off\')">Off</button><button type="button" class="seg-btn" data-rf="light" onclick="setRefineN(\'light\')">Light</button><button type="button" class="seg-btn" data-rf="strong" onclick="setRefineN(\'strong\')">Strong</button><button type="button" class="seg-btn" data-rf="neat" onclick="setRefineN(\'neat\')">Font</button></div>');
   let rf = 'light'; try{ rf = localStorage.getItem('chalkline:notes-refine') || 'light'; }catch(e){}
   setRefineN(['off','light','strong','neat'].includes(rf) ? rf : 'light');
   let saved = null; try{ saved = JSON.parse(localStorage.getItem(PENS_KEY_N) || 'null'); }catch(e){}
@@ -17115,7 +17115,7 @@ function refineStrokeN(f, strong, neat){   // neat = 'Font' level: steadier than
   for(const p of P) if(Math.hypot(p[0] - Q[Q.length-1][0], p[1] - Q[Q.length-1][1]) > 0.8) Q.push(p);
   if(Q.length < 6) return null;
   let L = 0; for(let i = 1; i < Q.length; i++) L += Math.hypot(Q[i][0] - Q[i-1][0], Q[i][1] - Q[i-1][1]);
-  if(L < 12) return null;
+  if(L < 22) return null;   // dots, commas, accents and tiny ticks are left exactly as written
   const step = strong ? 3 : 2, R = resampleN(Q, Math.max(8, Math.ceil(L / step) + 1)), N = R.length;
   // 2. find the real corners (the apex of an A, the turn in a k). A round bend (o, c, s, e) turns gradually, so it is only a
   //    corner if the path ALSO turns sharply over a very short distance. Measuring at two scales keeps curves from being cut up.
@@ -17223,10 +17223,8 @@ function refineStrokeN(f, strong, neat){   // neat = 'Font' level: steadier than
   }
   // 6. pressure: smoothed so the line swells and thins gradually, with a soft pen-like taper at both ends
   let pr = O.map(p => p[2]);
-  for(let pass = 0; pass < (strong ? 20 : 13); pass++){ const t = pr.slice(); for(let i = 1; i < N - 1; i++) t[i] = 0.25 * pr[i-1] + 0.5 * pr[i] + 0.25 * pr[i+1]; pr = t; }
-  if(neat){ const mean = pr.reduce((a, b) => a + b, 0) / N, even = Math.max(0.55, Math.min(0.85, mean)); pr = pr.map(v => even + (v - even) * 0.2); }   // near-even line weight, like a pen font
-  const taper = Math.max(3, Math.round((strong ? 15 : 12) / step)), floor = neat ? 0.8 : strong ? 0.58 : 0.74;
-  for(let i = 0; i < taper && i < N / 2; i++){ const e = i / taper, fct = floor + (1 - floor) * e * e * (3 - 2 * e); pr[i] *= fct; pr[N-1-i] *= fct; }
+  for(let pass = 0; pass < 5; pass++){ const t = pr.slice();   // only removes sensor jitter; thickness stays yours
+    for(let i = 1; i < N - 1; i++) t[i] = 0.25 * pr[i-1] + 0.5 * pr[i] + 0.25 * pr[i+1]; pr = t; }
   const out = []; for(let i = 0; i < N; i++) out.push(+O[i][0].toFixed(1), +O[i][1].toFixed(1), +Math.max(0.05, Math.min(1, pr[i])).toFixed(2));
   return out;
 }
