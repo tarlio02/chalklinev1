@@ -16662,6 +16662,7 @@ function layoutHorizN(){
   sheet.classList.toggle('horiz', on);
   if(on){
     const n = Math.max(1, viewsN.length), w = Math.round(layoutWN());
+    if(w < 300){ wrap.style.removeProperty('--pgw'); wrap.style.removeProperty('--stackw'); return; }   // not laid out yet
     wrap.style.setProperty('--pgw', w + 'px');
     wrap.style.setProperty('--stackw', (n * w + (n - 1) * HGAP_N) + 'px');
   } else { wrap.style.removeProperty('--pgw'); wrap.style.removeProperty('--stackw'); }
@@ -16744,7 +16745,7 @@ document.getElementById('pages-stack').addEventListener('input', repaintCurThumb
 document.getElementById('note-scroll').addEventListener('pointerup', repaintCurThumbN, true);
 function relayoutN(){
   if(document.getElementById('editor-view').style.display === 'none') return;
-  autoFitN(); autosizeAllN(); refreshCanvasesN();
+  autoFitN(); layoutHorizN(); autosizeAllN(); refreshCanvasesN();
 }
 window.addEventListener('resize', relayoutN);
 window.addEventListener('orientationchange', ()=>{ setTimeout(relayoutN, 150); setTimeout(relayoutN, 500); });   // iOS reports the new size late
@@ -17802,7 +17803,7 @@ let fitWN = 0, lastFitWN = 0, fitStaleN = true;
    (about an iPad in landscape) and keep the old behaviour on touch devices until they are saved there once. */
 let noteLayoutWN = 0;
 const MAX_UPSCALE_N = 1.5;
-function refWidthN(W){ if(noteLayoutWN) return noteLayoutWN; let coarse = false; try{ coarse = window.matchMedia('(pointer:coarse)').matches; }catch(e){} return coarse ? 0 : Math.min(W, 1150); }
+function refWidthN(W){ if(noteLayoutWN >= 300) return noteLayoutWN; /* a saved width under 300px is a bad value, ignore it */ let coarse = false; try{ coarse = window.matchMedia('(pointer:coarse)').matches; }catch(e){} return coarse ? 0 : Math.min(W, 1150); }
 function layoutWN(){ return fitWN || scrollElN.clientWidth; }
 function baseZN(){ const W = scrollElN.clientWidth; return (fitWN && W) ? Math.min(MAX_UPSCALE_N, W / fitWN) : 1; }
 function minZN(){ return Math.min(ZOOM_MIN_N, baseZN()); }
@@ -17928,7 +17929,8 @@ function autoFitN(){
   const W = scrollElN.clientWidth; if(!W) return;
   if(!fitStaleN && W === lastFitWN) return;   // only when the width really changed (rotation) or a note was opened
   fitStaleN = false; lastFitWN = W;
-  const need = Math.max(inkRightN() + 24, refWidthN(W));
+  const ref = refWidthN(W);
+  const need = Math.max(inkRightN() + 24, ref || W, 300);   // no reference width (touch): start at the full screen width
   setFitN(Math.abs(need - W) > 1 ? Math.ceil(need) : 0);
   viewsN.forEach((v, i)=>{ if(v.live) resizeCanvasN(false, i); });
 }
@@ -18551,8 +18553,8 @@ function saveCurrentNoteN(inkOnly){
         id: idSnap, subject: subjSnap,
         title: titleSnap, body: '', createdAt, updatedAt: now
       };
-      if(!noteLayoutWN && currentNoteIdN === idSnap) noteLayoutWN = Math.round(layoutWN());   // the width this note was first written at
-      if(noteLayoutWN && currentNoteIdN === idSnap) payload.layoutW = noteLayoutWN;
+      if(!(noteLayoutWN >= 300) && currentNoteIdN === idSnap){ const lw = Math.round(layoutWN()); noteLayoutWN = lw >= 300 ? lw : 0; }   // the width this note was first written at
+      if(noteLayoutWN >= 300 && currentNoteIdN === idSnap) payload.layoutW = noteLayoutWN;
       payload.pages = pagesSnap;
       payload.body = pagesSnap.map(x => x.body).join('\n\n');
       const stored = await window.storage.set(key, JSON.stringify(payload), false);
