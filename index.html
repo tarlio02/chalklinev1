@@ -17552,7 +17552,7 @@ onCanvasN('pointermove', (e)=>{
   sc.scrollLeft -= e.clientX - tsN.x;
   tsN.x = e.clientX; tsN.y = e.clientY; tsN.t = now;
   const s = tsN.s; s.push({ t:now, x:e.clientX, y:e.clientY });
-  while(s.length > 2 && now - s[0].t > 100) s.shift();   // keep only the last ~100 ms for the release velocity
+  while(s.length > 2 && now - s[0].t > 80) s.shift();   // keep only the last ~100 ms for the release velocity
   e.preventDefault();
 });
 function touchEndN(e){
@@ -17560,20 +17560,22 @@ function touchEndN(e){
   const s = tsN.s, now = performance.now(); tsN = null;
   if(e.type !== 'pointerup' || s.length < 2) return;
   const a = s[0], b = s[s.length - 1], span = b.t - a.t;
-  if(now - b.t > 90 || span < 8) return;   // the finger rested before lifting: no fling
-  const MAXV = 6;   // px per ms
+  if(now - b.t > 140 || span < 4) return;   // the finger rested before lifting: no fling (a late pointerup event is tolerated)
+  const MAXV = 8;   // px per ms
   let vy = Math.max(-MAXV, Math.min(MAXV, -(b.y - a.y) / span)), vx = Math.max(-MAXV, Math.min(MAXV, -(b.x - a.x) / span));
-  if(Math.hypot(vx, vy) < 0.12) return;
-  const sc = scrollElN, TAU = 325;   // ms: how quickly the glide dies away
+  if(Math.hypot(vx, vy) < 0.05) return;
+  const sc = scrollElN, TAU = 480;   // ms: how quickly the glide dies away (longer = floatier, like a native scroller)
+  let py = sc.scrollTop, px = sc.scrollLeft;   // keep the position as a float: browsers round scrollTop, which used to stall the slow tail of the glide
   let prev = performance.now();
   const step = (ts)=>{
     const t = ts || performance.now(), dt = Math.min(40, Math.max(1, t - prev)); prev = t;
-    const t0 = sc.scrollTop, l0 = sc.scrollLeft, dy = vy * dt, dx = vx * dt;
-    sc.scrollTop = t0 + dy; sc.scrollLeft = l0 + dx;
-    if(Math.abs(dy) > 1 && sc.scrollTop === t0) vy = 0;   // hit the top / bottom
-    if(Math.abs(dx) > 1 && sc.scrollLeft === l0) vx = 0;  // hit the left / right edge
+    const maxY = Math.max(0, sc.scrollHeight - sc.clientHeight), maxX = Math.max(0, sc.scrollWidth - sc.clientWidth);
+    py += vy * dt; px += vx * dt;
+    if(py < 0){ py = 0; vy = 0; } else if(py > maxY){ py = maxY; vy = 0; }   // stop dead at the top / bottom
+    if(px < 0){ px = 0; vx = 0; } else if(px > maxX){ px = maxX; vx = 0; }   // ...and left / right edge
+    sc.scrollTop = py; sc.scrollLeft = px;
     const f = Math.exp(-dt / TAU); vy *= f; vx *= f;
-    if(Math.hypot(vx, vy) > 0.02) inertiaN = requestAnimationFrame(step);
+    if(Math.hypot(vx, vy) > 0.015) inertiaN = requestAnimationFrame(step);
   };
   inertiaN = requestAnimationFrame(step);
 }
