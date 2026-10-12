@@ -16305,7 +16305,9 @@ body.no-select-while-drawing,
 /* horizontal paging: pages sit side by side and you swipe left/right between them */
 #note-sheet.horiz #zoom-wrap{ width:calc(var(--stackw, 100%) * var(--zoom)); }
 #note-sheet.horiz #pages-stack{ flex-direction:row; align-items:flex-start; width:var(--stackw, 100%); }
-#note-sheet.horiz .note-page{ width:var(--pgw, 100%); }
+#note-sheet.horiz .note-page{ width:var(--pgw, 100%); min-height:var(--pgh, 100%); scroll-snap-align:start; }
+#note-sheet.horiz #pages-stack{ gap:0; padding-bottom:0; }
+#note-sheet.horiz.pg-snap #note-scroll{ scroll-snap-type:x proximity; }
 /* page-turn animation when you change page */
 @keyframes nTurnFwd{ from{ transform:perspective(1400px) translateX(7%) rotateY(-16deg); opacity:.35; } to{ transform:none; opacity:1; } }
 @keyframes nTurnBack{ from{ transform:perspective(1400px) translateX(-7%) rotateY(16deg); opacity:.35; } to{ transform:none; opacity:1; } }
@@ -16664,7 +16666,7 @@ function colOffN(){ const w = sheetEl.clientWidth; return Math.max(0, (w - Math.
 })();
 let scrollDirN = 'v';   // 'v' = pages stacked top to bottom, 'h' = pages side by side
 try{ if(localStorage.getItem('chalkline:notes-scroll-dir') === 'h') scrollDirN = 'h'; }catch(e){}
-const HGAP_N = 14;
+const HGAP_N = 0;   // pages sit edge to edge so one page fills the whole screen
 function wrapWN(){ const n = Math.max(1, viewsN.length); return scrollDirN === 'h' ? n * layoutWN() + (n - 1) * HGAP_N : layoutWN(); }
 function layoutHorizN(){
   const sheet = document.getElementById('note-sheet'), wrap = document.getElementById('zoom-wrap'); if(!sheet || !wrap) return;
@@ -16674,8 +16676,9 @@ function layoutHorizN(){
     const n = Math.max(1, viewsN.length), w = Math.round(layoutWN());
     if(w < 300){ wrap.style.removeProperty('--pgw'); wrap.style.removeProperty('--stackw'); return; }   // not laid out yet
     wrap.style.setProperty('--pgw', w + 'px');
+    wrap.style.setProperty('--pgh', Math.ceil(scrollElN.clientHeight / baseZN()) + 'px');   // page is at least one screen tall
     wrap.style.setProperty('--stackw', (n * w + (n - 1) * HGAP_N) + 'px');
-  } else { wrap.style.removeProperty('--pgw'); wrap.style.removeProperty('--stackw'); }
+  } else { wrap.style.removeProperty('--pgw'); wrap.style.removeProperty('--stackw'); wrap.style.removeProperty('--pgh'); }
 }
 function syncScrollMenuN(){
   document.querySelectorAll('#settings-menu [data-scroll]').forEach(el => {
@@ -16686,7 +16689,7 @@ function setScrollDirN(dir){
   scrollDirN = dir === 'h' ? 'h' : 'v';
   try{ localStorage.setItem('chalkline:notes-scroll-dir', scrollDirN); }catch(e){}
   syncScrollMenuN(); layoutHorizN();
-  if(viewsN.length){ applyZoomN(zoomN); relayoutN(); scrollToPageN(curPageN, false); }
+  if(viewsN.length){ applyZoomN(baseZN()); relayoutN(); scrollToPageN(curPageN, false); }
 }
 /* ---- page preview strip + page-turn animation ---- */
 let stripOpenN = false, stripTimerN = 0;
@@ -17854,6 +17857,7 @@ function applyZoomN(z){
   const on = Math.abs(z - 1) > 0.005;
   zoomWrapN.style.setProperty('--zoom', String(z));
   zoomWrapN.classList.toggle('zoomed', on);
+  try{ document.getElementById('note-sheet').classList.toggle('pg-snap', scrollDirN === 'h' && Math.abs(z - baseZN()) < 0.005); }catch(e){}
   zoomWrapN.style.height = on ? Math.ceil((stackHN || stackElN.offsetHeight) * z) + 'px' : '';
   const c = document.getElementById('zoom-chip');
   const base = baseZN(); c.classList.toggle('show', Math.abs(z - base) > 0.005); c.textContent = Math.round(z / base * 100) + '% \u00b7 tap to reset';
