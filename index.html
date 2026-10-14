@@ -18055,7 +18055,7 @@ const ioN = new IntersectionObserver((ents)=>{
   }
 }, { root: scrollElN, rootMargin: '60% 60%' });
 
-function bodyTextN(el){ return (el.innerText || el.textContent || '').replace(/\u00a0/g, ' ').replace(/\s+$/, ''); }
+function bodyTextN(el){ return (el.innerText || el.textContent || '').replace(/\u00a0/g, ' ').replace(/\u200B/g, '').replace(/\s+$/, ''); }
 function syncAllN(){ viewsN.forEach((v, i)=>{ if(pagesN[i]){ pagesN[i].body = bodyTextMathN(v.body); pagesN[i].html = bodyHtmlN(v.body); } }); }   // plain text stays in body (previews, other tools); formatting lives in html
 function useViewN(i){
   const v = viewsN[i]; if(!v) return;
@@ -18179,7 +18179,7 @@ function createViewN(pg, first){
   body.addEventListener('paste', (e)=>{   // paste as plain text so nothing foreign sneaks in
     e.preventDefault();
     const t = (e.clipboardData || window.clipboardData).getData('text/plain');
-    if(t) document.execCommand('insertText', false, t);
+    if(t) pasteWithToolbarFmtN(t);
     if(t && /\$|\\[(\[]/.test(t)){ loadKatexN().catch(()=>{}); if(convertAllMathN(body)){ autosizeViewN(v); saveCurrentNoteN(); } }   // pasted $...$ becomes real maths
   });
   body.addEventListener('copy', (e)=>{   // copying maths gives back the LaTeX, not the drawn symbols
@@ -18480,7 +18480,7 @@ function fmtN(cmd){
   if(cur !== want){ try{ document.execCommand('styleWithCSS', false, true); document.execCommand(cmd); }catch(err){} }
   saveCurrentNoteN(); updateFmtStateN();
 }
-function applyStickyFmtN(){   // called just before a character is typed: make it match the toolbar
+function applyStickyFmtN(noFontSize){   // called just before a character is typed: make it match the toolbar
   if(inputModeN !== 'type') return;
   const sel = window.getSelection(); if(!sel.rangeCount || !sel.getRangeAt(0).collapsed) return;
   try{ document.execCommand('styleWithCSS', false, true); }catch(err){}
@@ -18491,7 +18491,7 @@ function applyStickyFmtN(){   // called just before a character is typed: make i
   let col = ''; try{ col = rgbToHexN(document.queryCommandValue('foreColor')); }catch(err){}
   if(col && col.toUpperCase() !== stickyFmtN.color.toUpperCase()){ try{ document.execCommand('foreColor', false, stickyFmtN.color); }catch(err){} }
   const an = sel.anchorNode, el = an && (an.nodeType === 1 ? an : an.parentElement);
-  if(el){
+  if(el && !noFontSize){
     const cs = getComputedStyle(el);
     if(stickyFmtN.font){ const f = fontByNameN(stickyFmtN.font); if(f && firstFamilyN(cs.fontFamily) !== f.k.toLowerCase()) applyInlineStyleN('fontFamily', f.stack); }
     if(stickyFmtN.size && Math.abs(parseFloat(cs.fontSize) - stickyFmtN.size) > 0.5) applyInlineStyleN('fontSize', stickyFmtN.size + 'px');
@@ -18564,6 +18564,38 @@ function afterInlineStyleN(){
   const body = b && b.closest ? b.closest('.note-body') : null;
   if(body){ try{ body.dispatchEvent(new Event('input', { bubbles:true })); }catch(e){} }   // re-measures the page and saves
   saveCurrentNoteN(); updateFmtStateN();
+}
+// Pasted text always takes what the toolbar currently shows (font, size, bold / italic / underline, colour), not the style of
+// whatever text happens to sit next to the cursor.
+function pasteWithToolbarFmtN(t){
+  const sel = window.getSelection();
+  if(inputModeN !== 'type' || !sel || !sel.rangeCount){ document.execCommand('insertText', false, t); return; }
+  if(!sel.isCollapsed){ try{ document.execCommand('delete'); }catch(err){} }
+  applyStickyFmtN(true);   // bold / italic / underline / colour for the first character
+  const host = n => { const e = n && (n.nodeType === 1 ? n : n.parentElement); return e && e.closest ? e.closest('.note-body') : null; };
+  const body = sel.rangeCount ? host(sel.getRangeAt(0).startContainer) : null;
+  // where the pasted text starts and ends is tracked as a character count from the top of the page, so it survives the browser
+  // splitting and merging text nodes while it inserts
+  const offsetOf = (node, off) => { const r = document.createRange(); r.selectNodeContents(body); r.setEnd(node, off); return r.toString().length; };
+  const posAt = (n) => { const tw = document.createTreeWalker(body, NodeFilter.SHOW_TEXT); let node, acc = 0, lastN = null; while((node = tw.nextNode())){ lastN = node; if(acc + node.nodeValue.length >= n) return [node, n - acc]; acc += node.nodeValue.length; } return lastN ? [lastN, lastN.nodeValue.length] : null; };
+  let startAt = -1;
+  if(body){ const r0 = sel.getRangeAt(0); startAt = offsetOf(r0.startContainer, r0.startOffset); }
+  document.execCommand('insertText', false, t);
+  if(!body || startAt < 0 || !sel.rangeCount) return;
+  try{
+    const e0 = sel.getRangeAt(0), endAt = offsetOf(e0.endContainer, e0.endOffset);
+    const a = posAt(startAt), b = posAt(endAt);
+    if(a && b && endAt > startAt){
+      const rng = document.createRange(); rng.setStart(a[0], a[1]); rng.setEnd(b[0], b[1]);
+      sel.removeAllRanges(); sel.addRange(rng);
+      const f = fontByNameN(stickyFmtN.font || FONTS_N[0].k), px = stickyFmtN.size || DEFAULT_SIZE_N;
+      if(f) applyInlineStyleN('fontFamily', f.stack);
+      applyInlineStyleN('fontSize', px + 'px');
+      try{ document.execCommand('styleWithCSS', false, true); document.execCommand('foreColor', false, stickyFmtN.color); }catch(err){}
+      sel.collapseToEnd();
+    }
+  }catch(err){}
+  afterInlineStyleN();
 }
 function applyFontN(k){
   const f = fontByNameN(k); if(!f || inputModeN !== 'type' || !focusBodyN()) return;
