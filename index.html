@@ -16081,10 +16081,18 @@ h1,h2,h3{ font-family:'Fraunces','Source Serif 4',Georgia,serif; margin:0; color
 .tool-row{ display:flex; gap:4px; }
 #pen-tray{ width:min(440px, calc(100% - 28px)); }
 #pen-tray.lasso > :not(.tool-row){ display:none !important; }
-#lasso-bar{ position:fixed; z-index:40; display:none; gap:2px; padding:4px; border-radius:12px; background:rgba(255,255,255,.97); border:1px solid rgba(0,0,0,.12); box-shadow:0 6px 20px rgba(0,0,0,.18); }
-#lasso-bar button{ border:none; background:none; border-radius:9px; padding:0 14px; height:36px; font:600 12px 'JetBrains Mono',monospace; color:var(--ink); cursor:pointer; }
-#lasso-bar button:active{ background:#FFF1CC; }
-#lasso-bar button.danger{ color:#C0392B; }
+#lasso-bar{ position:fixed; z-index:40; display:none; flex-direction:column; align-items:stretch; max-width:calc(100vw - 16px); padding:4px; border-radius:14px; background:rgba(255,255,255,.97); border:1px solid rgba(0,0,0,.12); box-shadow:0 6px 20px rgba(0,0,0,.18); }
+#lasso-bar .lb-row{ display:flex; gap:2px; justify-content:center; flex-wrap:wrap; }
+#lasso-bar .lb-row button{ border:none; background:none; border-radius:9px; padding:0 11px; height:36px; font:600 12px 'JetBrains Mono',monospace; color:var(--ink); cursor:pointer; }
+#lasso-bar .lb-row button:active, #lasso-bar .lb-row button.on{ background:#FFF1CC; }
+#lasso-bar .lb-row button.danger{ color:#C0392B; }
+#lasso-bar .lb-panel{ display:none; flex-wrap:wrap; gap:6px; justify-content:center; padding:8px 4px 4px; max-width:340px; }
+#lasso-bar .lb-panel.show{ display:flex; }
+#lasso-bar .lb-lbl{ width:100%; text-align:center; font:600 10px 'JetBrains Mono',monospace; color:var(--muted); }
+#lasso-bar .lb-sw{ width:30px; height:30px; border-radius:50%; border:2px solid #fff; box-shadow:0 0 0 1px rgba(0,0,0,.22); cursor:pointer; padding:0; }
+#lasso-bar .lb-sw.on{ box-shadow:0 0 0 2.5px var(--gold-deep); }
+#lasso-bar .lb-opt{ height:32px; padding:0 11px; border:none; border-radius:9px; background:rgba(0,0,0,.05); font-size:15px; color:var(--ink); cursor:pointer; }
+#lasso-bar .lb-opt.on{ background:#FFF1CC; box-shadow:inset 0 0 0 1.5px var(--gold-deep); }
 .tool-opt{ flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; border:none; background:none; border-radius:14px;
   padding:8px 2px 6px; font:600 10px 'JetBrains Mono',monospace; color:var(--muted); cursor:pointer; }
 .tool-opt{ overflow:hidden; padding-bottom:6px; }
@@ -16872,7 +16880,7 @@ const ICONS = {
 const PALETTE = ['#2A2410','#2E7DBE','#C0392B','#2F9E5B','#F0862A','#7B4FB3','#FFD84A','#FF8FB8'];
 const toolColorN = { pen:'#2A2410', pencil:'#2A2410', marker:'#2E7DBE', brush:'#2A2410', highlighter:'#FFD84A', lasso:'#2E7DBE' };
 let toolN = 'pen', inkToolN = 'pen';
-let lassoN = null, lassoDragN = null;   // lasso selection { pg, recs } and the gesture in progress
+let lassoN = null, lassoDragN = null, lassoPanelN = '';   // lasso selection { pg, recs } and the gesture in progress
 let eraseModeN = 'pixel';      // 'pixel' rubs ink out; 'object' removes whole strokes
 let strokeRecN = null;         // the stroke being recorded (kept as vector data so it can be erased as an object)
 let snapOnN = true, snappedN = false, holdN = null, holdPtN = null;
@@ -17553,7 +17561,7 @@ function replayStrokeN(rec){
   if(rec.text){   // handwriting converted to a handwritten font
     const c = canvasCtx, k = canvasScaleN;
     c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1; c.fillStyle = rec.color;
-    c.font = '700 ' + (rec.fs * k) + 'px Caveat, cursive'; c.textBaseline = 'middle'; c.textAlign = 'left';
+    c.font = '700 ' + (rec.fs * k) + 'px ' + (rec.font || 'Caveat, cursive'); c.textBaseline = 'middle'; c.textAlign = 'left';
     c.fillText(rec.text, (rec.x + colOffN()) * k, rec.cy * k); return;
   }
   if(rec.poly){   // snapped shape or refined handwriting: exact polyline, no live smoothing
@@ -17938,28 +17946,63 @@ function lassoBarN(){
   let b = document.getElementById('lasso-bar');
   if(!b){
     b = document.createElement('div'); b.id = 'lasso-bar';
-    b.innerHTML = '<button type="button" data-a="dup">Duplicate</button><button type="button" data-a="del" class="danger">Delete</button>';
+    b.innerHTML = '<div class="lb-row"><button type="button" data-a="col">Colour</button><button type="button" data-a="sty">Style</button><button type="button" data-a="small">A\u2212</button><button type="button" data-a="big">A+</button><button type="button" data-a="dup">Copy</button><button type="button" data-a="del" class="danger">Delete</button></div><div class="lb-panel"></div>';
     b.addEventListener('pointerdown', (e)=>{ e.stopPropagation(); e.preventDefault(); });
-    b.addEventListener('click', (e)=>{ const a = e.target.closest && e.target.closest('button'); if(!a) return; if(a.dataset.a === 'del') lassoDeleteN(); else lassoDupN(); });
+    b.addEventListener('click', (e)=>{
+      const sw = e.target.closest && e.target.closest('.lb-sw');
+      if(sw){ lassoEditN(r => Object.assign({}, r, { color:sw.dataset.c })); lassoPanelBuildN(); return; }
+      const op = e.target.closest && e.target.closest('.lb-opt');
+      if(op){
+        if(op.dataset.font) lassoFontN(op.dataset.font);
+        else lassoEditN(r => r.text ? r : Object.assign({}, r, { tn:op.dataset.tn }));
+        lassoPanelBuildN(); return;
+      }
+      const a = e.target.closest && e.target.closest('button[data-a]'); if(!a) return;
+      const k = a.dataset.a;
+      if(k === 'col' || k === 'sty'){ lassoPanelN = (lassoPanelN === k) ? '' : k; lassoPanelBuildN(); lassoBarPosN(); }
+      else if(k === 'big' || k === 'small'){ const f = (k === 'big') ? 1.18 : 0.85, bx = lassoBoxN(), cx = (bx[0] + bx[2]) / 2, cy = (bx[1] + bx[3]) / 2; lassoEditN(r => lassoScaleRecN(r, cx, cy, f)); }
+      else if(k === 'dup') lassoDupN();
+      else if(k === 'del') lassoDeleteN();
+    });
     document.body.appendChild(b);
   }
   return b;
 }
+function lassoPanelBuildN(){
+  const bar = lassoBarN(), pn = bar.querySelector('.lb-panel');
+  bar.querySelectorAll('.lb-row button[data-a="col"], .lb-row button[data-a="sty"]').forEach(x => x.classList.toggle('on', x.dataset.a === lassoPanelN));
+  if(!lassoN || !lassoPanelN){ pn.className = 'lb-panel'; pn.innerHTML = ''; return; }
+  const recs = lassoN.recs; let h = '';
+  if(lassoPanelN === 'col'){
+    const cur = new Set(recs.map(r => r.color));
+    h = PALETTE.map(c => '<button type="button" class="lb-sw' + (cur.size === 1 && cur.has(c) ? ' on' : '') + '" data-c="' + c + '" style="background:' + c + '"></button>').join('');
+  } else {
+    if(recs.some(r => r.text)){
+      const cf = new Set(recs.filter(r => r.text).map(r => r.font || 'Caveat, cursive'));
+      h += '<div class="lb-lbl">Font</div>' + FONTS_N.map(f => '<button type="button" class="lb-opt' + (cf.size === 1 && cf.has(f.stack) ? ' on' : '') + '" data-font="' + f.stack.replace(/"/g, '&quot;') + '" style="font-family:' + f.stack.replace(/"/g, "'") + '">' + f.label + '</button>').join('');
+    }
+    if(recs.some(r => !r.text)){
+      const ct = new Set(recs.filter(r => !r.text).map(r => r.tn));
+      h += '<div class="lb-lbl">Pen</div>' + Object.keys(TOOLS).filter(k => k !== 'eraser' && k !== 'lasso').map(k => '<button type="button" class="lb-opt' + (ct.size === 1 && ct.has(k) ? ' on' : '') + '" data-tn="' + k + '">' + TOOLS[k].label + '</button>').join('');
+    }
+  }
+  pn.className = 'lb-panel show'; pn.innerHTML = h;
+}
 function lassoBarPosN(){
   const bar = lassoBarN();
-  if(!lassoN || (lassoDragN && lassoDragN.mode === 'move' && lassoDragN.moved)){ bar.style.display = 'none'; return; }
+  if(!lassoN || (lassoDragN && lassoDragN.moved)){ bar.style.display = 'none'; return; }
   const v = viewsN[pagesN.indexOf(lassoN.pg)], cv = v && v.cv; if(!cv){ bar.style.display = 'none'; return; }
   const b = lassoBoxN(), r = cv.getBoundingClientRect(), o = colOffN();
   const L = r.left + (b[0] + o) * zoomN, R = r.left + (b[2] + o) * zoomN, T = r.top + b[1] * zoomN, B = r.top + b[3] * zoomN;
   if(B < 60 || T > innerHeight - 20){ bar.style.display = 'none'; return; }
   bar.style.display = 'flex';
-  const w = bar.offsetWidth || 190;
+  const w = bar.offsetWidth || 260, h = bar.offsetHeight || 48;
   const x = Math.max(8, Math.min(innerWidth - w - 8, (L + R) / 2 - w / 2));
-  let y = T - 46; if(y < 70) y = B + 10;
-  bar.style.left = x + 'px'; bar.style.top = Math.min(innerHeight - 52, y) + 'px';
+  let y = T - h - 10; if(y < 70) y = B + 14;
+  bar.style.left = x + 'px'; bar.style.top = Math.max(8, Math.min(innerHeight - h - 8, y)) + 'px';
 }
 function lassoClearN(repaint){
-  const old = lassoN; lassoN = null;
+  const old = lassoN; lassoN = null; lassoPanelN = '';
   const bar = document.getElementById('lasso-bar'); if(bar) bar.style.display = 'none';
   if(repaint && old){ const i = pagesN.indexOf(old.pg); if(i >= 0){ try{ renderAtN(i); }catch(e){} } }
 }
@@ -17969,26 +18012,44 @@ function lassoValidN(){   // undo / redo / a new note can swap the strokes out f
   if(pagesN.indexOf(pg) < 0 || !pg.strokes || !lassoN.recs.every(r => pg.strokes.includes(r))){ lassoClearN(false); return false; }
   return true;
 }
-function lassoPaintN(){   // runs after every page repaint: dashed box round the selection
+function lassoPaintN(){   // runs after every page repaint: dashed box (with a resize handle) round the selection
   if(!lassoValidN()) return;
   if(lassoN.pg !== pagesN[curPageN] || !canvasCtx) return;
   const b = lassoBoxN(), c = canvasCtx, k = canvasScaleN, o = colOffN();
   c.save(); c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1;
   c.fillStyle = 'rgba(46,125,190,.08)'; c.strokeStyle = '#2E7DBE'; c.lineWidth = 1.6 * k; c.setLineDash([7 * k, 5 * k]);
   c.beginPath(); c.rect((b[0] + o) * k, b[1] * k, (b[2] - b[0]) * k, (b[3] - b[1]) * k); c.fill(); c.stroke();
+  c.setLineDash([]); c.fillStyle = '#2E7DBE'; c.strokeStyle = '#fff'; c.lineWidth = 2.5 * k;
+  c.beginPath(); c.arc((b[2] + o) * k, b[3] * k, 8 * k, 0, Math.PI * 2); c.fill(); c.stroke();
   c.restore();
+  if(lassoPanelN || !lassoDragN) lassoPanelBuildN();
   lassoBarPosN();
 }
 { const baseRenderN = renderPageN; renderPageN = function(){ baseRenderN(); lassoPaintN(); }; }
+function lassoScaleRecN(r, ax, ay, s){
+  const n = Object.assign({}, r);
+  if(r.pts){
+    n.pts = r.pts.slice();
+    for(let i = 0; i + 1 < n.pts.length; i += 3){ n.pts[i] = +(ax + (r.pts[i] - ax) * s).toFixed(1); n.pts[i+1] = +(ay + (r.pts[i+1] - ay) * s).toFixed(1); }
+    n.size = Math.max(0.2, Math.min(8, (r.size || 1) * s));
+  }
+  if(r.text){ n.x = ax + (r.x - ax) * s; n.cy = ay + (r.cy - ay) * s; n.fs = Math.max(6, r.fs * s); }
+  if(r.bb) n.bb = [ax + (r.bb[0] - ax) * s, ay + (r.bb[1] - ay) * s, ax + (r.bb[2] - ax) * s, ay + (r.bb[3] - ay) * s];
+  return n;
+}
+function lassoXfN(d){ return d.mode === 'resize' ? (r => lassoScaleRecN(r, d.ax, d.ay, d.s)) : (r => lassoShiftN(r, d.dx, d.dy)); }
 function lassoDownN(e){
   const pg = pagesN[curPageN], p = ptOfN(e);
   if(lassoN && !lassoValidN()) lassoN = null;
   if(lassoN && lassoN.pg !== pg) lassoClearN(true);
   if(lassoN){
     const b = lassoBoxN();
+    const g = { moved:false, raf:0, orig:lassoN.recs.slice(), rest:pg.strokes.filter(r => !lassoN.recs.includes(r)), x0:p[0], y0:p[1], dx:0, dy:0, s:1 };
+    if(Math.hypot(p[0] - b[2], p[1] - b[3]) <= 24 / zoomN){   // the corner handle resizes
+      lassoDragN = Object.assign(g, { mode:'resize', ax:b[0], ay:b[1], x0:b[2], y0:b[3] }); return;
+    }
     if(p[0] >= b[0] && p[0] <= b[2] && p[1] >= b[1] && p[1] <= b[3]){   // grab the selection to move it
-      lassoDragN = { mode:'move', x0:p[0], y0:p[1], dx:0, dy:0, moved:false, raf:0, orig:lassoN.recs.slice(), rest:pg.strokes.filter(r => !lassoN.recs.includes(r)) };
-      return;
+      lassoDragN = Object.assign(g, { mode:'move' }); return;
     }
     lassoClearN(true);
   }
@@ -18014,15 +18075,21 @@ function lassoMoveN(e){
     if(Math.hypot(p[0] - l[0], p[1] - l[1]) < 1.5) return;
     d.path.push(p);
     if(!d.raf) d.raf = requestAnimationFrame(()=>{ d.raf = 0; if(lassoDragN === d) lassoPaintPathN(d); });
+    return;
+  }
+  if(d.mode === 'resize'){
+    const den = (d.x0 - d.ax) + (d.y0 - d.ay);
+    d.s = den > 1 ? Math.max(0.15, ((p[0] - d.ax) + (p[1] - d.ay)) / den) : 1;
+    if(!d.moved){ if(Math.abs(d.s - 1) < 0.03) return; d.moved = true; snapPushN(); }
   } else {
     d.dx = p[0] - d.x0; d.dy = p[1] - d.y0;
     if(!d.moved){ if(Math.hypot(d.dx, d.dy) < 4) return; d.moved = true; snapPushN(); }   // one undo step per move
-    if(!d.raf) d.raf = requestAnimationFrame(()=>{
-      d.raf = 0; if(lassoDragN !== d || !lassoN) return;
-      const moved = d.orig.map(r => lassoShiftN(r, d.dx, d.dy));
-      lassoN.pg.strokes = d.rest.concat(moved); lassoN.recs = moved; renderPageN();
-    });
   }
+  if(!d.raf) d.raf = requestAnimationFrame(()=>{
+    d.raf = 0; if(lassoDragN !== d || !lassoN) return;
+    const moved = d.orig.map(lassoXfN(d));
+    lassoN.pg.strokes = d.rest.concat(moved); lassoN.recs = moved; renderPageN();
+  });
 }
 function lassoUpN(e){
   const d = lassoDragN; lassoDragN = null; if(!d) return;
@@ -18032,10 +18099,10 @@ function lassoUpN(e){
     canvasCtx.save(); canvasCtx.globalCompositeOperation = 'copy'; canvasCtx.globalAlpha = 1; canvasCtx.drawImage(d.base, 0, 0); canvasCtx.restore();
     if((e && e.type === 'pointercancel') || d.path.length < 3 || !pg) return;
     const hits = (pg.strokes || []).filter(r => !r.erase && lassoHitN(r, d.path));
-    if(hits.length){ lassoN = { pg, recs:hits }; renderPageN(); }
+    if(hits.length){ lassoN = { pg, recs:hits }; lassoPanelN = ''; renderPageN(); }
   } else {
     if(d.moved && lassoN){
-      const moved = d.orig.map(r => lassoShiftN(r, d.dx, d.dy));
+      const moved = d.orig.map(lassoXfN(d));
       lassoN.pg.strokes = d.rest.concat(moved); lassoN.recs = moved;
       sendStrokesN(lassoN.pg);
     }
@@ -18054,6 +18121,27 @@ function lassoDupN(){
   const copies = lassoN.recs.map(r => lassoShiftN(r, 28, 28));
   snapPushN(); pg.strokes = pg.strokes.concat(copies); lassoN.recs = copies;
   renderPageN(); sendStrokesN(pg); saveCurrentNoteN(true);
+}
+function lassoEditN(fn){   // change the selected ink in place (keeps stacking order), as one undo step
+  if(!lassoValidN()) return;
+  const pg = lassoN.pg; setCurN(pagesN.indexOf(pg)); snapPushN();
+  const map = new Map(); lassoN.recs.forEach(r => map.set(r, fn(r)));
+  pg.strokes = pg.strokes.map(r => map.get(r) || r); lassoN.recs = lassoN.recs.map(r => map.get(r));
+  renderPageN(); sendStrokesN(pg); saveCurrentNoteN(true);
+}
+function lassoTextBbN(r){
+  const c = document.createElement('canvas').getContext('2d');
+  c.font = '700 ' + r.fs + 'px ' + (r.font || 'Caveat, cursive');
+  return [r.x, r.cy - r.fs * 0.65, r.x + c.measureText(r.text).width, r.cy + r.fs * 0.65];
+}
+function lassoFontN(stack){
+  const fam = stack.split(',')[0].replace(/"/g, '').trim();
+  lassoEditN(r => { if(!r.text) return r; const n = Object.assign({}, r, { font:stack }); n.bb = lassoTextBbN(n); return n; });
+  try{ document.fonts.load('700 24px "' + fam + '"').then(()=>{   // re-measure once the font has arrived
+    if(!lassoN) return;
+    lassoN.recs.forEach(r => { if(r.text) r.bb = lassoTextBbN(r); });
+    renderPageN(); sendStrokesN(lassoN.pg); saveCurrentNoteN(true);
+  }); }catch(err){}
 }
 document.addEventListener('keydown', (e)=>{
   if(!lassoN || inputModeN !== 'draw') return;
