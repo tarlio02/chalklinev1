@@ -18428,6 +18428,81 @@ function spillOverflowN(v, fill){
   } finally { spillBusyN = false; }
 }
 function autosizeAllN(){ viewsN.forEach(autosizeViewN); }
+/* ---- Text flows both ways between pages: Backspace at the top of a page pulls its first line up onto the end of the
+   previous page, Delete at the bottom of a page pulls the next page's first line up, and the arrow keys carry the caret
+   across the boundary. (Going forward is spillOverflowN above.) ---- */
+function caretAtStartN(body){
+  const sel = window.getSelection(); if(!sel || !sel.rangeCount || !sel.isCollapsed || !body.contains(sel.anchorNode)) return false;
+  const r = document.createRange(); r.selectNodeContents(body); r.setEnd(sel.anchorNode, sel.anchorOffset);
+  const f = r.cloneContents();
+  return !(f.textContent || '').replace(/\u200B/g, '') && !f.querySelector('br, .mj, img');
+}
+function caretAtEndN(body){
+  const sel = window.getSelection(); if(!sel || !sel.rangeCount || !sel.isCollapsed || !body.contains(sel.anchorNode)) return false;
+  const last = body.lastChild; if(!last) return true;
+  if(!(last === sel.anchorNode || last.contains(sel.anchorNode))) return false;   // a later line still follows the caret
+  const r = document.createRange(); r.selectNodeContents(body); r.setStart(sel.anchorNode, sel.anchorOffset);
+  const f = r.cloneContents();
+  return !(f.textContent || '').replace(/\u200B/g, '') && !f.querySelector('.mj, img') && f.querySelectorAll('br').length <= 1;
+}
+function putCaretN(node, off){
+  try{ const sel = window.getSelection(), r = document.createRange(); r.setStart(node, off); r.collapse(true); sel.removeAllRanges(); sel.addRange(r); }catch(e){}
+}
+function caretToEndN(body){
+  let n = body; while(n.lastChild && n.lastChild.nodeType === 1 && n.lastChild.tagName !== 'BR') n = n.lastChild;
+  try{ const sel = window.getSelection(), r = document.createRange(); r.selectNodeContents(n); r.collapse(false); sel.removeAllRanges(); sel.addRange(r); }catch(e){}
+}
+function caretToStartN(body){
+  let n = body; while(n.firstChild && n.firstChild.nodeType === 1 && n.firstChild.tagName !== 'BR') n = n.firstChild;
+  try{ const sel = window.getSelection(), r = document.createRange(); r.selectNodeContents(n); r.collapse(true); sel.removeAllRanges(); sel.addRange(r); }catch(e){}
+}
+function pageIsBlankN(i){
+  const v = viewsN[i], pg = pagesN[i]; if(!v || !pg) return false;
+  return !v.body.querySelector('.mj') && !(v.body.textContent || '').replace(/\u200B/g, '').trim()
+    && !(pg.strokes && pg.strokes.length) && !pg.base && !v.sec.querySelector('.note-img');
+}
+function dropPageN(i){   // remove an empty page without asking (it holds no text, ink or pictures)
+  const v = viewsN[i]; if(!v || viewsN.length < 2 || i === 0) return;
+  try{ ioN.unobserve(v.sec); }catch(e){}
+  v.sec.remove(); viewsN.splice(i, 1); pagesN.splice(i, 1);
+  sendPageOpN('delpage', i); renumberN();
+  setCurN(Math.min(curPageN > i ? curPageN - 1 : curPageN, viewsN.length - 1)); updatePagerN();
+}
+function focusPageAtN(i, atEnd){
+  const v = viewsN[i]; if(!v) return;
+  try{ v.body.focus({ preventScroll:true }); }catch(e){}
+  if(atEnd) caretToEndN(v.body); else caretToStartN(v.body);
+  setCurN(i);
+  try{ const sel = window.getSelection(), n = sel.anchorNode; (n && (n.nodeType === 1 ? n : n.parentElement) || v.body).scrollIntoView({ block:'nearest' }); }catch(e){}
+}
+function joinPagesN(i){   // the first line of page i+1 joins the last line of page i
+  const a = viewsN[i], b = viewsN[i + 1]; if(!a || !b) return false;
+  const first = b.body.firstChild;
+  let jn = null, jo = 0;
+  if(first){
+    b.body.removeChild(first);
+    if(!b.body.firstChild){ const d = document.createElement('div'); d.appendChild(document.createElement('br')); b.body.appendChild(d); }
+    const src = (first.nodeType === 1 && first.tagName === 'DIV') ? Array.from(first.childNodes) : [first];
+    if(src.length === 1 && src[0].nodeName === 'BR') src.length = 0;   // the moved line was blank: it just disappears
+    let last = a.body.lastChild;
+    if(!last){ last = document.createElement('div'); a.body.appendChild(last); }
+    else if(last.nodeType !== 1 || last.tagName !== 'DIV'){ const d = document.createElement('div'); a.body.insertBefore(d, last); d.appendChild(last); last = d; }
+    if(last.childNodes.length === 1 && last.firstChild.nodeName === 'BR' && src.length) last.removeChild(last.firstChild);
+    jn = last; jo = last.childNodes.length;
+    src.forEach(n => last.appendChild(n));
+    if(!last.firstChild) last.appendChild(document.createElement('br'));
+  }
+  try{ a.body.focus({ preventScroll:true }); }catch(e){}
+  if(jn){ putCaretN(jn, Math.min(jo, jn.childNodes.length)); } else caretToEndN(a.body);
+  autosizeViewN(a);   // anything that no longer fits spills straight back onto the next page
+  const bi = viewsN.indexOf(b); if(bi >= 0) autosizeViewN(b);
+  if(bi >= 0 && pageIsBlankN(bi)) dropPageN(bi);
+  try{ colonIndentN(a.body); }catch(e){}
+  renumberN(); setCurN(Math.max(0, viewsN.indexOf(a)));
+  try{ const sel = window.getSelection(), n = sel.anchorNode; (n && (n.nodeType === 1 ? n : n.parentElement) || a.body).scrollIntoView({ block:'nearest' }); }catch(e){}
+  saveCurrentNoteN();
+  return true;
+}
 
 /* ---- building the stack ---- */
 function createViewN(pg, first){
@@ -18488,6 +18563,18 @@ function createViewN(pg, first){
       tryMathN(body);   // typing the closing $ turns $...$ into rendered maths
     }
     fixSizesN(body); colonIndentN(body); autosizeViewN(v); saveCurrentNoteN();
+  });
+  body.addEventListener('beforeinput', (e)=>{   // delete across a page boundary
+    if(inputModeN !== 'type' || e.isComposing) return;
+    const t = e.inputType, i = viewsN.indexOf(v); if(i < 0) return;
+    if((t === 'deleteContentBackward' || t === 'deleteWordBackward') && i > 0 && caretAtStartN(body)){ e.preventDefault(); joinPagesN(i - 1); }
+    else if((t === 'deleteContentForward' || t === 'deleteWordForward') && i < viewsN.length - 1 && caretAtEndN(body)){ e.preventDefault(); joinPagesN(i); }
+  });
+  body.addEventListener('keydown', (e)=>{   // arrow keys carry the caret from one page to the next
+    if(inputModeN !== 'type' || e.isComposing || e.shiftKey || e.metaKey || e.ctrlKey || e.altKey) return;
+    const i = viewsN.indexOf(v); if(i < 0) return;
+    if(e.key === 'ArrowLeft' && i > 0 && caretAtStartN(body)){ e.preventDefault(); focusPageAtN(i - 1, true); }
+    else if(e.key === 'ArrowRight' && i < viewsN.length - 1 && caretAtEndN(body)){ e.preventDefault(); focusPageAtN(i + 1, false); }
   });
   body.addEventListener('focus', ()=>{ const i = viewsN.indexOf(v); if(i >= 0 && i !== curPageN) setCurN(i); });
   // tap or click anywhere on the paper to write there (margins, empty space, blank lines, below the last line)
