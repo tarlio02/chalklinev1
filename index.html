@@ -16171,6 +16171,9 @@ h1,h2,h3{ font-family:'Fraunces','Source Serif 4',Georgia,serif; margin:0; color
   white-space:pre-wrap; overflow-wrap:break-word; -webkit-user-select:text; user-select:text;
 }
 .note-body div, .note-body p{ margin:0; }
+/* Different fonts and sizes on one line must never make that line taller than one ruled row (36px): the line's height comes
+   from the block alone, and every piece of text on the line sits on the same baseline. */
+.note-body span:not(.mj), .note-body font{ line-height:0; }
 /* LaTeX maths: tiny atoms inside the text, drawn by KaTeX */
 .mj{ display:inline-flex; align-items:center; height:26px; vertical-align:middle; max-width:100%; margin:0 1px; padding:0 2px; border-radius:4px; cursor:pointer; white-space:nowrap; line-height:1; text-indent:0; -webkit-user-select:all; user-select:all; }
 .mj:hover{ background:rgba(46,125,190,.10); }
