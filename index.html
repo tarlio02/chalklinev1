@@ -17974,7 +17974,7 @@ scrollElN.addEventListener('touchstart', (e)=>{
   const m = pinchInfoN(e.touches); if(m.d < 40) return;
   const r = scrollElN.getBoundingClientRect(), c = contentPtN(m.x - r.left, m.y - r.top);
   cancelAnimationFrame(inertiaN); tsN = null;   // stop finger-scrolling: the two fingers are zooming now
-  pinchN = { d0:m.d, z0:zoomN, u:c.u, v:c.v, px:m.x - r.left, py:m.y - r.top };
+  pinchN = { d0:m.d, z0:zoomN, u:c.u, v:c.v, px:m.x - r.left, py:m.y - r.top, last:performance.now() };
   scrollElN.style.overflow = 'hidden';           // blocks the browser's own two-finger scroll; scrollTop/Left still work from code
   stackElN.style.willChange = 'transform';
   if(e.cancelable) e.preventDefault();
@@ -17983,7 +17983,7 @@ scrollElN.addEventListener('touchmove', (e)=>{
   if(!pinchN || e.touches.length < 2) return;
   const r = scrollElN.getBoundingClientRect(), m = pinchInfoN(e.touches);
   const z = Math.min(ZOOM_MAX_N, Math.max(minZN(), pinchN.z0 * m.d / pinchN.d0));
-  pinchN.px = m.x - r.left; pinchN.py = m.y - r.top; pinchN.zt = z;
+  pinchN.px = m.x - r.left; pinchN.py = m.y - r.top; pinchN.zt = z; pinchN.last = performance.now();
   if(!pinchN.raf) pinchN.raf = requestAnimationFrame(()=>{ const p = pinchN; if(!p) return; p.raf = 0; zoomKeepN(p.zt, p.px, p.py, p.u, p.v); });   // touch events come faster than frames
   if(e.cancelable) e.preventDefault();
 }, { passive:false, capture:true });
@@ -17995,6 +17995,12 @@ function endPinchN(e){
   scrollElN.style.overflow = ''; stackElN.style.willChange = '';
   scheduleRerasterN();
 }
+function unlockScrollN(){ pinchN = null; scrollElN.style.overflow = ''; stackElN.style.willChange = ''; }
+// A pinch hides the scroll area's overflow while it runs. If its touchend never arrives (the page was rebuilt by adding a page,
+// a paste menu opened, the screen was interrupted) the page stayed locked, so any touch end anywhere releases it, and a watchdog backs that up.
+window.addEventListener('touchend', (e)=>{ if(e.touches.length < 2 && (pinchN || scrollElN.style.overflow === 'hidden')){ if(pinchN) endPinchN(e); unlockScrollN(); } }, { capture:true, passive:true });
+window.addEventListener('touchcancel', (e)=>{ if(e.touches.length < 2 && (pinchN || scrollElN.style.overflow === 'hidden')){ if(pinchN) endPinchN(e); unlockScrollN(); } }, { capture:true, passive:true });
+setInterval(()=>{ if(pinchN ? performance.now() - (pinchN.last || 0) > 1500 : scrollElN.style.overflow === 'hidden') unlockScrollN(); }, 1000);
 scrollElN.addEventListener('touchend', endPinchN, { capture:true });
 scrollElN.addEventListener('touchcancel', endPinchN, { capture:true });
 scrollElN.addEventListener('wheel', (e)=>{
@@ -18200,6 +18206,7 @@ function createViewN(pg, first){
 }
 function mountPagesN(opts){
   opts = opts || {};
+  try{ unlockScrollN(); window.stopCaretGlideN && window.stopCaretGlideN(); }catch(e){}
   viewsN.forEach(v => { try{ ioN.unobserve(v.sec); }catch(e){} });
   viewsN = []; titleEl = null; bodyEl = null; canvasEl = null; canvasCtx = null;
   const stack = document.getElementById('pages-stack'); stack.innerHTML = '';
@@ -18241,6 +18248,7 @@ function pickCurN(){
 function goPageN(i){ if(i >= 0 && i < pagesN.length){ scrollToPageN(i, true); setCurN(i); } }
 function addPageN(){
   if(!viewsN.length) return;
+  try{ unlockScrollN(); window.stopCaretGlideN && window.stopCaretGlideN(); }catch(e){}
   syncAllN();
   const at = curPageN + 1, pg = { body:'', base:'', strokes:[], paper:paperN };
   pagesN.splice(at, 0, pg);
@@ -19320,10 +19328,13 @@ refreshNotesListN();
   }
   function glide(){
     const el = document.getElementById('note-scroll'); if(!el) return;
+    const t0 = performance.now();
     const step = ()=>{
       const d = target - el.scrollTop;
-      if(Math.abs(d) < 0.6){ el.scrollTop = target; tween = 0; return; }
-      el.scrollTop += d * 0.28; tween = requestAnimationFrame(step);
+      // Stops after 0.7 s at most, and takes whole pixels at least: browsers round scrollTop, so a gap of 1-2 px used to
+      // never close and this loop pulled the page back every frame, which felt like the page was stuck and would not scroll.
+      if(Math.abs(d) < 1 || performance.now() - t0 > 700){ if(Math.abs(d) < 1) el.scrollTop = target; tween = 0; return; }
+      el.scrollTop += Math.sign(d) * Math.max(1, Math.abs(d) * 0.28); tween = requestAnimationFrame(step);
     };
     if(!tween) tween = requestAnimationFrame(step);
   }
@@ -19351,6 +19362,8 @@ refreshNotesListN();
   ev.addEventListener('pointerdown', (e)=>{ if(!e.target.closest || !e.target.closest('.note-body, .note-title')) wake(); }, true);
   ev.addEventListener('wheel', wake, { passive:true });
   document.getElementById('note-scroll').addEventListener('touchstart', wake, { passive:true });
+  // the moment you scroll yourself, the automatic follow-the-caret glide lets go
+  ['touchstart', 'wheel', 'pointerdown'].forEach(t => document.getElementById('note-scroll').addEventListener(t, ()=>{ try{ window.stopCaretGlideN(); }catch(e){} }, { passive:true, capture:true }));
   let lx = -1, ly = -1;
   ev.addEventListener('pointermove', (e)=>{ if(e.pointerType !== 'mouse') return; if(Math.hypot(e.clientX - lx, e.clientY - ly) > 24){ if(lx >= 0) wake(); lx = e.clientX; ly = e.clientY; } });
   document.addEventListener('selectionchange', ()=>{ if(ev.classList.contains('typing') && !(getSelection().anchorNode && stack.contains(getSelection().anchorNode))) wake(); });
