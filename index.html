@@ -18182,6 +18182,26 @@ function createViewN(pg, first){
     if(t) pasteWithToolbarFmtN(t);
     if(t && /\$|\\[(\[]/.test(t)){ loadKatexN().catch(()=>{}); if(convertAllMathN(body)){ autosizeViewN(v); saveCurrentNoteN(); } }   // pasted $...$ becomes real maths
   });
+  // Text dragged in from another app/window is inserted as rich HTML by the browser, bypassing the paste handler above.
+  // Route it through the same plain-text + toolbar-format path. Dragging text around inside the note keeps native behaviour.
+  body.addEventListener('dragstart', ()=>{ body._ownDrag = true; });
+  body.addEventListener('dragend', ()=>{ body._ownDrag = false; });
+  body.addEventListener('drop', (e)=>{
+    const dt = e.dataTransfer; if(body._ownDrag || !dt || (dt.files && dt.files.length) || inputModeN !== 'type') return;
+    const t = dt.getData('text/plain'); if(!t) return;
+    e.preventDefault(); e.stopPropagation();
+    let r = null;
+    if(document.caretRangeFromPoint) r = document.caretRangeFromPoint(e.clientX, e.clientY);
+    else if(document.caretPositionFromPoint){ const cp = document.caretPositionFromPoint(e.clientX, e.clientY); if(cp){ r = document.createRange(); r.setStart(cp.offsetNode, cp.offset); r.collapse(true); } }
+    if(r){ const sl = window.getSelection(); sl.removeAllRanges(); sl.addRange(r); }
+    pasteWithToolbarFmtN(t);
+  });
+  // Safety net: a paste that arrives without a paste event (some iPad / context-menu paths) still comes in as plain text.
+  body.addEventListener('beforeinput', (e)=>{
+    if(e.inputType !== 'insertFromPaste' || inputModeN !== 'type') return;
+    const t = (e.dataTransfer && e.dataTransfer.getData('text/plain')) || ''; if(!t) return;
+    e.preventDefault(); pasteWithToolbarFmtN(t);
+  });
   body.addEventListener('copy', (e)=>{   // copying maths gives back the LaTeX, not the drawn symbols
     const sel = window.getSelection(); if(!sel || !sel.rangeCount || sel.isCollapsed) return;
     const frag = sel.getRangeAt(0).cloneContents(); if(!frag.querySelector('.mj')) return;
@@ -18508,7 +18528,7 @@ const FONTS_N = [
   { k:'Patrick Hand',   label:'Casual',       stack:'"Patrick Hand", cursive' },
   { k:'JetBrains Mono', label:'Mono',         stack:'"JetBrains Mono", ui-monospace, monospace' }
 ];
-const SIZES_N = [14, 16, 18, 20, 22, 24, 28, 32, 36], DEFAULT_SIZE_N = 22;   // 36px is the height of one ruled line
+const SIZES_N = [10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 36, 40, 44, 48, 56, 64, 72], DEFAULT_SIZE_N = 22;   // 36px is the height of one ruled line
 function firstFamilyN(f){ return String(f || '').split(',')[0].replace(/["']/g, '').trim().toLowerCase(); }
 function fontByNameN(n){ n = String(n || '').toLowerCase(); return FONTS_N.find(f => f.k.toLowerCase() === n) || null; }
 (function loadNoteFontsN(){
