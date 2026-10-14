@@ -16207,6 +16207,9 @@ h1,h2,h3{ font-family:'Fraunces','Source Serif 4',Georgia,serif; margin:0; color
 #line-btn svg{ width:20px; height:20px; display:block; }
 /* text formatting bar (Type mode) */
 #fmt-tools{ gap:2px; padding:0 6px; }
+.fmt-sel{ height:34px; max-width:132px; border:none; outline:none; background:transparent; font:600 12px 'JetBrains Mono',monospace; color:var(--ink); padding:0 4px; border-radius:8px; cursor:pointer; -webkit-appearance:menulist; appearance:menulist; }
+.fmt-sel-size{ max-width:64px; }
+.fmt-sel:hover{ background:rgba(0,0,0,.045); }
 .fmt-btn{ width:34px; padding:0; display:inline-flex; align-items:center; justify-content:center; font-family:'Source Serif 4',Georgia,serif; font-size:17px; }
 .fmt-btn.active{ background:#FFF1CC; box-shadow:0 0 0 1.5px var(--gold-deep) inset; }
 #fmt-a{ display:inline-block; line-height:1; padding-bottom:2px; border-bottom:3px solid #2A2410; font:700 16px 'Source Serif 4',Georgia,serif; }
@@ -16431,6 +16434,9 @@ body.no-select-while-drawing,
         <button type="button" class="tool-btn fmt-btn" data-cmd="underline" onmousedown="event.preventDefault()" onclick="fmtN('underline')" aria-label="Underline" title="Underline"><u>U</u></button>
         <span class="sep"></span>
         <button type="button" class="tool-btn fmt-btn" id="fmt-color-btn" onmousedown="event.preventDefault()" onclick="toggleTextColorN()" aria-label="Text colour" title="Text colour"><span id="fmt-a">A</span></button>
+        <span class="sep"></span>
+        <select id="fmt-font" class="fmt-sel" aria-label="Font style" title="Font style" onchange="applyFontN(this.value)"></select>
+        <select id="fmt-size" class="fmt-sel fmt-sel-size" aria-label="Font size" title="Font size" onchange="applySizeN(+this.value)"></select>
       </div>
 
       <div class="glass pill draw-tools" id="draw-tools">
@@ -18193,7 +18199,7 @@ function createViewN(pg, first){
       if(/\$/.test(e.data)) loadKatexN().catch(()=>{});
       tryMathN(body);   // typing the closing $ turns $...$ into rendered maths
     }
-    colonIndentN(body); autosizeViewN(v); saveCurrentNoteN();
+    fixSizesN(body); colonIndentN(body); autosizeViewN(v); saveCurrentNoteN();
   });
   body.addEventListener('focus', ()=>{ const i = viewsN.indexOf(v); if(i >= 0 && i !== curPageN) setCurN(i); });
   // tap or click anywhere on the paper to write there (margins, empty space, blank lines, below the last line)
@@ -18425,6 +18431,8 @@ function cleanHtmlN(html){
       const st = ch.style, keep = [];
       let col = st.color; if(!col && ch.tagName === 'FONT') col = ch.getAttribute('color') || '';
       if(col && COLOR_OK_N.test(col.trim())) keep.push('color:' + col.trim());
+      { const fam = fontByNameN(firstFamilyN(st.fontFamily)); if(fam) keep.push('font-family:' + fam.stack.replace(/"/g, "'")); }
+      { const px = /^(\d+(?:\.\d+)?)px$/.exec(st.fontSize || ''); if(px && +px[1] >= 10 && +px[1] <= 72) keep.push('font-size:' + (+px[1]) + 'px'); }
       if(/^(bold|[6-9]00)$/.test(st.fontWeight)) keep.push('font-weight:bold');
       if(st.fontStyle === 'italic') keep.push('font-style:italic');
       if(/underline/.test(st.textDecoration || st.textDecorationLine || '')) keep.push('text-decoration:underline');
@@ -18459,7 +18467,7 @@ function focusBodyN(){   // true when the formatting command has a text selectio
 }
 /* Your chosen text formatting is "sticky": it stays as you set it when you move the cursor into other text,
    and is what new typing uses, instead of the toolbar switching to whatever formatting the old text has. */
-const stickyFmtN = { bold:false, italic:false, underline:false, color:'#2A2410' };
+const stickyFmtN = { bold:false, italic:false, underline:false, color:'#2A2410', font:'', size:0 };   // font '' / size 0 = the note's default
 function fmtN(cmd){
   if(inputModeN !== 'type' || !focusBodyN()) return;
   const sel = window.getSelection(), collapsed = !sel.rangeCount || sel.getRangeAt(0).collapsed;
@@ -18479,6 +18487,62 @@ function applyStickyFmtN(){   // called just before a character is typed: make i
   });
   let col = ''; try{ col = rgbToHexN(document.queryCommandValue('foreColor')); }catch(err){}
   if(col && col.toUpperCase() !== stickyFmtN.color.toUpperCase()){ try{ document.execCommand('foreColor', false, stickyFmtN.color); }catch(err){} }
+  if(stickyFmtN.font){
+    let ff = ''; try{ ff = firstFamilyN(document.queryCommandValue('fontName')); }catch(err){}
+    const f = fontByNameN(stickyFmtN.font);
+    if(f && ff !== f.k.toLowerCase()){ try{ document.execCommand('fontName', false, f.stack); }catch(err){} }
+  }
+  if(stickyFmtN.size){
+    const an = sel.anchorNode, el = an && (an.nodeType === 1 ? an : an.parentElement);
+    const cur = el ? parseFloat(getComputedStyle(el).fontSize) : 0;
+    if(cur && Math.abs(cur - stickyFmtN.size) > 0.5){ try{ document.execCommand('fontSize', false, '7'); }catch(err){} }
+  }
+}
+/* ---- Font style and size ---- */
+const FONTS_N = [
+  { k:'Source Serif 4', label:'Serif',        stack:'"Source Serif 4", Georgia, serif' },
+  { k:'Inter',          label:'Sans',         stack:'Inter, system-ui, -apple-system, sans-serif' },
+  { k:'Lora',           label:'Book',         stack:'Lora, Georgia, serif' },
+  { k:'Fraunces',       label:'Display',      stack:'Fraunces, Georgia, serif' },
+  { k:'Caveat',         label:'Handwriting',  stack:'Caveat, cursive' },
+  { k:'Kalam',          label:'Marker',       stack:'Kalam, cursive' },
+  { k:'Patrick Hand',   label:'Casual',       stack:'"Patrick Hand", cursive' },
+  { k:'JetBrains Mono', label:'Mono',         stack:'"JetBrains Mono", ui-monospace, monospace' }
+];
+const SIZES_N = [14, 16, 18, 20, 22, 24, 28, 32, 36], DEFAULT_SIZE_N = 22;   // 36px is the height of one ruled line
+function firstFamilyN(f){ return String(f || '').split(',')[0].replace(/["']/g, '').trim().toLowerCase(); }
+function fontByNameN(n){ n = String(n || '').toLowerCase(); return FONTS_N.find(f => f.k.toLowerCase() === n) || null; }
+(function loadNoteFontsN(){
+  try{
+    const l = document.createElement('link'); l.rel = 'stylesheet';
+    l.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Lora:ital,wght@0,400;0,600;1,400&family=Kalam:wght@400;700&family=Patrick+Hand&family=Caveat:wght@500;700&family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap';
+    document.head.appendChild(l);
+  }catch(e){}
+  const fs = document.getElementById('fmt-font'), sz = document.getElementById('fmt-size');
+  if(fs) fs.innerHTML = FONTS_N.map(f => '<option value="' + f.k + '" style="font-family:' + f.stack.replace(/"/g, "'") + '">' + f.label + '</option>').join('');
+  if(sz) sz.innerHTML = SIZES_N.map(n => '<option value="' + n + '">' + n + '</option>').join('');
+})();
+// execCommand can only set sizes 1-7, so size 7 is used as a marker and swapped for the exact pixel size straight away
+function fixSizesN(root){
+  if(!root || !stickyFmtN.size) return;
+  root.querySelectorAll('span, font').forEach(el => {
+    const big = el.style && el.style.fontSize === 'xxx-large', f7 = el.tagName === 'FONT' && el.getAttribute('size') === '7';
+    if(big || f7){ el.style.fontSize = stickyFmtN.size + 'px'; if(f7) el.removeAttribute('size'); }
+  });
+}
+function applyFontN(k){
+  const f = fontByNameN(k); if(!f || inputModeN !== 'type' || !focusBodyN()) return;
+  stickyFmtN.font = f.k;
+  try{ document.execCommand('styleWithCSS', false, true); document.execCommand('fontName', false, f.stack); }catch(err){}
+  saveCurrentNoteN(); updateFmtStateN();
+}
+function applySizeN(px){
+  if(!(px >= 10 && px <= 72) || inputModeN !== 'type' || !focusBodyN()) return;
+  stickyFmtN.size = px;
+  try{ document.execCommand('styleWithCSS', false, true); document.execCommand('fontSize', false, '7'); }catch(err){}
+  const b = (document.activeElement && document.activeElement.classList.contains('note-body')) ? document.activeElement : lastBodyN;
+  fixSizesN(b);
+  saveCurrentNoteN(); updateFmtStateN();
 }
 function rgbToHexN(c){
   c = String(c || '').trim();
@@ -18495,6 +18559,9 @@ function updateFmtStateN(){
     const b = document.querySelector('.fmt-btn[data-cmd="' + c + '"]'); if(b) b.classList.toggle('active', !!stickyFmtN[c]);
   });
   setFmtColorUiN(stickyFmtN.color);
+  const fs = document.getElementById('fmt-font'), sz = document.getElementById('fmt-size');
+  if(fs) fs.value = stickyFmtN.font || FONTS_N[0].k;
+  if(sz) sz.value = String(stickyFmtN.size || DEFAULT_SIZE_N);
 }
 function applyTextColorN(c){
   if(inputModeN !== 'type' || !focusBodyN()) return;
