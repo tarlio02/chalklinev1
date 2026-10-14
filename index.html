@@ -18487,15 +18487,11 @@ function applyStickyFmtN(){   // called just before a character is typed: make i
   });
   let col = ''; try{ col = rgbToHexN(document.queryCommandValue('foreColor')); }catch(err){}
   if(col && col.toUpperCase() !== stickyFmtN.color.toUpperCase()){ try{ document.execCommand('foreColor', false, stickyFmtN.color); }catch(err){} }
-  if(stickyFmtN.font){
-    let ff = ''; try{ ff = firstFamilyN(document.queryCommandValue('fontName')); }catch(err){}
-    const f = fontByNameN(stickyFmtN.font);
-    if(f && ff !== f.k.toLowerCase()){ try{ document.execCommand('fontName', false, f.stack); }catch(err){} }
-  }
-  if(stickyFmtN.size){
-    const an = sel.anchorNode, el = an && (an.nodeType === 1 ? an : an.parentElement);
-    const cur = el ? parseFloat(getComputedStyle(el).fontSize) : 0;
-    if(cur && Math.abs(cur - stickyFmtN.size) > 0.5){ try{ document.execCommand('fontSize', false, '7'); }catch(err){} }
+  const an = sel.anchorNode, el = an && (an.nodeType === 1 ? an : an.parentElement);
+  if(el){
+    const cs = getComputedStyle(el);
+    if(stickyFmtN.font){ const f = fontByNameN(stickyFmtN.font); if(f && firstFamilyN(cs.fontFamily) !== f.k.toLowerCase()) applyInlineStyleN('fontFamily', f.stack); }
+    if(stickyFmtN.size && Math.abs(parseFloat(cs.fontSize) - stickyFmtN.size) > 0.5) applyInlineStyleN('fontSize', stickyFmtN.size + 'px');
   }
 }
 /* ---- Font style and size ---- */
@@ -18530,19 +18526,51 @@ function fixSizesN(root){
     if(big || f7){ el.style.fontSize = stickyFmtN.size + 'px'; if(f7) el.removeAttribute('size'); }
   });
 }
+// Font and size are applied by wrapping the selected text in a styled <span> ourselves. The browser's own fontSize / fontName
+// commands lose the selection when the picker closes (iPad Safari especially), which is why a size change could do nothing.
+function applyInlineStyleN(prop, value){
+  const sel = window.getSelection(); if(!sel || !sel.rangeCount) return false;
+  const range = sel.getRangeAt(0);
+  const host = n => { const e = n && (n.nodeType === 1 ? n : n.parentElement); return e && e.closest ? e.closest('.note-body') : null; };
+  const body = host(range.commonAncestorContainer); if(!body) return false;
+  if(range.collapsed){   // nothing selected: what you type next uses it
+    const sp = document.createElement('span'); sp.style[prop] = value; sp.appendChild(document.createTextNode('\u200B'));
+    range.insertNode(sp);
+    const r = document.createRange(); r.setStart(sp.firstChild, 1); r.collapse(true); sel.removeAllRanges(); sel.addRange(r);
+    return true;
+  }
+  const nodes = [], root = range.commonAncestorContainer.nodeType === 3 ? range.commonAncestorContainer.parentNode : range.commonAncestorContainer;
+  if(range.commonAncestorContainer.nodeType === 3) nodes.push(range.commonAncestorContainer);
+  else { const tw = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); let n; while((n = tw.nextNode())){ if(range.intersectsNode(n) && n.nodeValue && !(n.parentElement && n.parentElement.closest('.mj'))) nodes.push(n); } }
+  let first = null, last = null;
+  nodes.forEach(node => {
+    const a = node === range.startContainer ? range.startOffset : 0, b = node === range.endContainer ? range.endOffset : node.nodeValue.length;
+    if(a >= b) return;
+    let t = node; if(b < t.nodeValue.length) t.splitText(b); if(a > 0) t = t.splitText(a);
+    const par = t.parentNode;
+    if(par && par.tagName === 'SPAN' && !par.className && par.childNodes.length === 1) par.style[prop] = value;
+    else { const sp = document.createElement('span'); sp.style[prop] = value; par.replaceChild(sp, t); sp.appendChild(t); }
+    if(!first) first = t; last = t;
+  });
+  if(!first) return false;
+  const r = document.createRange(); r.setStart(first, 0); r.setEnd(last, last.nodeValue.length); sel.removeAllRanges(); sel.addRange(r);
+  return true;
+}
+function afterInlineStyleN(){
+  const sel = window.getSelection(), b = sel && sel.rangeCount ? (sel.anchorNode && (sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement)) : null;
+  const body = b && b.closest ? b.closest('.note-body') : null;
+  if(body){ try{ body.dispatchEvent(new Event('input', { bubbles:true })); }catch(e){} }   // re-measures the page and saves
+  saveCurrentNoteN(); updateFmtStateN();
+}
 function applyFontN(k){
   const f = fontByNameN(k); if(!f || inputModeN !== 'type' || !focusBodyN()) return;
   stickyFmtN.font = f.k;
-  try{ document.execCommand('styleWithCSS', false, true); document.execCommand('fontName', false, f.stack); }catch(err){}
-  saveCurrentNoteN(); updateFmtStateN();
+  if(applyInlineStyleN('fontFamily', f.stack)) afterInlineStyleN(); else updateFmtStateN();
 }
 function applySizeN(px){
   if(!(px >= 10 && px <= 72) || inputModeN !== 'type' || !focusBodyN()) return;
   stickyFmtN.size = px;
-  try{ document.execCommand('styleWithCSS', false, true); document.execCommand('fontSize', false, '7'); }catch(err){}
-  const b = (document.activeElement && document.activeElement.classList.contains('note-body')) ? document.activeElement : lastBodyN;
-  fixSizesN(b);
-  saveCurrentNoteN(); updateFmtStateN();
+  if(applyInlineStyleN('fontSize', px + 'px')) afterInlineStyleN(); else updateFmtStateN();
 }
 function rgbToHexN(c){
   c = String(c || '').trim();
