@@ -1971,6 +1971,15 @@ function unionCourses(a, b){
 // assume. So "changed on two devices" can't be detected server-side; the
 // courses-union rule below is the one place we still merge instead of
 // picking a winner, everything else is last-write-wins by sync order.
+// Download several cloud items at once (4 at a time) instead of strictly one after another: with many notes the
+// sequential round-trips were what made a first load / new note take so long to show up.
+async function parallelMapN(items, limit, fn){
+  const out = new Map(), q = items.slice();
+  await Promise.all(Array.from({ length: Math.min(limit, q.length) }, async () => {
+    while(q.length){ const it = q.shift(); try{ out.set(it, await fn(it)); }catch(e){ out.set(it, { __err:e }); } }
+  }));
+  return out;
+}
 async function pullCloud(sub, authoritative){
   const { keys } = await workerStorage('list', { prefix: '' });
   const re = syncKeyRegex(sub), meta = loadSyncMeta(sub);
@@ -1980,8 +1989,10 @@ async function pullCloud(sub, authoritative){
   // has never been uploaded — keep it (it gets pushed next) instead of wiping it.
   if(authoritative && cloudKeys.size === 0) authoritative = false;
   let changed = false;
+  const prefetchedN = await parallelMapN(Array.from(cloudKeys), 5, key => workerStorage('get', { key }));
   for(const key of cloudKeys){
-    const got = await workerStorage('get', { key });
+    let got = prefetchedN.get(key);
+    if(got && got.__err){ if(got.__err.message === 'session expired') throw got.__err; got = await workerStorage('get', { key }); }   // a failed parallel fetch gets one normal retry
     if(!got || got.value == null) continue;
     let value = got.value;
     if(typeof value === 'string' && value.indexOf(GZ_PREFIX) === 0){
@@ -2193,11 +2204,13 @@ async function pullNotesList(){
     const meta = loadSyncMeta(sub);
     const ovSet = new Set(await clOv.keys());
     const here = k => localStorage.getItem(k) !== null || ovSet.has(k);
-    const fresh = cloud.filter(k => !meta[k] || !here(k));
+    const idOf = k => String(k).slice(String(k).lastIndexOf(':') + 1);
+    const fresh = cloud.filter(k => !meta[k] || !here(k)).sort((a, b) => idOf(a) < idOf(b) ? 1 : -1);   // newest note first: a note you just added shows up before old ones
     const rest = cloud.filter(k => meta[k] && here(k));
     const batch = fresh.slice(0, 12);
     for(let i = 0; i < 3 && i < rest.length; i++) batch.push(rest[nlCursor++ % rest.length]);
-    for(const k of new Set(batch)){ if(await applyCloudKeyN(sub, k, meta)) changed = true; }
+    { const res = await parallelMapN(Array.from(new Set(batch)), 4, k => applyCloudKeyN(sub, k, meta));
+      for(const v of res.values()){ if(v === true) changed = true; } }
     for(const k of Object.keys(meta)){                     // deleted on another device, untouched here since last sync
       if(k.indexOf(pre) !== 0 || cloudSet.has(k) || (meta[k] && meta[k].skip)) continue;
       const local = await lsGet(k);
@@ -16594,6 +16607,17 @@ window.addEventListener('message', (e)=>{
 });
 
 /* ---------------- List ---------------- */
+function noteMetaFromRawN(raw){
+  if(typeof raw !== 'string') return null;
+  const head = raw.slice(0, 150000);
+  const str = (name) => { const m = head.match(new RegExp('"' + name + '":"((?:[^"\\\\]|\\\\.)*)"')); if(!m) return undefined; try{ return JSON.parse('"' + m[1] + '"'); }catch(e){ return null; } };
+  const num = (name) => { const m = head.match(new RegExp('"' + name + '":(\\d+)')); return m ? +m[1] : undefined; };
+  const id = str('id'), updatedAt = num('updatedAt');
+  if(!id || updatedAt === undefined) return null;   // an older / unusual note: read it the slow, full way
+  const title = str('title'), subject = str('subject'), createdAt = num('createdAt');
+  if(title === null || subject === null) return null;
+  return { id, title: title || '', subject: subject || 'Unsorted', createdAt: createdAt || updatedAt, updatedAt };
+}
 let notesReqN = 0;
 async function refreshNotesListN(){
   const myReq = ++notesReqN;
@@ -16607,11 +16631,20 @@ async function refreshNotesListN(){
     if(myReq !== notesReqN) return;
     const keys = (result && result.keys) ? result.keys : [];
     const items = [], prefix = notesKeyPrefixN(), wantSlug = notesSubject ? noteSlugN(notesSubject) : null;
-    for(const key of keys){
-      const parts = key.slice(prefix.length).split(':');
-      if(wantSlug !== null && parts.length >= 2 && parts[0] !== wantSlug) continue;   // another course's note: never even opened here
-      try{ const rec = await window.storage.get(key, false); if(rec){ const it = JSON.parse(rec.value); it._key = key; items.push(it); } } catch(e){}
-    }
+    const wanted = keys.filter(key => { const parts = key.slice(prefix.length).split(':'); return !(wantSlug !== null && parts.length >= 2 && parts[0] !== wantSlug); });   // another course's note: never even opened here
+    // The list only needs a title, course and dates, so those are read straight from the start of each saved note
+    // instead of parsing the whole thing (ink strokes and photos can be many MB per note). Notes are read 6 at a time.
+    const q = wanted.slice();
+    await Promise.all(Array.from({ length: Math.min(6, q.length) }, async () => {
+      while(q.length){
+        const key = q.shift();
+        try{
+          const rec = await window.storage.get(key, false); if(!rec) continue;
+          const it = noteMetaFromRawN(rec.value) || JSON.parse(rec.value);
+          it._key = key; items.push(it);
+        } catch(e){}
+      }
+    }));
     if(myReq !== notesReqN) return;
     items.sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
     const visible = notesSubject ? items.filter(i => (i.subject || 'Unsorted') === notesSubject) : items;
