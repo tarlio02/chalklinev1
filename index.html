@@ -1770,7 +1770,10 @@ async function ensureFreshToken(){
   if(!s.refresh || !supabaseClient) return false;
   if(!tokenRefreshing){
     tokenRefreshing = (async () => {
-      const { data, error } = await supabaseClient.auth.refreshSession({ refresh_token: s.refresh });
+      const { data, error } = await Promise.race([
+        supabaseClient.auth.refreshSession({ refresh_token: s.refresh }),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('token refresh timed out')), 15000)),
+      ]);
       if(error || !data || !data.session) throw (error || new Error('refresh failed'));
       const cur = readWorkerSession() || s;
       localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(Object.assign({}, cur, {
@@ -1800,11 +1803,22 @@ async function workerStorage(action, params){
   await ensureFreshToken();
   const s = readWorkerSession();
   if(!s || !s.token) throw new Error('not signed in');
-  const r = await fetch(WORKER_URL + '/storage/' + action, {
-    method: 'POST',
-    headers: { 'Content-Type':'application/json' },
-    body: JSON.stringify(Object.assign({ idToken: s.token }, params)),
-  });
+  // Timeout: without one, a stalled request never settles, so syncBusy / liveBusy / pnState.busy stay true
+  // forever and every later sync is silently skipped ("live sync stuck") until the page is reloaded.
+  const ctrl = new AbortController();
+  const killer = setTimeout(() => ctrl.abort(), action === 'set' ? 45000 : 25000);
+  let r;
+  try{
+    r = await fetch(WORKER_URL + '/storage/' + action, {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json' },
+      body: JSON.stringify(Object.assign({ idToken: s.token }, params)),
+      signal: ctrl.signal,
+    });
+  } catch(e){
+    if(e && e.name === 'AbortError') throw new Error('storage/' + action + ' timed out');
+    throw e;
+  } finally { clearTimeout(killer); }
   if(r.status === 401){ localStorage.removeItem(SESSION_STORAGE_KEY); throw new Error('session expired'); }
   if(!r.ok) throw new Error('storage/' + action + ' failed (' + r.status + ')');
   return r.json();
@@ -2391,7 +2405,14 @@ async function pullNotesList(){
 // timers below still keep everything up to date.
 let rtChan = null, rtSub = null, pushedNotes = false, rtOkAt = 0;
 function reviveRealtime(){ if(!shellUser || !shellUser.sub) return; rtSub = null; try{ ensureRealtime(); }catch(e){} }
-document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible' && !rtOkAt) reviveRealtime(); });
+let rtHiddenAt = 0;
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'hidden'){ rtHiddenAt = Date.now(); return; }
+  // A phone/browser suspends the websocket in the background and never reports it, so rtOkAt still looks healthy.
+  // After a real absence, rebuild the channel rather than trusting it.
+  if(!rtOkAt || (rtHiddenAt && Date.now() - rtHiddenAt > 5000)){ rtOkAt = 0; reviveRealtime(); }
+  rtHiddenAt = 0;
+});
 window.addEventListener('online', () => reviveRealtime());
 setInterval(() => { if(shellUser && shellUser.sub && document.visibilityState === 'visible' && !rtOkAt) reviveRealtime(); }, 8000);
 function ensureRealtime(){
