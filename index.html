@@ -1980,6 +1980,157 @@ async function parallelMapN(items, limit, fn){
   }));
   return out;
 }
+/* ---- Three-way note merge (shared by the shell and the notes editor) ----
+   base = the last copy both sides agreed on, local = this device now, remote = the other device's copy.
+   Page by page: text is merged line by line, ink strokes and photos are merged as sets, so edits made on two
+   devices at the same time are BOTH kept instead of one copy replacing the other. */
+function nmBlocks(html){
+  if(!html) return [];
+  const t = document.createElement('template'); t.innerHTML = html;
+  const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  return Array.from(t.content.childNodes).map(n => n.nodeType === 1 ? n.outerHTML : esc(n.textContent || '')).filter(x => x !== '');
+}
+function nmPlain(html){
+  const t = document.createElement('template'); t.innerHTML = html || '';
+  return Array.from(t.content.childNodes).map(n => (n.textContent || '').replace(/\u200B/g, '')).join('\n');
+}
+function nmEq(a, b){ return a.length === b.length && a.every((v, i) => v === b[i]); }
+function nmDiff(B, X){   // the edits that turn B into X, as { bs, be, repl } (B[bs..be) is replaced by repl)
+  const n = B.length, m = X.length;
+  if(n * m > 3e6) return nmEq(B, X) ? [] : [{ bs:0, be:n, repl:X.slice() }];
+  const w = m + 1, T = new Uint16Array((n + 1) * w);
+  for(let i = n - 1; i >= 0; i--) for(let j = m - 1; j >= 0; j--) T[i * w + j] = B[i] === X[j] ? T[(i + 1) * w + j + 1] + 1 : Math.max(T[(i + 1) * w + j], T[i * w + j + 1]);
+  const hunks = []; let i = 0, j = 0, cur = null;
+  while(i < n || j < m){
+    if(i < n && j < m && B[i] === X[j]){ if(cur){ hunks.push(cur); cur = null; } i++; j++; }
+    else if(j < m && (i === n || T[i * w + j + 1] >= T[(i + 1) * w + j])){ if(!cur) cur = { bs:i, be:i, repl:[] }; cur.repl.push(X[j]); j++; }
+    else { if(!cur) cur = { bs:i, be:i, repl:[] }; cur.be = i + 1; i++; }
+  }
+  if(cur) hunks.push(cur);
+  return hunks;
+}
+function nmMergeLines(B, L, R){
+  if(nmEq(L, R)) return L.slice();
+  if(nmEq(L, B)) return R.slice();
+  if(nmEq(R, B)) return L.slice();
+  const hl = nmDiff(B, L), hr = nmDiff(B, R), out = [];
+  const region = (hs, s, e) => { const res = []; let p = s; hs.forEach(h => { res.push(...B.slice(p, h.bs), ...h.repl); p = h.be; }); res.push(...B.slice(p, e)); return res; };
+  let i = 0, a = 0, b = 0;
+  while(a < hl.length || b < hr.length){
+    const x = hl[a], y = hr[b];
+    if(x && y && x.bs < y.be && y.bs < x.be){   // both sides edited the same lines: resolve them as one group
+      let s = Math.min(x.bs, y.bs), e = Math.max(x.be, y.be), ga = a + 1, gb = b + 1, grow = true;
+      while(grow){ grow = false;
+        while(ga < hl.length && hl[ga].bs < e){ e = Math.max(e, hl[ga].be); ga++; grow = true; }
+        while(gb < hr.length && hr[gb].bs < e){ e = Math.max(e, hr[gb].be); gb++; grow = true; } }
+      out.push(...B.slice(i, s));
+      const ls = region(hl.slice(a, ga), s, e), rs = region(hr.slice(b, gb), s, e), bs = B.slice(s, e);
+      if(nmEq(ls, bs)) out.push(...rs); else if(nmEq(rs, bs) || nmEq(ls, rs)) out.push(...ls); else out.push(...ls, ...rs);   // a real clash keeps both versions
+      i = e; a = ga; b = gb;
+    } else if(x && (!y || x.bs <= y.bs)){ out.push(...B.slice(i, x.bs), ...x.repl); i = x.be; a++; }
+    else { out.push(...B.slice(i, y.bs), ...y.repl); i = y.be; b++; }
+  }
+  out.push(...B.slice(i));
+  return out;
+}
+function nmSig(r){ return JSON.stringify(r, (k, v) => k === 'pend' ? undefined : v); }
+function nmMergeSet(B, L, R){   // ink strokes: each side's additions and deletions are both applied
+  const sb = B.map(nmSig), sl = L.map(nmSig), sr = R.map(nmSig);
+  if(nmEq(sl, sr)) return L; if(nmEq(sl, sb)) return R; if(nmEq(sr, sb)) return L;
+  const kb = new Set(sb), kl = new Set(sl), kr = new Set(sr), out = [];
+  B.forEach((r, i) => { if(kl.has(sb[i]) && kr.has(sb[i])) out.push(r); });
+  L.forEach((r, i) => { if(!kb.has(sl[i])) out.push(r); });
+  R.forEach((r, i) => { if(!kb.has(sr[i]) && !kl.has(sr[i])) out.push(r); });
+  return out;
+}
+function nmMergeKeyed(B, L, R, idf){   // photos: matched by id
+  const js = JSON.stringify, mb = new Map(B.map(x => [idf(x), x])), ml = new Map(L.map(x => [idf(x), x])), mr = new Map(R.map(x => [idf(x), x]));
+  const ids = []; [B, L, R].forEach(arr => arr.forEach(x => { if(ids.indexOf(idf(x)) < 0) ids.push(idf(x)); }));
+  const out = [];
+  ids.forEach(id => {
+    const b = mb.get(id), l = ml.get(id), r = mr.get(id);
+    if(l && r) out.push(b && js(l) === js(b) ? r : l);
+    else if(l && !r){ if(!b || js(l) !== js(b)) out.push(l); }
+    else if(!l && r){ if(!b) out.push(r); }
+  });
+  return out;
+}
+function nmScalar(b, l, r){ return JSON.stringify(l) === JSON.stringify(b) ? r : l; }
+function nmMergeText(B, L, R){
+  const bh = B.html || '', lh = L.html || '', rh = R.html || '';
+  if(lh === rh && (L.body || '') === (R.body || '')) return { html:lh, body:L.body || '' };
+  if(lh === bh && (L.body || '') === (B.body || '')) return { html:rh, body:R.body || '' };
+  if(rh === bh && (R.body || '') === (B.body || '')) return { html:lh, body:L.body || '' };
+  if(bh || lh || rh){
+    const html = nmMergeLines(nmBlocks(bh), nmBlocks(lh), nmBlocks(rh)).join('');
+    return { html, body:nmPlain(html) };
+  }
+  return { html:'', body:nmMergeLines((B.body || '').split('\n'), (L.body || '').split('\n'), (R.body || '').split('\n')).join('\n') };
+}
+function nmMergePage(B, L, R){
+  const t = nmMergeText(B, L, R);
+  return Object.assign({}, L, {
+    html:t.html, body:t.body,
+    strokes:nmMergeSet(B.strokes || [], L.strokes || [], R.strokes || []),
+    imgs:nmMergeKeyed(B.imgs || [], L.imgs || [], R.imgs || [], x => x.id),
+    paper:nmScalar(B.paper, L.paper, R.paper), base:nmScalar(B.base || '', L.base || '', R.base || '')
+  });
+}
+function nmPageCore(p){ return JSON.stringify([p.html || '', p.body || '', p.paper || '', p.base || '', (p.strokes || []).map(nmSig), p.imgs || []]); }
+function nmMergeNote(base, local, remote){   // parsed notes in, merged note out (null when the pages can't be matched up)
+  const bp = base.pages || [], lp = local.pages || [], rp = remote.pages || [];
+  const ids = a => a.length > 0 && a.every(p => p && p.id);
+  let pages;
+  if(ids(bp) && ids(lp) && ids(rp)){
+    const mb = new Map(bp.map(p => [p.id, p])), ml = new Map(lp.map(p => [p.id, p])), mr = new Map(rp.map(p => [p.id, p]));
+    pages = [];
+    lp.forEach(p => {
+      const b = mb.get(p.id), r = mr.get(p.id);
+      if(r) pages.push(nmMergePage(b || {}, p, r));
+      else if(b){ if(nmPageCore(p) !== nmPageCore(b)) pages.push(p); }   // the other device deleted it: gone, unless you edited it here
+      else pages.push(p);
+    });
+    rp.forEach((r, ri) => {
+      if(ml.has(r.id) || mb.has(r.id)) return;   // already merged, or deleted here
+      let pos = 0;
+      for(let k = ri - 1; k >= 0; k--){ const j = pages.findIndex(q => q.id === rp[k].id); if(j >= 0){ pos = j + 1; break; } }
+      pages.splice(pos, 0, r);
+    });
+  } else if(bp.length === lp.length && lp.length === rp.length){
+    pages = lp.map((p, i) => nmMergePage(bp[i], p, rp[i]));
+  } else return null;
+  if(!pages.length) return null;
+  return Object.assign({}, local, {
+    pages, title:nmScalar(base.title || '', local.title || '', remote.title || ''),
+    updatedAt:Math.max(local.updatedAt || 0, remote.updatedAt || 0) + 1,
+    body:pages.map(p => p.body || '').join('\n\n')
+  });
+}
+
+// Base copies: the last version of each note that this device and the cloud agreed on (kept in the overflow store, never synced).
+const nmOpenBeat = {}, nmSent = {}, nmBaseLatest = {}, nmBaseTimer = {};
+function nmIsNoteKey(k){ return typeof k === 'string' && k.indexOf('chalkline:notes:') === 0; }
+function nmSaveBase(k, v){
+  if(!nmIsNoteKey(k) || typeof v !== 'string' || v.length > 12e6) return;
+  nmBaseLatest[k] = v;
+  if(nmBaseTimer[k]) return;
+  nmBaseTimer[k] = setTimeout(() => { nmBaseTimer[k] = 0; const x = nmBaseLatest[k]; delete nmBaseLatest[k]; if(x) clOv.set('nmbase:' + k, x); }, 1500);
+}
+async function nmGetBase(k){ return nmBaseLatest[k] || await clOv.get('nmbase:' + k); }
+async function nmShellMerge(key, localStr, cloudStr){   // note not open in the editor: merge here
+  try{
+    const baseStr = await nmGetBase(key); if(!baseStr) return null;
+    const merged = nmMergeNote(JSON.parse(baseStr), JSON.parse(localStr), JSON.parse(cloudStr));
+    return merged ? JSON.stringify(merged) : null;
+  }catch(e){ return null; }
+}
+async function nmDispatchMerge(full, value){   // note open in the editor: hand it both copies, it merges live without touching what is being typed
+  const h = fnv(value), s = nmSent[full];
+  if(s && s.h === h && Date.now() - s.at < 4000) return;
+  nmSent[full] = { h, at:Date.now() };
+  const base = await nmGetBase(full); if(!base) return;
+  try{ frames.notes.contentWindow.postMessage({ chalklineNoteMerge:true, key:full.slice(10), remote:value, base }, '*'); }catch(e){}
+}
 async function pullCloud(sub, authoritative){
   const { keys } = await workerStorage('list', { prefix: '' });
   const re = syncKeyRegex(sub), meta = loadSyncMeta(sub);
@@ -2002,7 +2153,7 @@ async function pullCloud(sub, authoritative){
     const h = fnv(value);
     if(authoritative){                                    // first load after sign-in/startup: the cloud copy replaces this device's
       if((await lsGet(key)) !== value){ await lsSet(key, value); changed = true; }
-      meta[key] = { h };
+      meta[key] = { h }; nmSaveBase(key, value);
       continue;
     }
     const m = meta[key];
@@ -2011,7 +2162,7 @@ async function pullCloud(sub, authoritative){
     if(local === null || local === value || (m && m.h === fnv(local))){
       // nothing unsynced here, so the cloud copy simply wins
       if(local !== value){ await lsSet(key, value); changed = true; }
-      meta[key] = { h };
+      meta[key] = { h }; nmSaveBase(key, value);
     } else if(isCoursesKey(key)){
       const merged = unionCourses(local, value);
       localStorage.setItem(key, merged); changed = true;
@@ -2020,6 +2171,14 @@ async function pullCloud(sub, authoritative){
       const merged = mergeProgress(key, local, value);
       if(merged !== local){ localStorage.setItem(key, merged); changed = true; }
       meta[key] = { h: h };                                // differs from cloud if merged !== cloud, so it is pushed next
+    } else if(nmIsNoteKey(key)){
+      // Both devices changed this note since they last agreed: merge page by page instead of letting one copy replace the other.
+      if(Date.now() - (nmOpenBeat[key] || 0) < 5000){ meta[key] = { h: m ? m.h : '' }; await nmDispatchMerge(key, value); }   // open in the editor: it merges live
+      else {
+        const merged = await nmShellMerge(key, local, value);
+        if(merged){ await lsSet(key, merged); changed = true; meta[key] = { h }; nmSaveBase(key, value); }   // differs from the cloud now, so the merged copy is pushed next
+        else meta[key] = { h: m ? m.h : '' };
+      }
     } else {
       meta[key] = { h: m ? m.h : '' };                     // keep this device's copy; push will overwrite the cloud
     }
@@ -2096,7 +2255,7 @@ async function pushLocal(sub){
         if(job.v.length < 30000 || typeof CompressionStream === 'undefined') throw err;
         await workerStorage('set', { key: job.k, value: await gzipToB64(job.v) });
       }
-      meta[job.k] = { h: fnv(job.v) };
+      meta[job.k] = { h: fnv(job.v) }; nmSaveBase(job.k, job.v);
       if(String(job.k).indexOf('chalkline:notes:') === 0) pushedNotes = true;
     } catch(e){
       if(e && e.message === 'session expired') throw e;    // stop the batch, don't mark as skip
@@ -2344,8 +2503,8 @@ async function pullOneKeyRun(shortKey){
         if(local === null || local === value || (m && m.h === fnv(local))){
           if(local !== value){ localStorage.setItem(full, value); changed = true; }
           meta[full] = { h };
-          saveSyncMeta(sub, meta);
-        }
+          saveSyncMeta(sub, meta); nmSaveBase(full, value);
+        } else { nmDispatchMerge(full, value); }   // edited here AND on another device: merge, never discard
       }
       if(changed) console.log('[live] pulled note (' + Math.round(sz / 1024) + ' KB) in ' + Math.round(performance.now() - t0) + ' ms');
     }
@@ -2376,7 +2535,7 @@ async function pushOneKey(shortKey){
         try{ const z = await gzipToB64(v); if(z.length < v.length * 0.9) payload = z; }catch(e){}
       }
       await workerStorage('set', { key: full, value: payload });
-      const meta = loadSyncMeta(sub); meta[full] = { h: fnv(v) }; saveSyncMeta(sub, meta);
+      const meta = loadSyncMeta(sub); meta[full] = { h: fnv(v) }; saveSyncMeta(sub, meta); nmSaveBase(full, v);
       sendNotesPing();
       console.log('[live] pushed note (' + Math.round(v.length / 1024) + ' KB' + (payload !== v ? ', sent ' + Math.round(payload.length / 1024) + ' KB' : '') + ') in ' + Math.round(performance.now() - t0) + ' ms');
     } while(st.again);
@@ -3426,6 +3585,7 @@ window.addEventListener('message', (e)=>{
   if(d.pushNote && typeof d.key === 'string'){ pushOneKey(d.key); }
   if(d.liveInk && typeof d.key === 'string'){ sendInk(d, 'ink'); }
   if(d.liveText && typeof d.key === 'string'){ sendInk(d, 'text'); }
+  if(d.noteOpenBeat && typeof d.key === 'string'){ nmOpenBeat['chalkline:' + d.key] = Date.now(); }
   if(d.liveNotesList){ pullNotesList().then(ch => { if(ch) broadcastAuthState(); }); }
   if(d.liveNote && typeof d.key === 'string'){
     const from = e.source;
@@ -16615,6 +16775,7 @@ window.addEventListener('message', (e)=>{
     return;
   }
   if(d.chalklineNoteRemote){ if(d.key === currentNoteKeyN) applyRemoteNoteN(); return; }
+  if(d.chalklineNoteMerge){ if(d.key === currentNoteKeyN) mergeRemoteN(d.remote, d.base, 0); return; }
   if(d.chalklineInk){ applyInkN(d); return; }
   if(d.chalklineText){ applyTextN(d); return; }
   if(d.chalklineLivePing){ const go = () => { if(currentNoteIdN) pollLiveN(); else pollListN(); }; go(); setTimeout(go, 120); setTimeout(go, 400); setTimeout(go, 1000); return; }   // re-check twice: the cloud copy can lag a moment behind the ping
@@ -17365,8 +17526,8 @@ function sendStrokesN(pg){
   });
 }
 // Adding / deleting a page is announced instantly (a tiny message) instead of waiting for the whole note to upload and re-download.
-function sendPageOpN(op, at, paper){
-  try{ if(currentNoteKeyN && shUserN) parent.postMessage({ liveInk:true, key:currentNoteKeyN, page:at, n:0, rec:{ op, tn:'pen', pts:[], np:pagesN.length, paper:paper || 'ruled' } }, '*'); }catch(e){}
+function sendPageOpN(op, at, paper, id){
+  try{ if(currentNoteKeyN && shUserN) parent.postMessage({ liveInk:true, key:currentNoteKeyN, page:at, n:0, rec:{ op, tn:'pen', pts:[], np:pagesN.length, paper:paper || 'ruled', id:id || '' } }, '*'); }catch(e){}
 }
 // Instant text: pages whose text changed are sent (after a very short pause so fast typing is batched).
 const textDirtyN = new Set(); let textSendTimerN = 0, lastTitleSentN = null, lastDeltaAtN = 0, deferApplyTimerN = 0;
@@ -17416,7 +17577,7 @@ function applyPageOpN(d){
     if(pagesN.length === rec.np) return;                                  // already have it
     if(pagesN.length !== rec.np - 1 || at < 1 || at > pagesN.length){ pollLiveN(); return; }   // out of step: fetch the whole note
     syncAllN();
-    const pg = { body:'', base:'', strokes:[], paper:rec.paper || 'ruled' }, v = createViewN(pg, false);
+    const pg = { id:rec.id || newPageIdN(), body:'', base:'', strokes:[], paper:rec.paper || 'ruled' }, v = createViewN(pg, false);
     const keep = curPageN;
     pagesN.splice(at, 0, pg); viewsN.splice(at, 0, v); viewsN[at - 1].sec.after(v.sec);
     autosizeViewN(v); renumberN();
@@ -18152,7 +18313,7 @@ document.addEventListener('keydown', (e)=>{
 document.getElementById('note-scroll').addEventListener('scroll', ()=>{ if(lassoN && lassoValidN()) lassoBarPosN(); }, { passive:true });
 
 /* ---- Pages: every page is stacked in one vertical scroll; each has its own text, ink layer and paper style ---- */
-let pagesN = [{ body:'', base:'', strokes:[], paper:'ruled' }];
+let pagesN = [{ id:'L0', body:'', base:'', strokes:[], paper:'ruled' }];
 let curPageN = 0;          // the page you last touched / are looking at: pen, undo, paper style act on it
 let viewsN = [];           // one view (DOM + ink canvas) per page, same order as pagesN
 let noteTitleN = '';
@@ -18381,7 +18542,7 @@ function autosizeViewN(v){
   let fill = Math.max(lh * 4, Math.floor((pageMinHN() - pad - titleH) / lh) * lh);
   let ib = 0; v.sec.querySelectorAll('.note-img').forEach(e => { ib = Math.max(ib, e.offsetTop + e.offsetHeight); });
   if(ib) fill = Math.max(fill, Math.ceil((ib - pad - titleH) / lh) * lh);   // the page grows to fit its photos / PDF page
-  if(!spillBusyN) spillOverflowN(v, fill);   // text that doesn't fit on this A4 sheet continues on the next one
+  if(!spillBusyN && spillUserN) spillOverflowN(v, fill);   // text that doesn't fit on this A4 sheet continues on the next one (only while YOU are editing)
   const need = Math.ceil(v.body.scrollHeight / lh) * lh;   // whole number of lines so the last ruled line lines up
   v.body.style.height = Math.max(need, fill) + 'px';
   v.sec.style.minHeight = '';
@@ -18391,6 +18552,12 @@ function autosizeViewN(v){
 /* A page is one A4 sheet: lines that no longer fit are moved to the top of the next page (a new page is added if
    this was the last one), and the caret follows them. */
 let spillBusyN = false;
+/* Lines are only ever moved between pages as a direct result of the person typing / pasting / joining pages. Re-layout caused
+   by anything else (rotating the device, a font or maths library finishing loading, a photo loading, a cloud update from another
+   device, opening a note) must NOT rewrite which page a line is on: that was getting saved and synced, and two devices that wrap
+   a line differently then kept moving text between pages, scrambling the note over time. */
+let spillUserN = false;
+function autosizeEditedN(v){ const was = spillUserN; spillUserN = true; try{ autosizeViewN(v); } finally { spillUserN = was; } }
 function spillOverflowN(v, fill){
   if(inputModeN !== 'type') return;
   const body = v.body;
@@ -18406,12 +18573,12 @@ function spillOverflowN(v, fill){
     if(sel && sel.rangeCount && sel.isCollapsed){ const a = sel.anchorNode; if(a && moved.some(n => n === a || n.contains(a))){ caretNode = a; caretOff = sel.anchorOffset; } }
     if(!viewsN[i + 1]){
       syncAllN();
-      const pg = { body:'', base:'', strokes:[], paper:(pagesN[i] && pagesN[i].paper) || paperN };
+      const pg = { id:newPageIdN(), body:'', base:'', strokes:[], paper:(pagesN[i] && pagesN[i].paper) || paperN };
       pagesN.splice(i + 1, 0, pg);
       const nv = createViewN(pg, false);
       viewsN.splice(i + 1, 0, nv);
       v.sec.after(nv.sec);
-      sendPageOpN('addpage', i + 1, pg.paper);
+      sendPageOpN('addpage', i + 1, pg.paper, pg.id);
       nv.body.innerHTML = '';
     }
     const next = viewsN[i + 1];
@@ -18494,7 +18661,7 @@ function joinPagesN(i){   // the first line of page i+1 joins the last line of p
   }
   try{ a.body.focus({ preventScroll:true }); }catch(e){}
   if(jn){ putCaretN(jn, Math.min(jo, jn.childNodes.length)); } else caretToEndN(a.body);
-  autosizeViewN(a);   // anything that no longer fits spills straight back onto the next page
+  autosizeEditedN(a);   // anything that no longer fits spills straight back onto the next page
   const bi = viewsN.indexOf(b); if(bi >= 0) autosizeViewN(b);
   if(bi >= 0 && pageIsBlankN(bi)) dropPageN(bi);
   try{ colonIndentN(a.body); }catch(e){}
@@ -18520,7 +18687,7 @@ function createViewN(pg, first){
     e.preventDefault();
     const t = (e.clipboardData || window.clipboardData).getData('text/plain');
     if(t) pasteWithToolbarFmtN(t);
-    if(t && /\$|\\[(\[]/.test(t)){ loadKatexN().catch(()=>{}); if(convertAllMathN(body)){ autosizeViewN(v); saveCurrentNoteN(); } }   // pasted $...$ becomes real maths
+    if(t && /\$|\\[(\[]/.test(t)){ loadKatexN().catch(()=>{}); if(convertAllMathN(body)){ autosizeEditedN(v); saveCurrentNoteN(); } }   // pasted $...$ becomes real maths
   });
   // Text dragged in from another app/window is inserted as rich HTML by the browser, bypassing the paste handler above.
   // Route it through the same plain-text + toolbar-format path. Dragging text around inside the note keeps native behaviour.
@@ -18562,7 +18729,7 @@ function createViewN(pg, first){
       if(/\$/.test(e.data)) loadKatexN().catch(()=>{});
       tryMathN(body);   // typing the closing $ turns $...$ into rendered maths
     }
-    fixSizesN(body); colonIndentN(body); autosizeViewN(v); saveCurrentNoteN();
+    fixSizesN(body); colonIndentN(body); autosizeEditedN(v); saveCurrentNoteN();
   });
   body.addEventListener('beforeinput', (e)=>{   // delete across a page boundary
     if(inputModeN !== 'type' || e.isComposing) return;
@@ -18631,13 +18798,13 @@ function addPageN(){
   if(!viewsN.length) return;
   try{ unlockScrollN(); window.stopCaretGlideN && window.stopCaretGlideN(); }catch(e){}
   syncAllN();
-  const at = curPageN + 1, pg = { body:'', base:'', strokes:[], paper:paperN };
+  const at = curPageN + 1, pg = { id:newPageIdN(), body:'', base:'', strokes:[], paper:paperN };
   pagesN.splice(at, 0, pg);
   const v = createViewN(pg, false);
   viewsN.splice(at, 0, v);
   viewsN[at - 1].sec.after(v.sec);
   autosizeViewN(v); renumberN(); setCurN(at);
-  sendPageOpN('addpage', at, pg.paper);
+  sendPageOpN('addpage', at, pg.paper, pg.id);
   scrollToPageN(at, true);
   if(inputModeN === 'type'){ try{ v.body.focus({ preventScroll:true }); }catch(e){} }
   saveCurrentNoteN();
@@ -19083,7 +19250,7 @@ function startNewNoteN(){
   loadedStampN = 0; noteDirtyN = false; noteLayoutWN = 0; fitStaleN = true;
   statusEl.className = 'saved'; statusEl.textContent = 'new';
   document.getElementById('note-delete-btn').style.display = 'none';
-  pagesN = [{ body:'', base:'', strokes:[], paper:loadPaperDefaultN() }]; curPageN = 0;
+  pagesN = [{ id:'L0', body:'', base:'', strokes:[], paper:loadPaperDefaultN() }]; curPageN = 0;
   showEditorN();
   mountPagesN();
   // A new note must open at the TOP. Stop any leftover caret glide, reset every scroller (the note area AND the
@@ -19114,7 +19281,7 @@ async function openNoteN(id, knownKey){
     statusEl.className = 'saved'; statusEl.textContent = 'saved';
     document.getElementById('note-delete-btn').style.display = '';
     pagesN = ((item.pages && item.pages.length) ? item.pages : [{ body:item.body, drawing:item.drawing, paper:item.paper }])
-      .map(q => ({ body:q.body || '', paper:q.paper || 'ruled', base:q.base || q.drawing || '', html:q.html || '', imgs:(q.imgs || []), strokes:(q.strokes || []).map(r => (r.pend = false, r)) }));   // older notes' ink becomes the fixed base layer
+      .map((q, qi) => ({ id:q.id || ('L' + qi), body:q.body || '', paper:q.paper || 'ruled', base:q.base || q.drawing || '', html:q.html || '', imgs:(q.imgs || []), strokes:(q.strokes || []).map(r => (r.pend = false, r)) }));   // older notes' ink becomes the fixed base layer
     curPageN = 0;
     showEditorN();
     mountPagesN();
@@ -19148,6 +19315,7 @@ function saveCurrentNoteN(inkOnly){
   const genSnap = ++editGenN; noteDirtyN = true;
   const oldSigN = inkOnly !== true ? pagesN.map(p => (p.html || '') + '\u0001' + (p.body || '')) : null;
   if(inkOnly !== true){
+    pagesN.forEach(p => { if(!p.id) p.id = newPageIdN(); });
     syncAllN();   // ink changes never touch the text, so skip re-reading every page's text
     pagesN.forEach((p, i) => { if(oldSigN[i] !== (p.html || '') + '\u0001' + (p.body || '')) textDirtyN.add(i); });
     queueTextSendN();
@@ -19222,9 +19390,184 @@ async function deleteCurrentNoteN(){
    text is updated without rebuilding the page (keeps focus, keyboard and scroll); a changed page count or
    ink layer rebuilds the pages but keeps your scroll spot and cursor. If both devices edit at the same
    moment, the last one to save wins, as with the rest of Chalkline sync. */
+/* ---- Three-way note merge (shared by the shell and the notes editor) ----
+   base = the last copy both sides agreed on, local = this device now, remote = the other device's copy.
+   Page by page: text is merged line by line, ink strokes and photos are merged as sets, so edits made on two
+   devices at the same time are BOTH kept instead of one copy replacing the other. */
+function nmBlocks(html){
+  if(!html) return [];
+  const t = document.createElement('template'); t.innerHTML = html;
+  const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  return Array.from(t.content.childNodes).map(n => n.nodeType === 1 ? n.outerHTML : esc(n.textContent || '')).filter(x => x !== '');
+}
+function nmPlain(html){
+  const t = document.createElement('template'); t.innerHTML = html || '';
+  return Array.from(t.content.childNodes).map(n => (n.textContent || '').replace(/\u200B/g, '')).join('\n');
+}
+function nmEq(a, b){ return a.length === b.length && a.every((v, i) => v === b[i]); }
+function nmDiff(B, X){   // the edits that turn B into X, as { bs, be, repl } (B[bs..be) is replaced by repl)
+  const n = B.length, m = X.length;
+  if(n * m > 3e6) return nmEq(B, X) ? [] : [{ bs:0, be:n, repl:X.slice() }];
+  const w = m + 1, T = new Uint16Array((n + 1) * w);
+  for(let i = n - 1; i >= 0; i--) for(let j = m - 1; j >= 0; j--) T[i * w + j] = B[i] === X[j] ? T[(i + 1) * w + j + 1] + 1 : Math.max(T[(i + 1) * w + j], T[i * w + j + 1]);
+  const hunks = []; let i = 0, j = 0, cur = null;
+  while(i < n || j < m){
+    if(i < n && j < m && B[i] === X[j]){ if(cur){ hunks.push(cur); cur = null; } i++; j++; }
+    else if(j < m && (i === n || T[i * w + j + 1] >= T[(i + 1) * w + j])){ if(!cur) cur = { bs:i, be:i, repl:[] }; cur.repl.push(X[j]); j++; }
+    else { if(!cur) cur = { bs:i, be:i, repl:[] }; cur.be = i + 1; i++; }
+  }
+  if(cur) hunks.push(cur);
+  return hunks;
+}
+function nmMergeLines(B, L, R){
+  if(nmEq(L, R)) return L.slice();
+  if(nmEq(L, B)) return R.slice();
+  if(nmEq(R, B)) return L.slice();
+  const hl = nmDiff(B, L), hr = nmDiff(B, R), out = [];
+  const region = (hs, s, e) => { const res = []; let p = s; hs.forEach(h => { res.push(...B.slice(p, h.bs), ...h.repl); p = h.be; }); res.push(...B.slice(p, e)); return res; };
+  let i = 0, a = 0, b = 0;
+  while(a < hl.length || b < hr.length){
+    const x = hl[a], y = hr[b];
+    if(x && y && x.bs < y.be && y.bs < x.be){   // both sides edited the same lines: resolve them as one group
+      let s = Math.min(x.bs, y.bs), e = Math.max(x.be, y.be), ga = a + 1, gb = b + 1, grow = true;
+      while(grow){ grow = false;
+        while(ga < hl.length && hl[ga].bs < e){ e = Math.max(e, hl[ga].be); ga++; grow = true; }
+        while(gb < hr.length && hr[gb].bs < e){ e = Math.max(e, hr[gb].be); gb++; grow = true; } }
+      out.push(...B.slice(i, s));
+      const ls = region(hl.slice(a, ga), s, e), rs = region(hr.slice(b, gb), s, e), bs = B.slice(s, e);
+      if(nmEq(ls, bs)) out.push(...rs); else if(nmEq(rs, bs) || nmEq(ls, rs)) out.push(...ls); else out.push(...ls, ...rs);   // a real clash keeps both versions
+      i = e; a = ga; b = gb;
+    } else if(x && (!y || x.bs <= y.bs)){ out.push(...B.slice(i, x.bs), ...x.repl); i = x.be; a++; }
+    else { out.push(...B.slice(i, y.bs), ...y.repl); i = y.be; b++; }
+  }
+  out.push(...B.slice(i));
+  return out;
+}
+function nmSig(r){ return JSON.stringify(r, (k, v) => k === 'pend' ? undefined : v); }
+function nmMergeSet(B, L, R){   // ink strokes: each side's additions and deletions are both applied
+  const sb = B.map(nmSig), sl = L.map(nmSig), sr = R.map(nmSig);
+  if(nmEq(sl, sr)) return L; if(nmEq(sl, sb)) return R; if(nmEq(sr, sb)) return L;
+  const kb = new Set(sb), kl = new Set(sl), kr = new Set(sr), out = [];
+  B.forEach((r, i) => { if(kl.has(sb[i]) && kr.has(sb[i])) out.push(r); });
+  L.forEach((r, i) => { if(!kb.has(sl[i])) out.push(r); });
+  R.forEach((r, i) => { if(!kb.has(sr[i]) && !kl.has(sr[i])) out.push(r); });
+  return out;
+}
+function nmMergeKeyed(B, L, R, idf){   // photos: matched by id
+  const js = JSON.stringify, mb = new Map(B.map(x => [idf(x), x])), ml = new Map(L.map(x => [idf(x), x])), mr = new Map(R.map(x => [idf(x), x]));
+  const ids = []; [B, L, R].forEach(arr => arr.forEach(x => { if(ids.indexOf(idf(x)) < 0) ids.push(idf(x)); }));
+  const out = [];
+  ids.forEach(id => {
+    const b = mb.get(id), l = ml.get(id), r = mr.get(id);
+    if(l && r) out.push(b && js(l) === js(b) ? r : l);
+    else if(l && !r){ if(!b || js(l) !== js(b)) out.push(l); }
+    else if(!l && r){ if(!b) out.push(r); }
+  });
+  return out;
+}
+function nmScalar(b, l, r){ return JSON.stringify(l) === JSON.stringify(b) ? r : l; }
+function nmMergeText(B, L, R){
+  const bh = B.html || '', lh = L.html || '', rh = R.html || '';
+  if(lh === rh && (L.body || '') === (R.body || '')) return { html:lh, body:L.body || '' };
+  if(lh === bh && (L.body || '') === (B.body || '')) return { html:rh, body:R.body || '' };
+  if(rh === bh && (R.body || '') === (B.body || '')) return { html:lh, body:L.body || '' };
+  if(bh || lh || rh){
+    const html = nmMergeLines(nmBlocks(bh), nmBlocks(lh), nmBlocks(rh)).join('');
+    return { html, body:nmPlain(html) };
+  }
+  return { html:'', body:nmMergeLines((B.body || '').split('\n'), (L.body || '').split('\n'), (R.body || '').split('\n')).join('\n') };
+}
+function nmMergePage(B, L, R){
+  const t = nmMergeText(B, L, R);
+  return Object.assign({}, L, {
+    html:t.html, body:t.body,
+    strokes:nmMergeSet(B.strokes || [], L.strokes || [], R.strokes || []),
+    imgs:nmMergeKeyed(B.imgs || [], L.imgs || [], R.imgs || [], x => x.id),
+    paper:nmScalar(B.paper, L.paper, R.paper), base:nmScalar(B.base || '', L.base || '', R.base || '')
+  });
+}
+function nmPageCore(p){ return JSON.stringify([p.html || '', p.body || '', p.paper || '', p.base || '', (p.strokes || []).map(nmSig), p.imgs || []]); }
+function nmMergeNote(base, local, remote){   // parsed notes in, merged note out (null when the pages can't be matched up)
+  const bp = base.pages || [], lp = local.pages || [], rp = remote.pages || [];
+  const ids = a => a.length > 0 && a.every(p => p && p.id);
+  let pages;
+  if(ids(bp) && ids(lp) && ids(rp)){
+    const mb = new Map(bp.map(p => [p.id, p])), ml = new Map(lp.map(p => [p.id, p])), mr = new Map(rp.map(p => [p.id, p]));
+    pages = [];
+    lp.forEach(p => {
+      const b = mb.get(p.id), r = mr.get(p.id);
+      if(r) pages.push(nmMergePage(b || {}, p, r));
+      else if(b){ if(nmPageCore(p) !== nmPageCore(b)) pages.push(p); }   // the other device deleted it: gone, unless you edited it here
+      else pages.push(p);
+    });
+    rp.forEach((r, ri) => {
+      if(ml.has(r.id) || mb.has(r.id)) return;   // already merged, or deleted here
+      let pos = 0;
+      for(let k = ri - 1; k >= 0; k--){ const j = pages.findIndex(q => q.id === rp[k].id); if(j >= 0){ pos = j + 1; break; } }
+      pages.splice(pos, 0, r);
+    });
+  } else if(bp.length === lp.length && lp.length === rp.length){
+    pages = lp.map((p, i) => nmMergePage(bp[i], p, rp[i]));
+  } else return null;
+  if(!pages.length) return null;
+  return Object.assign({}, local, {
+    pages, title:nmScalar(base.title || '', local.title || '', remote.title || ''),
+    updatedAt:Math.max(local.updatedAt || 0, remote.updatedAt || 0) + 1,
+    body:pages.map(p => p.body || '').join('\n\n')
+  });
+}
+
+function newPageIdN(){ return 'p' + Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4); }
+function nmCoreSigN(pages){ return pages.map(nmPageCore).join('\u0002'); }
+/* The other device changed this note while it was also changed here. The shell hands over both copies and the last version
+   they agreed on; they are merged page by page and the result is swapped in without disturbing what is being typed. */
+let lastMergedRemoteN = '';
+function mergeRemoteN(remoteStr, baseStr, tries){
+  if(!currentNoteIdN || !shUserN || typeof remoteStr !== 'string' || typeof baseStr !== 'string') return;
+  if(remoteStr === lastMergedRemoteN) return;
+  if(drawingActiveN || spillBusyN){ if((tries = (tries || 0) + 1) < 60) setTimeout(() => mergeRemoteN(remoteStr, baseStr, tries), 150); return; }
+  let remote, base; try{ remote = JSON.parse(remoteStr); base = JSON.parse(baseStr); }catch(e){ return; }
+  if(!remote || remote.id !== currentNoteIdN) return;
+  syncAllN(); noteTitleN = titleEl ? titleEl.value : noteTitleN;
+  const local = { id:currentNoteIdN, title:noteTitleN, pages:pagesN, updatedAt:loadedStampN || 0 };
+  let merged = null; try{ merged = nmMergeNote(base, local, remote); }catch(e){ console.warn('note merge failed', e); }
+  lastMergedRemoteN = remoteStr;
+  if(!merged) return;
+  if(nmCoreSigN(merged.pages) === nmCoreSigN(pagesN) && (merged.title || '') === (noteTitleN || '')) return;   // the other device has nothing new for us
+  applyItemN(merged);
+  saveCurrentNoteN();
+}
+function applyItemN(item){   // swap a note's pages in place (used for merged copies)
+  const newPages = pagesFromItemN(item);
+  const scrollTop = scrollElN.scrollTop, cur = curPageN, caret = captureCaretN();
+  const shellSame = newPages.length === pagesN.length && newPages.every((q, i) =>
+    q.base === pagesN[i].base && q.paper === pagesN[i].paper && imgsSigN(q.imgs) === imgsSigN(pagesN[i].imgs));
+  if(shellSame && viewsN.length === newPages.length){
+    newPages.forEach((q, i) => {
+      pagesN[i].id = q.id || pagesN[i].id;
+      if(JSON.stringify(q.strokes) !== JSON.stringify(pagesN[i].strokes || [])){
+        histN.delete(pagesN[i]);
+        pagesN[i].strokes = q.strokes; renderAtN(i);
+        if(i === curPageN) updateHistBtnsN();
+      }
+      if((q.html || '') !== (pagesN[i].html || '') || (q.body || '') !== (pagesN[i].body || '')){
+        viewsN[i].body.innerHTML = q.html ? cleanHtmlN(q.html) : textToHtmlN(q.body || ''); renderMathN(viewsN[i].body);
+        pagesN[i].body = q.body; pagesN[i].html = q.html;
+      }
+    });
+    noteTitleN = item.title || '';
+    if(titleEl && titleEl.value !== noteTitleN && document.activeElement !== titleEl) titleEl.value = noteTitleN;
+    colonIndentAllN(); autosizeAllN();
+  } else {
+    pagesN = newPages; noteTitleN = item.title || '';
+    mountPagesN({ cur }); scrollElN.scrollTop = scrollTop;
+  }
+  restoreCaretN(caret);
+}
+setInterval(() => { try{ if(currentNoteKeyN && shUserN) parent.postMessage({ noteOpenBeat:true, key:currentNoteKeyN }, '*'); }catch(e){} }, 2000);   // tells the shell which note is open here
 function pagesFromItemN(item){
   return ((item.pages && item.pages.length) ? item.pages : [{ body:item.body, drawing:item.drawing, paper:item.paper }])
-    .map(q => ({ body:q.body || '', paper:q.paper || 'ruled', base:q.base || q.drawing || '', html:q.html || '', imgs:(q.imgs || []), strokes:(q.strokes || []).map(r => (r.pend = false, r)) }));
+    .map((q, qi) => ({ id:q.id || ('L' + qi), body:q.body || '', paper:q.paper || 'ruled', base:q.base || q.drawing || '', html:q.html || '', imgs:(q.imgs || []), strokes:(q.strokes || []).map(r => (r.pend = false, r)) }));
 }
 function captureCaretN(){
   try{
@@ -19566,7 +19909,7 @@ async function importPdfN(file){
     const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
     const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height);
     await page.render({ canvasContext:x, viewport:vp }).promise;
-    made.push({ body:'', base:'', strokes:[], paper:'blank', imgs:[{ id:newImgIdN(), src:c.toDataURL('image/jpeg', 0.7), fx:0, y:0, fw:1, ar:c.height / c.width }] });
+    made.push({ id:newPageIdN(), body:'', base:'', strokes:[], paper:'blank', imgs:[{ id:newImgIdN(), src:c.toDataURL('image/jpeg', 0.7), fx:0, y:0, fw:1, ar:c.height / c.width }] });
     try{ page.cleanup(); }catch(err){}
     c.width = c.height = 1;
   }
