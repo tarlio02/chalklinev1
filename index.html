@@ -1728,7 +1728,7 @@ setTimeout(() => { if(shellUser && workerSessionAlive(readWorkerSession())) sync
 const WORKER_URL = "https://api.takundamambudzi02.workers.dev";
 const SESSION_STORAGE_KEY = 'chalkline_session';   // { token, plan, sub } - the AI pages read this too
 const SYNC_META_PREFIX = 'chalkline_sync_meta:';
-let syncTimer = null, syncBusy = false, syncAgain = false;
+let syncTimer = null, syncBusy = false, syncAgain = false, syncBusySince = 0;
 let cloudLoadedFor = null;   // account whose cloud content has been loaded into this device this session
 
 // Supabase is how the worker actually verifies who's asking (see
@@ -1806,7 +1806,7 @@ async function workerStorage(action, params){
   // Timeout: without one, a stalled request never settles, so syncBusy / liveBusy / pnState.busy stay true
   // forever and every later sync is silently skipped ("live sync stuck") until the page is reloaded.
   const ctrl = new AbortController();
-  const killer = setTimeout(() => ctrl.abort(), action === 'set' ? 45000 : 25000);
+  const killer = setTimeout(() => ctrl.abort(), action === 'set' ? 90000 : action === 'list' ? 30000 : 60000);
   let r;
   try{
     r = await fetch(WORKER_URL + '/storage/' + action, {
@@ -2157,7 +2157,11 @@ async function pullCloud(sub, authoritative){
   const prefetchedN = await parallelMapN(Array.from(cloudKeys), 5, key => workerStorage('get', { key }));
   for(const key of cloudKeys){
     let got = prefetchedN.get(key);
-    if(got && got.__err){ if(got.__err.message === 'session expired') throw got.__err; got = await workerStorage('get', { key }); }   // a failed parallel fetch gets one normal retry
+    if(got && got.__err){
+      if(got.__err.message === 'session expired') throw got.__err;
+      try{ got = await workerStorage('get', { key }); }
+      catch(err){ if(err && err.message === 'session expired') throw err; console.warn('Skipping note that failed to download (will retry next sync):', key, (err && err.message) || err); continue; }
+    }   // a failed parallel fetch gets one normal retry
     if(!got || got.value == null) continue;
     let value = got.value;
     if(typeof value === 'string' && value.indexOf(GZ_PREFIX) === 0){
@@ -2293,8 +2297,9 @@ async function syncNow(pullFirst){
     setSyncStatus('not connected (no cloud session — try signing out and in again)', true);
     return;
   }
+  if(syncBusy && Date.now() - syncBusySince > 120000){ console.warn('Sync was stuck for 2+ min; resetting.'); syncBusy = false; }
   if(syncBusy){ syncAgain = true; return; }
-  syncBusy = true;
+  syncBusy = true; syncBusySince = Date.now();
   const sub = shellUser.sub;
   try{
     // Never push before the cloud copy has been loaded once, or stale local data could overwrite it.
@@ -2364,11 +2369,13 @@ async function applyCloudKeyN(sub, key, meta){
 }
 let nlLastAt = 0, nlCursor = 0;
 async function pullNotesList(){
-  if(!shellUser || !shellUser.sub || cloudLoadedFor !== shellUser.sub || syncBusy) return false;
+  if(!shellUser || !shellUser.sub || cloudLoadedFor !== shellUser.sub) return false;
+  if(syncBusy && Date.now() - syncBusySince > 120000){ console.warn('Sync was stuck for 2+ min; resetting.'); syncBusy = false; }
+  if(syncBusy) return false;
   if(document.visibilityState !== 'visible' || Date.now() - nlLastAt < 4000) return false;
   const sub = shellUser.sub, s = readWorkerSession();
   if(!s || !s.token || (s.sub && s.sub !== sub)) return false;
-  nlLastAt = Date.now(); syncBusy = true;
+  nlLastAt = Date.now(); syncBusy = true; syncBusySince = Date.now();
   let changed = false;
   try{
     const { keys } = await workerStorage('list', { prefix: '' });
@@ -2489,6 +2496,7 @@ let liveLastAt = 0, liveGap = 0;   // big notes (lots of ink) are checked less o
 // Fast lane for the open note. Uploading and downloading one note no longer waits on (or hashes) every other
 // note, and it does not queue behind the background sync. Timings are printed in the console as "[live] ...".
 let liveBusy = false;
+window.chalkDebug = () => ({ signedIn: !!(shellUser && shellUser.sub), cloudLoaded: !!shellUser && cloudLoadedFor === shellUser.sub, syncBusy, syncBusySince: syncBusySince && Math.round((Date.now() - syncBusySince)/1000) + 's ago', liveBusy, realtimeOk: !!rtOkAt, pendingUploads: Object.keys(pnState).filter(k => pnState[k].busy) });
 let liveBusyP = null, liveQueued = false;
 function pullOneKey(shortKey){
   if(liveBusy && liveBusyP){   // a newer change arrived mid-download: check again the moment this one lands instead of dropping it
@@ -2499,6 +2507,7 @@ function pullOneKey(shortKey){
   const p = pullOneKeyRun(shortKey); liveBusyP = p.catch(() => {}); return p;
 }
 async function pullOneKeyRun(shortKey){
+  if(liveBusy && Date.now() - liveLastAt > 120000){ console.warn('Live pull was stuck; resetting.'); liveBusy = false; }
   if(!shellUser || !shellUser.sub || cloudLoadedFor !== shellUser.sub || liveBusy) return false;
   if(document.visibilityState !== 'visible') return false;
   if(Date.now() - liveLastAt < liveGap) return false;
@@ -17348,6 +17357,12 @@ function snapShapeN(){
 }
 /* ---- Undo / redo: each page keeps snapshots of its stroke list ---- */
 const histN = new WeakMap();
+// Compare stroke lists ignoring the transient 'pend' flag, so a sync round-trip that changes nothing real never wipes undo history.
+function strokeSigN(list){ try{ return JSON.stringify(list || [], (k, v) => k === 'pend' ? undefined : v); }catch(e){ return String(Math.random()); } }
+// When pages are rebuilt from a synced copy, carry undo/redo over for every page whose ink did not actually change.
+function carryHistN(oldPages, newPages){
+  try{ newPages.forEach((q, i) => { const o = oldPages[i]; if(o && q && o !== q && (o.id || '') === (q.id || '') && strokeSigN(o.strokes) === strokeSigN(q.strokes)){ const h = histN.get(o); if(h) histN.set(q, h); } }); }catch(e){}
+}
 let objSnapDoneN = false;
 function histOfN(pg){ let h = histN.get(pg); if(!h){ h = { u:[], r:[] }; histN.set(pg, h); } return h; }
 function snapOfN(pg){ return { strokes:(pg.strokes || []).slice(), base:pg.base }; }
@@ -17625,7 +17640,7 @@ function applyInkN(d){
   if(rec.op === 'set'){   // the other device erased / undid / cleared: take its stroke list for this page
     if(!Array.isArray(rec.strokes)) return;
     if(drawingActiveN){ if((d.tries = (d.tries || 0) + 1) < 40) setTimeout(() => applyInkN(d), 120); return; }
-    lastDeltaAtN = Date.now(); histN.delete(pg);
+    lastDeltaAtN = Date.now(); console.log('[undo] history cleared by live stroke-list from other device'); histN.delete(pg);
     pg.strokes = rec.strokes.map(r => (r.pend = false, r));
     if(rec.nobase && pg.base) pg.base = '';   // Clear removed the flattened ink layer too
     renderAtN(d.page); if(d.page === curPageN) updateHistBtnsN();
@@ -17638,7 +17653,7 @@ function applyInkN(d){
   rec.pend = false; lastDeltaAtN = Date.now();
   const before = snapshotForDiffN();
   (pg.strokes = pg.strokes || []).push(rec);
-  histN.delete(pg);   // old undo steps would resurrect / remove strokes the other device just changed
+  console.log('[undo] history cleared by live stroke from other device'); histN.delete(pg);   // old undo steps would resurrect / remove strokes the other device just changed
   if(v.live){
     const prev = curPageN, T = TOOLS[rec.tn];
     useViewN(d.page);
@@ -19566,7 +19581,8 @@ function applyItemN(item){   // swap a note's pages in place (used for merged co
   if(shellSame && viewsN.length === newPages.length){
     newPages.forEach((q, i) => {
       pagesN[i].id = q.id || pagesN[i].id;
-      if(JSON.stringify(q.strokes) !== JSON.stringify(pagesN[i].strokes || [])){
+      if(strokeSigN(q.strokes) !== strokeSigN(pagesN[i].strokes)){
+        console.log('[undo] history cleared by merged copy, page', i);
         histN.delete(pagesN[i]);
         pagesN[i].strokes = q.strokes; renderAtN(i);
         if(i === curPageN) updateHistBtnsN();
@@ -19580,8 +19596,8 @@ function applyItemN(item){   // swap a note's pages in place (used for merged co
     if(titleEl && titleEl.value !== noteTitleN && document.activeElement !== titleEl) titleEl.value = noteTitleN;
     colonIndentAllN(); autosizeAllN();
   } else {
-    pagesN = newPages; noteTitleN = item.title || '';
-    mountPagesN({ cur }); scrollElN.scrollTop = scrollTop;
+    carryHistN(pagesN, newPages); pagesN = newPages; noteTitleN = item.title || '';
+    mountPagesN({ cur }); scrollElN.scrollTop = scrollTop; updateHistBtnsN();
   }
   restoreCaretN(caret);
 }
@@ -19706,7 +19722,8 @@ async function applyRemoteNoteN(){
       q.base === pagesN[i].base && q.paper === pagesN[i].paper && imgsSigN(q.imgs) === imgsSigN(pagesN[i].imgs));
     if(shellSame && viewsN.length === newPages.length){
       newPages.forEach((q, i) => {
-        if(JSON.stringify(q.strokes) !== JSON.stringify(pagesN[i].strokes || [])){
+        if(strokeSigN(q.strokes) !== strokeSigN(pagesN[i].strokes)){
+          console.log('[undo] history cleared by remote copy, page', i);
           histN.delete(pagesN[i]);   // old undo steps would resurrect strokes the other device just changed
           pagesN[i].strokes = q.strokes;
           renderAtN(i);
@@ -19721,9 +19738,9 @@ async function applyRemoteNoteN(){
       if(titleEl && titleEl.value !== noteTitleN) titleEl.value = noteTitleN;
       colonIndentAllN(); autosizeAllN();
     } else {
-      pagesN = newPages; noteTitleN = item.title || '';
+      carryHistN(pagesN, newPages); pagesN = newPages; noteTitleN = item.title || '';
       mountPagesN({ cur });
-      scrollElN.scrollTop = scrollTop;
+      scrollElN.scrollTop = scrollTop; updateHistBtnsN();
       rebuilt = true;
     }
     restoreCaretN(caret);
