@@ -2163,6 +2163,7 @@ async function pullCloud(sub, authoritative){
       catch(err){ if(err && err.message === 'session expired') throw err; console.warn('Skipping note that failed to download (will retry next sync):', key, (err && err.message) || err); continue; }
     }   // a failed parallel fetch gets one normal retry
     if(!got || got.value == null) continue;
+    if(!authoritative && liveUploadBusy(key)) continue;   // mid-upload: this device's base/meta are stale until it lands, and merging now resurrects things you just erased
     let value = got.value;
     if(typeof value === 'string' && value.indexOf(GZ_PREFIX) === 0){
       try{ value = await gunzipFromB64(value); }
@@ -2352,8 +2353,9 @@ setInterval(pullSoon, 120000);
 // one cheap "list" call, then only new notes (and a few existing ones, rotating) are downloaded, and notes
 // deleted on another device disappear. Same rule as the full sync: a copy with unsynced changes here is never overwritten.
 async function applyCloudKeyN(sub, key, meta){
+  if(liveUploadBusy(key)) return false;
   const got = await workerStorage('get', { key });
-  if(!got || got.value == null) return false;
+  if(!got || got.value == null || liveUploadBusy(key)) return false;
   let value = got.value;
   if(typeof value === 'string' && value.indexOf(GZ_PREFIX) === 0) value = await gunzipFromB64(value);
   const h = fnv(value), m = meta[key];
@@ -2513,6 +2515,7 @@ async function pullOneKeyRun(shortKey){
   if(Date.now() - liveLastAt < liveGap) return false;
   const sub = shellUser.sub, full = 'chalkline:' + String(shortKey);
   if(full.indexOf('chalkline:notes:' + sub + ':') !== 0 || !syncKeyRegex(sub).test(full)) return false;
+  if(liveUploadBusy(full)) return false;
   const s = readWorkerSession();
   if(!s || !s.token || (s.sub && s.sub !== sub)) return false;
   liveLastAt = Date.now(); liveBusy = true;
@@ -2528,7 +2531,7 @@ async function pullOneKeyRun(shortKey){
       const leanSz = sz - photoBytes;   // photos don't change while you write, so they shouldn't slow the text/ink refresh
       liveGap = Math.max(leanSz > 400000 ? 900 : leanSz > 100000 ? 300 : 0, photoBytes > 300000 ? 1200 : 0);   // a ping from the other device skips this gap
       const h = fnv(value), meta = loadSyncMeta(sub), m = meta[full];   // no await between this read and the save below
-      if(!(m && m.h === h)){
+      if(!(m && m.h === h) && !liveUploadBusy(full)){
         const local = localStorage.getItem(full);
         if(local === null || local === value || (m && m.h === fnv(local))){
           if(local !== value){ localStorage.setItem(full, value); changed = true; }
